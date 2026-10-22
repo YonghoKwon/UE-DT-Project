@@ -4,6 +4,14 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## HATCH-07 / COIL-02 — 현장 보기·카메라·배치 개선
+
+사용자2026-10-22 승인(기준338aa88, 시작9f7b6cf). HATCH는 사진의 하부 횡격자, 독립 운전실 장착, OS1-64 Rev7×3/20Hz·정확한 TF ID, 기본 꺼짐 RViz 표시/회색 배경·자유 이동과 호퍼 위 클릭 대기를 구현한다. [부재·공식 사양 근거](research/HATCH-07-basis.md)의 90m/10Hz 검출 조건과 20Hz 모드 지원을 구분한다. COIL은 최대5단/6단 거절, 지지 관계를 지키는 선택 제거/Undo, 양방향 다음 열·길이 끝 거절, 전체 홀드 실비율·150% UI와 Slab 도구 혼입 차단을 구현한다. 이전 ‘무고정 단수’ 설명은 이 사용자 결정으로 대체한다.
+
+진행/통합 gate·직접 UI·최종 제한은 [result.json](../Saved/Reports/HATCH07-COIL02/result.json)과 [검증 이력](VALIDATION_HISTORY.md#2026-10-23-hatch-07--coil-02)을 따른다. release 실패0, RT on 표준 ABAB2%(기준338aa88), layer0→0을 요구한다. 기존 수치 기준은 완화하지 않으며 PCD 송신 예산은 후속#28이다. DTCore 변경 후보는 추가하지 않는다.
+
+검수 추가: 측면/해치 하향/상부 사선 근접 프리셋, 기본 Grab/Trolley TF·상자, 순수 센서 RGB와 원료 보라 높이 옵션을 반영한다. 코일의 Slab 진행·재생·차트 생성뿐 아니라 공통 시나리오 메뉴·사행 상태 카드·상태 칩도 숨기며 숨긴 Slab 조회/문자열 조립을 멈춘다. [비교 캡처](../Saved/Reports/HATCH07-COIL02/progress/hatch-rviz-compare.png)는 현장 실측 TF 정합이나 실제 스캔 복원 증거가 아니다.
+
 
 ## COIL-01d — 주 다리·수평 강관·저각 비교
 

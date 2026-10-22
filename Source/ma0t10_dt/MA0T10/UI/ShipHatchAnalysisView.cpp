@@ -107,7 +107,7 @@ public:
             auto Text=[&](double X,double Y,const FString& Value){FSlateDrawElement::MakeText(Out,Layer+1,G.ToPaintGeometry(FVector2D(Width,24*Scale),FSlateLayoutTransform(FVector2D(X,Y))),Value,Style::Font(Style::LabelSize,Scale),ESlateDrawEffect::None,Style::Text());};
             if(M->IsSensorColoring())
             {
-                const TCHAR* Names[]={TEXT("붐 끝"),TEXT("운전실 좌"),TEXT("운전실 우")};const FLinearColor Colors[]={FLinearColor(.1,.9,1),FLinearColor(1,.6,.06),FLinearColor(.9,.2,.8)};
+                const TCHAR* Names[]={TEXT("os_lidar_boom"),TEXT("os_lidar_cabin_01"),TEXT("os_lidar_cabin_02")};const FLinearColor Colors[]={FLinearColor(.1,.9,1),FLinearColor(1,.6,.06),FLinearColor(.9,.2,.8)};
                 for(int32 I=0;I<3;++I){const double X=(I%2)*Width*.5,Y=(I/2)*24*Scale;Box(X,Y+4*Scale,10*Scale,10*Scale,Colors[I]);Text(X+18*Scale,Y,Names[I]);}
             }
             else if(M->GetColor()==1)

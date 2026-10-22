@@ -365,7 +365,7 @@ bool PlanFromJson(const FString& Text,FSettings& OutS,TArray<FPlacement>& OutP,F
         READ_COIL_BOOL("dunnage",P.bDunnage) READ_COIL_BOOL("chocks",P.bChocks) READ_COIL_BOOL("lashing",P.bLashing) READ_COIL_BOOL("eye_fore_aft",P.bEyeForeAft)
 #undef READ_COIL_BOOL
 #define CHECK_COIL(Condition,Field) if(!(Condition)){E=Prefix+TEXT(Field) TEXT(": 범위/중복 오류");return false;}
-        CHECK_COIL(!P.Center.ContainsNaN(),"x/y/z") CHECK_COIL(P.Tier>=1,"tier") CHECK_COIL(P.Row>=1,"row") CHECK_COIL(P.Column>=1,"column")
+        CHECK_COIL(!P.Center.ContainsNaN(),"x/y/z") CHECK_COIL(P.Tier>=1&&P.Tier<=MaximumTier,"tier (maximum 5)") CHECK_COIL(P.Row>=1,"row") CHECK_COIL(P.Column>=1,"column")
         CHECK_COIL(P.SupportA>=-1&&P.SupportA<Items->Num(),"support_a") CHECK_COIL(P.SupportB>=-1&&P.SupportB<Items->Num(),"support_b")
         CHECK_COIL(Nonnegative(P.ChockCapacityKN),"chock_kn") CHECK_COIL(Nonnegative(P.LashingCapacityKN),"lashing_kn") CHECK_COIL(Nonnegative(P.DiametralStiffnessKNPerM),"k_diam") CHECK_COIL(Nonnegative(P.OvalityLimit),"ovality_limit") CHECK_COIL(Nonnegative(P.RollingResistanceM),"rolling_resistance_m")
         CHECK_COIL(!Ids.Contains(P.Spec.CoilId.ToLower()),"coil_id")

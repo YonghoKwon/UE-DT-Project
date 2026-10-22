@@ -53,6 +53,9 @@ public:
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorWorkspace") UVirtualSensorPanelWidgetBase* GetOwnedPanel(ESensorToolPanelRole Role) const;
 	/** Prepare the existing replay owner without opening its window or changing output options. */
 	bool EnsureOwnedReplayPanel();
+	/** Map-local capability, never persisted in the user's Workspace save. */
+	void SetSlabToolsEnabled(bool Enabled) { bSlabToolsEnabled=Enabled; }
+	bool AreSlabToolsEnabled() const { return bSlabToolsEnabled; }
 	bool OpenMapCheck();
 	bool OpenTestSet();
 	UAgentTestSetWidget* GetTestSetWidget() const {return TestSetWidget;}
@@ -105,6 +108,7 @@ private:
 	TSharedPtr<class IInputProcessor> OwnedPointerRouter;
 	float MeasureOwnedPixelScale() const;
 	bool bSidebarMode=true,bSidebarExpanded=true;
+	bool bSlabToolsEnabled=true;
 	bool bSidebarWide=false,bNavigatingBack=false;
 	bool bDockedCardCustom=false;FVector2D DockedCardPosition=FVector2D::ZeroVector,DockedCardSize=FVector2D::ZeroVector;
 	void ClampDockedCard(FVector2D& Position,FVector2D& Size) const;

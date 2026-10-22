@@ -38,9 +38,11 @@ FProjection Build(const CoilLoading::FSettings& S,const TArray<CoilLoading::FPla
     {return Section?FVector2D(P.bEyeForeAft?P.Spec.OuterDiameter()*.5:P.Spec.OverallWidth()*.5,P.Spec.OuterDiameter()*.5):FVector2D(P.bEyeForeAft?P.Spec.OverallWidth()*.5:P.Spec.OuterDiameter()*.5,P.bEyeForeAft?P.Spec.OuterDiameter()*.5:P.Spec.OverallWidth()*.5);};
     const auto Center=[&](const CoilLoading::FPlacement& P){return Section?FVector2D(P.Center.Y,P.Center.Z):FVector2D(P.Center.X,P.Center.Y);};
     TArray<int32> Order;for(int32 I=0;I<=Plan.Num();++I){const auto& P=I==Plan.Num()?Next:Plan[I];if(Section&&P.Row!=Row)continue;Order.Add(I);const auto C=Center(P),H=Extent(P);R.Min.X=FMath::Min(R.Min.X,C.X-H.X);R.Min.Y=FMath::Min(R.Min.Y,C.Y-H.Y);R.Max.X=FMath::Max(R.Max.X,C.X+H.X);R.Max.Y=FMath::Max(R.Max.Y,C.Y+H.Y);}
-    if(Order.IsEmpty()){R.Min={-S.HoldWidth*.5,0};R.Max={S.HoldWidth*.5,S.HoldHeight};}
-    else {R.Min-=FVector2D(.7,.7);R.Max+=FVector2D(.7,.7);if(Section)R.Min.Y=0;}
-    const auto Span=R.Max-R.Min;const FVector2D Available(FMath::Max(1.,Size.X-60),FMath::Max(1.,Size.Y-164));R.Scale=FMath::Min(Available.X/Span.X,Available.Y/Span.Y);R.Origin={30+(Available.X-Span.X*R.Scale)*.5,70+(Available.Y-Span.Y*R.Scale)*.5};
+    // Every view uses the same SI hold envelope, including an empty hold.
+    // A single coil must never be magnified to look like it fills the hold.
+    R.Min=Section?FVector2D(-S.HoldWidth*.5-.5,-.2):FVector2D(-S.HoldLength*.5-.5,-S.HoldWidth*.5-.5);
+    R.Max=Section?FVector2D(S.HoldWidth*.5+.5,S.HoldHeight+S.Coaming+.5):FVector2D(S.HoldLength*.5+.5,S.HoldWidth*.5+.5);
+    const auto Span=R.Max-R.Min;const FVector2D Available(FMath::Max(1.,Size.X-60),FMath::Max(1.,Size.Y-230));R.Scale=FMath::Min(Available.X/Span.X,Available.Y/Span.Y);R.Origin={30+(Available.X-Span.X*R.Scale)*.5,70+(Available.Y-Span.Y*R.Scale)*.5};
     Order.StableSort([&](int32 A,int32 B){return (A==Plan.Num()?Next.Tier:Plan[A].Tier)<(B==Plan.Num()?Next.Tier:Plan[B].Tier);});
     for(int32 I:Order)
     {

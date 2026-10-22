@@ -117,6 +117,15 @@ public:
             Row->SetNumberField(TEXT("acquisition_ms"),Status.LastAcquisitionDurationMs);Rows.Add(MakeShared<FJsonValueObject>(Row));
             if(!Operating)Test->TestEqual(TEXT("active acquisition uses hardware collision tracing"),Scan->GetActiveAcquisitionBackend(),EVirtualLidarAcquisitionBackend::HardwareRayTracing);
             if(!Operating)Test->TestTrue(FString::Printf(TEXT("sensor %d completed acquisition >=10Hz"),I),Hz>=10);
+            if(!Operating&&!OS1&&Scan->DeviceProfile==EVirtualLidarDeviceProfile::OusterOS1_64_Rev7)
+            {
+                // The 60FPS limiter runs slightly below60 in wall time. Check
+                // nominal20Hz against actual engine frames; keep wall Hz above
+                // and the existing absolute10Hz assertion independently.
+                Row->SetNumberField(TEXT("hz_at_nominal_60fps"),Hz*60./((GFrameCounter-FirstFrame)/(Now-Measured)));
+                Test->TestTrue(TEXT("Ouster20Hz mode completes at least one acquisition per three engine frames, two boundary frames allowed"),Status.FrameId-Baselines[I]>=int64((GFrameCounter-FirstFrame)/3)-2);
+                Test->TestTrue(TEXT("Ouster default retains60FPS pacing (>=59FPS)"),1000/FMath::Max(.001,Average(Engine))>=59);
+            }
             else Test->TestTrue(TEXT("existing operating-map sensor completed real frames"),Status.FrameId>Baselines[I]);
             const auto Frame=Scan->GetLastFrameSnapshot();Test->TestTrue(TEXT("normalized snapshot retains original full beam count"),Frame&&Frame->Points&&(Operating?Frame->Points->Num()>0:Frame->Points->Num()==Scan->HorizontalSamples*Scan->VerticalChannels));
             if(PcdPort)

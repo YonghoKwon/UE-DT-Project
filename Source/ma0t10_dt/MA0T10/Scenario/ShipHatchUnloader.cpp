@@ -140,6 +140,10 @@ void AShipHatchSimulation::BuildUnloaderDetails()
  Box(FVector(0,BeltY,RailZ+1.2),FVector(28,2,.35),Dark);
  Beam(FVector(0,HopperY,RailZ+1.2),FVector(0,BeltY,RailZ+1.2),2,.35,Dark);
  for(int Sign:{-1,1}){Beam(FVector(-14,BeltY+Sign*1.1,RailZ+1.5),FVector(14,BeltY+Sign*1.1,RailZ+1.5),.15,.15,Brace);Beam(FVector(Sign*1.1,HopperY,RailZ+1.5),FVector(Sign*1.1,BeltY,RailZ+1.5),.15,.15,Brace);}
+ // site-viz-02/03: open lower lateral bracing between the two boom planes.
+ // Keep the trolley lane and independent cab travel clear; no invented deck.
+ for(double Y=Back;Y+4<Tip;Y+=4)
+ {Beam(FVector(-1.5,Y,H-.12),FVector(1.5,FMath::Min(Y+4,Tip),H-.12),.12,.12,Brace);Beam(FVector(1.5,Y,H-.12),FVector(-1.5,FMath::Min(Y+4,Tip),H-.12),.12,.12,Brace);}
  N.Init(FVector::ZeroVector,V.Num());
  for(int I=0;I<T.Num();I+=3){const FVector Normal=FVector::CrossProduct(V[T[I+2]]-V[T[I]],V[T[I+1]]-V[T[I]]);for(int J=0;J<3;++J)N[T[I+J]]+=Normal;}
  for(auto& Normal:N)Normal.Normalize();

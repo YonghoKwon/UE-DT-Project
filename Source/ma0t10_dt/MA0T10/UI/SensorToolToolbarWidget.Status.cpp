@@ -94,7 +94,7 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
         GlobalStatus.bPcdSending|=!Controlled||(Session.Outputs.bPointCloud&&Session.State==EVirtualSlabSessionState::Running&&Session.CurrentSlab.bEligible);
     }
     GlobalStatus.bPcdSending|=Session.State==EVirtualSlabSessionState::Draining&&Session.Outputs.bPointCloud&&Session.UnfinishedFrames>0;
-    const auto Preflight=UVirtualSensorOutputPreflight::InspectForPresentation(this,FVirtualSlabSensorOutputSelection(),{},EVirtualSensorPreflightPurpose::ScenarioTransition,false);
+    const auto Preflight=UVirtualSensorOutputPreflight::InspectForPresentation(this,FVirtualSlabSensorOutputSelection(),{},W->AreSlabToolsEnabled()?EVirtualSensorPreflightPurpose::ScenarioTransition:EVirtualSensorPreflightPurpose::ManualStreamStart,false);
     bool ConnectionExpected=false;
     if(C&&C->SharedTransportComponent)C->SharedTransportComponent->GetOutputServerConnection(GlobalStatus.bServerConnected,ConnectionExpected);
     // An active output requires its own backend(s); an idle connection test
@@ -109,6 +109,8 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     GlobalStatus.Pcd=PcdOverloadSuspended?SensorToolUiText::PcdResumeWaiting():SensorToolUiText::PcdState(GlobalStatus.bPcdSending);
     GlobalStatus.Server=SensorToolUiText::ServerState(HasServerSettings,GlobalStatus.bServerConnected,ConnectionExpected,Now-ServerDisconnectedSince);
     GlobalStatus.Scenario=SensorToolUiText::ScenarioWaiting();
+    if(W->AreSlabToolsEnabled())
+    {
     if(auto* Progress=Cast<USlabProgressPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress)))StatusSlab=Progress->GetBoundSlabActor();
     if(!StatusSlab.IsValid()&&Now>=NextSlabLookup)
     {
@@ -142,6 +144,12 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     if(StatusSlab.IsValid())if(auto* V=StatusSlab->FindComponentByClass<USlabVisualizationComponent>())V->SetLabelExclusionRects(this,W->GetOwnedDiagnosticExclusionRects());
     if(Session.State==EVirtualSlabSessionState::Draining)GlobalStatus.Scenario=SensorToolUiText::ScenarioDraining();
     else if(Session.State==EVirtualSlabSessionState::Preparing||Session.State==EVirtualSlabSessionState::Ready)GlobalStatus.Scenario=SensorToolUiText::ScenarioPreparing();
+    }
+    else
+    {
+        if(LabelExclusionSlab.IsValid())if(auto* V=LabelExclusionSlab->FindComponentByClass<USlabVisualizationComponent>())V->SetLabelExclusionRects(nullptr,{});
+        StatusSlab.Reset();LabelExclusionSlab.Reset();SlabCardTitle=FText::GetEmpty();GlobalStatus.Scenario=FText::GetEmpty();
+    }
     // A single actionable summary; technical details stay in the destination panel.
     const auto* Data=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
     const FString VisibleBlocker=Data?Data->GetVisiblePcdBlockingReason():FString();
@@ -203,6 +211,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
     for(int32 I=0;I<UE_ARRAY_COUNT(Destinations);++I)
     {
         const auto Destination=Destinations[I];
+        if(Destination==ESensorToolDestination::Scenario&&Workspace()&&!Workspace()->AreSlabToolsEnabled())continue;
         auto Label=[this,I]()
         {
             switch(I){case 0:return GlobalStatus.Equipment;case 1:return GlobalStatus.Pcd;case 2:return GlobalStatus.Scenario;case 3:return GlobalStatus.Server;default:return SensorToolUiText::Warning(GlobalStatus.Warning);}

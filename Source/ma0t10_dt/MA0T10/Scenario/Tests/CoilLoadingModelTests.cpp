@@ -15,7 +15,7 @@ TArray<FPlacement> Triangle(double Gap=0)
 IMPLEMENT_COMPLEX_AUTOMATION_TEST(FCoilBasisCases,"MA0T10.CoilLoading.Analysis",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 void FCoilBasisCases::GetTests(TArray<FString>& Names,TArray<FString>& Commands) const
 {
-    for(const TCHAR* C:{TEXT("N1Mass"),TEXT("N2KeyReaction"),TEXT("N3Patch"),TEXT("N4List"),TEXT("W1UDL"),TEXT("W2Tier"),TEXT("W3DeepKey"),TEXT("W4Clearance"),TEXT("D1Overload"),TEXT("D2InvalidKey"),TEXT("D3Spread"),TEXT("D4WetFriction"),TEXT("D5SWL"),TEXT("D6GM"),TEXT("U1UnknownOvality"),TEXT("B1CSS"),TEXT("B2Overlap"),TEXT("B3PolygonSensitivity"),TEXT("B4UnboundedTiers")}){Names.Add(C);Commands.Add(C);}
+    for(const TCHAR* C:{TEXT("N1Mass"),TEXT("N2KeyReaction"),TEXT("N3Patch"),TEXT("N4List"),TEXT("W1UDL"),TEXT("W2Tier"),TEXT("W3DeepKey"),TEXT("W4Clearance"),TEXT("D1Overload"),TEXT("D2InvalidKey"),TEXT("D3Spread"),TEXT("D4WetFriction"),TEXT("D5SWL"),TEXT("D6GM"),TEXT("U1UnknownOvality"),TEXT("B1CSS"),TEXT("B2Overlap"),TEXT("B3PolygonSensitivity"),TEXT("B4FiveTierPolicy")}){Names.Add(C);Commands.Add(C);}
 }
 bool FCoilBasisCases::RunTest(const FString& Case)
 {
@@ -38,7 +38,7 @@ bool FCoilBasisCases::RunTest(const FString& Case)
     if(Case==TEXT("B1CSS")){S.PositionFromAP=.5;S.LBP=140;S.SpeedKnots=15;S.Beam=23.4;S.KG=7;S.KM=8.7;S.FreeSurfaceCorrection=.2;FVector A;FString E;TestTrue(TEXT("CSS lower hold applicable"),CSSAcceleration(S,A,E));TestTrue(TEXT("base x1.20495 y4.01651 z3.45419 gravity excluded in z"),FMath::IsNearlyEqual(A.X,1.20495,.00002)&&FMath::IsNearlyEqual(A.Y,4.01651,.00002)&&FMath::IsNearlyEqual(A.Z,3.45419,.00002));S.KM=10.2;FVector B;CSSAcceleration(S,B,E);TestTrue(TEXT("higherGM increases transverse acceleration"),B.Y>A.Y);}
     if(Case==TEXT("B2Overlap")){auto Plan=Triangle();Plan[2].Center.X=2;const auto R=Analyze(S,Plan);TestTrue(TEXT("2Dkey with insufficient3Doverlap rejected"),Issue(R,TEXT("UnsupportedKey"))!=nullptr);FVector2D Center;TestTrue(TEXT("unequal OD upper intersection"),UnequalKey({-.8,.8},.8,{.9,1.},1.,.8,Center));}
     if(Case==TEXT("B3PolygonSensitivity")){TestTrue(TEXT("24sides6.84mm"),FMath::IsNearlyEqual(PolygonRadialError(.8,24),.0068441,.000001));TestTrue(TEXT("48sides1.71mm"),FMath::IsNearlyEqual(PolygonRadialError(.8,48),.0017129,.000001));TestTrue(TEXT("actual32 below24 error"),PolygonRadialError(.8,32)<PolygonRadialError(.8,24));}
-    if(Case==TEXT("B4UnboundedTiers"))
+    if(Case==TEXT("B4FiveTierPolicy"))
     {
         TArray<FPlacement> Plan;TArray<int32> Last;
         for(int32 Tier=1;Tier<=7;++Tier)
@@ -47,7 +47,16 @@ bool FCoilBasisCases::RunTest(const FString& Case)
             {FPlacement C1;C1.Tier=Tier;C1.Spec.CoilId=FString::Printf(TEXT("T%dC%d"),Tier,Col);C1.Center={0,-4.8+(Col+(Tier-1)*.5)*1.6,.85+(Tier-1)*1.385640646};if(Tier>1){C1.SupportA=Last[Col];C1.SupportB=Last[Col+1];}Current.Add(Plan.Add(C1));}Last=Current;
         }
         const auto R=Analyze(S,Plan);TestTrue(TEXT("seven tiers load follows contact network and conserves mass"),FMath::IsNearlyEqual(R.FloorReaction,R.TotalMass,.0001));TestFalse(TEXT("valid contact network"),Issue(R,TEXT("UnsupportedKey"))!=nullptr);
-        FSettings Restored;TArray<FPlacement> P2;FString E;TestTrue(TEXT("unbounded tiers persist"),PlanFromJson(PlanToJson(S,Plan),Restored,P2,E));TestEqual(TEXT("roundtrip all placements"),P2.Num(),Plan.Num());TestEqual(TEXT("roundtrip top tier"),P2.Last().Tier,7);P2.Pop();TestTrue(TEXT("remove recalculates mass"),Analyze(S,P2).TotalMass<R.TotalMass);
+        // The contact-network mathematics remains tested at seven tiers above;
+        // persistence/placement now obeys the explicit user five-tier policy.
+        FSettings Restored;TArray<FPlacement> P2=Triangle();FString E;const FString Before=PlanToJson(Restored,P2);
+        TestFalse(TEXT("seven-tier plan is rejected by user policy"),PlanFromJson(PlanToJson(S,Plan),Restored,P2,E));TestEqual(TEXT("rejection preserves settings and placements"),PlanToJson(Restored,P2),Before);
+        auto Five=Plan;Five.RemoveAll([](const FPlacement& P){return P.Tier>MaximumTier;});
+        if(!TestTrue(TEXT("five-tier plan persists"),PlanFromJson(PlanToJson(S,Five),Restored,P2,E)))return false;
+        TestEqual(TEXT("roundtrip every allowed placement"),P2.Num(),Five.Num());if(!TestTrue(TEXT("allowed plan is nonempty"),!P2.IsEmpty()))return false;TestEqual(TEXT("roundtrip fifth tier"),P2.Last().Tier,MaximumTier);
+        auto Six=Five;Six.Add(Plan[Five.Num()]);const FString Allowed=PlanToJson(Restored,P2);
+        TestFalse(TEXT("sixth tier is rejected independently"),PlanFromJson(PlanToJson(S,Six),Restored,P2,E));TestEqual(TEXT("sixth-tier rejection is atomic"),PlanToJson(Restored,P2),Allowed);
+        P2.Pop();TestTrue(TEXT("remove recalculates allowed-plan mass"),Analyze(S,P2).TotalMass<Analyze(S,Five).TotalMass);
     }
     return true;
 }

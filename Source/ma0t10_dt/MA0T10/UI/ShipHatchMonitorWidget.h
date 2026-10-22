@@ -74,6 +74,7 @@ class MA0T10_DT_API UShipHatchMonitorWidget : public UDxWidget
     friend struct FHatchLabelProbe;
     friend struct FHatch06Probe;
     friend struct FHatchCabProbe;
+    friend struct FHatch07Probe;
 public:
     void Bind(AShipHatchMonitorHost* InHost,AShipHatchSimulation* InSimulation);
     void Refresh();
@@ -112,6 +113,11 @@ public:
     bool ShowCoverage() const { return bCoverageOverlay; }
     bool IsSensorColoring() const { return bSensorColors; }
     void SetHatchPresentationVisible(bool Visible);
+    bool IsSiteVisualization() const { return bSiteVisualization; }
+    bool IsSiteGray() const { return bSiteVisualization&&bSiteGray; }
+    void SetSiteVisualization(bool Enabled);
+    void SetFreeCamera(bool Enabled);
+    void SetSiteCameraPreset(int32 Preset);
     const TArray<uint8>& GetCoverageMask() const;
     uint64 AnalysisBuilds=0;
 protected:
@@ -122,6 +128,7 @@ protected:
     virtual FReply NativeOnMouseMove(const FGeometry&,const FPointerEvent&) override;
     virtual FReply NativeOnMouseWheel(const FGeometry&,const FPointerEvent&) override;
     virtual void NativeOnMouseCaptureLost(const FCaptureLostEvent&) override;
+    virtual FReply NativeOnKeyDown(const FGeometry&,const FKeyEvent&) override;
 private:
     TWeakObjectPtr<AShipHatchSimulation> Simulation;
     TWeakObjectPtr<AShipHatchMonitorHost> Host;
@@ -181,6 +188,24 @@ private:
     bool bGrabAnimation=true;
     bool bSensorColors=false,bCoverageOverlay=false;
     UPROPERTY(Transient) TObjectPtr<UShipHatchOverlay> Overlay;
+    UPROPERTY(Transient) TObjectPtr<UShipHatchOverlay> SiteModel;
+    UPROPERTY(Transient) TArray<TObjectPtr<UButton>> CameraPresetButtons;
+    TArray<TWeakObjectPtr<UPrimitiveComponent>> SiteHidden;
+    bool bSiteVisualization=false,bSiteGray=false,bSavedSiteColors=false,bFreeCamera=false;
+    bool bSiteFraming=false,bSiteHeight=false;
+    FVector SiteFocus=FVector::ZeroVector;
+    FVector SiteMin=FVector::ZeroVector,SiteMax=FVector::ZeroVector;
+    double SiteCameraDistance=1;
+    FVector FreeCameraPosition=FVector::ZeroVector;
+    FRotator FreeCameraRotation=FRotator::ZeroRotator;
+    uint64 SiteCabRevision=MAX_uint64;
+    uint32 SiteShapeKey=0;
+    void UpdateSiteVisualization();
+    void RestoreSiteVisualization();
+    UFUNCTION() void OnSiteVisualization(){SetSiteVisualization(!bSiteVisualization);}
+    UFUNCTION() void OnSiteGray(){bSiteGray=!bSiteGray;LastLayout=FVector2D::ZeroVector;Layout();}
+    UFUNCTION() void OnFreeCamera(){SetFreeCamera(!bFreeCamera);}
+    UFUNCTION() void OnSiteHeight(){bSiteHeight=!bSiteHeight;ApplyPreview();UpdateSegments();}
     // STextBlock retains a raw pointer to UTextBlock::StrikeBrush. Keep the
     // generated UObject alive for exactly as long as its native row survives.
     UPROPERTY(Transient) TArray<TObjectPtr<UTextBlock>> ComboLabels;
@@ -224,7 +249,10 @@ private:
     uint64 FeedbackRevision=0;
     TWeakObjectPtr<UPrimitiveComponent> FeedbackGrabHidden;
     bool bFeedbackOwnsGrabHide=false;
-    bool bFeedbackOwnsGrabPose=false,bFeedbackOwnsGrabWork=false;
+    bool bFeedbackOwnsGrabPose=false,bFeedbackOwnsGrabWork=false,bFeedbackGrabParked=false;
+    bool bReturningFromHopper=false;
+    double ReturnToHatchUntil=0;
+    FVector ReturnStart,ReturnTarget;
     bool bPendingCabDig=false;
     FVector PendingDigOrigin,PendingDigDirection;
     uint32 PendingDigCargoHash=0;
@@ -289,8 +317,8 @@ private:
     UFUNCTION() void OnGrabDisplayToggle();
     UFUNCTION() void OnGrabAspect(float V){if(Simulation.IsValid())SetGrabAspect(V);}
     void SetGrabAspect(float Value);
-    UFUNCTION() void OnSea(){OrbitYaw=-90;OrbitPitch=-55;Focus=FVector2D::ZeroVector;UpdateCamera();}
-    UFUNCTION() void OnLand(){OrbitYaw=90;OrbitPitch=-55;Focus=FVector2D::ZeroVector;UpdateCamera();}
+    UFUNCTION() void OnSea(){bSiteFraming=false;if(bFreeCamera)SetFreeCamera(false);OrbitYaw=-90;OrbitPitch=-55;Focus=FVector2D::ZeroVector;UpdateCamera();}
+    UFUNCTION() void OnLand(){bSiteFraming=false;if(bFreeCamera)SetFreeCamera(false);OrbitYaw=90;OrbitPitch=-55;Focus=FVector2D::ZeroVector;UpdateCamera();}
     UFUNCTION() void OnScanToggle();
     UFUNCTION() void OnRandom();
     UFUNCTION() void OnApply();
@@ -313,12 +341,12 @@ private:
     UFUNCTION() void OnNoon();
     UFUNCTION() void OnEvening();
     UFUNCTION() void OnWorkLight();
-    UFUNCTION() void OnFrameVessel(){bFrameSite=false;bFrameVessel=true;bFrameUnloader=true;OrbitYaw=35;OrbitPitch=-35;Focus=FVector2D::ZeroVector;OrbitDistance=7800;bPresetHidesPointControls=true;SetModelPresentation(true);UpdateCamera();}
+    UFUNCTION() void OnFrameVessel(){bSiteFraming=false;if(bFreeCamera)SetFreeCamera(false);bFrameSite=false;bFrameVessel=true;bFrameUnloader=true;OrbitYaw=35;OrbitPitch=-35;Focus=FVector2D::ZeroVector;OrbitDistance=7800;bPresetHidesPointControls=true;SetModelPresentation(true);UpdateCamera();}
     UFUNCTION() void OnSiteOverview(){SetCameraPreset(3);}
     UFUNCTION() void OnScaleReference();
     UFUNCTION() void OnWater();
-    UFUNCTION() void OnFrameUnloader(){bFrameSite=false;bFrameVessel=false;bFrameUnloader=true;OrbitDistance=7800;bPresetHidesPointControls=true;SetModelPresentation(true);UpdateCamera();}
-    UFUNCTION() void OnFrameCargo(){bFrameSite=false;bFrameVessel=false;bFrameUnloader=false;OrbitDistance=5000;SetModelPresentation(false);UpdateCamera();}
+    UFUNCTION() void OnFrameUnloader(){bSiteFraming=false;if(bFreeCamera)SetFreeCamera(false);bFrameSite=false;bFrameVessel=false;bFrameUnloader=true;OrbitDistance=7800;bPresetHidesPointControls=true;SetModelPresentation(true);UpdateCamera();}
+    UFUNCTION() void OnFrameCargo(){bSiteFraming=false;if(bFreeCamera)SetFreeCamera(false);bFrameSite=false;bFrameVessel=false;bFrameUnloader=false;OrbitDistance=5000;SetModelPresentation(false);UpdateCamera();}
     UFUNCTION() void OnFill();
     UFUNCTION() void OnGrid(float Value);
     UFUNCTION() void OnPointSize(float Value);
@@ -342,7 +370,7 @@ private:
     UFUNCTION() void OnReflection(){SelectColor(2);}
     UFUNCTION() void OnDistance(){SelectColor(3);}
     UFUNCTION() void OnMono(){SelectColor(4);}
-    UFUNCTION() void OnTop(){SetCameraPreset(0);}
-    UFUNCTION() void OnOblique(){SetCameraPreset(1);}
-    UFUNCTION() void OnReset(){SetCameraPreset(2);}
+    UFUNCTION() void OnTop(){if(bSiteVisualization)SetSiteCameraPreset(1);else SetCameraPreset(0);}
+    UFUNCTION() void OnOblique(){if(bSiteVisualization)SetSiteCameraPreset(2);else SetCameraPreset(1);}
+    UFUNCTION() void OnReset(){if(bSiteVisualization)SetSiteCameraPreset(0);else SetCameraPreset(2);}
 };
