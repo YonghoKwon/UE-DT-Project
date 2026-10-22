@@ -38,10 +38,34 @@ TArray<TSharedPtr<FJsonValue>> ShowcaseVector(const FVector& P)
 class FHatchShowcaseRun final:public IAutomationLatentCommand
 {
  FAutomationTestBase* T;TWeakObjectPtr<AShipHatchMonitorHost> Host;
- double Started=FPlatformTime::Seconds(),Changed=0;int Shot=0,Digs=0;bool Initialized=false,Ui=false,SettingsOpen=false,Digging=false,Polish=false;
+ double Started=FPlatformTime::Seconds(),Changed=0;int Shot=0,Digs=0,CapturedImages=0,FloorProbe=-1;bool Initialized=false,Ui=false,SettingsOpen=false,Digging=false,Polish=false;
  TArray<TWeakObjectPtr<UPrimitiveComponent>> OwnedPlayerHides;
  FVector CameraLocal,AimLocal;double BeforeVolume=0;uint32 BeforeHash=0,OpenGrabHash=0;
- const TCHAR* Names[26]={TEXT("00-quay-vessel-overview"),TEXT("01-vessel-gtsu-side"),TEXT("02-ref4-composition"),TEXT("03-portal-boom-machine"),TEXT("04-covers-seaward"),TEXT("05-covers-landward"),TEXT("06-hopper-inside-seaward-leg"),TEXT("07-clamshell-open"),TEXT("08-clamshell-closed"),TEXT("09-iron-surface"),TEXT("10-coal-surface"),TEXT("11-three-sensor-colors"),TEXT("12-coverage-heatmap"),TEXT("13-measured-section"),TEXT("14-top-plan"),TEXT("15-settings-three-panels"),TEXT("16-lidar-mid360"),TEXT("17-lidar-avia"),TEXT("18-lidar-os1-64"),TEXT("19-lidar-xt32"),TEXT("20-lidar-vlp16"),TEXT("21-dig-before"),TEXT("22-dig-after"),TEXT("23-exposed-floor-close"),TEXT("24-exposed-floor-gpu-points"),TEXT("25-full-load-corner")};
+ const TCHAR* Names[27]={TEXT("00-quay-vessel-overview"),TEXT("01-vessel-gtsu-side"),TEXT("02-ref4-composition"),TEXT("03-portal-boom-machine"),TEXT("04-covers-seaward"),TEXT("05-covers-landward"),TEXT("06-hopper-inside-seaward-leg"),TEXT("07-clamshell-open"),TEXT("08-clamshell-closed"),TEXT("09-iron-surface"),TEXT("10-coal-surface"),TEXT("11-three-sensor-colors"),TEXT("12-coverage-heatmap"),TEXT("13-measured-section"),TEXT("14-top-plan"),TEXT("15-settings-three-panels"),TEXT("16-lidar-mid360"),TEXT("17-lidar-avia"),TEXT("18-lidar-os1-64"),TEXT("19-lidar-xt32"),TEXT("20-lidar-vlp16"),TEXT("21-dig-before"),TEXT("22-dig-after"),TEXT("23-exposed-floor-close"),TEXT("24-exposed-floor-gpu-points"),TEXT("25-full-load-corner"),TEXT("27-exposed-floor-section")};
+ TSharedRef<FJsonObject> LidarMetrics(AShipHatchSimulation& S,int Index)
+ {
+  auto R=MakeShared<FJsonObject>();const auto* C=S.SensorAt(Index)->ScanComponent.Get();const auto F=C->GetLastFrameSnapshot();
+  T->TestTrue(TEXT("comparison metrics use a full immutable HWRT frame"),F&&F->Points&&F->AcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing&&F->RequestedRayCount==C->HorizontalSamples*C->VerticalChannels);
+  TArray<ShipHatch::FObservation> Cargo;TSet<int32> Floor;int Hits=0,FloorPoints=0;
+  const auto Settings=S.Settings();const int NX=FMath::CeilToInt(Settings.Length),NY=FMath::CeilToInt(Settings.Width);const double DX=Settings.Length/NX,DY=Settings.Width/NY;
+  if(F&&F->Points)for(const auto& P:*F->Points)if(P.bHit)
+  {
+   ++Hits;const FVector L=S.GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01;
+   if(P.SemanticLabel==TEXT("HatchCargo"))Cargo.Add({L,P.SemanticLabel});
+   const double X=L.X+Settings.Length*.5,Y=L.Y+Settings.Width*.5;
+   if(P.SemanticLabel==TEXT("HatchHold")&&FMath::Abs(L.Z)<=.02&&X>=0&&X<=Settings.Length&&Y>=0&&Y<=Settings.Width)
+   {++FloorPoints;Floor.Add(FMath::Min(FMath::FloorToInt(Y/DY),NY-1)*NX+FMath::Min(FMath::FloorToInt(X/DX),NX-1));}
+  }
+  const auto Analysis=ShipHatch::Analyze(Settings,1,Cargo);
+  R->SetStringField(TEXT("model"),C->DeviceSpec.Model);R->SetStringField(TEXT("sensor_id"),C->SensorId);R->SetStringField(TEXT("backend"),C->GetRuntimeStatus().ActiveAcquisitionBackend);
+  R->SetNumberField(TEXT("rays"),F?F->RequestedRayCount:0);R->SetNumberField(TEXT("frame_point_count"),F&&F->Points?F->Points->Num():0);R->SetNumberField(TEXT("hit_points"),Hits);R->SetNumberField(TEXT("cargo_hit_points"),Cargo.Num());R->SetNumberField(TEXT("floor_hit_points"),FloorPoints);
+  R->SetNumberField(TEXT("cargo_observed_percent"),100*Analysis.Coverage);R->SetNumberField(TEXT("floor_observed_percent"),100.*Floor.Num()/(NX*NY));R->SetNumberField(TEXT("cargo_observed_cells"),Analysis.Observed);R->SetNumberField(TEXT("floor_observed_cells"),Floor.Num());R->SetNumberField(TEXT("total_hold_cells"),NX*NY);R->SetNumberField(TEXT("cell_dx_m"),DX);R->SetNumberField(TEXT("cell_dy_m"),DY);
+  R->SetStringField(TEXT("coverage_definition"),TEXT("actual semantic hits in full-hold1m-target grid; zero means unobserved, no extrapolation; floor=HatchHold absZ<=2cm"));
+  R->SetNumberField(TEXT("measured_hz"),C->GetRuntimeStatus().MeasuredAcquisitionRateHz);R->SetNumberField(TEXT("requested_hz"),1./C->ScanInterval);R->SetNumberField(TEXT("max_range_m"),F?F->MaxDistanceCm*.01:0);R->SetNumberField(TEXT("horizontal_fov_deg"),C->HorizontalFov);R->SetNumberField(TEXT("vertical_min_deg"),C->MinVerticalAngle);R->SetNumberField(TEXT("vertical_max_deg"),C->MaxVerticalAngle);
+  R->SetNumberField(TEXT("frame_id"),F?double(F->FrameId):0);R->SetStringField(TEXT("acquisition_utc"),F?F->GetAcquisitionStartUtc().ToIso8601():TEXT(""));R->SetNumberField(TEXT("surface_crc"),S.Surface().Hash());R->SetNumberField(TEXT("fill_percent"),S.Surface().Fill);R->SetNumberField(TEXT("production_digs"),Digs);
+  if(F){R->SetArrayField(TEXT("acquisition_origin_hold_m"),ShowcaseVector(S.GetActorTransform().InverseTransformPosition(F->AcquisitionTransform.GetLocation())*.01));const auto Rot=F->AcquisitionTransform.Rotator();R->SetArrayField(TEXT("acquisition_pitch_yaw_roll"),ShowcaseVector(FVector(Rot.Pitch,Rot.Yaw,Rot.Roll)));}
+  return R;
+ }
  void Regenerate(AShipHatchSimulation& S,bool Coal)
  {S.Seed=19019;S.FillMin=S.FillMax=65;S.bCoal=Coal;T->TestTrue(TEXT("showcase regenerates through production heightfield"),S.Regenerate(false));}
  void Colors(UShipHatchMonitorWidget& M)
@@ -50,7 +74,7 @@ class FHatchShowcaseRun final:public IAutomationLatentCommand
  {
   if(auto* PC=M.GetOwningPlayer()){for(const auto& C:OwnedPlayerHides)PC->HiddenPrimitiveComponents.RemoveSingle(C);OwnedPlayerHides.Reset();}
   if(SettingsOpen){M.ProcessEvent(M.FindFunctionChecked(TEXT("OnSettings")),nullptr);SettingsOpen=false;}
-  Ui=Shot>=11&&Shot<=15;M.SelectView(0);M.SetSplitView(false);M.SetModelPresentation(true);M.SetRenderOpacity(Ui?1:0);
+  Ui=(Shot>=11&&Shot<=15)||Shot==26;M.SelectView(0);M.SetSplitView(false);M.SetModelPresentation(true);M.SetRenderOpacity(Ui?1:0);
   S.ShowUnloader(true);S.SetScanDisplay(false);S.SetGrabVisible(Shot==7||Shot==8);S.SetSensorMarkersVisible(false);
   auto* Camera=H.ViewCamera->GetCameraComponent();Camera->SetFieldOfView(58);
   if(Shot==0){CameraLocal=FVector(240,-230,185);AimLocal=FVector(0,-10,17);}
@@ -75,6 +99,7 @@ class FHatchShowcaseRun final:public IAutomationLatentCommand
   if(Shot==21||Shot==22){CameraLocal=FVector(24,-31,56);AimLocal=FVector(0,0,8);}
   if(Shot==23){S.ShowUnloader(false);CameraLocal=FVector(10,-11,12);AimLocal=FVector(1.5,2,0);Camera->SetFieldOfView(65);T->TestTrue(TEXT("close-up aims at actually excavated tank top"),S.Surface().Height(1.5,2)<=1.e-4);}
   if(Shot==24){M.SelectView(1);Colors(M);CameraLocal=FVector(25,-5,65);AimLocal=FVector(0,2,2);}
+  if(Shot==26){M.SelectView(4);M.SetSection(true,.5);}
   if(Shot==25){S.Seed=19019;S.bCoal=false;S.FillMin=S.FillMax=95;S.Regenerate(false);S.ShowUnloader(false);CameraLocal=FVector(3.1,3.8,28);AimLocal=FVector(9.4,10.9,21.8851357283);Camera->SetFieldOfView(55);}
   if(!Ui||Shot==11)M.SetModelPresentation(true);
   M.SetRenderOpacity(Ui?1:0);
@@ -128,7 +153,19 @@ class FHatchShowcaseRun final:public IAutomationLatentCommand
   TArray<TSharedPtr<FJsonValue>> Sensors;
   for(int I=0;I<3;++I)if(auto* A=S.SensorAt(I))
   {const auto* C=A->ScanComponent.Get();const auto F=C->GetLastFrameSnapshot();auto D=MakeShared<FJsonObject>();T->TestTrue(TEXT("captured sensor frame uses actual HWRT"),F&&F->AcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing);D->SetStringField(TEXT("sensor_id"),C->SensorId);D->SetStringField(TEXT("model"),C->DeviceSpec.Model);D->SetStringField(TEXT("backend"),C->GetRuntimeStatus().ActiveAcquisitionBackend);D->SetNumberField(TEXT("measured_hz"),C->GetRuntimeStatus().MeasuredAcquisitionRateHz);D->SetNumberField(TEXT("frame_id"),F?double(F->FrameId):0);D->SetNumberField(TEXT("rays"),F?F->RequestedRayCount:0);Sensors.Add(MakeShared<FJsonValueObject>(D));}
-  R->SetArrayField(TEXT("sensors"),Sensors);ShowcaseJson(FString(Names[Shot])+TEXT(".json"),R);return true;
+  R->SetArrayField(TEXT("sensors"),Sensors);
+  if(Shot>=16&&Shot<=20)
+  {
+   R->SetObjectField(TEXT("lidar_metrics"),LidarMetrics(S,0));TArray<TSharedPtr<FJsonValue>> Lines;
+   auto Outline=[&](double L,double B,double Z)
+   {
+    const FVector P[4]={FVector(-L*.5,-B*.5,Z),FVector(L*.5,-B*.5,Z),FVector(L*.5,B*.5,Z),FVector(-L*.5,B*.5,Z)};
+    for(int I=0;I<4;++I){FVector2D A,BP;if(M.GetOwningPlayer()->ProjectWorldLocationToScreen(S.GetActorTransform().TransformPosition(P[I]*100),A)&&M.GetOwningPlayer()->ProjectWorldLocationToScreen(S.GetActorTransform().TransformPosition(P[(I+1)%4]*100),BP))
+    Lines.Add(MakeShared<FJsonValueArray>(TArray<TSharedPtr<FJsonValue>>{MakeShared<FJsonValueNumber>(A.X),MakeShared<FJsonValueNumber>(A.Y),MakeShared<FJsonValueNumber>(BP.X),MakeShared<FJsonValueNumber>(BP.Y)}));}
+   };
+   Outline(S.OpeningLength,S.OpeningWidth,S.HoldDepth+S.CoamingHeight);R->SetArrayField(TEXT("coaming_outline_screen_px"),Lines);Lines.Reset();Outline(S.HoldLength,S.HoldWidth,0);R->SetArrayField(TEXT("hold_floor_outline_screen_px"),Lines);
+  }
+  ++CapturedImages;ShowcaseJson(FString(Names[Shot])+TEXT(".json"),R);return true;
  }
 public:
  explicit FHatchShowcaseRun(FAutomationTestBase* Test):T(Test){}
@@ -143,6 +180,13 @@ public:
   {
    if(!T->TestTrue(TEXT("showcase requires actual D3D12 HWRT"),GDynamicRHI&&FString(GDynamicRHI->GetName())==TEXT("D3D12")&&SensorOwnedRayTracing::IsAvailable()))return true;
    Regenerate(S,false);M.SetFontPercent(100);Initialized=true;Frame(*Host,S,M);return false;
+  }
+  if(FloorProbe>=0)
+  {
+   if(Now-Changed<2.5||!S.HasFreshMeasurement())return false;
+   ShowcaseJson(FString::Printf(TEXT("lidar-floor-%02d.json"),16+FloorProbe),LidarMetrics(S,0));
+   if(++FloorProbe<5){S.SetFieldSensor(0,true,FloorProbe+3);Changed=Now;return false;}
+   FloorProbe=-1;S.SetFieldSensor(0,true,6);Shot=23;Frame(*Host,S,M);return false;
   }
   if(Digging)
   {
@@ -161,8 +205,11 @@ public:
   if(Now-Changed<2.5||!S.HasFreshMeasurement())return false;
   if(!Capture(*W,*Host,S,M))return true;
   if(Shot==21){BeforeHash=S.Surface().Hash();BeforeVolume=S.Surface().Volume;Digging=true;++Shot;return false;}
-  if(++Shot<26){Frame(*Host,S,M);return false;}
-  if(auto* PC=M.GetOwningPlayer())for(const auto& C:OwnedPlayerHides)PC->HiddenPrimitiveComponents.RemoveSingle(C);OwnedPlayerHides.Reset();M.SetRenderOpacity(1);auto R=MakeShared<FJsonObject>();R->SetBoolField(TEXT("valid"),!T->HasAnyErrors());R->SetNumberField(TEXT("images"),Shot);R->SetNumberField(TEXT("production_digs"),Digs);ShowcaseJson(TEXT("capture-result.json"),R);return true;
+  if(Shot==22){FloorProbe=0;S.SetFieldSensor(0,true,3);Changed=Now;return false;}
+  if(Shot==24){Shot=26;Frame(*Host,S,M);return false;}
+  if(Shot==26){Shot=25;Frame(*Host,S,M);return false;}
+  if(Shot<25){++Shot;Frame(*Host,S,M);return false;}
+  if(auto* PC=M.GetOwningPlayer())for(const auto& C:OwnedPlayerHides)PC->HiddenPrimitiveComponents.RemoveSingle(C);OwnedPlayerHides.Reset();M.SetRenderOpacity(1);auto R=MakeShared<FJsonObject>();R->SetBoolField(TEXT("valid"),!T->HasAnyErrors());R->SetNumberField(TEXT("images"),CapturedImages);R->SetNumberField(TEXT("production_digs"),Digs);ShowcaseJson(TEXT("capture-result.json"),R);return true;
  }
 };
 }

@@ -131,9 +131,19 @@ float water=saturate((V.b-V.g-.008)*100)*saturate((V.b-.07)*50);
 hardwareColor=lerp(hardwareColor,V.rgb,water);
 float2 seam=abs(frac((P.xy+float2(23,37))/float2(240,160))-.5);
 float weld=1-smoothstep(.003,.012,min(seam.x,seam.y));
-float rust=smoothstep(.65,.9,frac(sin(dot(floor(P.xy/35),float2(12.98,78.23)))*43758.54));
-// Preserve tank-top chroma under the higher exposure of a dark coal hold.
-float3 steel=lerp(float3(.065,.18,.30),float3(.24,.15,.085),rust*.28);
+// Neutral painted tank-top steel. Smooth corrosion/dust masks, worn streaks
+// and dark welds identify platework without the former water-blue tint.
+float2 tq=P.xy/180.,tc=floor(tq),tf=frac(tq);tf=tf*tf*(3-2*tf);
+float th=dot(tc,float2(127.1,311.7));
+float4 tn=frac(sin(float4(th,th+127.1,th+311.7,th+438.8))*43758.5453);
+float patch=lerp(lerp(tn.x,tn.y,tf.x),lerp(tn.z,tn.w,tf.x),tf.y);
+float rust=smoothstep(.55,.86,patch)*.18;
+float dust=smoothstep(.3,.8,.5+.5*sin(P.x*.004+sin(P.y*.006)*2))*.12;
+float wear=smoothstep(.93,.995,.5+.5*sin(P.x*.32+sin(P.y*.007)*.7))*.15;
+float3 steel=float3(.072,.075,.078)*lerp(.92,1.08,patch);
+steel=lerp(steel,float3(.13,.065,.032),rust);
+steel=lerp(steel,float3(.085,.074,.058),dust);
+steel=lerp(steel,float3(.15,.155,.16),wear);
 return lerp(lerp(ore,steel*(1-.23*weld),TankTop),hardwareColor,Hardware);
 ''', [('C', color('ColdColor', (.11,.072,.051,1), -900, 350)), ('G', clast), ('V', vertex), ('Fresh', vertex, 'A'), ('P', pos), ('N', node(unreal.MaterialExpressionVertexNormalWS, -1200, 600)), ('Coal', coal), ('TankTop', tank), ('Hardware', hardware), ('Coaming', coaming), ('Tint', paint_tint), ('Origin', paint_origin), ('AxisX', paint_x), ('AxisY', paint_y), ('AxisUp', paint_up), ('Bounds', hold_bounds)], unreal.CustomMaterialOutputType.CMOT_FLOAT3, -480, 0)
 normal = custom('''
@@ -142,7 +152,7 @@ float det=dot(dp1,r1);float height=G.y+Fresh*.08*(1-Hardware)*sin(P.x*.17+sin(P.
 float3 grad=(r1*ddx(height)+r2*ddy(height))/max(abs(det),1e-6)*sign(det);
 return normalize(N-grad*.85*(1-TankTop));
 ''', [('P', pos), ('N', node(unreal.MaterialExpressionVertexNormalWS, -900, 520)), ('G', clast), ('Fresh', vertex, 'A'), ('Hardware', hardware), ('TankTop', tank)], unreal.CustomMaterialOutputType.CMOT_FLOAT3, -480, 200)
-rough = custom('return lerp(lerp(.89,.58,Coal)-G.z*lerp(.08,.12,Coal)-Fresh*.035,lerp(.65,.78,Hardware),max(TankTop,Hardware));', [('Coal', coal), ('G', clast), ('Fresh', vertex, 'A'), ('TankTop', tank), ('Hardware', hardware)], unreal.CustomMaterialOutputType.CMOT_FLOAT1, -480, 400)
+rough = custom('return lerp(lerp(.89,.58,Coal)-G.z*lerp(.08,.12,Coal)-Fresh*.035,lerp(.84,.78,Hardware),max(TankTop,Hardware));', [('Coal', coal), ('G', clast), ('Fresh', vertex, 'A'), ('TankTop', tank), ('Hardware', hardware)], unreal.CustomMaterialOutputType.CMOT_FLOAT1, -480, 400)
 ao = custom('''
 if(Coaming<.5) return 1.;
 float3 relative=P-Origin.rgb;

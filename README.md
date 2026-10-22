@@ -18,6 +18,8 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+FOLLOWUP-30b: 탱크톱은 중성 회색 강판·녹/분진/마모로 표시하고 단면의0m 빗금·문구로 노출을 식별한다(모의 형상/실측 구분). 최종27장 장면+별도 송신 시연1장과4합본, [LiDAR 수치 표](Saved/Reports/FOLLOWUP-26-28/showcase/lidar-compare-table.png)를 제공한다. 5종 패널의 광선/hit/Hz/거리/FOV는 실제 immutable HWRT frame이며 원료65%·바닥잔량4.99%를 별도 측정한다. 커버리지는 전체 홀드1m목표격자 실제 관측 비율이다. 합본 참고 윤곽은 동일 카메라 투영이며 측정점이 아니다. 두 원료의 실제Z0 첫충돌·49/49 중성 강판 픽셀을 검사했다. 기존 45m선폭의 커버 돌출 회귀는22.2m 개구로 보정했고 기존 커버/정확도/체적/성능 기준을 유지한다. 최종 검증/제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
+
 FOLLOWUP-30: `Scripts/run_hatch_validation.ps1 -Mode Showcase -Sensors 3`는 기존 테스트 맵을 저장하지 않고 실제 D3D12/RT on 1920×1080 PNG+JSON을 생성한다. 전경·GTSU/커버/호퍼·그랩 열림/닫힘·두 원료·GPU3센서/히트맵/단면/상면/설정·5종 붐 LiDAR·실제 디깅 전후/바닥/만재 코너를 포함한다. `Scripts/assemble_hatch_showcase.py Saved/Reports/FOLLOWUP-26-28/showcase`로 [4개 주제 합본](Saved/Reports/FOLLOWUP-26-28/showcase/manifest.json)을 만든다. 송신 완료 화면은 기존 시연 UI이며 실제 네트워크 송신의 증거가 아니다. 해치 소유 SkyAtmosphere와 기존 태양 설정을 종료 시 복원하고, 점군 플레이어 뷰에만 대기 show flag를 숨긴다. 직접 UI 수용과 공통gate는 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
 
 FOLLOWUP-32(사용자 현장 정정2026-10-22): 운전실은 그랩과 분리된 붐 독립 주행 캐리지다. 해치 중앙으로25m/min 이동·정지한 뒤 그랩 작업을 허용하며 작업 중 운전실 이동을 차단한다. 캐빈 센서2대는 실제 캐리지에 부착하고 이전 CPU/GPU acquisition pose를 보존한다. 명시적 중간 하역 흘수14m, 레일+25m 붐 하면 모델 가정으로 코밍 간격15.8m·캐빈 지붕 간격0.9m를 사용한다. 양정24/25m를 붐 높이로 오해하지 않으며 현장 GA 실측을 주장하지 않는다. [측면/조감 전후와ref4/ref5](Saved/Reports/FOLLOWUP-26-28/corners-32-gtsu-check.png), 근거·검증·제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 기존 운영 홀드05를 사용하며 다른8개 홀드는 문맥 형상이다.

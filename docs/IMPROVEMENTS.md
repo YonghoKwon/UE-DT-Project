@@ -4,9 +4,13 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## FOLLOWUP-30b — 탱크톱 강판 / 수치 포함 LiDAR 비교
+
+기존 승인M_HatchCargo의 TankTop만 중성 강판/녹/분진/마모로 보정했다. 단면0m 빗금+문구는 모의 노출임을 명시하며 센서 관측을 조작하지 않는다. 기존Z0첫충돌/7×7픽셀을 유지하고 원 코드>=30을49/49로 강화해 두 원료에서 통과했다. 5종 비교는 원료65%·실제181회디깅/잔량4.99%의 별도 full HWRT frame에서 광선·hit·격자관측률·Hz·설정거리/FOV·acquisition pose를 기록한다. [수치 표](../Saved/Reports/FOLLOWUP-26-28/showcase/lidar-compare-table.png)와 LiDAR 합본은 동일 카메라의 투영 참고 윤곽을 포함하며 원시PNG는 보정하지 않는다. 27장면+별도 시연1장/4합본. #32 선폭45m/23m개구 커버 돌출 회귀를22.2m개구로 고쳐 기존 검사 통과, 물리 정확도/체적/Hz/FPS 기준은 유지한다. 실패 시도·원시 측정·공통gate는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
+
 ## FOLLOWUP-30 — 전체 기능 캡처
 
-실제 D3D12/RT on 1920×1080 자동 캡처26장과 별도 테스트셋 송신 완료 시연 UI1장을 PNG+JSON으로 제공한다. 전경/근접/분석/5종 LiDAR의4개 합본만 하단 제목·조건을 추가하고 원시 장면 픽셀은 수정하지 않는다. 실제181회 생산 디깅으로 바닥을 노출하고 열림/닫힘 메시CRC 차이·전체 bucket 투영·0 높이 바닥 target·원본 광선 수/HWRT backend를 검사한다. 하늘은 해치 소유 SkyAtmosphere로 표시하며 기존 태양 설정을 종료 복원한다. 점군 캡처의 외형 숨김은 플레이어의 HiddenPrimitiveComponents만 사용하고 측정 충돌은 유지한다. [합본 manifest](../Saved/Reports/FOLLOWUP-26-28/showcase/manifest.json), 제외한 QA 시도·최종 gate·직접 UI 미수행은 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 송신 완료 이미지는 실제 네트워크 송신 성공의 증거로 사용하지 않는다.
+실제 D3D12/RT on 1920×1080 자동 캡처27장과 별도 테스트셋 송신 완료 시연 UI1장을 PNG+JSON으로 제공한다. 전경/근접/분석/5종 LiDAR의4개 합본만 하단 제목·조건을 추가하고 원시 장면 픽셀은 수정하지 않는다. 실제181회 생산 디깅으로 바닥을 노출하고 열림/닫힘 메시CRC 차이·전체 bucket 투영·0 높이 바닥 target·원본 광선 수/HWRT backend를 검사한다. 하늘은 해치 소유 SkyAtmosphere로 표시하며 기존 태양 설정을 종료 복원한다. 점군 캡처의 외형 숨김은 플레이어의 HiddenPrimitiveComponents만 사용하고 측정 충돌은 유지한다. [합본 manifest](../Saved/Reports/FOLLOWUP-26-28/showcase/manifest.json), 제외한 QA 시도·최종 gate·직접 UI 미수행은 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 송신 완료 이미지는 실제 네트워크 송신 성공의 증거로 사용하지 않는다.
 
 ## FOLLOWUP-32 — GTSU 독립 운전실 / 상대 배치
 
