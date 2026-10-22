@@ -30,6 +30,10 @@
 - 목록 경로를 입력한 뒤 `CSV/JSON 목록`을 누른다. [CSV](docs/examples/coil-loading.csv) / [JSON](docs/examples/coil-loading.json) 예제를 제공한다. 길이는 m, 질량은 t, weight0은 밀도 계산이다. CSV는 `coil_id,od,inner_diameter,width,weight[,type]`이며 기존 `id,od,id,width,weight` 순서도 허용한다. JSON은 배열과 문자열 `id`/`coil_id`, 숫자 `inner_diameter`(또는 coil_id와 함께 숫자 id)를 사용한다. type은 HR/CR, 생략 시 HR이다. ID는 대소문자 중복 없이 고유해야 한다. CSV 인용 쉼표는 미지원이고 목록은16MiB/10000개 이하로 검증한다.
 - `JSON 저장`은 기존 비동기 FileSave 서비스에 요청 시점의 배치·사양·선박 설정을 저장하고 완료 후 경로를 자동 갱신한다(1MiB 한도). `계획 불러오기`는 그 경로를 사용한다. `슬롯 저장/불러오기`는 별도 `CoilLoading_v1` SaveGame을 사용한다. 물리 결과와 미배치 목록 큐는 계획 JSON의 영구 replay가 아니며 불러온 계획은 물리 재시험이 필요하다. 기존 개인 센서/Workspace 슬롯은 지우지 않는다.
 
+독립 리뷰 보정: 코일 간섭은 eye X/Y 축·끝면·내경을 포함한 유한 중공 원통으로 검사하고, 해치 외피도 방향에 따라 OD/폭을 교체한다. 구름은 `a_limit=(g-|az|)·b/r+F_cert/M`의 모멘트 평형으로 별도 판정한다. `b`는 입력한 구름 저항 팔(m)이며 기본0은 이상 강체 원통이다. 쐐기는 기본 on이고 인증 등가 수평 내력(고정·접촉 기하 포함) 미입력은 자료 필요다. 마찰계수를 구름 저항으로 대신하지 않는다. LCF(AP 기준 m) 확인과 MCT1cm가 있어야 `Σm·(홀드 AP 위치+local X-LCF)/MCT1cm`로 트림을 계산한다. 부두 간격·레일 후퇴·간격·방향은 장면과 반경 해석이 같은 입력을 사용한다.
+
+계획 파일 읽기·JSON 파싱은 작업 스레드에서, 슬롯은 `AsyncLoadGameFromSlot` 후 작업 스레드 파싱으로 처리한다. 장면 적용은 게임 스레드에서만 하며 취소·재요청·배치/설정 revision 변경·종료 뒤의 결과를 폐기한다. 잘못된 계획은 기존 배치를 보존하고 `coils[인덱스].필드` 오류를 표시한다. 추가 LCF/레일/구름 저항 필드가 없는 기존 v1 계획도 기본값과 미확인 상태로 읽는다.
+
 집중 검증은 `Scripts/verify.ps1 -Level feature -Tests MA0T10.CoilLoading -BaseCommit 0af7476`이며 실제 D3D12 RHI가 필요하다. 전체 release, RT on ABAB2%, 직접 마우스 수용, 회사/실선 수용은 결과에서 각각 구분한다. 새 자산은 이 테스트 맵과 `Content/MA0T10/Coil/Materials/M_CoilSurface.uasset` 두 개뿐이다. 생성 스크립트는 일반 검증 때 실행하지 않는다. 패키징 시 새 맵을 명시적으로 포함해야 하며 Shipping/실장비 수용을 로컬 테스트로 대신하지 않는다.
 
 

@@ -85,14 +85,14 @@ void ACoilLoadingMonitorHost::SetView(int32 View)
 void ACoilLoadingMonitorHost::Focus(int32 P)
 {
     if(!Simulation||!ViewCamera)return;SetView(P==1?1:0);FVector Position,Target;
-    if(P==0){Position={-38,-48,Simulation->QuayZ()+21};Target={-8,Simulation->QuayEdgeY()-2,Simulation->QuayZ()+14};}
+    if(P==0){Position={-38,Simulation->QuayOffset(35.8),Simulation->QuayZ()+21};Target={-8,Simulation->QuayOffset(2),Simulation->QuayZ()+14};}
     else if(P==1)
     {
         Position={-34,-11,6};Target={-28.845,-5.6,1.5};
         if(auto* PC=GetWorld()->GetFirstPlayerController())
         {TInlineComponentArray<UPrimitiveComponent*> Cs(Simulation);for(auto* C:Cs)if(Simulation->GetActorTransform().InverseTransformPosition(C->Bounds.Origin).X*.01< -Simulation->Settings.HoldLength*.5-.01&&!PC->HiddenPrimitiveComponents.Contains(C)){PC->HiddenPrimitiveComponents.Add(C);HiddenByView.Add(C);}}
     }
-    else {Position={-23,Simulation->QuayEdgeY()-17,Simulation->QuayZ()+4};Target={0,Simulation->QuayEdgeY()-29,Simulation->QuayZ()+2.3};}
+    else {Position={-23,Simulation->QuayOffset(17),Simulation->QuayZ()+4};Target={0,Simulation->QuayOffset(29),Simulation->QuayZ()+2.3};}
     ViewCamera->SetActorLocationAndRotation(Simulation->GetActorTransform().TransformPosition(Position*100),Simulation->GetActorQuat()*(Target-Position).Rotation().Quaternion());
 }
 void ACoilLoadingMonitorHost::ShowTools()

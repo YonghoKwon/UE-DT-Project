@@ -38,6 +38,7 @@ struct MA0T10_DT_API FPlacement
     int32 Tier=1,Row=1,Column=1,SupportA=INDEX_NONE,SupportB=INDEX_NONE;
     bool bDunnage=true,bChocks=true,bLashing=false,bEyeForeAft=true;
     double ChockCapacityKN=0,LashingCapacityKN=0,DiametralStiffnessKNPerM=0,OvalityLimit=0;
+    double RollingResistanceM=0; // effective contact moment arm; 0 = ideal rigid cylinder
 };
 struct MA0T10_DT_API FSettings
 {
@@ -48,10 +49,17 @@ struct MA0T10_DT_API FSettings
     double ApprovedPatchArea=0,LocalPressureLimit=0; // 0 = not provided, never a green approval
     double Displacement=30000,KG=7,KM=9,FreeSurfaceCorrection=.2,MCT1cm=0,KeelToTanktop=.2;
     double LBP=162,SpeedKnots=14,PositionFromAP=.5;
+    double LCFFromAP=0; // metres from AP; unavailable until explicitly confirmed
+    bool bLCFConfirmed=false;
+    double BerthGap=2,RailSetback=3,RailGauge=12;
+    int32 QuaySide=-1; // -1 starboard / +1 port, in scenario coordinates
     double HookSWL=40,GearMass=2,MinRadius=11,MaxRadius=35,GearHeadroom=3,GearWidth=2.2,GearLength=2.5;
     double LegAngleDegrees=30,LegWLLTonnes=0,Outreach=0,ClearanceMargin=.2,WindMps=0; // radius0 = derive with rail aligned to load X
     bool bCHook=false,bWetSteel=false,bLoadingManual=false,bUseCSS=false;
     double Ax=0,Ay=0,Az=0;
+    double QuayEdgeY() const { return QuaySide*(Beam*.5+BerthGap); }
+    double RailCenterY() const { return QuayEdgeY()+QuaySide*(RailSetback+RailGauge*.5); }
+    double CraneRadius(const FVector& Load) const { return FMath::Abs(Load.Y-RailCenterY()); }
     bool Validate(FString& Error) const;
 };
 struct MA0T10_DT_API FIssue
@@ -75,7 +83,7 @@ struct MA0T10_DT_API FResult
     TArray<double> VerticalTonnes,SpreadKN,ContactPressure,PatchPressure,Ovality;
     ESeverity Severity=ESeverity::Normal;
     bool bComplete=true;
-    double TotalMass=0,FloorReaction=0,KG=0,GM=0,HeelDegrees=0,TrimCm=0,MaxUtilization=0;
+    double TotalMass=0,FloorReaction=0,KG=0,GM=0,HeelDegrees=0,TrimCm=0,TrimMomentTonnesM=0,MaxUtilization=0;
     int32 UnknownCount=0;
     void Add(FName Code,ESeverity Level,const FString& Reason,int32 Coil=INDEX_NONE,double Value=0,double Limit=0,bool Known=true);
 };
@@ -85,6 +93,8 @@ MA0T10_DT_API bool CSSAcceleration(const FSettings& Settings,FVector& Accelerati
 MA0T10_DT_API FResult Analyze(const FSettings& Settings,const TArray<FPlacement>& Plan);
 MA0T10_DT_API double Heel(double Displacement,double GM,double TransverseMoment);
 MA0T10_DT_API double PolygonRadialError(double Radius,int32 Sides);
+/** Analytic finite annulus intersection for the two supported horizontal eye axes. */
+MA0T10_DT_API bool CylindersInterfere(const FPlacement& A,const FPlacement& B,double Tolerance=.003);
 /** Robust fixed-axis annulus translation fit; all inputs/outputs in scenario-local metres. */
 MA0T10_DT_API FCylinderFit FitCylinder(const FPlacement& Placement,const TArray<FVector>& Points);
 MA0T10_DT_API FString PlanToJson(const FSettings& Settings,const TArray<FPlacement>& Plan);

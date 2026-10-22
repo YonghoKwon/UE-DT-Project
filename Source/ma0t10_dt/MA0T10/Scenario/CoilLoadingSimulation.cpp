@@ -10,6 +10,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
+#include "Async/Async.h"
 #include "EngineUtils.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
@@ -23,7 +24,7 @@ using namespace CoilLoading;
 namespace
 {
 bool SameScene(const FSettings& A,const FSettings& B)
-{return A.LOA==B.LOA&&A.Beam==B.Beam&&A.Depth==B.Depth&&A.Draft==B.Draft&&A.KeelToTanktop==B.KeelToTanktop&&A.HoldLength==B.HoldLength&&A.HoldWidth==B.HoldWidth&&A.HoldHeight==B.HoldHeight&&A.HoldCount==B.HoldCount&&A.Coaming==B.Coaming;}
+{return A.LOA==B.LOA&&A.Beam==B.Beam&&A.Depth==B.Depth&&A.Draft==B.Draft&&A.KeelToTanktop==B.KeelToTanktop&&A.HoldLength==B.HoldLength&&A.HoldWidth==B.HoldWidth&&A.HoldHeight==B.HoldHeight&&A.HoldCount==B.HoldCount&&A.Coaming==B.Coaming&&A.BerthGap==B.BerthGap&&A.RailSetback==B.RailSetback&&A.RailGauge==B.RailGauge&&A.QuaySide==B.QuaySide;}
 void ContactFriction(ACoilLoadingBody* B,const FPlacement& P,bool Wet)
 {
     const bool UnknownPackage=P.Spec.Type==ECoilType::ColdRolled&&!P.Spec.bPackagedFrictionConfirmed;
@@ -71,7 +72,7 @@ FPlacement ACoilLoadingSimulation::PreviewPlacement() const
 {
     FPlacement P;P.Spec=NextSpec;P.Tier=NextTier;P.Row=NextRow;P.Column=NextColumn;
     P.bDunnage=bNextDunnage;P.bChocks=bNextChocks;P.bLashing=bNextLashing;P.bEyeForeAft=bNextForeAft;
-    P.ChockCapacityKN=NextChockKN;P.LashingCapacityKN=NextLashingKN;P.DiametralStiffnessKNPerM=NextStiffness;P.OvalityLimit=NextOvalityLimit;
+    P.ChockCapacityKN=NextChockKN;P.LashingCapacityKN=NextLashingKN;P.DiametralStiffnessKNPerM=NextStiffness;P.OvalityLimit=NextOvalityLimit;P.RollingResistanceM=NextRollingResistanceM;
     const double OD=P.Spec.OuterDiameter(),Width=P.Spec.OverallWidth();
     P.Center=FVector(-Settings.HoldLength*.5+FMath::Max(Width,Settings.GearLength)*.5+Settings.ClearanceMargin+(NextRow-1)*(Width+.15),-Settings.HoldWidth*.5+FMath::Max(OD*.5,Settings.GearWidth*.5)+Settings.ClearanceMargin+(NextColumn-1+(NextTier-1)*.5)*OD,(P.bDunnage?Settings.DunnageThickness:0)+OD*.5+(NextTier-1)*OD*.8660254038);
     for(const auto& Existing:Placements)if(Existing.Row==NextRow)
@@ -91,6 +92,7 @@ FPlacement ACoilLoadingSimulation::PreviewPlacement() const
 void ACoilLoadingSimulation::RefreshPreview()
 {
     if(bEnding||Materials.IsEmpty())return;FString E;if(!NextSpec.Validate(E)||!Settings.Validate(E)){Status=E;return;}
+    if(!SameScene(Settings,BuiltSceneSettings))RestoreSceneGeometry();
     Pending=PreviewPlacement();auto Preview=Placements;Preview.Add(Pending);PreviewAnalysis=Analyze(Settings,Preview);
     if(!Ghost){Ghost=SpawnCoil(NextSpec,Pending.Center);if(Ghost){Ghost->Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);Ghost->Tags={TEXT("CoilGhostDisplayOnly")};Ghost->Body->SetRenderCustomDepth(true);}}
     if(Ghost){Ghost->Body->SetStaticMesh(CoilMesh(NextSpec));ApplyCoilAppearance(Ghost,NextSpec);Ghost->Body->SetMaterial(0,Materials[PreviewAnalysis.Severity==ESeverity::Warning?6:5]);Ghost->SetActorLocation(GetActorTransform().TransformPosition(Pending.Center*100));Ghost->SetActorRotation(GetActorRotation()+FRotator(0,bNextForeAft?0:90,0));}
@@ -203,6 +205,7 @@ bool ACoilLoadingSimulation::StartMotionTest()
 }
 void ACoilLoadingSimulation::CancelOperation()
 {
+    ++PlanLoadGeneration;bPlanLoading=false;
     if(CurrentPhase==ECoilLoadingPhase::Idle)return;
     if(Suspended){Suspended->Destroy();Suspended=nullptr;if(History.Num())History.Pop();}
     for(auto B:Bodies)if(B)B->Body->SetSimulatePhysics(false);
@@ -220,7 +223,7 @@ bool ACoilLoadingSimulation::Undo()
     if(!PlanFromJson(History.Last(),S,P,E)){Status=E;return false;}
     const bool SingleRemoval=Placements.Num()==P.Num()+1;FPlacement Removed;if(SingleRemoval)Removed=Placements.Last();const bool Rebuild=!SameScene(Settings,S);
     History.Pop();Settings=S;Placements=MoveTemp(P);if(Rebuild)RestoreSceneGeometry();RebuildPlanBodies();
-    if(SingleRemoval){NextSpec=Removed.Spec;NextTier=Removed.Tier;NextRow=Removed.Row;NextColumn=Removed.Column;bNextDunnage=Removed.bDunnage;bNextChocks=Removed.bChocks;bNextLashing=Removed.bLashing;bNextForeAft=Removed.bEyeForeAft;NextChockKN=Removed.ChockCapacityKN;NextLashingKN=Removed.LashingCapacityKN;NextStiffness=Removed.DiametralStiffnessKNPerM;NextOvalityLimit=Removed.OvalityLimit;ManifestIndex=FMath::Max(0,ManifestIndex-1);}
+    if(SingleRemoval){NextSpec=Removed.Spec;NextTier=Removed.Tier;NextRow=Removed.Row;NextColumn=Removed.Column;bNextDunnage=Removed.bDunnage;bNextChocks=Removed.bChocks;bNextLashing=Removed.bLashing;bNextForeAft=Removed.bEyeForeAft;NextChockKN=Removed.ChockCapacityKN;NextLashingKN=Removed.LashingCapacityKN;NextStiffness=Removed.DiametralStiffnessKNPerM;NextOvalityLimit=Removed.OvalityLimit;NextRollingResistanceM=Removed.RollingResistanceM;ManifestIndex=FMath::Max(0,ManifestIndex-1);}
     else {NextSpec.CoilId=FString::Printf(TEXT("COIL-%04d"),Placements.Num()+1);NextTier=1;NextRow=1;NextColumn=1;}
     RefreshPreview();PhysicsResult=FCoilPhysicsObservation();return true;
 }
@@ -241,10 +244,38 @@ bool ACoilLoadingSimulation::RequestPlanSave()
 }
 bool ACoilLoadingSimulation::LoadPlan(const FString& Path)
 {
-    if(CurrentPhase!=ECoilLoadingPhase::Idle)return false;if(IFileManager::Get().FileSize(*Path)>16*1024*1024){Status=TEXT("계획 파일16MiB 초과");return false;}FString Text,E;FSettings S;TArray<FPlacement> P;
-    if(!FFileHelper::LoadFileToString(Text,*Path)||!PlanFromJson(Text,S,P,E)){Status=TEXT("계획 로드 실패: ")+E;return false;}
-    // Scene dimensions are owned by this explicit map. Rebuild only this actor's resources.
-    const bool Rebuild=!SameScene(Settings,S);PushUndo();Settings=S;Placements=MoveTemp(P);if(Rebuild)RestoreSceneGeometry();RebuildPlanBodies();NextSpec.CoilId=FString::Printf(TEXT("COIL-%04d"),Placements.Num()+1);RefreshPreview();Status=TEXT("계획 불러옴 · 물리 결과는 재시험 필요");PhysicsResult=FCoilPhysicsObservation();return true;
+    if(CurrentPhase!=ECoilLoadingPhase::Idle||bEnding)return false;
+    const uint64 Generation=++PlanLoadGeneration,Revision=PlanRevision;bPlanLoading=true;Status=TEXT("계획 파일 읽기·검증 중");
+    const TWeakObjectPtr<ACoilLoadingSimulation> Weak(this);
+    Async(EAsyncExecution::ThreadPool,[Weak,Path,Generation,Revision]()
+    {
+        check(!IsInGameThread());FString Text,E;FSettings S;TArray<FPlacement> P;
+        const int64 Size=IFileManager::Get().FileSize(*Path);
+        if(Size<0)E=TEXT("file: 계획 파일 없음");
+        else if(Size>16*1024*1024)E=TEXT("file: 계획 파일16MiB 초과");
+        else if(!FFileHelper::LoadFileToString(Text,*Path))E=TEXT("file: 계획 파일 읽기 실패");
+        else PlanFromJson(Text,S,P,E);
+        AsyncTask(ENamedThreads::GameThread,[Weak,Generation,Revision,S,P=MoveTemp(P),E=MoveTemp(E)]() mutable
+        {if(auto* Self=Weak.Get())Self->FinishPlanLoad(Generation,Revision,S,MoveTemp(P),MoveTemp(E));});
+    });return true;
+}
+void ACoilLoadingSimulation::ParseLoadedPlan(FString Json,uint64 Generation,uint64 Revision)
+{
+    const TWeakObjectPtr<ACoilLoadingSimulation> Weak(this);
+    Async(EAsyncExecution::ThreadPool,[Weak,Json=MoveTemp(Json),Generation,Revision]()
+    {
+        check(!IsInGameThread());FSettings S;TArray<FPlacement> P;FString E;PlanFromJson(Json,S,P,E);
+        AsyncTask(ENamedThreads::GameThread,[Weak,Generation,Revision,S,P=MoveTemp(P),E=MoveTemp(E)]() mutable
+        {if(auto* Self=Weak.Get())Self->FinishPlanLoad(Generation,Revision,S,MoveTemp(P),MoveTemp(E));});
+    });
+}
+void ACoilLoadingSimulation::FinishPlanLoad(uint64 Generation,uint64 Revision,FSettings S,TArray<FPlacement> P,FString E)
+{
+    check(IsInGameThread());if(bEnding||Generation!=PlanLoadGeneration)return;bPlanLoading=false;
+    if(Revision!=PlanRevision||CurrentPhase!=ECoilLoadingPhase::Idle){Status=TEXT("계획 로드 취소: 요청 뒤 배치/설정 변경");return;}
+    if(!E.IsEmpty()){Status=TEXT("계획 로드 실패: ")+E;return;}
+    // Only application touches UObjects or scene resources, on the game thread.
+    const bool Rebuild=!SameScene(Settings,S);PushUndo();Settings=S;Placements=MoveTemp(P);if(Rebuild)RestoreSceneGeometry();RebuildPlanBodies();NextSpec.CoilId=FString::Printf(TEXT("COIL-%04d"),Placements.Num()+1);RefreshPreview();Status=TEXT("계획 불러옴 · 물리 결과는 재시험 필요");PhysicsResult=FCoilPhysicsObservation();
 }
 bool ACoilLoadingSimulation::SaveSlot(const FString& Slot)
 {
@@ -253,8 +284,14 @@ bool ACoilLoadingSimulation::SaveSlot(const FString& Slot)
 }
 bool ACoilLoadingSimulation::LoadSlot(const FString& Slot)
 {
-    if(CurrentPhase!=ECoilLoadingPhase::Idle||bSlotSaving)return false;auto* Save=Cast<UCoilLoadingSaveGame>(UGameplayStatics::LoadGameFromSlot(Slot,0));FSettings S;TArray<FPlacement> P;FString E;
-    if(!Save||!PlanFromJson(Save->PlanJson,S,P,E)){Status=TEXT("저장 슬롯 오류: ")+E;return false;}const bool Rebuild=!SameScene(Settings,S);PushUndo();Settings=S;Placements=MoveTemp(P);if(Rebuild)RestoreSceneGeometry();RebuildPlanBodies();RefreshPreview();PhysicsResult=FCoilPhysicsObservation();return true;
+    if(CurrentPhase!=ECoilLoadingPhase::Idle||bSlotSaving||bEnding)return false;
+    const uint64 Generation=++PlanLoadGeneration,Revision=PlanRevision;bPlanLoading=true;Status=TEXT("적재 계획 슬롯 읽기·검증 중");
+    UGameplayStatics::AsyncLoadGameFromSlot(Slot,0,FAsyncLoadGameFromSlotDelegate::CreateWeakLambda(this,[this,Generation,Revision](const FString&,int32,USaveGame* Loaded)
+    {
+        if(bEnding||Generation!=PlanLoadGeneration)return;
+        if(auto* Save=Cast<UCoilLoadingSaveGame>(Loaded))ParseLoadedPlan(Save->PlanJson,Generation,Revision);
+        else FinishPlanLoad(Generation,Revision,FSettings(),{},TEXT("slot: 저장 데이터 없음/클래스 오류"));
+    }));return true;
 }
 void ACoilLoadingSimulation::DrawRig()
 {
@@ -305,6 +342,6 @@ void ACoilLoadingSimulation::Observe()
 void ACoilLoadingSimulation::SetView(int32 V){ActiveView=FMath::Clamp(V,0,4);if(Ghost)Ghost->Body->SetVisibility(V!=4);if(Lidar)Lidar->VisualizationComponent->SetWorldPointCloudEnabled(V==4);++PlanRevision;}
 void ACoilLoadingSimulation::EndPlay(const EEndPlayReason::Type Reason)
 {
-    bEnding=true;GetWorldTimerManager().ClearTimer(PresentationTimer);if(!PlanSaveRequest.IsEmpty())if(auto* Files=GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>())Files->CancelRequest(PlanSaveRequest);PlanSaveRequest.Reset();CancelOperation();if(Lidar){Lidar->StopSensor();Lidar->ScanComponent->SetRayQueryFactory({});Lidar->Destroy();}
+    bEnding=true;++PlanLoadGeneration;bPlanLoading=false;GetWorldTimerManager().ClearTimer(PresentationTimer);if(!PlanSaveRequest.IsEmpty())if(auto* Files=GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>())Files->CancelRequest(PlanSaveRequest);PlanSaveRequest.Reset();CancelOperation();if(Lidar){Lidar->StopSensor();Lidar->ScanComponent->SetRayQueryFactory({});Lidar->Destroy();}
     CachedQuery.Reset();for(auto B:Bodies)if(B)B->Destroy();for(auto B:Stock)if(B)B->Destroy();if(Ghost)Ghost->Destroy();if(Suspended)Suspended->Destroy();if(WaitingCoil)WaitingCoil->Destroy();OnChanged.Clear();Super::EndPlay(Reason);
 }

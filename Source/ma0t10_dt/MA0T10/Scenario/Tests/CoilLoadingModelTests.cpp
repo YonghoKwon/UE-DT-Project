@@ -1,6 +1,7 @@
 #include "ma0t10_dt/MA0T10/Scenario/CoilLoadingModel.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
+#include "Json.h"
 using namespace CoilLoading;
 namespace
 {
@@ -91,5 +92,68 @@ bool FCoilTypes::RunTest(const FString&)
     TArray<FSpec> Coils;FString E;TestTrue(TEXT("typed CSV input"),ImportManifest(TEXT("coil_id,od,inner_diameter,width,weight,type\nH1,1.6,0.762,1.25,0,HR\nC1,1.5,0.508,1.25,0,CR"),false,Coils,E));TestTrue(TEXT("CR type and fill preserved"),Coils.Num()==2&&Coils[1].Type==ECoilType::ColdRolled&&Coils[1].Fill==1);
     TestTrue(TEXT("typed JSON input"),ImportManifest(TEXT("[{\"id\":\"C2\",\"type\":\"CR\",\"od\":1.5,\"inner_diameter\":0.508,\"width\":1.25}]"),true,Coils,E));
     FSettings Restored;TArray<FPlacement> Plan;TestTrue(TEXT("type/package fields persist"),PlanFromJson(PlanToJson(S,{P}),Restored,Plan,E));TestTrue(TEXT("packaging exact roundtrip"),Plan[0].Spec.Type==ECoilType::ColdRolled&&Plan[0].Spec.PackageRadial==CR.PackageRadial);return true;
+}
+IMPLEMENT_COMPLEX_AUTOMATION_TEST(FCoilIndependentReview,"MA0T10.CoilLoading.IndependentReview",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+void FCoilIndependentReview::GetTests(TArray<FString>& Names,TArray<FString>& Commands) const
+{
+    for(const TCHAR* C:{TEXT("R1CrossAxisCylinders"),TEXT("R2OrientedHatch"),TEXT("R3NumericLegacyId"),TEXT("R4FieldDiagnostics"),TEXT("R5RollingMoment"),TEXT("R6LCFTrim"),TEXT("R8SceneCraneRadius")}){Names.Add(C);Commands.Add(C);}
+}
+bool FCoilIndependentReview::RunTest(const FString& Case)
+{
+    FSettings S;FPlacement A,B;A.Center={0,0,.85};B=A;B.Spec.CoilId=TEXT("B");FString E;
+    if(Case==TEXT("R1CrossAxisCylinders"))
+    {
+        B.bEyeForeAft=false;TestTrue(TEXT("cross-axis annuli intersect"),CylindersInterfere(A,B));TestTrue(TEXT("analysis checks differing eye directions"),Issue(Analyze(S,{A,B}),TEXT("CoilInterference"))!=nullptr);
+        B.Center={1.4,1.4,1.35};TestFalse(TEXT("overlapping AABBs can have separated circular sections"),CylindersInterfere(A,B));
+        B.Center=A.Center;B.Spec.OD=.2;B.Spec.ID=.1;B.Spec.Width=.2;TestFalse(TEXT("small cross-axis cylinder entirely in clear bore"),CylindersInterfere(A,B));
+        B=A;B.Center.Y=1.6;TestFalse(TEXT("tangent cylinders do not penetrate"),CylindersInterfere(A,B));B.Center.Y=1.59;TestTrue(TEXT("10mm penetration exceeds3mm tolerance"),CylindersInterfere(A,B));
+    }
+    if(Case==TEXT("R2OrientedHatch"))
+    {
+        S.OpeningLength=1.5;S.OpeningWidth=2;S.GearLength=S.GearWidth=.2;
+        const auto Fore=Analyze(S,{A});const auto* I=Issue(Fore,TEXT("HatchClearance"));TestTrue(TEXT("eye-X width fits along hatch X"),I&&I->Value>0);
+        A.bEyeForeAft=false;const auto Across=Analyze(S,{A});I=Issue(Across,TEXT("HatchClearance"));TestTrue(TEXT("eye-Y OD along X penetrates5cm"),I&&I->Severity==ESeverity::Warning&&FMath::IsNearlyEqual(I->Value,-.05,1.e-6));
+    }
+    if(Case==TEXT("R3NumericLegacyId"))
+    {
+        TArray<FSpec> Specs;TestTrue(TEXT("legacy numeric id is bore with explicit coil_id"),ImportManifest(TEXT("[{\"coil_id\":\"LEGACY-1\",\"id\":0.762,\"od\":1.6,\"width\":1.25}]"),true,Specs,E));
+        TestTrue(TEXT("identifier independent from bore"),Specs.Num()==1&&Specs[0].CoilId==TEXT("LEGACY-1")&&Specs[0].ID==.762);
+        TestFalse(TEXT("numeric bore cannot become identifier"),ImportManifest(TEXT("[{\"id\":0.762,\"od\":1.6,\"width\":1.25}]"),true,Specs,E));TestTrue(TEXT("missing identifier diagnostic"),E.Contains(TEXT("coil_id")));
+        TestFalse(TEXT("numeric coil_id cannot be coerced either"),ImportManifest(TEXT("[{\"coil_id\":42,\"id\":0.762,\"od\":1.6,\"width\":1.25}]"),true,Specs,E));
+    }
+    if(Case==TEXT("R4FieldDiagnostics"))
+    {
+        const FString Original=PlanToJson(S,{A,B});
+        const auto Reject=[&](TSharedPtr<FJsonObject> Root,const FString& Expected)
+        {FString Text;FJsonSerializer::Serialize(Root.ToSharedRef(),TJsonWriterFactory<>::Create(&Text));FSettings OutS;TArray<FPlacement> OutP={A};E=TEXT("stale");TestFalse(*Expected,PlanFromJson(Text,OutS,OutP,E));TestTrue(*(Expected+TEXT(" named in diagnostic")),E.Contains(Expected)&&E!=TEXT("stale"));TestEqual(TEXT("failure preserves output"),OutP.Num(),1);};
+        for(const TCHAR* Field:{TEXT("x"),TEXT("y"),TEXT("z"),TEXT("tier"),TEXT("row"),TEXT("column"),TEXT("support_a"),TEXT("support_b"),TEXT("dunnage"),TEXT("chocks"),TEXT("lashing"),TEXT("eye_fore_aft"),TEXT("chock_kn"),TEXT("lashing_kn"),TEXT("k_diam"),TEXT("ovality_limit"),TEXT("coil_id"),TEXT("od"),TEXT("inner_diameter"),TEXT("width"),TEXT("density"),TEXT("fill"),TEXT("weight"),TEXT("mu")})
+        {
+            TSharedPtr<FJsonObject> Root;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Original),Root);Root->GetArrayField(TEXT("coils"))[1]->AsObject()->RemoveField(Field);Reject(Root,FString(TEXT("coils[1]."))+Field);
+        }
+        for(const TCHAR* Field:{TEXT("HoldCount"),TEXT("DunnageLines"),TEXT("Beam"),TEXT("bUseCSS")})
+        {TSharedPtr<FJsonObject> Root;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Original),Root);Root->GetObjectField(TEXT("settings"))->RemoveField(Field);Reject(Root,FString(TEXT("settings."))+Field);}
+        TSharedPtr<FJsonObject> Root;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Original),Root);Root->GetArrayField(TEXT("coils"))[1]->AsObject()->SetNumberField(TEXT("support_a"),99);Reject(Root,TEXT("coils[1].support_a"));
+    }
+    if(Case==TEXT("R5RollingMoment"))
+    {
+        S.bUseCSS=true;TestTrue(TEXT("default first-tier chocks enabled"),A.bChocks);const auto Default=Analyze(S,{A});TestEqual(TEXT("default CSS placement known risks zero, unprovided capacity separate"),Default.Issues.FilterByPredicate([](const FIssue& I){return I.bKnown&&I.Severity==ESeverity::Warning;}).Num(),0);TestTrue(TEXT("missing certified rolling restraint is data needed"),Issue(Default,TEXT("RollingCapacityUnknown"))&&!Issue(Default,TEXT("RollingCapacityUnknown"))->bKnown);
+        S.bUseCSS=false;S.Ay=.01;A.bChocks=false;A.RollingResistanceM=.002;TestFalse(TEXT("finite rolling resistance tolerates small acceleration"),Issue(Analyze(S,{A}),TEXT("Rolling"))!=nullptr);
+        S.Ay=.03;const auto Above=Analyze(S,{A});const auto* I=Issue(Above,TEXT("Rolling"));TestTrue(TEXT("a_critical=g*b/r=.024525m/s2"),I&&I->bKnown&&I->Severity==ESeverity::Warning&&FMath::IsNearlyEqual(I->Limit,.024525,1.e-7));
+        A.bEyeForeAft=false;S.Ay=.5;S.Ax=0;TestFalse(TEXT("transverse eye rolls along X, not along its Y axis"),Issue(Analyze(S,{A}),TEXT("Rolling"))!=nullptr);
+    }
+    if(Case==TEXT("R6LCFTrim"))
+    {
+        S.MCT1cm=100;S.LBP=160;S.PositionFromAP=.25;S.LCFFromAP=80;S.bLCFConfirmed=true;A.Spec.MassOverride=20;A.Center.X=10;
+        const auto R=Analyze(S,{A});TestEqual(TEXT("20t at AP50 versus LCF80 gives -600tm"),R.TrimMomentTonnesM,-600.);TestEqual(TEXT("trim uses LCF and hold AP station"),R.TrimCm,-6.);
+        S.PositionFromAP=.75;TestEqual(TEXT("moving hold changes longitudinal moment"),Analyze(S,{A}).TrimCm,10.);
+        S.bLCFConfirmed=false;const auto Missing=Analyze(S,{A});TestTrue(TEXT("MCT alone cannot establish reference LCF"),Issue(Missing,TEXT("LCFUnknown"))&&!Issue(Missing,TEXT("LCFUnknown"))->bKnown);TestEqual(TEXT("no fabricated trim when LCF missing"),Missing.TrimCm,0.);
+    }
+    if(Case==TEXT("R8SceneCraneRadius"))
+    {
+        TestTrue(TEXT("default rail midpoint derived from beam, gap, setback and gauge"),FMath::IsNearlyEqual(S.RailCenterY(),-21.2));TestTrue(TEXT("radius to centerline21.2m"),FMath::IsNearlyEqual(S.CraneRadius(A.Center),21.2));
+        S.Beam=26;S.BerthGap=4;S.RailSetback=5;S.RailGauge=14;S.QuaySide=1;A.Center.Y=-2;TestEqual(TEXT("port quay radius31m"),S.CraneRadius(A.Center),31.);S.MaxRadius=30;const auto R=Analyze(S,{A});const auto* I=Issue(R,TEXT("Outreach"));TestTrue(TEXT("analysis uses same actual scene radius"),I&&I->Value==31);
+        FSettings Restored;TArray<FPlacement> Plan;TestTrue(TEXT("rail and LCF metadata roundtrip"),PlanFromJson(PlanToJson(S,{A}),Restored,Plan,E));TestEqual(TEXT("rail dimensions persist"),Restored.RailCenterY(),S.RailCenterY());
+    }
+    return true;
 }
 #endif

@@ -84,32 +84,32 @@ void ACoilLoadingSimulation::BuildScene()
     }
     const double VesselX=(S.HoldCount-1)*(L+3)*.5;
     Box({VesselX,0,-1.2},{S.LOA,S.Beam,2},0);Box({-L*.5-7,0,H+4},{12,15,8},1);Box({-L*.5-7,0,H+9},{9,12,2},0);
-    Box({VesselX,QuayEdgeY()-20,QuayZ()-.6},{S.LOA+30,40,1.2},1);
+    Box({VesselX,QuayOffset(20),QuayZ()-.6},{S.LOA+30,40,1.2},1);
     // Water is display only, has no measurement/collision.
-    Box({VesselX,S.Beam*.5+35.1,S.Draft-S.KeelToTanktop-.1},{S.LOA+100,70,.05},7,false)->ComponentTags.Add(TEXT("CoilDisplayOnly"));
-    const double RailY=QuayEdgeY()-3,Q=QuayZ(),CraneX=-8;
+    Box({VesselX,-S.QuaySide*(S.Beam*.5+35.1),S.Draft-S.KeelToTanktop-.1},{S.LOA+100,70,.05},7,false)->ComponentTags.Add(TEXT("CoilDisplayOnly"));
+    const double RailY=QuayOffset(S.RailSetback),Q=QuayZ(),CraneX=-8,Side=S.QuaySide;
     const auto CraneBox=[&](FVector C,FVector Size,int32 Color,bool Collision=true){auto* M=Box(C,Size,Color,Collision);CraneParts.Add(M);CraneStarts.Add(C*100);return M;};
-    for(double Y:{RailY,RailY-12})
+    for(double Y:{RailY,RailY+Side*S.RailGauge})
     {
         Box({VesselX,Y,Q+.08},{S.LOA,.16,.16},4);
         for(double X:{CraneX-4,CraneX+4})
         {CraneBox({X,Y,Q+14},{.85,.85,28},2);CraneBox({X,Y,Q+.6},{2,1.2,1.2},0);}
     }
-    for(double X:{CraneX-4,CraneX+4}){CraneBox({X,RailY-6,Q+20},{1,13,1},2);CraneBox({X,RailY+9,Q+28},{1,43,1.2},2);}
-    CraneBox({CraneX,RailY+30,Q+28},{9,1,1.2},2);CraneBox({CraneX,RailY-12,Q+28},{9,1,1.2},2);
-    for(double Y=RailY-10;Y<RailY+30;Y+=4)CraneBox({CraneX,Y,Q+28},{7,.2,.2},2,false);
-    CraneBox({CraneX+4,RailY+4,Q+25},{2.5,3,2.5},0);
-    Box({-8,QuayEdgeY()-8,Q+.5},{2.5,2.3,1},2);for(double Y:{-.7,.7})Box({-8,QuayEdgeY()-8+Y,Q+1.05},{2,.25,.3},2,true,FRotator(0,0,Y<0?-35:35));
+    for(double X:{CraneX-4,CraneX+4}){CraneBox({X,S.RailCenterY(),Q+20},{1,S.RailGauge+1,1},2);CraneBox({X,RailY-Side*(30-S.RailGauge)*.5,Q+28},{1,31+S.RailGauge,1.2},2);}
+    CraneBox({CraneX,RailY-Side*30,Q+28},{9,1,1.2},2);CraneBox({CraneX,RailY+Side*S.RailGauge,Q+28},{9,1,1.2},2);
+    for(double Offset=-S.RailGauge+2;Offset<30;Offset+=4)CraneBox({CraneX,RailY-Side*Offset,Q+28},{7,.2,.2},2,false);
+    CraneBox({CraneX+4,RailY-Side*4,Q+25},{2.5,3,2.5},0);
+    Box({-8,QuayOffset(8),Q+.5},{2.5,2.3,1},2);for(double Y:{-.7,.7})Box({-8,QuayOffset(8)+Y,Q+1.05},{2,.25,.3},2,true,FRotator(0,0,Y<0?-35:35));
     // ref3: open-front coil shed, individual yellow cradles and visible coil eyes.
-    const double ShedY=QuayEdgeY()-29;
-    Box({2,ShedY,Q+6},{32,10,.3},5);Box({2,ShedY-5,Q+3},{32,.2,6},5);
+    const double ShedY=QuayOffset(29);
+    Box({2,ShedY,Q+6},{32,10,.3},5);Box({2,ShedY+Side*5,Q+3},{32,.2,6},5);
     for(double X=-12;X<=16;X+=7)for(double Y:{ShedY-4.8,ShedY+4.8})Box({X,Y,Q+3},{.25,.25,6},2);
     for(int32 I=0;I<8;++I)
     {
         const FVector C(-10+I*3.2,ShedY,Q+1.35);auto Spec=NextSpec;Spec.CoilId=FString::Printf(TEXT("STOCK-%03d"),I+1);auto* A=SpawnCoil(Spec,C);if(A){Stock.Add(A);A->AttachToActor(this,FAttachmentTransformRules::KeepWorldTransform);}
         for(double Y:{-.8,.8})Box(C+FVector(0,Y,-.85),{1.8,.35,.35},2);
     }
-    CurrentHook=PickupPosition()+FVector(0,0,3);++GeometryRevision;
+    BuiltSceneSettings=Settings;CurrentHook=PickupPosition()+FVector(0,0,3);++GeometryRevision;
 }
 void ACoilLoadingSimulation::BuildSupports()
 {
@@ -143,6 +143,7 @@ void ACoilLoadingSimulation::RestoreSceneGeometry()
 {
     for(auto M:Structure)if(M)M->DestroyComponent();Structure.Reset();PlanSupports.Reset();CraneParts.Reset();CraneStarts.Reset();RailX=-8;SupportedPlacementCount=0;
     for(auto A:Stock)if(A)A->Destroy();Stock.Reset();Materials.Reset();BuildScene();
+    BuildSupports();if(WaitingCoil)WaitingCoil->SetActorLocation(GetActorTransform().TransformPosition(PickupPosition()*100));
     if(Lidar)
     {
         FVirtualSensorEditableState S;FString E;Lidar->ReadEditableState(S);

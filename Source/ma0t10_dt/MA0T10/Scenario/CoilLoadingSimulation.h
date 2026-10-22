@@ -67,7 +67,7 @@ public:
     CoilLoading::FSpec NextSpec;
     int32 NextTier=1,NextRow=1,NextColumn=1;
     bool bNextDunnage=true,bNextChocks=true,bNextLashing=false,bNextForeAft=true;
-    double NextChockKN=0,NextLashingKN=0,NextStiffness=0,NextOvalityLimit=0;
+    double NextChockKN=0,NextLashingKN=0,NextStiffness=0,NextOvalityLimit=0,NextRollingResistanceM=0;
     double RollDegrees=5,PitchDegrees=2,MotionPeriod=10,MotionDuration=20;
     UPROPERTY(Transient) TObjectPtr<AVirtualLidarSensorActor> Lidar;
     UPROPERTY(Transient) TObjectPtr<ACoilLoadingBody> Ghost;
@@ -90,6 +90,8 @@ public:
     bool IsPlanSavePending() const { return !PlanSaveRequest.IsEmpty(); }
     FString LastPlanSavePath;
     bool LoadPlan(const FString& Path);
+    bool IsPlanLoadPending() const { return bPlanLoading; }
+    bool IsSlotSavePending() const { return bSlotSaving; }
     bool SaveSlot(const FString& Slot=TEXT("CoilLoading_v1"));
     bool LoadSlot(const FString& Slot=TEXT("CoilLoading_v1"));
     void SetView(int32 View); // 0 context,1 interior,2 section,3 top,4 points
@@ -106,9 +108,10 @@ public:
     void HighlightCoils(const TArray<int32>& Indices);
     bool IsHighlighted(int32 Index) const { return Highlighted.Contains(Index); }
     double QuayZ() const { return Settings.Draft-Settings.KeelToTanktop+3.5; }
-    double QuayEdgeY() const { return -Settings.Beam*.5-2; }
-    FVector PickupPosition() const { return FVector(-8,QuayEdgeY()-8,QuayZ()+1+NextSpec.OuterDiameter()*.5); }
-    FVector CraneTop() const { return FVector(RailX,QuayEdgeY()-9,QuayZ()+28); }
+    double QuayEdgeY() const { return Settings.QuayEdgeY(); }
+    double QuayOffset(double Setback) const { return QuayEdgeY()+Settings.QuaySide*Setback; }
+    FVector PickupPosition() const { return FVector(-8,QuayOffset(8),QuayZ()+1+NextSpec.OuterDiameter()*.5); }
+    FVector CraneTop() const { return FVector(RailX,Settings.RailCenterY(),QuayZ()+28); }
     FVector HookPosition() const { return CurrentHook; }
     TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe> CaptureQuery(AActor* Ignore,ECollisionChannel Channel);
     FSimpleMulticastDelegate OnChanged;
@@ -136,6 +139,7 @@ private:
     TArray<CoilLoading::FSpec> Manifest;
     TArray<FString> History;
     CoilLoading::FResult PreviewAnalysis;
+    CoilLoading::FSettings BuiltSceneSettings;
     CoilLoading::FPlacement Pending;
     FCoilPhysicsObservation PhysicsResult;
     ECoilLoadingPhase CurrentPhase=ECoilLoadingPhase::Idle;
@@ -150,6 +154,8 @@ private:
     FTimerHandle PresentationTimer;
     bool bEnding=false;
     bool bSlotSaving=false;
+    bool bPlanLoading=false;
+    uint64 PlanLoadGeneration=0;
     FString PlanSaveRequest;
     UStaticMesh* CoilMesh(const CoilLoading::FSpec& Spec);
     UStaticMesh* CoilDetailMesh(const CoilLoading::FSpec& Spec);
@@ -167,6 +173,8 @@ private:
     void DrawRig();
     void Observe();
     void PushUndo();
+    void ParseLoadedPlan(FString Json,uint64 Generation,uint64 Revision);
+    void FinishPlanLoad(uint64 Generation,uint64 Revision,CoilLoading::FSettings Settings,TArray<CoilLoading::FPlacement> Plan,FString Error);
     void FinishPhysics();
     int32 NominalRowCapacity() const;
 };

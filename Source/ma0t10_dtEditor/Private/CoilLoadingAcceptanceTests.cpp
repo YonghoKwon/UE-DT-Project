@@ -75,7 +75,11 @@ public:
         if(Step==31)
         {
             if(S.IsPlanSavePending())return false;if(!Test->TestTrue(TEXT("asynchronous plan file completed"),!S.LastPlanSavePath.IsEmpty()))return true;
-            Test->TestTrue(TEXT("new placement"),S.PlaceNext(false));Test->TestTrue(TEXT("plan load"),S.LoadPlan(S.LastPlanSavePath));Test->TestEqual(TEXT("load restores exact count"),S.Plan().Num(),SavedPlanCount);Evidence->SetStringField(TEXT("plan_json"),S.LastPlanSavePath);
+            Test->TestTrue(TEXT("new placement"),S.PlaceNext(false));Test->TestTrue(TEXT("plan load queued asynchronously"),S.LoadPlan(S.LastPlanSavePath));Evidence->SetStringField(TEXT("plan_json"),S.LastPlanSavePath);Step=32;Changed=Now;return false;
+        }
+        if(Step==32)
+        {
+            if(S.IsPlanLoadPending())return false;Test->TestEqual(TEXT("asynchronous load restores exact count"),S.Plan().Num(),SavedPlanCount);
             auto* Save=NewObject<UCoilLoadingSaveGame>();Save->PlanJson=CoilLoading::PlanToJson(S.Settings,S.Plan());TArray<uint8> Bytes;Test->TestTrue(TEXT("SaveGame serialization"),UGameplayStatics::SaveGameToMemory(Save,Bytes));auto* Restored=Cast<UCoilLoadingSaveGame>(UGameplayStatics::LoadGameFromMemory(Bytes));Test->TestTrue(TEXT("SaveGame exact roundtrip"),Restored&&Restored->PlanJson==Save->PlanJson);
             M.SelectView(1);Step=4;Changed=Now;return false;
         }
@@ -92,6 +96,54 @@ public:
         return false;
     }
 };
+class FCoilAsyncReview final:public IAutomationLatentCommand
+{
+    FAutomationTestBase* Test;int32 Step=0;double Start=FPlatformTime::Seconds(),Changed=0;
+    FString Path=CoilRoot()/TEXT("review-async-plan.json"),Slot=TEXT("CoilLoading_Review_")+FGuid::NewGuid().ToString(EGuidFormats::Digits);
+public:
+    explicit FCoilAsyncReview(FAutomationTestBase* T):Test(T){}
+    bool Update() override
+    {
+        const double Now=FPlatformTime::Seconds();if(Now-Start>45){Test->AddError(TEXT("R7 async load timeout"));UGameplayStatics::DeleteGameInSlot(Slot,0);return true;}
+        UWorld* W=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)W=C.World();if(!W||!FinalAcceptanceViewportReady(W))return false;
+        ACoilLoadingSimulation* S=nullptr;for(TActorIterator<ACoilLoadingSimulation> I(W);I;++I)S=*I;if(!S)return false;
+        if(!Changed){Changed=Now;return false;}if(Step==0&&Now-Changed<1)return false;
+        if(Step==0)
+        {
+            Test->TestTrue(TEXT("fixture first placement"),S->PlaceNext(false));IFileManager::Get().MakeDirectory(*CoilRoot(),true);Test->TestTrue(TEXT("small owned fixture write"),FFileHelper::SaveStringToFile(CoilLoading::PlanToJson(S->Settings,S->Plan()),*Path));
+            Test->TestTrue(TEXT("second placement"),S->PlaceNext(false));Test->TestTrue(TEXT("file load returns accepted request"),S->LoadPlan(Path));Test->TestTrue(TEXT("request is pending before application"),S->IsPlanLoadPending());Test->TestEqual(TEXT("file not applied synchronously"),S->Plan().Num(),2);S->CancelOperation();Step=1;Changed=Now;return false;
+        }
+        if(Now-Changed<.5)return false;
+        if(Step==1)
+        {Test->TestEqual(TEXT("cancelled generation cannot apply late result"),S->Plan().Num(),2);S->LoadPlan(Path);S->NextSpec.OD=1.7;S->RefreshPreview();Step=2;Changed=Now;return false;}
+        if(Step==2)
+        {if(S->IsPlanLoadPending())return false;Test->TestEqual(TEXT("edited revision rejects stale file result"),S->Plan().Num(),2);Test->TestTrue(TEXT("valid load request"),S->LoadPlan(Path));Step=3;Changed=Now;return false;}
+        if(Step==3)
+        {if(S->IsPlanLoadPending())return false;Test->TestEqual(TEXT("background parse applied on game thread"),S->Plan().Num(),1);Test->TestTrue(TEXT("unique review slot async save"),S->SaveSlot(Slot));Step=4;Changed=Now;return false;}
+        if(Step==4)
+        {if(S->IsSlotSavePending())return false;Test->TestTrue(TEXT("change before slot load"),S->PlaceNext(false));Test->TestTrue(TEXT("AsyncLoadGameFromSlot request"),S->LoadSlot(Slot));Test->TestEqual(TEXT("slot not applied synchronously"),S->Plan().Num(),2);Step=5;Changed=Now;return false;}
+        if(Step==5)
+        {if(S->IsPlanLoadPending())return false;Test->TestEqual(TEXT("slot JSON parsed off-thread and applied"),S->Plan().Num(),1);UGameplayStatics::DeleteGameInSlot(Slot,0);S->LoadPlan(Path+TEXT(".missing"));Step=6;Changed=Now;return false;}
+        if(Step==6)
+        {
+            if(S->IsPlanLoadPending())return false;Test->TestTrue(TEXT("async read failure reports file field"),S->Status.Contains(TEXT("file:")));Test->TestEqual(TEXT("failed load remains atomic"),S->Plan().Num(),1);
+            S->LoadPlan(Path);S->LoadPlan(Path+TEXT(".missing"));Step=7;Changed=Now;return false;
+        }
+        if(Step==7)
+        {
+            if(S->IsPlanLoadPending())return false;Test->TestTrue(TEXT("latest generation owns completion"),S->Status.Contains(TEXT("file:")));Test->TestEqual(TEXT("superseded request not applied"),S->Plan().Num(),1);
+            auto Evidence=MakeShared<FJsonObject>();Evidence->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());Evidence->SetStringField(TEXT("checks"),TEXT("deferred file/slot apply, cancel, revision change, supersede, read failure atomicity, unique slot cleaned; worker check enforces off-game-thread parse"));CoilJson(TEXT("review-r7-async.json"),Evidence);
+            S->LoadPlan(Path);return true; // EndPlay invalidates this in-flight generation.
+        }
+        return false;
+    }
+};
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCoilAsyncReviewTest,"MA0T10.CoilLoading.IndependentReview.R7AsyncPlanLoad",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FCoilAsyncReviewTest::RunTest(const FString&)
+{
+    if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/CoilLoadingTestMap"),true))return false;
+    ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FCoilAsyncReview(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(.5f));return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCoilRhi,"MA0T10.CoilLoading.RhiWorkflow",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FCoilRhi::RunTest(const FString&)
