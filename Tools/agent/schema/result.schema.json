@@ -1,0 +1,390 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ue-dt:agent-result:v1",
+  "title": "Agent task result v1",
+  "type": "object",
+  "required": [
+    "task_id",
+    "branch",
+    "commits",
+    "base_commit",
+    "gates",
+    "measurements",
+    "not_done",
+    "known_limits",
+    "decisions_needed",
+    "artifacts",
+    "personal_settings_restored",
+    "secrets_exposed",
+    "secrets_note"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "branch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "commits": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "base_commit": {
+      "type": "string",
+      "minLength": 1
+    },
+    "gates": {
+      "type": "object",
+      "required": [
+        "quick",
+        "feature",
+        "release",
+        "perf",
+        "layer",
+        "dtcore_guard",
+        "protected_paths"
+      ],
+      "properties": {
+        "quick": {
+          "type": "object",
+          "required": [
+            "status",
+            "manifest",
+            "note"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "PASS",
+                "FAIL",
+                "SKIPPED",
+                "NOT_RUN"
+              ]
+            },
+            "manifest": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "feature": {
+          "type": "object",
+          "required": [
+            "status",
+            "manifest",
+            "note"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "PASS",
+                "FAIL",
+                "SKIPPED",
+                "NOT_RUN"
+              ]
+            },
+            "manifest": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "release": {
+          "type": "object",
+          "required": [
+            "status",
+            "manifest",
+            "note"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "PASS",
+                "FAIL",
+                "SKIPPED",
+                "NOT_RUN"
+              ]
+            },
+            "manifest": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "perf": {
+          "type": "object",
+          "required": [
+            "status",
+            "manifest",
+            "note",
+            "rt_mode"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "PASS",
+                "FAIL",
+                "SKIPPED",
+                "NOT_RUN"
+              ]
+            },
+            "manifest": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1
+            },
+            "rt_mode": {
+              "type": "string",
+              "enum": [
+                "ProjectDefault",
+                "Off",
+                "NOT_RUN"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "layer": {
+          "type": "object",
+          "required": [
+            "status",
+            "manifest",
+            "note"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "PASS",
+                "FAIL",
+                "SKIPPED",
+                "NOT_RUN"
+              ]
+            },
+            "manifest": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "dtcore_guard": {
+          "type": "object",
+          "required": [
+            "status",
+            "manifest",
+            "note"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "PASS",
+                "FAIL",
+                "SKIPPED",
+                "NOT_RUN"
+              ]
+            },
+            "manifest": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "protected_paths": {
+          "type": "object",
+          "required": [
+            "status",
+            "manifest",
+            "note"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "PASS",
+                "FAIL",
+                "SKIPPED",
+                "NOT_RUN"
+              ]
+            },
+            "manifest": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "measurements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "condition",
+          "value",
+          "unit",
+          "threshold",
+          "status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "condition": {
+            "type": "object",
+            "required": [
+              "map",
+              "resolution",
+              "rhi",
+              "rt",
+              "transport",
+              "sensors"
+            ],
+            "properties": {
+              "map": {
+                "type": "string",
+                "minLength": 1
+              },
+              "resolution": {
+                "type": "string",
+                "minLength": 1
+              },
+              "rhi": {
+                "type": "string",
+                "minLength": 1
+              },
+              "rt": {
+                "type": "string",
+                "minLength": 1
+              },
+              "transport": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sensors": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          },
+          "value": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string",
+            "minLength": 1
+          },
+          "threshold": {
+            "type": "object",
+            "required": [
+              "operator",
+              "value"
+            ],
+            "properties": {
+              "operator": {
+                "type": "string",
+                "enum": [
+                  ">=",
+                  "<=",
+                  "=="
+                ]
+              },
+              "value": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": false
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "FAIL",
+              "SKIPPED",
+              "NOT_RUN"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "not_done": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "known_limits": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "decisions_needed": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "personal_settings_restored": {
+      "type": "boolean"
+    },
+    "secrets_exposed": {
+      "type": "boolean"
+    },
+    "secrets_note": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false
+}
