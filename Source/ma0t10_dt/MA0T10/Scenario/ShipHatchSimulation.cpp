@@ -76,6 +76,9 @@ void AShipHatchSimulation::BeginPlay()
     if(bRealScale&&bFieldLayout)
     {
         if(FMath::IsNearlyEqual(BerthGap,3.5))BerthGap=2;
+        // Two flat side-rolling half panels need one full aperture width on
+        // each side. Keep the aperture clear and15cm inside a45m hull.
+        if(FMath::IsNearlyEqual(OpeningWidth,23.))OpeningWidth=FMath::Min(OpeningWidth,VesselBeam*.5-.3);
         if(FMath::IsNearlyEqual(BoomHeight,10.)||FMath::IsNearlyEqual(BoomHeight,24.))BoomHeight=QuayZ()+25-HoldDepth-1.05;
         if(FMath::IsNearlyEqual(CabHeight,8.)||FMath::IsNearlyEqual(CabHeight,16.))CabHeight=BoomHeight-2.6;
         if(FMath::IsNearlyZero(CabX))CabX=4.5;

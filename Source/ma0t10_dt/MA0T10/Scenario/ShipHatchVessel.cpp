@@ -36,11 +36,11 @@ AShipHatchVessel::AShipHatchVessel()
 }
 bool AShipHatchSimulation::ValidateSceneScale(FString& Error) const
 {
- for(double V:{VesselLength,VesselBeam,MouldedDepth,DesignDraft,OperatingDraft,RailSpan,BerthGap,QuayAboveWater,BoomLength,BoomHeight,CabHeight,CabX,CabY})if(!FMath::IsFinite(V)){Error=TEXT("선박/하역기 치수는 유한수여야 합니다.");return false;}
+ for(double V:{VesselLength,VesselBeam,MouldedDepth,DesignDraft,OperatingDraft,RailSpan,BerthGap,QuayAboveWater,BoomLength,BoomHeight,CabHeight,CabX,CabY,OpeningWidth})if(!FMath::IsFinite(V)){Error=TEXT("선박/하역기 치수는 유한수여야 합니다.");return false;}
  if(VesselLength<290||VesselLength>300||VesselBeam<45||VesselBeam>47||MouldedDepth<24||MouldedDepth>25||DesignDraft<17||DesignDraft>19||OperatingDraft<8||OperatingDraft>DesignDraft||
     RailSpan<22||RailSpan>30||BerthGap<2||BerthGap>5||QuayAboveWater<2||QuayAboveWater>5||VesselHolds!=9||HoldWidth>VesselBeam-1||
     MouldedDepth-HoldDepth<1||MouldedDepth-HoldDepth>3||BoomLength<35||BoomLength>45||BoomSoffitZ()-QuayZ()<18||BoomSoffitZ()-QuayZ()>35||CabRoofZ()>BoomSoffitZ()-.5||CabRoofZ()<BoomSoffitZ()-3||FMath::Abs(CabX)<4.5||FMath::Abs(CabX)>8||CabY<CabTravelMinY()||CabY>CabTravelMaxY()||
-    SeaRailY()>=QuayEdgeY()||BoomTipY()<=0||BoomTipY()>=VesselBeam*.5)
+    OpeningWidth+.15>VesselBeam*.5||SeaRailY()>=QuayEdgeY()||BoomTipY()<=0||BoomTipY()>=VesselBeam*.5)
  {Error=TEXT("케이프사이즈/그랩 하역기 제원 범위를 확인하세요. 선박290–300×45–47×24–25m, 레일22–30m, 아웃리치35–45m.");return false;}
  Error.Reset();return true;
 }
@@ -101,7 +101,7 @@ void AShipHatchSimulation::BuildVessel()
   }
  }
  // Two side-rolling panels travel only along hold breadth (+/-Y). The
- // configured47m beam leaves35cm outside each fully open11.5m panel.
+ // A45m beam /22.2m opening leaves15cm outside each fully open11.1m panel.
  FVesselMesh Covers;
  const double PanelWidth=OpeningWidth*.5,ParkY=OpeningWidth*.75+.15,PanelZ=Deck+CoamingHeight+.56;
  // First16 vertices are the two actual panel boxes, for independent geometry QA.
