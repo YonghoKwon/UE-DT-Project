@@ -6,7 +6,7 @@
 
 ## FOLLOWUP-28-26 최종 gate — 차단
 
-#28기본Rev7×3/90초 각16.730~16.741Hz·편차0.011Hz,코일보고루트3계열,Game/WBP7/어휘/layer0/guard와RT on ABAB12회2%는통과했다. 그러나 #26기본5쌍8MiB 실패와release의미변경ThreeTierAddingCapturesRhi30%근흑색assertion실패가남아종합차단이다. 전체D3D12 391Success/40조건부skip/1Fail. 단독재현성공으로결합실패를덮지않는다. [result](../Saved/Reports/FOLLOWUP-28-26/result.json)·[merge-check](../Saved/Reports/FOLLOWUP-28-26/merge-check.json). 검증된RSS수정안/캡처실패 후속범위결정이필요하며기준완화·머지승인은아니다.
+#28 기본 Rev7×3/90초 각16.730~16.741Hz·편차0.011Hz, 코일 보고 루트3계열, Game/WBP7/어휘/layer0/guard와 RT on ABAB12회2%는 통과했다. 코일 밝기 실패는 `be29ab4`에서도 재현됐고, `3bf72a7` 기본 열 방향을 상속한 PRES-01 fixture 초기화가 원인이었다. 테스트에서 원래 방향만 명시해 단독1·COIL 42 Success/0 Fail로 해소했다. 제품·카메라 공식·노출·30% 기준 변경0. 테스트 전용 수정이므로 전체 release 재실행은 생략했다. #26 기본5쌍8MiB 실패는 그대로이며 종합 머지는 차단이다. [원인·검증](../Saved/Reports/FOLLOWUP-28-26/r3/CAUSE.md)·[result](../Saved/Reports/FOLLOWUP-28-26/result.json)·[merge-check](../Saved/Reports/FOLLOWUP-28-26/merge-check.json). 검증된 RSS 수정안이 필요하며 기준 완화·머지 승인은 아니다.
 
 ## FOLLOWUP-28-26 — 코일 테스트 보고 루트 정리
 

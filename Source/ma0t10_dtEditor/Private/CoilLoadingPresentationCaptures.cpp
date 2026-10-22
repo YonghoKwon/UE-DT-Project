@@ -97,6 +97,7 @@ class FCoilThreeTierPresentation final:public IAutomationLatentCommand
         R->SetStringField(TEXT("kind"),Section?TEXT("actual Slate section + actual analysis footer; sidebar/header excluded"):TEXT("actual native D3D12 player viewport; no UI panels"));
         R->SetStringField(TEXT("rhi"),GDynamicRHI->GetName());R->SetBoolField(TEXT("render_offscreen"),FParse::Param(FCommandLine::Get(),TEXT("RenderOffscreen")));
         R->SetNumberField(TEXT("placed_coils"),S.Plan().Num());R->SetNumberField(TEXT("pending_tier"),S.NextTier);R->SetNumberField(TEXT("pending_column"),S.NextColumn);
+        R->SetBoolField(TEXT("rows_fore_to_aft"),S.bRowsForeToAft);
         R->SetNumberField(TEXT("danger_count"),M.DangerCount);R->SetNumberField(TEXT("caution_count"),M.CautionCount);R->SetNumberField(TEXT("data_needed_count"),M.DataNeededCount);
         R->SetNumberField(TEXT("near_black_fraction"),double(Dark)/Count);R->SetNumberField(TEXT("green_sampled_pixels"),Green);
         R->SetArrayField(TEXT("target_hold_m"),CoilPresentationVector(Target));R->SetArrayField(TEXT("suspended_hold_m"),CoilPresentationVector(S.GetActorTransform().InverseTransformPosition(S.Suspended->GetActorLocation())*.01));
@@ -123,6 +124,10 @@ public:
             // 762mm bore permits the same C-hook; no unequal-OD key interference.
             // Unknown strength/manual/hydrostatic approvals stay unknown, never fabricated.
             S.Settings.bCHook=true;
+            // PRES-01 uses the aft-to-fore row-five fixture. COIL-02 changed the
+            // product default to fore-to-aft; inheriting it moves this scene and
+            // its target-relative camera 10.7m along the hold. Pin test data only.
+            S.bRowsForeToAft=false;
             for(int Tier=1;Tier<=3;++Tier)for(int Col=1;Col<=8-Tier;++Col)
             {
                 if(Tier==3&&Col==3)continue;
@@ -135,6 +140,7 @@ public:
             Test->TestEqual(TEXT("7 base +6 middle +4 top coils"),S.Plan().Num(),17);
             S.NextTier=3;S.NextRow=5;S.NextColumn=3;S.NextSpec=CoilLoading::FSpec::Representative(CoilLoading::ECoilType::HotRolled);S.NextSpec.CoilId=TEXT("PRES-ADDING-18");
             S.RefreshPreview();M.SyncInputs();M.Refresh();Target=S.PreviewPlacement().Center;
+            Test->TestTrue(TEXT("PRES-01 row-five fixture retains its original hold position"),FMath::IsNearlyEqual(Target.X,-5.35,1.e-6));
             FString PlanJson=CoilLoading::PlanToJson(S.Settings,S.Plan());FFileHelper::SaveStringToFile(PlanJson,*(CoilPresentationRoot()/TEXT("coil-3tier-plan.json")));
             for(const auto& Issue:S.Analysis().Issues)if(Issue.bKnown&&Issue.Severity==CoilLoading::ESeverity::Warning)UE_LOG(LogTemp,Warning,TEXT("[CoilPresentationDanger] %s coil=%d %s"),*Issue.Code.ToString(),Issue.Coil,*Issue.Reason);
             if(!Test->TestEqual(TEXT("no actual danger issues including next placement"),M.DangerCount,0))return true;

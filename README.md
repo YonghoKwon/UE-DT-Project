@@ -18,11 +18,11 @@
 
 ## 1. 현재 상태 한눈에 보기
 
-### FOLLOWUP-28-26 최종 검증 — RSS·release 차단
+### FOLLOWUP-28-26 최종 검증 — RSS 차단
 
-현재 코드67f1a91의 기본Rev7×3/90초 localhost 재검증은16.741/16.730/16.730Hz·편차0.011Hz로 각10Hz·공정성 기준을 통과했다. Game Development·WBP7 메모리컴파일/저장0·현재어휘·layer0→0·DTCore guard를 확인했다. be29ab4 대비 RT on 표준ABAB12회는FPS59.9870→59.9738(저하0.0221%),engine p95 동일16.6669ms,GT7.0021→7.1051ms(+1.4715%)로2% PASS다.
+코드67f1a91에서 수행한 기본Rev7×3/90초 localhost 재검증은16.741/16.730/16.730Hz·편차0.011Hz로 각10Hz·공정성 기준을 통과했다. Game Development·WBP7 메모리컴파일/저장0·현재어휘·layer0→0·DTCore guard를 확인했다. be29ab4 대비 RT on 표준ABAB12회는FPS59.9870→59.9738(저하0.0221%),engine p95 동일16.6669ms,GT7.0021→7.1051ms(+1.4715%)로2% PASS다.
 
-**종합 머지 gate는 차단이다.** #26 기본5쌍의 절대·차이8MiB 실패가 남았고,release 집중/전체에서 미변경 `ThreeTierAddingCapturesRhi`의 근흑색30% assertion이 반복실패했다. 단독1280실행은29.9618%로통과했으나 결합실패를 덮지 않는다. 독립 전체D3D12는391 Success/40조건부skip/1Fail이다. 기준·카메라·해상도를바꾸지않았다. [결과](Saved/Reports/FOLLOWUP-28-26/result.json)·[머지검사](Saved/Reports/FOLLOWUP-28-26/merge-check.json)·[RSS](Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md)를 따른다. 회사/실장비 수용과 구분한다.
+**종합 머지 gate는 #26 RSS 실패로 차단이다.** 코일 밝기 검사는 테스트 초기화를 수정해 해소했다. `be29ab4` 단독·COIL 묶음에서도 기존 실패가 재현됐으며, 원인은 `3bf72a7`의 기본 열 방향 변경을 테스트가 상속해 장면과 카메라가 10.7m 이동한 것이다. PRES-01의 원래 진행 방향을 테스트에 명시한 뒤 1280×720 D3D12 단독 1 Success·COIL 42 Success/0 Fail, 근흑색 23.3872%/23.9010%다. 제품 기본값·조명·노출·카메라 공식·30% 임계값은 유지했다. 테스트 전용 수정이므로 승인된 집중 회귀로 검증했고, 전체 release는 재실행하지 않았다. 이전 전체 391 Success/40조건부skip/1Fail 원본은 보존한다. [원인·검증](Saved/Reports/FOLLOWUP-28-26/r3/CAUSE.md)·[결과](Saved/Reports/FOLLOWUP-28-26/result.json)·[머지검사](Saved/Reports/FOLLOWUP-28-26/merge-check.json)·[RSS](Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md). 회사/실장비 수용과 구분한다.
 
 ### FOLLOWUP-28-26 코일 자동화 보고 경로
 

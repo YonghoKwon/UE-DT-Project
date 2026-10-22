@@ -575,3 +575,12 @@ CoilLoadingAcceptanceTests/VariantsTests/PresentationTests의 기본 작업ID �
 기본Rev7×3·1024×64·20Hz요청·준비10초/90초·1920×1080실제오프스크린D3D12/RT on·PCD33-byte/FIFO/기본64MiB/s·localhost무자격STOMP receipt+echo의커밋상태재검증:외부16.741/16.730/16.730Hz,편차0.011Hz,실제63.520/필요75.885MiB/s,오류0. 기준선편차6.544Hz 대비축소했다. [대조](../Saved/Reports/FOLLOWUP-28-26/r2/pcd-comparison.json).
 
 정식 `verify.ps1 -Level perf -BaseCommit be29ab4 -PerfRayTracing ProjectDefault`:SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3=12회(A6/B6)/동일instrument·map·의존성. 모두유효. 중앙값FPS59.9870279→59.9737925(저하0.0220638%),enginep95 16.6669004→동일,GT7.0020733→7.1051102ms(+1.4715195%)로2%PASS. [manifest](../Saved/Reports/verify/20261022T195001322Z/manifest.json)·[원시 프레임·판정](../Saved/Reports/verify/20261022T195001322Z/perf/manifest.json). 원래RSS8MiB·release실패는별도로유지하며성능PASS로대체하지않는다.
+
+
+## 2026-10-23 — FOLLOWUP-28-26 코일 밝기 fixture 원인 분리·수정
+
+`be29ab4` 전체 Source를 메인 폴더에서 임시 대입·빌드해 검사했다. 단독은 near-black 30.0711806%로 FAIL, COIL 묶음은41 Success/1 Fail·30.3038194%로 같은 assertion만 실패했다. 기준·후보의 캡처 테스트 blob은 동일하고 이번 브랜치의 보고 루트 변경은 원인이 아니다. 원인은 `3bf72a7`에서 추가한 `bRowsForeToAft=true`와 `PreviewPlacement()`의 방향 계산이다. 방향을 지정하지 않던 PRES-01 row5 fixture는 target X −5.35→+5.35m, 대상 상대 카메라는 −22.35→−11.65m로 이동했고 홀드 바깥 검은 영역 비율이 기존30% 경계에 걸렸다.
+
+테스트 PIE 인스턴스에 원래 aft-to-fore 방향을 명시하고 target X=−5.35m assertion 및 방향 JSON 필드를 추가했다. `be29ab4` Source에서 이 테스트 파일만 수정한 대조는23.3472222%·1 Success다. 현재 소스 재빌드 후 D3D12/프로젝트RT on/오프스크린1280×720 단독1 Success·23.3871528%, COIL 묶음42 Success/0 Fail·23.9010417%를 확인했다. 17개 코일·후크·녹색 목표·동일 계획 검사를 유지했다. 제품 기본 방향/조명/노출/FOV/카메라 공식/샘플링/30% 임계값 변경0이다. [원인 분리](../Saved/Reports/FOLLOWUP-28-26/r3/CAUSE.md)·[집중 회귀](../Saved/Reports/FOLLOWUP-28-26/r3/repair-manifest.json).
+
+기준 소스에서 후보로 돌아온 첫 빌드는 이전 UHT 생성 헤더로 C4430이 발생했으며, 소스 hash 일치를 확인한 뒤 `-ForceHeaderGeneration`으로 정상 빌드했다. 실패 원문을 보존했다. 테스트 전용 변경이므로 사용자 지시대로 집중 회귀+quick으로 검증하고 전체 release/Game/perf는 재실행하지 않았다. 이전 전체432개 결과와 RT on ABAB PASS 증거는 보존한다. 개인 설정은 이번 실행 직전 새43파일 백업만 복원한다. #26 RSS 실패·기준·횟수·수치는 변경하지 않는다.
