@@ -18,6 +18,10 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### FOLLOWUP-28-26 코일 자동화 보고 경로
+
+Acceptance/Variants/Presentation 테스트의 공통 루트는 `Saved/Reports/COIL`이며 `-CoilReport=<루트>`로 한 번에 지정한다. acceptance·variants 하위 폴더와 공통 progress·presentation.json을 같은 루트에 둔다. Presentation의 이전 `-CoilPhotoReport`도 이 옵션으로 통합했다. 제품 저장 슬롯과 데이터 형식은 바꾸지 않는다. 세 계열 실제 RHI 테스트와 지정루트53개 산출물을 확인했다. [경로 검증](Saved/Reports/FOLLOWUP-28-26/r2/coil-path-override/paths-verified.json).
+
 ### FOLLOWUP-26 해치 RSS 재검증 — 미해결
 
 기본 Rev7×3·GPU/RT on·35초 준비/90초·50회−0회 교차5쌍에서 원래 절대8MiB 및 별도차이8MiB가 모두 종합FAIL이다. 절대3쌍/차이2쌍 실패,디깅 RSS 중앙값+10.43MiB,최대 raw차이+17.67MiB다. CPU·LLM·Binned2 진단은 별도 표로 구분한다. 두 할당 재사용 후보는 RSS 개선을 입증하지 못해 원복했다. 약90분 조사에서 완전 귀속·검증된 수정안을 확보하지 못했으며 기준/횟수/기본allocator는 유지한다. [증거·한계](Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md). release/perf 통과로 이 실패를 덮지 않는다.

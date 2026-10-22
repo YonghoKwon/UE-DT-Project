@@ -1,5 +1,6 @@
 #include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+#include "CoilTestReportPaths.h"
 #include "ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h"
 #include "ma0t10_dt/MA0T10/Scenario/CoilLoadingQuayLayout.h"
 #include "Components/SceneComponent.h"
@@ -110,7 +111,7 @@ bool FCoilRakedLayoutTest::RunTest(const FString&)
 }
 namespace
 {
-FString Root(){FString Override;if(FParse::Value(FCommandLine::Get(),TEXT("CoilPhotoReport="),Override))return Override;return FPaths::ProjectSavedDir()/TEXT("Reports/COIL-01d");}
+FString Root(){return CoilTestReportPaths::Root();}
 class FCoilPresentationRun final:public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;int Step=0;
