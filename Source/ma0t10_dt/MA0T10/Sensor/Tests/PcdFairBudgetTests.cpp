@@ -4,12 +4,32 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
 #include "Serialization/ObjectWriter.h"
 #include "Serialization/ObjectReader.h"
+#include "Tests/AutomationEditorCommon.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
+#include "Misc/SecureHash.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "HAL/PlatformProcess.h"
 
 struct FPcdFairBudgetTestAccess
 {
     static auto& Runtime(UVirtualSensorStreamPublisherComponent* P,const FString& Id)
     {return P->FindOrAddRuntime(EVirtualSensorStreamKind::PointCloud,Id);}
     static void Update(UVirtualSensorStreamPublisherComponent* P,double Now){P->UpdatePointCloudFairBudgets(Now);}
+    static void Queue(UVirtualSensorStreamPublisherComponent* P,const FString& Route,const FString& Id,int64 FrameId,TArray<uint8>&& Bytes,int32 Points,FDateTime Timestamp)
+    {
+        auto& R=Runtime(P,Route);auto& M=R.PreparedMessageQueue.AddDefaulted_GetRef();
+        M.SensorId=Id;M.FrameId=FrameId;M.StreamKind=EVirtualSensorStreamKind::PointCloud;M.TimestampUtc=Timestamp;
+        M.bBinaryPcd=true;M.ByteCount=Bytes.Num();M.ConfigRevision=R.ConfigRevision;
+        auto& Meta=M.BinaryMetadata;Meta.SensorId=Id;Meta.FrameId=FrameId;Meta.TimestampUtc=M.TimestampUtc.ToIso8601();
+        Meta.ByteCount=M.ByteCount;Meta.PointCount=Meta.SourcePointCount=Points;
+        uint8 Hash[FSHA1::DigestSize];FSHA1::HashBuffer(Bytes.GetData(),Bytes.Num(),Hash);Meta.ChecksumSha1=BytesToHex(Hash,FSHA1::DigestSize).ToLower();
+        M.BinaryBody=MakeShared<const TArray<uint8>,ESPMode::ThreadSafe>(MoveTemp(Bytes));
+    }
+    static void Prime(UVirtualSensorStreamPublisherComponent* P,double Now)
+    {P->PointCloudTokenBucketBytes=P->PointCloudBandwidthLimitMegabytesPerSecond*1048576.;P->LastTokenUpdateSeconds=Now;}
 };
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPcdFairBudgetTest,"MA0T10.SensorStream.PcdFairBudget",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FPcdFairBudgetTest::RunTest(const FString&)
@@ -119,5 +139,58 @@ bool FPcdDefaultBudgetTest::RunTest(const FString&)
     FPcdFairBudgetTestAccess::Update(Restored,100);
     TestEqual(TEXT("restored override survives runtime configuration"),Restored->PointCloudBandwidthLimitMegabytesPerSecond,64.f);
     return true;
+}
+IMPLEMENT_COMPLEX_AUTOMATION_TEST(FPcdFifoBodyShrinkTest,"MA0T10.SensorStream.PcdFifoBodyShrink",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+void FPcdFifoBodyShrinkTest::GetTests(TArray<FString>& Names,TArray<FString>& Commands)const
+{for(const TCHAR* C:{TEXT("Exact"),TEXT("Wildcard")}){Names.Add(C);Commands.Add(C);}}
+bool FPcdFifoBodyShrinkTest::RunTest(const FString& Case)
+{
+    auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* C=W->SpawnActor<AVirtualSensorCoordinator>();C->Tags.Add(TEXT("SensorTestManaged"));
+    auto* P=C->StreamPublisherComponent.Get();auto* T=C->SharedTransportComponent.Get();auto* Raw=W->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
+    int32 Port=1;const bool SocketProof=FParse::Value(FCommandLine::Get(),TEXT("PcdFifoRegressionPort="),Port);
+    if(SocketProof&&!TestTrue(TEXT("regression broker is unprivileged loopback"),Port>=1024&&Port<=65535)){C->Destroy();return false;}
+    FVirtualSensorTransportProfile Profile;Profile.BrokerUrl=FString::Printf(TEXT("tcp://127.0.0.1:%d"),Port);Profile.UserName.Reset();
+    T->TransportMode=EVirtualSensorTransportMode::StompWebSocket;T->ConfigureTransportProfile(Profile);T->SetSessionCredentials(TEXT(""),TEXT(""));P->SetTransportComponent(T);
+    FVirtualSensorReceiveSelection Receive;Raw->ConfigureReceiver(Receive);
+    const FString Id=TEXT("FIFO-SHRINK-")+Case,Route=Case==TEXT("Wildcard")?FString():Id;
+    FVirtualSensorStreamConfig Config;Config.StreamKind=EVirtualSensorStreamKind::PointCloud;Config.SensorId=Route;Config.bEnabled=true;Config.PointCloudFormat=EVirtualPointCloudStreamFormat::PCD;Config.PcdDataMode=EVirtualPcdDataMode::Binary;P->ConfigureStream(Config);
+    const FDateTime Timestamp=FDateTime::UtcNow();auto MakeBody=[&](int32 Count,int64 FrameId)
+    {
+        TArray<FVirtualLidarPoint> Points;Points.SetNum(Count);for(auto& Point:Points){Point.bHit=true;Point.Validity=EVirtualLidarPointValidity::Valid;Point.SensorLocalPositionMeters=FVector(1,2,3);Point.EchoCount=1;Point.Confidence=.9f;}
+        FVirtualSensorFrameEnvelope F;F.SensorId=Id;F.SensorKind=EVirtualSensorKind::Lidar;F.FrameId=FrameId;F.TimestampUtc=Timestamp;F.PointSnapshot=MakeShared<const TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe>(MoveTemp(Points));
+        FString Extension,Error;TArray<uint8> Bytes;int32 Encoded=0;
+        TestTrue(TEXT("shrink fixture uses real33-byte PCD serialization"),P->SerializePointCloudForTesting(F,Config,Extension,Bytes,Encoded,Error));TestEqual(TEXT("fixture preserves valid points"),Encoded,Count);
+        TestEqual(TEXT("fixture is PCD rather than legacy default CSV"),Extension,FString(TEXT("pcd")));TestTrue(TEXT("fixture has33-byte records plus bounded header"),Bytes.Num()>Count*33&&Bytes.Num()<Count*33+1024);return Bytes;
+    };
+    auto Large=MakeBody(40000,1);const double LargeBytes=Large.Num();auto Small=MakeBody(2000,2);const double SmallBytes=Small.Num();
+    FPcdFairBudgetTestAccess::Queue(P,Route,Id,1,MoveTemp(Large),40000,Timestamp);FPcdFairBudgetTestAccess::Queue(P,Route,Id,2,MoveTemp(Small),2000,Timestamp);
+    auto& R=FPcdFairBudgetTestAccess::Runtime(P,Route);auto& S=R.SensorSequences.FindOrAdd(Id);const double Started=FPlatformTime::Seconds();
+    S.FrameBytes=SmallBytes;S.InputPeriod=.05;S.BandwidthTokens=0;S.BandwidthUpdated=Started;FPcdFairBudgetTestAccess::Prime(P,Started);
+    TestTrue(TEXT("latest body shrank about1/20 while large body remains FIFO head"),SmallBytes<LargeBytes/19&&R.PreparedMessageQueue[0].ByteCount==LargeBytes);
+    double DrainedAt=0;
+    for(int Tick=1;Tick<=180;++Tick)
+    {
+        const double Now=Started+Tick/60.;S.LastInputSeconds=Now;P->PumpPublisherOnce(Now);
+        if(R.PreparedMessageQueue.IsEmpty()){DrainedAt=Tick/60.;break;}
+    }
+    TestTrue(TEXT("old large head and following small body reach actual sender queue within3seconds"),DrainedAt>0&&DrainedAt<=3);
+    int64 Enqueued=0;for(const auto& Row:Raw->GetStreamTelemetry())if(Row.SensorId==Id)Enqueued+=Row.EnqueuedCount;
+    TestEqual(TEXT("both FIFO bodies accepted by Raw worker"),Enqueued,int64(2));
+    if(SocketProof&&DrainedAt>0)
+    {
+        // Editor worlds have no GameInstance receiver dispatch. Verify socket
+        // writes/receipts here; the local harness independently validates PCD.
+        const double Deadline=FPlatformTime::Seconds()+5;int64 Submitted=0,Receipts=0;
+        while(FPlatformTime::Seconds()<Deadline)
+        {
+            Raw->Tick(.001f);Submitted=Receipts=0;for(const auto& Row:Raw->GetStreamTelemetry())if(Row.SensorId==Id){Submitted+=Row.SubmittedCount;Receipts+=Row.ReceiptCount;}
+            if(Submitted==2&&Receipts==2)break;FPlatformProcess::SleepNoStats(.001f);
+        }
+        TestEqual(TEXT("large and small bodies really written to loopback socket"),Submitted,int64(2));TestEqual(TEXT("both loopback receipts"),Receipts,int64(2));
+    }
+    TestEqual(TEXT("size shrink creates no false publisher overload"),R.Status.OverloadCount,int64(0));TestEqual(TEXT("no FIFO replacement"),R.Status.ReplacedPendingFrameCount,int64(0));
+    for(const auto& Row:Raw->GetStreamTelemetry())TestEqual(TEXT("no false worker overload"),Row.OverloadCount,int64(0));
+    AddInfo(FString::Printf(TEXT("%s large=%.0f latest=%.0f FIFO drain bucket-time=%.6fs socketProof=%d"),*Case,LargeBytes,SmallBytes,DrainedAt,SocketProof));
+    P->StopAllStreams(FString());Raw->StopHighThroughputTransport();C->Destroy();return true;
 }
 #endif

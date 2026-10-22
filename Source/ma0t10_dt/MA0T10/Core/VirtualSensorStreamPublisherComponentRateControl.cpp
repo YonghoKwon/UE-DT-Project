@@ -62,10 +62,14 @@ void UVirtualSensorStreamPublisherComponent::UpdatePointCloudFairBudgets(double 
     for(auto& Pair:StreamRuntimes)for(auto& Item:Pair.Value.SensorSequences)
     {
         auto& S=Item.Value;
-        // At most two frames or100ms of burst per sensor, still bounded by the
-        // unchanged global bucket. Accepted messages remain in their FIFO.
+        // A newer small serialization must not strand an older large FIFO head.
+        // Only the eligible head raises its sensor cap; refill shares and the
+        // global byte bucket remain unchanged, with no token debt or bypass.
+        const auto* Head=Pair.Value.PreparedMessageQueue.IsEmpty()?nullptr:&Pair.Value.PreparedMessageQueue[0];
+        const double HeadBytes=Head&&Head->bBinaryPcd&&Head->SensorId==Item.Key?Head->ByteCount:0;
+        const double Capacity=FMath::Max(HeadBytes,FMath::Max(S.FrameBytes*2,S.FairBytesPerSecond*.1));
         const double Elapsed=S.BandwidthUpdated>0?FMath::Max(0.0,Now-S.BandwidthUpdated):0;
-        S.BandwidthTokens=FMath::Min(FMath::Max(S.FrameBytes*2,S.FairBytesPerSecond*.1),S.BandwidthTokens+Elapsed*S.FairBytesPerSecond);
+        S.BandwidthTokens=FMath::Min(Capacity,S.BandwidthTokens+Elapsed*S.FairBytesPerSecond);
         S.BandwidthUpdated=Now;
     }
 }
