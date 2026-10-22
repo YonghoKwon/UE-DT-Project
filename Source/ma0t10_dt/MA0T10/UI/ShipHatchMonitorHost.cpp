@@ -22,9 +22,10 @@ public:
     FShipHatchViewExtension(const FAutoRegister& Register,UWorld* World):FWorldSceneViewExtension(Register,World){}
     FVector4 Rect=FVector4(0,0,1,1);
     bool bPointOnly=false;
+    bool bGray=false;
     virtual void SetupViewFamily(FSceneViewFamily&) override {}
     virtual void SetupView(FSceneViewFamily& Family,FSceneView& View) override
-    {if(bPointOnly&&!View.bIsSceneCapture&&!View.bIsReflectionCapture)Family.EngineShowFlags.SetAtmosphere(false);}
+    {if(!View.bIsSceneCapture&&!View.bIsReflectionCapture){if(bPointOnly||bGray)Family.EngineShowFlags.SetAtmosphere(false);if(bGray){Family.EngineShowFlags.SetFog(false);View.BackgroundColor=FLinearColor(.65,.65,.65);}}}
     virtual void BeginRenderViewFamily(FSceneViewFamily&) override {}
     virtual void SetupViewProjectionMatrix(FSceneViewProjectionData& Data) override
     {
@@ -32,6 +33,7 @@ public:
         FIntRect R(FMath::RoundToInt(W*Rect.X),FMath::RoundToInt(H*Rect.Y),FMath::RoundToInt(W*Rect.Z),FMath::RoundToInt(H*Rect.W));
         if(R.Width()<1||R.Height()<1)return;Data.SetViewRectangle(R);
         Data.ProjectionMatrix.M[1][1]=Data.ProjectionMatrix.M[0][0]*R.Width()/R.Height();
+        Data.ProjectionMatrix.M[3][2]=1.; // Map-owned reversed-Z perspective, 1cm near plane.
     }
 };
 
@@ -83,7 +85,7 @@ void AShipHatchMonitorHost::Refresh()
 void AShipHatchMonitorHost::SetSceneRect(const FSlateRect& Rect,FVector2D Full,bool Visible)
 {
     if(Full.X<=0||Full.Y<=0)return;
-    if(ViewExtension){ViewExtension->Rect=Visible?FVector4(Rect.Left/Full.X,Rect.Top/Full.Y,Rect.Right/Full.X,Rect.Bottom/Full.Y):FVector4(0,0,.001,.001);ViewExtension->bPointOnly=Monitor&&Monitor->GetView()==1;}
+    if(ViewExtension){ViewExtension->Rect=Visible?FVector4(Rect.Left/Full.X,Rect.Top/Full.Y,Rect.Right/Full.X,Rect.Bottom/Full.Y):FVector4(0,0,.001,.001);ViewExtension->bPointOnly=Monitor&&Monitor->GetView()==1;ViewExtension->bGray=Monitor&&Monitor->IsSiteGray();}
 }
 void AShipHatchMonitorHost::ShowTools()
 {

@@ -104,6 +104,10 @@ public:
     void ShowWater(bool Enabled);
     bool IsWaterVisible() const { return bWaterVisible; }
     UPrimitiveComponent* GrabPrimitive() const;
+    FVector GrabLip() const { return bGrabPoseOverride?GrabLipPose:FVector(0,4,FMath::Min(HoldDepth+BoomHeight-4.8,Current.Height(0,4)+.2)); }
+    double GrabOpening() const { return bGrabPoseOverride?GrabOpenFraction:0; }
+    /** Read-only geometry access for the owned player visualization. */
+    void VisitUnloaderMeshes(TFunctionRef<void(UProceduralMeshComponent*)> Visitor) const;
     /** Explicit physical presence; independent of static-crane display hiding. */
     void SetGrabVisible(bool Enabled);
     bool IsGrabVisible() const { return bShowGrab; }

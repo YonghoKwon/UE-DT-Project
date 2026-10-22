@@ -127,6 +127,9 @@ struct FHatchFeedbackProbe
         T.TestTrue(TEXT("refresh without click keeps hopper pose and does not dig"),S.GrabLipPose.Equals(Wait,.001)&&S.Surface().Hash()==Hash&&!S.IsGrabWorkActive());
         T.TestTrue(TEXT("next explicit click starts next cycle"),Grab(M,T));
         T.TestTrue(TEXT("next cycle owns grab work and leaves parked state"),S.IsGrabWorkActive()&&!M.bFeedbackGrabParked);
+        T.TestTrue(TEXT("next command travels from hopper before excavating"),M.bReturningFromHopper&&S.Surface().Hash()==Hash);
+        M.ReturnToHatchUntil=FPlatformTime::Seconds()-1;M.LastOverlayUpdate=0;M.UpdateOverlay();
+        T.TestTrue(TEXT("excavation starts only after travel completes"),!M.bReturningFromHopper&&S.Surface().Hash()!=Hash);
         M.RestoreFeedbackGrab();T.TestFalse(TEXT("cancellation releases owned pose"),S.bGrabPoseOverride);
     }
     static void FloorMeasurements(FAutomationTestBase& T,AShipHatchSimulation& S)

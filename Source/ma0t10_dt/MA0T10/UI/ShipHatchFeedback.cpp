@@ -19,7 +19,7 @@
 
 using HatchStyle=FSensorOwnedPresentationStyle;
 void UShipHatchMonitorWidget::SetHatchPresentationVisible(bool Visible)
-{if(Overlay)Overlay->SetVisibility(Visible);if(!Visible){FeedbackUntil=DischargeUntil=0;RestoreFeedbackGrab();bOverlayDirty=true;}}
+{if(Overlay)Overlay->SetVisibility(Visible);if(SiteModel)SiteModel->SetVisibility(Visible);if(!Visible){bFreeCamera=false;RestoreSiteVisualization();FeedbackUntil=DischargeUntil=0;RestoreFeedbackGrab();bOverlayDirty=true;}}
 UWidget* UShipHatchMonitorWidget::ComboEntry(FString Value)
 {
     ComboLabels.RemoveAll([](const auto& W)
@@ -60,10 +60,21 @@ void UShipHatchMonitorWidget::FocusAt(FVector2D XY)
     Focus=FVector2D(FMath::Clamp(XY.X,-Simulation->HoldLength*.5,Simulation->HoldLength*.5),FMath::Clamp(XY.Y,-Simulation->HoldWidth*.5,Simulation->HoldWidth*.5));UpdateCamera();
 }
 void UShipHatchMonitorWidget::RestoreFeedbackGrab()
-{bPendingCabDig=false;bFeedbackGrabParked=false;if(Simulation.IsValid()&&bFeedbackOwnsGrabWork)Simulation->EndGrabWork();bFeedbackOwnsGrabWork=false;if(auto* PC=GetOwningPlayer())if(bFeedbackOwnsGrabHide)PC->HiddenPrimitiveComponents.RemoveSingle(FeedbackGrabHidden);FeedbackGrabHidden.Reset();bFeedbackOwnsGrabHide=false;if(Simulation.IsValid()&&bFeedbackOwnsGrabPose)Simulation->ResetGrabPose();bFeedbackOwnsGrabPose=false;}
+{bReturningFromHopper=false;bPendingCabDig=false;bFeedbackGrabParked=false;if(Simulation.IsValid()&&bFeedbackOwnsGrabWork)Simulation->EndGrabWork();bFeedbackOwnsGrabWork=false;if(auto* PC=GetOwningPlayer())if(bFeedbackOwnsGrabHide)PC->HiddenPrimitiveComponents.RemoveSingle(FeedbackGrabHidden);FeedbackGrabHidden.Reset();bFeedbackOwnsGrabHide=false;if(Simulation.IsValid()&&bFeedbackOwnsGrabPose)Simulation->ResetGrabPose();bFeedbackOwnsGrabPose=false;}
 void UShipHatchMonitorWidget::UpdateOverlay()
 {
     const auto* S=GetSurface();if(!S||S->Heights.IsEmpty()||!Host.IsValid())return;
+    if(bReturningFromHopper)
+    {
+        const double Now=FPlatformTime::Seconds();
+        if(!IsVisible()||Simulation->IsGenerating()||!Simulation->IsGrabVisible()||S->Hash()!=PendingDigCargoHash){RestoreFeedbackGrab();return;}
+        if(Now<ReturnToHatchUntil)
+        {
+            const double T=FMath::Clamp(1-(ReturnToHatchUntil-Now)/1.2,0.,1.);FVector Pose=FMath::Lerp(ReturnStart,ReturnTarget,FMath::Min(1.,T/.75));Pose.Z=T<.75?ReturnStart.Z:FMath::Lerp(ReturnStart.Z,ReturnTarget.Z,(T-.75)/.25);
+            Simulation->TrySetGrabPose(Pose,1);return;
+        }
+        bReturningFromHopper=false;Simulation->EndGrabWork();bFeedbackOwnsGrabWork=false;TGuardValue<double> Radius(RadiusMeters,PendingDigRadius),Depth(DepthMeters,PendingDigDepth);ExecuteDigRay(PendingDigOrigin,PendingDigDirection);
+    }
     if(bPendingCabDig)
     {
         if(!IsVisible()||Simulation->IsGenerating()||Simulation->Surface().Hash()!=PendingDigCargoHash||Simulation->CabCommand()!=PendingDigCabCommand){bPendingCabDig=false;}

@@ -315,8 +315,8 @@ public:
   }
   if(Phase==21)
   {
-   if(!S->HasFreshMeasurement()||!M.GetAnalysis()||Now-Changed<10)return false;const auto Mid=BoomEvidence(*S);auto R=MakeShared<FJsonObject>();R->SetObjectField(TEXT("default_xt32"),LowBoomBefore);R->SetObjectField(TEXT("comparison_mid360s_40m"),Mid);Save06(TEXT("low-fill-boom-comparison.json"),R);
-   T->TestEqual(TEXT("40m comparison keeps actual boom mounting position"),Mid->GetNumberField(TEXT("mount_z_m")),LowBoomBefore->GetNumberField(TEXT("mount_z_m")));T->TestEqual(TEXT("40m comparison cannot reach empty floor center"),Mid->GetStringField(TEXT("floor_center_cause")),FString(TEXT("Range")));T->TestTrue(TEXT("new default Ouster increases actual low-fill boom coverage over40m comparison"),LowBoomBefore->GetNumberField(TEXT("observed_percent"))>Mid->GetNumberField(TEXT("observed_percent")));Shot(W,M,TEXT("coal-low-fill-boom-mid360s-40m"));S->SetFieldSensor(0,true,6);Changed=Now;Phase=23;return false;
+   if(!S->HasFreshMeasurement()||!M.GetAnalysis()||Now-Changed<10)return false;const auto Mid=BoomEvidence(*S);auto R=MakeShared<FJsonObject>();R->SetObjectField(TEXT("default_os1_rev7"),LowBoomBefore);R->SetObjectField(TEXT("comparison_mid360s_40m"),Mid);Save06(TEXT("low-fill-boom-comparison.json"),R);
+   T->TestEqual(TEXT("40m comparison keeps actual boom mounting position"),Mid->GetNumberField(TEXT("mount_z_m")),LowBoomBefore->GetNumberField(TEXT("mount_z_m")));T->TestEqual(TEXT("40m comparison cannot reach empty floor center"),Mid->GetStringField(TEXT("floor_center_cause")),FString(TEXT("Range")));T->TestTrue(TEXT("new default Ouster increases actual low-fill boom coverage over40m comparison"),LowBoomBefore->GetNumberField(TEXT("observed_percent"))>Mid->GetNumberField(TEXT("observed_percent")));Shot(W,M,TEXT("coal-low-fill-boom-mid360s-40m"));S->SetFieldSensor(0,true,8);Changed=Now;Phase=23;return false;
   }
   if(Phase==23)
   {

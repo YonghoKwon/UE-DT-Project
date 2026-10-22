@@ -7,6 +7,8 @@
 #include "Components/Border.h"
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
+#include "GameFramework/PlayerController.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 
 namespace
 {
@@ -19,6 +21,30 @@ public:
     int32 OnPaint(const FPaintArgs&,const FGeometry& G,const FSlateRect&,FSlateWindowElementList& Out,int32 Layer,const FWidgetStyle&,bool) const override
     {
         const auto* M=Monitor.Get();if(!M)return Layer;
+        if(M->IsSiteVisualization())
+        {
+            const auto* S=M->GetSimulation();auto* PC=M->GetOwningPlayer();if(!S||!PC)return Layer;
+            int32 W,H;PC->GetViewportSize(W,H);if(W<=0||H<=0)return Layer;
+            const auto Root=M->GetCachedGeometry();const auto Size=Root.GetLocalSize();
+            const auto Project=[&](FVector World,FVector2f& Pixel){FVector2D P;if(!PC->ProjectWorldLocationToScreen(World,P))return false;Pixel=FVector2f(G.AbsoluteToLocal(Root.LocalToAbsolute(P*Size/FVector2D(W,H))));return true;};
+            const auto Line=[&](FVector A,FVector B,FLinearColor C){FVector2f P,Q;if(Project(A,P)&&Project(B,Q))FSlateDrawElement::MakeLines(Out,Layer+1,G.ToPaintGeometry(),{P,Q},ESlateDrawEffect::None,C,true,2);};
+            const FTransform Pose=S->GetActorTransform();const auto Frame=[&](const FString& Name,FTransform F)
+            {
+                const auto O=F.GetLocation();Line(O,O+F.GetUnitAxis(EAxis::X)*180,FLinearColor::Red);Line(O,O+F.GetUnitAxis(EAxis::Y)*180,FLinearColor::Green);Line(O,O+F.GetUnitAxis(EAxis::Z)*180,FLinearColor::Blue);
+                FVector2f P;if(Project(O,P))FSlateDrawElement::MakeText(Out,Layer+2,G.ToPaintGeometry(FVector2D(220,28),FSlateLayoutTransform(FVector2D(P)+FVector2D(5,-22))),Name,FSensorOwnedPresentationStyle::Font(12,M->GetFontScale()),ESlateDrawEffect::None,FLinearColor::White);
+            };
+            static const FString Names[]={TEXT("Mesh_origin"),TEXT("Crane"),TEXT("Trolley"),TEXT("Cabin"),TEXT("os_lidar_boom"),TEXT("os_lidar_cabin_01"),TEXT("os_lidar_cabin_02")};
+            Frame(Names[0],Pose);const auto At=[&](FVector P){return FTransform(Pose.GetRotation(),Pose.TransformPosition(P*100));};
+            Frame(Names[1],At({0,S->SeaRailY(),S->BoomSoffitZ()}));Frame(Names[2],At({0,S->GrabLip().Y,S->BoomSoffitZ()+.75}));Frame(Names[3],At({S->CabX,S->CabY,S->HoldDepth+S->CabHeight}));
+            for(int I=0;I<3;++I)if(const auto* A=S->SensorAt(I))Frame(Names[I+4],A->GetActorTransform());
+            if(S->IsGrabVisible())
+            {
+                const double Angle=FMath::DegreesToRadians(S->GrabOpening()*65),HalfX=FMath::Sqrt(FMath::Square(2.1*FMath::Cos(Angle))+FMath::Square(1.55*FMath::Sin(Angle)));
+                const FVector Min=S->GrabLip()+FVector(-HalfX,-2.15,-.05),Max=S->GrabLip()+FVector(HalfX,2.15,6.1);const auto C=S->IsGrabWorkActive()?FLinearColor::Red:FLinearColor::Green;
+                for(int Axis=0;Axis<3;++Axis)for(int A=0;A<2;++A)for(int B=0;B<2;++B){FVector P=Min,Q=Min;P[(Axis+1)%3]=Q[(Axis+1)%3]=A?Max[(Axis+1)%3]:Min[(Axis+1)%3];P[(Axis+2)%3]=Q[(Axis+2)%3]=B?Max[(Axis+2)%3]:Min[(Axis+2)%3];Q[Axis]=Max[Axis];Line(Pose.TransformPosition(P*100),Pose.TransformPosition(Q*100),C);}
+            }
+            return Layer+2;
+        }
         const FLinearColor Colors[]={FLinearColor(.1,.9,1),FLinearColor(1,.6,.06),FLinearColor(.9,.2,.8)};
         auto Local=[&](FVector2D P){return FVector2f(G.AbsoluteToLocal(M->GetCachedGeometry().LocalToAbsolute(P)));};
         for(int I=0;I<3;++I)
