@@ -92,7 +92,8 @@ public:
         if(Step==3)
         {
             if(S.IsCabMoving()||FHatchCabProbe::Pending(*H->Monitor))return false;T->TestTrue(TEXT("queued UI excavation executes only after parking"),S.Surface().Volume<BeforeDigVolume);S.RestoreCargo();T->TestTrue(TEXT("parked cab admits work"),S.BeginGrabWork());FrozenCab=FVector(S.CabX,S.CabY,S.CabHeight);T->TestFalse(TEXT("grab work rejects cab relocation"),S.RequestCabPosition(1));S.SetGrabVisible(true);
-            T->TestTrue(TEXT("safe hold pose accepted"),S.TrySetGrabPose(FVector(0,4,S.Surface().Height(0,4)+.2),0));T->TestFalse(TEXT("rope through cab rejected"),S.TrySetGrabPose(FVector(S.CabX,S.CabY,S.HoldDepth),0));T->TestFalse(TEXT("overhead bucket interference rejected"),S.TrySetGrabPose(FVector(0,4,S.BoomSoffitZ()-4),0));
+            T->TestTrue(TEXT("safe hold pose accepted"),S.TrySetGrabPose(FVector(0,4,S.Surface().Height(0,4)+1.2),0));T->TestFalse(TEXT("rope through cab rejected"),S.TrySetGrabPose(FVector(S.CabX,S.CabY,S.HoldDepth),0));T->TestFalse(TEXT("overhead bucket interference rejected"),S.TrySetGrabPose(FVector(0,4,S.BoomSoffitZ()-4),0));
+            const int32 Commits=S.GrabMeshCommits;H->Monitor->Refresh();T->TestTrue(TEXT("idle UI refresh preserves external grab work and pose ownership"),S.IsGrabWorkActive()&&S.GrabMeshCommits==Commits);
             S.EndGrabWork();S.ResetGrabPose();S.SetGrabVisible(false);H->Monitor->SelectView(0);H->Monitor->SetSplitView(false);H->Monitor->SetModelPresentation(true);Camera(*H,S,0);Changed=Now;++Step;return false;
         }
         if(Now-Changed<1.5)return false;

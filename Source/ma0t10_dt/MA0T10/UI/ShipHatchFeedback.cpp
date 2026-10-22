@@ -60,7 +60,7 @@ void UShipHatchMonitorWidget::FocusAt(FVector2D XY)
     Focus=FVector2D(FMath::Clamp(XY.X,-Simulation->HoldLength*.5,Simulation->HoldLength*.5),FMath::Clamp(XY.Y,-Simulation->HoldWidth*.5,Simulation->HoldWidth*.5));UpdateCamera();
 }
 void UShipHatchMonitorWidget::RestoreFeedbackGrab()
-{bPendingCabDig=false;if(Simulation.IsValid())Simulation->EndGrabWork();if(auto* PC=GetOwningPlayer())if(bFeedbackOwnsGrabHide)PC->HiddenPrimitiveComponents.RemoveSingle(FeedbackGrabHidden);FeedbackGrabHidden.Reset();bFeedbackOwnsGrabHide=false;if(Simulation.IsValid())Simulation->ResetGrabPose();}
+{bPendingCabDig=false;if(Simulation.IsValid()&&bFeedbackOwnsGrabWork)Simulation->EndGrabWork();bFeedbackOwnsGrabWork=false;if(auto* PC=GetOwningPlayer())if(bFeedbackOwnsGrabHide)PC->HiddenPrimitiveComponents.RemoveSingle(FeedbackGrabHidden);FeedbackGrabHidden.Reset();bFeedbackOwnsGrabHide=false;if(Simulation.IsValid()&&bFeedbackOwnsGrabPose)Simulation->ResetGrabPose();bFeedbackOwnsGrabPose=false;}
 void UShipHatchMonitorWidget::UpdateOverlay()
 {
     const auto* S=GetSurface();if(!S||S->Heights.IsEmpty()||!Host.IsValid())return;
@@ -106,7 +106,7 @@ void UShipHatchMonitorWidget::UpdateOverlay()
         if(Feedback){const double Phase=1-FMath::Clamp((FeedbackUntil-Now)/1.2,0.,1.),Lift=Phase<.35?1-Phase/.35:Phase>.65?(Phase-.65)/.35:0;Bucket.Z=S->Height(Bucket.X,Bucket.Y)+.6+Lift*3.5;Open=Phase<.35?1:Phase<.65?1-(Phase-.35)/.3:0;}
         else if(Post<1)Bucket.Z=FMath::Lerp(Bucket.Z,SafeZ,Post);
         else {const double Move=FMath::Clamp((Post-1)/1.2,0.,1.);Bucket.X=FMath::Lerp(Bucket.X,0.,Move);Bucket.Y=FMath::Lerp(Bucket.Y,HopperY,Move);Bucket.Z=SafeZ;Open=FMath::Clamp((Post-2.2)/.5,0.,1.);}
-        Simulation->SetGrabPose(Bucket,Open);
+        if(Simulation->TrySetGrabPose(Bucket,Open))bFeedbackOwnsGrabPose=true;
         if(!Feedback&&Post>2.2)
         {
             for(int I=0;I<4;++I){const double X=(I-1.5)*.35,Y=HopperY+FMath::Sin(Post*12+I)*.2;Quad(Stream,FVector(X-.15,Y,Bucket.Z+.8),FVector(X+.15,Y,Bucket.Z+.8),FVector(X+.3,Y,HopperTop-4),FVector(X-.3,Y,HopperTop-4));}

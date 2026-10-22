@@ -514,4 +514,6 @@ float Moller-Trumbore 내적 상쇄로 실제 공유 경계가 외부로 판정�
 
 ## 2026-10-22 FOLLOWUP-32 독립 운전실과 GTSU 상대 배치
 
-운전실/그랩 분리, 실제 캐빈2센서 부착, 중앙 정지 후 UI 대기 퍼내기, 작업 중 이동 차단과1m 간섭 검사를 구현했다. 레일+25m 하면은 양정과 구분한 구조 가정이며 중간 흘수14m에서 코밍 간격15.8m·캐빈 지붕 간격0.9m다. 내부 HWRT는4개 충돌 메시를 처리하고 캐빈 GPU local geometry/BLAS는 이동 중 재사용한다. 초기3메시 한도로 CPU fallback이 발생한 시도와 새 레일 지지대의 X=0 경계116건 실패는 원시 보고서에 남긴다. 지지대를 양쪽 하현재에 연결한 뒤 기존28672개/1mm 기준을 그대로 적용해 불일치0·최대0.301mm다. 해치15개 및GPU9프로필 성공, 별도GPU3센서19.997Hz/59.999FPS. source별 근거·범위·개인 설정·최종gate는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md), [배치 비교](../Saved/Reports/FOLLOWUP-26-28/corners-32-gtsu-check.png)를 따른다. Windows 잠금으로 직접 마우스 수용은 미수행이다. #28/#26은 사용자 결정으로 범위 제외한다.
+운전실/그랩 분리, 실제 캐빈2센서 부착, 중앙 정지 후 UI 대기 퍼내기, 작업 중 이동 차단과1m 간섭 검사를 구현했다. 레일+25m 하면은 양정과 구분한 구조 가정이며 중간 흘수14m에서 코밍 간격15.8m·캐빈 지붕 간격0.9m다. 내부 HWRT는4개 충돌 메시를 처리하고 캐빈 GPU local geometry/BLAS는 이동 중 재사용한다. 초기3메시 한도로 CPU fallback이 발생한 시도와 새 레일 지지대의 X=0 경계116건 실패는 원시 보고서에 남긴다. 지지대를 양쪽 하현재에 연결한 뒤 기존28672개/1mm 기준을 그대로 적용해 불일치0·최대0.301mm다. 해치15개 및GPU9프로필 성공, 별도GPU3센서20.0206/19.9873/20.0206Hz·59.9993FPS. source별 근거·범위·개인 설정·최종gate는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md), [배치 비교](../Saved/Reports/FOLLOWUP-26-28/corners-32-gtsu-check.png)를 따른다. Windows 잠금으로 직접 마우스 수용은 미수행이다. #28/#26은 사용자 결정으로 범위 제외한다.
+
+FOLLOWUP-32 추가 회귀: #30 촬영에서 idle UI가 자신이 시작하지 않은 외부 그랩 자세를 매번 복원하는 문제를 발견했다. UI 소유 pose/work만 종료·복원하도록 한정하고 idle refresh 뒤 외부 작업·pose 불변을 검사한다. 그랩 로프 상단은 별도 중앙 트롤리에 연결하고 캐빈+1m AABB와 사선 로프 교차도 검사한다. 기본 틀·wire·맵은 동일하다. 원시 회귀는 progress/32/rope-ownership에 둔다.

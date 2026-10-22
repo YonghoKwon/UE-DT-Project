@@ -39,6 +39,12 @@ bool AShipHatchSimulation::IsGrabPoseSafe(FVector Lip) const
  const double DX=FMath::Abs(Lip.X-CabX),DY=FMath::Abs(Lip.Y-CabY);
  if(DX<1.2+.65+1&&DY<1.4+.65+1)return false;
  if(Lip.Z+5.8>HoldDepth+CabHeight+.35-1&&DX<1.2+2.1+1&&DY<1.4+2+1)return false;
+ const FBox CabClearance(FVector(CabX-2.2,CabY-2.4,HoldDepth+CabHeight-.65),FVector(CabX+2.2,CabY+2.4,CabRoofZ()+1));
+ for(int Side:{-1,1})for(int Pair:{-1,1})
+ {
+  const FVector A(Pair*.65,Lip.Y+Side*.65,HoldDepth+BoomHeight+1.3),B(Lip.X+Pair*.5,Lip.Y+Side*.63,Lip.Z+5.8);
+  if(FMath::LineBoxIntersection(CabClearance,A,B,B-A))return false;
+ }
  return true;
 }
 void AShipHatchSimulation::SetGrabPose(FVector Lip,double Open){TrySetGrabPose(Lip,Open);}
@@ -106,7 +112,7 @@ void AShipHatchSimulation::BuildGrabModel()
   Mesh.Rod(P-FVector(0,.11,0),P+FVector(0,.11,0),.39,Dark,12);Mesh.Rod(P-FVector(0,.13,0),P+FVector(0,.13,0),.30,Edge,12);
   const FVector Lower(Hinge.X+Pair*.45,Hinge.Y+Side*.45,Hinge.Z+.56);Mesh.Rod(Lower-FVector(0,.09,0),Lower+FVector(0,.09,0),.29,Dark,12);
   Mesh.Rod(P,Lower,.018,Dark,6); // visible closing-rope reeving
-  Mesh.Rod(FVector(Lip.X+Pair*.65,Lip.Y+Side*.65,H+.1),P,.022,Dark,8);
+  Mesh.Rod(FVector(Pair*.65,Lip.Y+Side*.65,H+.1),P,.022,Dark,8);
  }
  Mesh.BeveledBox(FVector(0,Lip.Y,H+.6),FVector(3.2,3.8,1.2),.12,FLinearColor(.012,.13,.075)); // moving hoist carriage
  TArray<FVector> Normals;Normals.Init(FVector::ZeroVector,Mesh.V.Num());for(int I=0;I<Mesh.T.Num();I+=3){const auto N=FVector::CrossProduct(Mesh.V[Mesh.T[I+2]]-Mesh.V[Mesh.T[I]],Mesh.V[Mesh.T[I+1]]-Mesh.V[Mesh.T[I]]);for(int J=0;J<3;++J)Normals[Mesh.T[I+J]]+=N;}for(auto& N:Normals)N.Normalize();
