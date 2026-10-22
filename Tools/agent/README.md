@@ -15,7 +15,11 @@ powershell -NoProfile -File Scripts/test_merge_check.ps1
 
 result 및 manifest·artifact 상대 경로는 저장소 기준이다. merge_check는 result 옆 `merge-check.json`을 쓰고 exit 0=머지 가능 후보, 1=사용자 확인 필요, 2=차단을 반환한다. FAIL·보호 경로 변경·잘못된/실패 manifest·비밀 노출은 차단한다. NOT_RUN·SKIPPED(사유 필수)·테스트/게이트 변경·미복원 설정·결정 필요는 확인 대상으로 남긴다. manifest는 현재 verify 형식(Valid/Failure/FailedNames/Steps/Tests) 및 숫자 Failed 집계를 검사한다. 자기 보고만으로 실제 수용을 보장하지 않는다. Claude가 독립 diff·증거 리뷰 후 머지한다.
 
-범용 JSON Schema 엔진 대신 schema에서 사용한 필수 필드·타입·enum·배열/객체·숫자·최소 길이를 PS 5.1에서 재귀 검증한다. 다른 JSON Schema 키워드를 지원한다고 주장하지 않는다. 테스트/게이트 변경이나 보호 경로 예외를 자동 승인하지 않는다.
+변경 경로는 `base...head`의 merge-base 기준으로 계산한다. DTCore·지정 보호 경로와 `Content/MA0T10/Maps/SensorTestMap.umap`은 BLOCK, 그 외 `.uasset/.umap`은 REVIEW다. `Source/`, `Config/`, `Content/`, `Shaders/` 변경에 RT ProjectDefault perf PASS가 없으면 별도 REVIEW를 남긴다. 보고 커밋 뒤의 후속 커밋은 개수·제목과 함께 REVIEW, 조상이 아닌 보고 커밋은 BLOCK이다. branch는 로컬 ref, `origin/<branch>` 순으로 확인하며 둘 다 없으면 REVIEW다. manifest의 skip은 gate당 한 줄에 개수를 기록한다.
+
+측정의 PASS/FAIL은 숫자 `value`와 `threshold`가 필수다. NOT_RUN/SKIPPED는 두 필드를 생략할 수 있다(값을 제공하면 숫자여야 한다). 정보용 INFO는 숫자 value만 기록하고 threshold를 두지 않는다. INFO는 gate enum을 확장하지 않으며 성능 gate 통과를 뜻하지 않는다. 예시에 실제 단일 pair 메모리 관찰 INFO와 미수행 현장 검증을 포함했다.
+
+범용 JSON Schema 엔진 대신 schema에서 사용한 필수 필드·타입·enum·배열/객체·숫자·최소 길이·oneOf를 PS 5.1에서 재귀 검증한다. 다른 JSON Schema 키워드를 지원한다고 주장하지 않는다. 테스트/게이트 변경이나 보호 경로 예외를 자동 승인하지 않는다.
 
 ## 과거 지시서 목록
 

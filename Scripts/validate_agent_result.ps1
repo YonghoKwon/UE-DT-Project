@@ -11,6 +11,17 @@ function Has-Property($Object, [string]$Name) {
     return ($null -ne $Object -and $null -ne $Object.PSObject.Properties[$Name])
 }
 function Check-Node($Value, $Spec, [string]$At) {
+    if (Has-Property $Spec 'oneOf') {
+        $matches = 0
+        foreach ($candidate in @($Spec.oneOf)) {
+            $before = $issues.Count
+            Check-Node $Value $candidate $At
+            if ($issues.Count -eq $before) { $matches++ }
+            if ($issues.Count -gt $before) { $issues.RemoveRange($before, $issues.Count - $before) }
+        }
+        if ($matches -ne 1) { $issues.Add("$At must match exactly one schema variant") }
+        return
+    }
     $kind = [string]$Spec.type
     $valid = switch ($kind) {
         'object' { $null -ne $Value -and $Value -is [PSCustomObject] }

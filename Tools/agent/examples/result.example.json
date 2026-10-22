@@ -206,6 +206,33 @@
         "value": 10
       },
       "status": "PASS"
+    },
+    {
+      "name": "RT on total GPU memory median (single pair; desktop/apps included, not exclusive VRAM)",
+      "condition": {
+        "map": "SensorTestMap existing user worktree; opened only, never saved",
+        "resolution": "1920x1080 offscreen",
+        "rhi": "D3D12",
+        "rt": "ProjectDefault on",
+        "transport": "Not specified in the source single-pair report; no PCD throughput claim",
+        "sensors": "1 Camera + 1 LiDAR CPU fallback; warmup10s/measure30s; commit82bdfff"
+      },
+      "value": 6193.0,
+      "unit": "MiB",
+      "status": "INFO"
+    },
+    {
+      "name": "Company real-device throughput acceptance (not performed)",
+      "condition": {
+        "map": "Field environment not specified",
+        "resolution": "Not measured",
+        "rhi": "Not measured",
+        "rt": "Not measured",
+        "transport": "Field server not tested",
+        "sensors": "Real devices not tested"
+      },
+      "unit": "Hz",
+      "status": "NOT_RUN"
     }
   ],
   "not_done": [

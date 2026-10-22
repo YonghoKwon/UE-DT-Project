@@ -254,97 +254,257 @@
     "measurements": {
       "type": "array",
       "items": {
-        "type": "object",
-        "required": [
-          "name",
-          "condition",
-          "value",
-          "unit",
-          "threshold",
-          "status"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1
-          },
-          "condition": {
+        "description": "PASS/FAIL require numeric value and threshold; NOT_RUN/SKIPPED may omit both; INFO requires numeric value and forbids threshold.",
+        "oneOf": [
+          {
             "type": "object",
             "required": [
-              "map",
-              "resolution",
-              "rhi",
-              "rt",
-              "transport",
-              "sensors"
+              "name",
+              "condition",
+              "value",
+              "unit",
+              "threshold",
+              "status"
             ],
             "properties": {
-              "map": {
+              "name": {
                 "type": "string",
                 "minLength": 1
               },
-              "resolution": {
-                "type": "string",
-                "minLength": 1
-              },
-              "rhi": {
-                "type": "string",
-                "minLength": 1
-              },
-              "rt": {
-                "type": "string",
-                "minLength": 1
-              },
-              "transport": {
-                "type": "string",
-                "minLength": 1
-              },
-              "sensors": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "additionalProperties": false
-          },
-          "value": {
-            "type": "number"
-          },
-          "unit": {
-            "type": "string",
-            "minLength": 1
-          },
-          "threshold": {
-            "type": "object",
-            "required": [
-              "operator",
-              "value"
-            ],
-            "properties": {
-              "operator": {
-                "type": "string",
-                "enum": [
-                  ">=",
-                  "<=",
-                  "=="
-                ]
+              "condition": {
+                "type": "object",
+                "required": [
+                  "map",
+                  "resolution",
+                  "rhi",
+                  "rt",
+                  "transport",
+                  "sensors"
+                ],
+                "properties": {
+                  "map": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "resolution": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "rhi": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "rt": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "transport": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sensors": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false
               },
               "value": {
                 "type": "number"
+              },
+              "unit": {
+                "type": "string",
+                "minLength": 1
+              },
+              "threshold": {
+                "type": "object",
+                "required": [
+                  "operator",
+                  "value"
+                ],
+                "properties": {
+                  "operator": {
+                    "type": "string",
+                    "enum": [
+                      ">=",
+                      "<=",
+                      "=="
+                    ]
+                  },
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "PASS",
+                  "FAIL"
+                ]
               }
             },
             "additionalProperties": false
           },
-          "status": {
-            "type": "string",
-            "enum": [
-              "PASS",
-              "FAIL",
-              "SKIPPED",
-              "NOT_RUN"
-            ]
+          {
+            "type": "object",
+            "required": [
+              "name",
+              "condition",
+              "unit",
+              "status"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "condition": {
+                "type": "object",
+                "required": [
+                  "map",
+                  "resolution",
+                  "rhi",
+                  "rt",
+                  "transport",
+                  "sensors"
+                ],
+                "properties": {
+                  "map": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "resolution": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "rhi": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "rt": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "transport": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sensors": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false
+              },
+              "value": {
+                "type": "number"
+              },
+              "unit": {
+                "type": "string",
+                "minLength": 1
+              },
+              "threshold": {
+                "type": "object",
+                "required": [
+                  "operator",
+                  "value"
+                ],
+                "properties": {
+                  "operator": {
+                    "type": "string",
+                    "enum": [
+                      ">=",
+                      "<=",
+                      "=="
+                    ]
+                  },
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "NOT_RUN",
+                  "SKIPPED"
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "name",
+              "condition",
+              "value",
+              "unit",
+              "status"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "condition": {
+                "type": "object",
+                "required": [
+                  "map",
+                  "resolution",
+                  "rhi",
+                  "rt",
+                  "transport",
+                  "sensors"
+                ],
+                "properties": {
+                  "map": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "resolution": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "rhi": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "rt": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "transport": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sensors": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false
+              },
+              "value": {
+                "type": "number"
+              },
+              "unit": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "INFO"
+                ]
+              }
+            },
+            "additionalProperties": false
           }
-        },
-        "additionalProperties": false
+        ]
       }
     },
     "not_done": {

@@ -41,7 +41,7 @@ function New-Result {
     }
 }
 $results = New-Object 'Collections.Generic.List[object]'
-function Case([string]$Name, [int]$Expected, [scriptblock]$Mutate) {
+function Case([string]$Name, [int]$Expected, [scriptblock]$Mutate, [scriptblock]$Inspect = {}) {
     $r = New-Result
     & $Mutate $r
     $directory = Join-Path $fixture "cases/$Name"
@@ -53,9 +53,14 @@ function Case([string]$Name, [int]$Expected, [scriptblock]$Mutate) {
     $summaryPath = Join-Path $directory 'merge-check.json'
     $summaryMatches = $false
     if (Test-Path -LiteralPath $summaryPath) { $summaryMatches = (Get-Content -LiteralPath $summaryPath -Raw -Encoding UTF8 | ConvertFrom-Json).ExitCode -eq $Expected }
+    $detail = ''
+    if ($summaryMatches) {
+        try { & $Inspect (Get-Content -LiteralPath $summaryPath -Raw -Encoding UTF8 | ConvertFrom-Json) }
+        catch { $detail = $_.Exception.Message; $summaryMatches = $false }
+    }
     $pass = ($actual -eq $Expected -and $summaryMatches)
-    $results.Add([PSCustomObject]@{ Name = $Name; Expected = $Expected; Actual = $actual; Pass = $pass })
-    Write-Output "$Name expected=$Expected actual=$actual pass=$pass"
+    $results.Add([PSCustomObject]@{ Name = $Name; Expected = $Expected; Actual = $actual; Pass = $pass; Detail = $detail })
+    Write-Output "$Name expected=$Expected actual=$actual pass=$pass $detail"
 }
 Case 'pass' 0 { param($r) }
 Case 'failed-gate' 2 { param($r) $r.gates.feature.status = 'FAIL' }
@@ -84,7 +89,106 @@ Case 'threshold-contradiction' 2 {
     $r.measurements = @(@{ name = 'synthetic Hz'; condition = @{ map='fixture'; resolution='none'; rhi='none'; rt='none'; transport='none'; sensors='none' }; value=9; unit='Hz'; threshold=@{operator='>=';value=10};status='PASS' })
 }
 Case 'wrong-base' 2 { param($r) $r.base_commit = (Git @('rev-parse','HEAD')) -join '' }
-Case 'wrong-head' 2 { param($r) $r.commits = @($base) }
+Case 'reported-ancestor' 1 { param($r) $r.commits = @($base) } {
+    param($summary)
+    if (@($summary.Review | Where-Object { $_ -eq 'HEAD has 1 commits after reported commits: fixture candidate' }).Count -ne 1) { throw 'Missing ancestor count/subject review' }
+}
+$divergent = (Git @('commit-tree',"$base^{tree}",'-p',$base,'-m','fixture divergent report')) -join ''
+Case 'reported-nonancestor' 2 { param($r) $r.commits = @($divergent) } {
+    param($summary)
+    if ($summary.Blocked -notcontains 'Last reported commit is not an ancestor of requested head') { throw 'Missing nonancestor block' }
+}
+Git @('update-ref','refs/remotes/origin/remote-only','HEAD') | Out-Null
+Case 'remote-only-branch' 0 { param($r) $r.branch = 'remote-only' }
+Case 'missing-branch' 1 { param($r) $r.branch = 'missing-local-and-origin' } {
+    param($summary)
+    if ($summary.Review -notcontains 'branch ref not found locally') { throw 'Missing branch review' }
+}
+Git @('update-ref','refs/remotes/origin/wrong-remote',$base) | Out-Null
+Case 'wrong-remote-head' 2 { param($r) $r.branch = 'wrong-remote' }
+# Diverged base has its own protected-path change; only branch-side note.txt belongs to the diff.
+$originalBase = $base
+Git @('switch','-c','aheadbase',$base) | Out-Null
+New-Item -ItemType Directory -Path "$fixture/Config" -Force | Out-Null
+'; synthetic base-only change' | Set-Content -LiteralPath "$fixture/Config/Game.ini"
+Git @('add','--','Config/Game.ini') | Out-Null
+Git @('commit','-m','fixture master advances independently') | Out-Null
+$base = (Git @('rev-parse','HEAD')) -join ''
+Git @('switch','fixture') | Out-Null
+Case 'merge-base-diff' 0 { param($r) } {
+    param($summary)
+    if (@($summary.ChangedPaths).Count -ne 1 -or $summary.ChangedPaths -notcontains 'note.txt') { throw 'Diff includes changes from base-side history' }
+}
+$base = $originalBase
+# INFO/unfinished measurements have distinct requirements; gate status still rejects INFO.
+function Measurement([string]$Status) {
+    return @{ name='synthetic measurement';condition=@{map='fixture';resolution='none';rhi='none';rt='none';transport='none';sensors='none'};unit='Hz';status=$Status }
+}
+Case 'measurement-not-run-omitted' 1 { param($r) $r.measurements = @((Measurement 'NOT_RUN')) }
+Case 'measurement-skipped-omitted' 1 { param($r) $r.measurements = @((Measurement 'SKIPPED')) }
+Case 'measurement-info' 0 { param($r) $m=Measurement 'INFO';$m.value=123;$r.measurements=@($m) }
+Case 'measurement-info-threshold-rejected' 2 { param($r) $m=Measurement 'INFO';$m.value=123;$m.threshold=@{operator='>=';value=10};$r.measurements=@($m) }
+Case 'measurement-info-value-required' 2 { param($r) $r.measurements=@((Measurement 'INFO')) }
+Case 'measurement-pass-fields-required' 2 { param($r) $r.measurements=@((Measurement 'PASS')) }
+Case 'measurement-fail-fields-required' 2 { param($r) $r.measurements=@((Measurement 'FAIL')) }
+Case 'measurement-pending-value-type' 2 { param($r) $m=Measurement 'NOT_RUN';$m.value='unknown';$r.measurements=@($m) }
+Case 'gate-info-rejected' 2 { param($r) $r.gates.quick.status='INFO' }
+'{"Valid":true,"Tests":[{"State":"Skip"},{"State":"Success"},{"State":"Skip"}],"SkipNames":["a","b"]}' | Set-Content -LiteralPath "$fixture/multi-skip.json" -Encoding UTF8
+Case 'manifest-skips-counted-once' 1 { param($r) $r.gates.feature.manifest='multi-skip.json' } {
+    param($summary)
+    $lines=@($summary.Review | Where-Object { $_ -match 'skipped tests|SkipNames' })
+    if ($lines.Count -ne 1 -or $lines[0] -ne 'feature manifest contains 2 skipped tests; confirm opt-in scope') { throw 'Skip review duplicated or count incorrect' }
+}
+'{"Valid":true,"SkipNames":["a","b","c"]}' | Set-Content -LiteralPath "$fixture/skipnames-only.json" -Encoding UTF8
+Case 'manifest-skipnames-only' 1 { param($r) $r.gates.release.manifest='skipnames-only.json' } {
+    param($summary)
+    if ($summary.Review -notcontains 'release manifest contains 3 skipped tests; confirm opt-in scope') { throw 'SkipNames-only count lost' }
+}
+Case 'tools-only-no-perf-review' 1 { param($r) $r.gates.perf.status='NOT_RUN' } {
+    param($summary)
+    if ($summary.Review -contains 'runtime change without RT ProjectDefault perf PASS') { throw 'Tools-only change incorrectly needs runtime perf review' }
+}
+# Rule text in AGENTS must agree with the prohibition on Codex submodule updates.
+$agents = Get-Content -LiteralPath "$root/AGENTS.md" -Raw -Encoding UTF8
+$policyOK = $agents.Contains('병렬 worktree는 Claude가 생성 시 Plugins/DTCore를 고정 gitlink 커밋으로 초기화한다.') -and $agents.Contains('Codex는 submodule을 update/변경하지 않는다.') -and $agents.Contains('미초기화 상태면 quick 실패를 한계로 기록.') -and $agents.Contains('4. push·PR·merge·worktree 생성·submodule update는 하지 않는다.')
+$results.Add([PSCustomObject]@{Name='parallel-dtcore-policy';Expected=$true;Actual=$policyOK;Pass=$policyOK;Detail=''})
+Write-Output "parallel-dtcore-policy pass=$policyOK"
+# All runtime path classes need an independent perf review unless RT ProjectDefault passed.
+foreach ($path in @('Source/Fixture.cpp','Config/Fixture.ini','Shaders/Fixture.usf','Content/Review/Fixture.uasset','Content/Review/Fixture.umap')) {
+    New-Item -ItemType Directory -Path (Split-Path -Parent "$fixture/$path") -Force | Out-Null
+    'synthetic content' | Set-Content -LiteralPath "$fixture/$path"
+    Git @('add','--',$path) | Out-Null
+    Git @('commit','-m',"fixture runtime $path") | Out-Null
+    $caseName = 'runtime-' + [IO.Path]::GetFileName($path)
+    Case $caseName 1 { param($r) $r.gates.perf.status='NOT_RUN' } {
+        param($summary)
+        if ($summary.Review -notcontains 'runtime change without RT ProjectDefault perf PASS') { throw 'Runtime perf review missing' }
+        if ($path -match '\.(uasset|umap)$' -and $summary.Review -notcontains "asset change requires review: $path") { throw 'Asset incorrectly blocked or not reviewed' }
+    }
+    # Isolate the next path class from earlier runtime changes.
+    $base = (Git @('rev-parse','HEAD')) -join ''
+}
+# Reuse just the latest asset change for review cases.
+$base = (Git @('rev-parse','HEAD^')) -join ''
+Case 'asset-review-with-perf-pass' 1 { param($r) } {
+    param($summary)
+    if ($summary.Review -notcontains 'asset change requires review: Content/Review/Fixture.umap') { throw 'Asset review missing' }
+    if ($summary.Review -contains 'runtime change without RT ProjectDefault perf PASS') { throw 'RT ProjectDefault PASS incorrectly reviewed' }
+}
+Case 'runtime-rt-off-review' 1 { param($r) $r.gates.perf.rt_mode='Off' } {
+    param($summary)
+    if ($summary.Review -notcontains 'runtime change without RT ProjectDefault perf PASS') { throw 'RT off accepted for runtime gate' }
+}
+$base = (Git @('rev-parse','HEAD')) -join ''
+New-Item -ItemType Directory -Path "$fixture/Content/MA0T10/Maps" -Force | Out-Null
+'synthetic protected map' | Set-Content -LiteralPath "$fixture/Content/MA0T10/Maps/SensorTestMap.umap"
+Git @('add','--','Content/MA0T10/Maps/SensorTestMap.umap') | Out-Null
+Git @('commit','-m','fixture protected sensor map') | Out-Null
+Case 'sensor-map-block' 2 { param($r) } {
+    param($summary)
+    if ($summary.ProtectedPaths -notcontains 'Content/MA0T10/Maps/SensorTestMap.umap') { throw 'SensorTestMap not protected' }
+}
+$base = (Git @('rev-parse','HEAD')) -join ''
 '# synthetic gate change' | Set-Content -LiteralPath "$fixture/Scripts/run_perf_abab.ps1"
 Git @('add','--','Scripts/run_perf_abab.ps1') | Out-Null
 Git @('commit','-m','fixture gate modification') | Out-Null

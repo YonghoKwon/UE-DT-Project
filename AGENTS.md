@@ -178,7 +178,7 @@ layer gate: 이전 allowlist 수 → 현재 수
 
 **작업 환경 운영 (2026-10-13, v2 병렬 규칙 2026-10-22 추가)**
 
-- **측정 없는 병렬 worktree:** 사용자가 승인·지정한 경로/branch에서만 도구·문서 등 측정 없는 일을 수행한다. 메인 폴더는 읽기 전용이며 다른 작업의 Editor·화면·GPU를 건드리지 않는다. Unreal Editor·UBT/Build.bat·성능 측정·GPU 작업 금지. quick/layer도 Editor/빌드 없는 스크립트 경로인지 확인한 뒤 실행한다. DTCore 미초기화는 한계로 기록하고 자동 update하지 않는다.
+- **측정 없는 병렬 worktree:** 사용자가 승인·지정한 경로/branch에서만 도구·문서 등 측정 없는 일을 수행한다. 메인 폴더는 읽기 전용이며 다른 작업의 Editor·화면·GPU를 건드리지 않는다. Unreal Editor·UBT/Build.bat·성능 측정·GPU 작업 금지. quick/layer도 Editor/빌드 없는 스크립트 경로인지 확인한 뒤 실행한다. 병렬 worktree는 Claude가 생성 시 Plugins/DTCore를 고정 gitlink 커밋으로 초기화한다. Codex는 submodule을 update/변경하지 않는다. 미초기화 상태면 quick 실패를 한계로 기록.
 - 증거 원본은 해당 worktree `Saved/Reports/<ID>/`에 둔다. 메인 쓰기의 유일한 예외는 지시서가 명시한 사용자 확인용 문서 사본을 메인 `Saved/Reports/<ID>/` 한 경로 아래에 복사하는 것이다. 허용 파일만 복사하고 다른 메인 소스·자산·설정·인덱스를 수정하지 않는다. 이 규칙은 worktree 생성·push·PR·merge의 자동 승인이 아니다.
 
 

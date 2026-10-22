@@ -47,17 +47,22 @@ function Check-Manifest([string]$Gate, [string]$Path) {
         if (Has $m 'FailedNames') {
             if ($m.FailedNames -isnot [Array] -or @($m.FailedNames).Count -ne 0) { $bad.Add('FailedNames is nonempty or malformed') }
         }
+        $skippedTests = 0
         foreach ($collection in @('Steps', 'Tests')) {
             if (Has $m $collection) {
                 if ($m.$collection -isnot [Array]) { $bad.Add("$collection must be an array"); continue }
                 foreach ($entry in @($m.$collection)) {
                     $allowed = if ($collection -eq 'Steps') { @('Success') } else { @('Success','Skip') }
                     if (-not (Has $entry 'State') -or $entry.State -cnotin $allowed) { $bad.Add("$collection contains failed/not-run/unknown State") }
-                    elseif ($entry.State -eq 'Skip') { $review.Add("$Gate manifest contains skipped tests") }
+                    elseif ($entry.State -eq 'Skip') { $skippedTests++ }
                 }
             }
         }
-        if ((Has $m 'SkipNames') -and @($m.SkipNames).Count -gt 0) { $review.Add("$Gate manifest has SkipNames; confirm opt-in scope") }
+        if (Has $m 'SkipNames') {
+            if ($m.SkipNames -isnot [Array]) { $bad.Add('SkipNames must be an array') }
+            else { $skippedTests = [Math]::Max($skippedTests, @($m.SkipNames).Count) }
+        }
+        if ($skippedTests -gt 0) { $review.Add("$Gate manifest contains $skippedTests skipped tests; confirm opt-in scope") }
         if ((Has $m 'Commit') -and $m.Commit -ne $headSha) { $review.Add("$Gate manifest Commit differs from requested head") }
         foreach ($reason in $bad) { $blocked.Add("$Gate manifest: $reason ($Path)") }
         $manifestSummary.Add([PSCustomObject]@{ Gate = $Gate; Path = $absolute; Valid = ($bad.Count -eq 0) })
@@ -74,10 +79,23 @@ try {
     if ($declaredBase -ne $baseSha) { $blocked.Add('result base_commit differs from -BaseCommit') }
     if (@($r.commits).Count -gt 0) {
         $last = (Git @('rev-parse','--verify',"$($r.commits[-1])^{commit}")) -join ''
-        if ($last -ne $headSha) { $blocked.Add('Last reported commit differs from requested head') }
+        if ($last -ne $headSha) {
+            & git.exe -C $root merge-base --is-ancestor $last $headSha
+            $ancestorExit = $LASTEXITCODE
+            if ($ancestorExit -eq 0) {
+                $count = (Git @('rev-list','--count',"$last..$headSha")) -join ''
+                $subjects = (Git @('log','--reverse','--format=%s',"$last..$headSha")) -join '; '
+                $review.Add("HEAD has $count commits after reported commits: $subjects")
+            } elseif ($ancestorExit -eq 1) { $blocked.Add('Last reported commit is not an ancestor of requested head') }
+            else { throw 'Cannot check reported commit ancestry' }
+        }
     }
-    $branchHead = (Git @('rev-parse','--verify',"$($r.branch)^{commit}")) -join ''
-    if ($branchHead -ne $headSha) { $blocked.Add('Reported branch does not resolve to requested head') }
+    $branchHead = @(& git.exe -C $root rev-parse --verify --quiet "refs/heads/$($r.branch)^{commit}") -join ''
+    if ($LASTEXITCODE -ne 0) {
+        $branchHead = @(& git.exe -C $root rev-parse --verify --quiet "refs/remotes/origin/$($r.branch)^{commit}") -join ''
+        if ($LASTEXITCODE -ne 0) { $branchHead = ''; $review.Add('branch ref not found locally') }
+    }
+    if ($branchHead -and $branchHead -ne $headSha) { $blocked.Add('Reported branch does not resolve to requested head') }
     foreach ($property in $r.gates.PSObject.Properties) {
         $name = $property.Name; $gate = $property.Value
         $gateSummary.Add([PSCustomObject]@{ Gate = $name; Status = $gate.status })
@@ -101,9 +119,16 @@ try {
             if (-not $meets) { $blocked.Add("Measurement PASS contradicts threshold: $($m.name)") }
         }
     }
-    $paths = @(Git @('diff','--no-renames','--name-only',"$baseSha..$headSha",'--'))
-    $protected = @($paths | Where-Object { $_ -match '^(Plugins/DTCore(?:/|$)|Config/Game\.ini$|Samples/PixelStreaming(?:/|$)|CLAUDE\.md$|docs/IMPROVEMENTS_CLAUDE\.md$|Saved/Reports/Inspection(?:/|$))' -or $_ -match '(?i)\.(umap|uasset)$' })
+    $paths = @(Git @('diff','--no-renames','--name-only',"$baseSha...$headSha",'--'))
+    $protected = @($paths | Where-Object { $_ -match '^(Plugins/DTCore(?:/|$)|Config/Game\.ini$|Samples/PixelStreaming(?:/|$)|CLAUDE\.md$|docs/IMPROVEMENTS_CLAUDE\.md$|Saved/Reports/Inspection(?:/|$)|Content/MA0T10/Maps/SensorTestMap\.umap$)' })
     foreach ($path in $protected) { $blocked.Add("Protected path changed: $path") }
+    foreach ($path in @($paths | Where-Object { $_ -match '(?i)\.(umap|uasset)$' -and $_ -notin $protected })) {
+        $review.Add("asset change requires review: $path")
+    }
+    if (@($paths | Where-Object { $_ -match '^(Source|Config|Content|Shaders)/' }).Count -gt 0 -and
+        -not ($r.gates.perf.status -eq 'PASS' -and $r.gates.perf.rt_mode -eq 'ProjectDefault')) {
+        $review.Add('runtime change without RT ProjectDefault perf PASS')
+    }
     $testChanges = @($paths | Where-Object { $_ -match '^Scripts/(verify|run_perf_abab|merge_check|test_merge_check|validate_[^/]+)\.ps1$' -or $_ -match '(?i)(Tests\.cpp$|/Tests/|fixture|Tools/agent/schema/)' })
     foreach ($path in $testChanges) { $review.Add("Test/gate/expectation change requires independent review: $path") }
     if ($r.secrets_exposed) { $blocked.Add('secrets_exposed=true; inspect secrets_note without reproducing credentials') }
