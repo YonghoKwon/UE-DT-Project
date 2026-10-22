@@ -64,9 +64,16 @@ void ACoilLoadingMonitorHost::SetView(int32 View)
     if(View==0){Position=FVector(-105,-120,46);Target=FVector(25,-4,16);}
     else
     {
-        Target=Simulation->PreviewPlacement().Center;
-        if(!Simulation->Plan().IsEmpty()){Target=FVector::ZeroVector;for(const auto& P:Simulation->Plan())Target+=P.Center;Target/=Simulation->Plan().Num();}
-        Target.Z=FMath::Max(2.5,Target.Z);Position=Target+FVector(8,-18,11);
+        Target=FVector(0,0,Simulation->Settings.HoldHeight*.35);
+        const auto Rotation=(-FVector(8,-18,11)).Rotation();const FRotationMatrix Basis(Rotation);
+        const double Aspect=Monitor?FMath::Max(.25,double(Monitor->SceneRect().Right-Monitor->SceneRect().Left)/FMath::Max(1.f,Monitor->SceneRect().Bottom-Monitor->SceneRect().Top)):1.5;
+        double Distance=1;for(int X:{-1,1})for(int Y:{-1,1})for(double Z:{0.,Simulation->Settings.HoldHeight+Simulation->Settings.Coaming})
+        {
+            const FVector Delta=FVector(X*Simulation->Settings.HoldLength*.5,Y*Simulation->Settings.HoldWidth*.5,Z)-Target;const double Forward=FVector::DotProduct(Delta,Basis.GetUnitAxis(EAxis::X));
+            Distance=FMath::Max(Distance,FMath::Abs(FVector::DotProduct(Delta,Basis.GetUnitAxis(EAxis::Y)))/(.85*FMath::Tan(PI/6))-Forward);
+            Distance=FMath::Max(Distance,FMath::Abs(FVector::DotProduct(Delta,Basis.GetUnitAxis(EAxis::Z)))*Aspect/(.85*FMath::Tan(PI/6))-Forward);
+        }
+        Position=Target-Rotation.Vector()*Distance;
     }
     if(View==1)
     {

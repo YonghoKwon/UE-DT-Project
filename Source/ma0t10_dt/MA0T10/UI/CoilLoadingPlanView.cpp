@@ -30,12 +30,13 @@ public:
     {
         auto* O=Owner.Get();auto* M=O?O->Monitor.Get():nullptr;auto* S=M?M->Simulation():nullptr;if(!S)return L;Update(G);const FVector2D Size=G.GetLocalSize();
         const auto Line=[&](const TArray<FVector2f>& P,FLinearColor C,float W=1){FSlateDrawElement::MakeLines(Out,L+2,G.ToPaintGeometry(),P,ESlateDrawEffect::None,C,true,W);};
-        const auto Text=[&](FVector2D P,const FString& T,FLinearColor C=FSensorOwnedPresentationStyle::Text(),int32 Font=12){FSlateDrawElement::MakeText(Out,L+4,G.ToPaintGeometry(FVector2D(Size.X-16,80),FSlateLayoutTransform(P)),T,FSensorOwnedPresentationStyle::Font(Font),ESlateDrawEffect::None,C);};
-        Text({8,0},Projection.bSection?FString::Printf(TEXT("횡단면 · %d열 · 실제 OD/ID 비율 · 적재 영역 확대"),S->NextRow):TEXT("2D 상면 · X 선수 → / Y 좌현 ↓ · 실제 외피 비율 · 적재 영역 확대"));
+        const auto Text=[&](FVector2D P,const FString& T,FLinearColor C=FSensorOwnedPresentationStyle::Text(),int32 Font=12){FSlateDrawElement::MakeText(Out,L+4,G.ToPaintGeometry(FVector2D(Size.X-16,80),FSlateLayoutTransform(P)),T,FSensorOwnedPresentationStyle::Font(Font,M->FontScale()),ESlateDrawEffect::None,C);};
+        Text({8,0},Projection.bSection?FString::Printf(TEXT("횡단면 · %d열 · 실제 OD/ID 비율 · 전체 홀드 실치수"),S->NextRow):TEXT("2D 상면 · X 선수 → / Y 좌현 ↓ · 실제 외피 비율 · 전체 홀드 실치수"));
         const TCHAR* Names[]={TEXT("열연 HR"),TEXT("냉연 CR / 포장선"),TEXT("고스트"),TEXT("위험"),TEXT("주의"),TEXT("선택")};
         const FLinearColor Colors[]={FLinearColor(.30,.34,.38),FLinearColor(.8,.84,.88),FLinearColor(.3,1,.45),FLinearColor(1,.12,.08),FLinearColor(1,.5,.08),FLinearColor(0,1,1)};
         for(int I=0;I<6;++I){const double X=8+I*FMath::Min(175.,(Size.X-16)/6);FSlateDrawElement::MakeBox(Out,L+3,G.ToPaintGeometry(FVector2D(16,12),FSlateLayoutTransform(FVector2D(X,35))),FCoreStyle::Get().GetBrush("WhiteBrush"),ESlateDrawEffect::None,Colors[I]);Text({X+22,30},Names[I],Colors[I],11);}
         for(const auto& P:Grid)Line(P,FLinearColor(.15,.19,.22));
+        Line(HoldBoundary,FLinearColor(.45,.75,.85),2);Line(HatchBoundary,FLinearColor(1,.8,.25),2);
         if(Vertices.Num())FSlateDrawElement::MakeCustomVerts(Out,L+1,FSlateApplication::Get().GetRenderer()->GetResourceHandle(*FCoreStyle::Get().GetBrush("WhiteBrush")),Vertices,Indices,nullptr,0,0);
         for(int32 I=0;I<Projection.Glyphs.Num();++I)
         {
@@ -53,6 +54,7 @@ private:
     mutable uint64 Revision=MAX_uint64;mutable FVector2D LastSize,LastPosition;mutable float LastScale=0;mutable int32 LastView=-1;
     mutable CoilPlan::FProjection Projection;mutable TArray<FSlateVertex> Vertices;mutable TArray<SlateIndex> Indices;
     mutable TArray<TArray<FVector2f>> Edges,Bores,NetEdges,Grid;
+    mutable TArray<FVector2f> HoldBoundary,HatchBoundary;
     void Update(const FGeometry& G) const
     {
         auto* O=Owner.Get();auto* M=O?O->Monitor.Get():nullptr;auto* S=M?M->Simulation():nullptr;if(!S)return;
@@ -63,6 +65,17 @@ private:
         const auto Rect=[&](FVector2D C,FVector2D H,FLinearColor Color){const int32 Base=Vertices.Num();for(const FVector2D P:{C+FVector2D(-H.X,-H.Y),C+FVector2D(H.X,-H.Y),C+H,C+FVector2D(-H.X,H.Y)})Vertices.Add(Vertex(P,Color));for(int V:{0,1,2,0,2,3})Indices.Add(Base+V);};
         const auto Ring=[&](FVector2D C,double R){TArray<FVector2f> P;for(int I=0;I<=64;++I){const double A=I*2*PI/64;P.Add(FVector2f(C+FVector2D(FMath::Cos(A),FMath::Sin(A))*R));}return P;};
         const auto Outline=[&](FVector2D C,FVector2D H){return TArray<FVector2f>{FVector2f(C-H),FVector2f(C+FVector2D(H.X,-H.Y)),FVector2f(C+H),FVector2f(C+FVector2D(-H.X,H.Y)),FVector2f(C-H)};};
+        const auto MeterOutline=[&](FVector2D Min,FVector2D Max){const auto A=Projection.Project(Min),B=Projection.Project(Max);return Outline((A+B)*.5,FVector2D(FMath::Abs(B.X-A.X),FMath::Abs(B.Y-A.Y))*.5);};
+        const auto& Settings=S->Settings;
+        HoldBoundary=Projection.bSection?MeterOutline({-Settings.HoldWidth*.5,0},{Settings.HoldWidth*.5,Settings.HoldHeight}):MeterOutline({-Settings.HoldLength*.5,-Settings.HoldWidth*.5},{Settings.HoldLength*.5,Settings.HoldWidth*.5});
+        HatchBoundary=Projection.bSection?MeterOutline({-Settings.OpeningWidth*.5,Settings.WeatherDeckZ()},{Settings.OpeningWidth*.5,Settings.WeatherDeckZ()+Settings.Coaming}):MeterOutline({-Settings.OpeningLength*.5,-Settings.OpeningWidth*.5},{Settings.OpeningLength*.5,Settings.OpeningWidth*.5});
+        for(const auto& P:S->Plan())if(P.Tier==1&&P.bDunnage&&(!Projection.bSection||P.Row==S->NextRow))
+            for(int32 J=0;J<Settings.DunnageLines;++J)
+            {
+                const FVector2D C=Projection.bSection?FVector2D(P.Center.Y,Settings.DunnageThickness*.5):FVector2D(P.Center.X+(J-(Settings.DunnageLines-1)*.5)*.45,P.Center.Y);
+                const FVector2D Half=Projection.bSection?FVector2D(Settings.ContactLength,Settings.DunnageThickness)*.5:FVector2D(Settings.DunnageWidth,Settings.ContactLength)*.5;
+                Rect(Projection.Project(C),Half*Projection.Scale,FLinearColor(.45,.24,.08));
+            }
         for(double X=FMath::CeilToDouble(Projection.Min.X);X<=Projection.Max.X;X+=1)Grid.Add({FVector2f(Projection.Project({X,Projection.Min.Y})),FVector2f(Projection.Project({X,Projection.Max.Y}))});
         for(double Y=FMath::CeilToDouble(Projection.Min.Y);Y<=Projection.Max.Y;Y+=1)Grid.Add({FVector2f(Projection.Project({Projection.Min.X,Y})),FVector2f(Projection.Project({Projection.Max.X,Y}))});
         for(const auto& X:Projection.Glyphs)

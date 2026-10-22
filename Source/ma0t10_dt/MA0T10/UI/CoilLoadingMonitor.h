@@ -58,10 +58,13 @@ public:
     FString WarningText() const { return CachedWarnings; }
     FSlateRect SceneRect() const { return ViewRect; }
     bool ApplyInputs();
+    float FontScale() const { return TextScale; }
+    void SetFontPercent(int32 Percent);
     int32 DangerCount=0,CautionCount=0,DataNeededCount=0;
     bool DataExpanded() const;
 protected:
     virtual void NativeOnInitialized() override;
+    virtual FReply NativeOnMouseButtonDown(const FGeometry&,const FPointerEvent&) override;
 private:
     TWeakObjectPtr<ACoilLoadingMonitorHost> Host;
     TWeakObjectPtr<ACoilLoadingSimulation> Sim;
@@ -82,6 +85,11 @@ private:
     UPROPERTY(Transient) TObjectPtr<UComboBoxString> GearChoice;
     UPROPERTY(Transient) TObjectPtr<UComboBoxString> MotionChoice;
     UPROPERTY(Transient) TObjectPtr<UComboBoxString> TypeChoice;
+    UPROPERTY(Transient) TObjectPtr<UComboBoxString> RowDirection;
+    UPROPERTY(Transient) TObjectPtr<UCanvasPanelSlot> SceneInputSlot;
+    UPROPERTY(Transient) TObjectPtr<UButton> RemoveButton;
+    UPROPERTY(Transient) TObjectPtr<UTextBlock> SelectionText;
+    float TextScale=1;
     UPROPERTY(Transient) TObjectPtr<UCoilLoadingPlanView> PlanView;
     UPROPERTY(Transient) TArray<TObjectPtr<UCanvasPanelSlot>> Slots;
     UPROPERTY(Transient) TArray<TObjectPtr<UCanvasPanelSlot>> SceneMasks;
@@ -96,6 +104,9 @@ private:
     UFUNCTION() void OnPlace();
     UFUNCTION() void OnPlanOnly();
     UFUNCTION() void OnTier();
+    UFUNCTION() void OnRemove();
+    UFUNCTION() void OnFontSize();
+    UFUNCTION() void OnRowDirection(FString Value,ESelectInfo::Type Selection);
     UFUNCTION() void OnUndo();
     UFUNCTION() void OnCancel();
     UFUNCTION() void OnMotion();

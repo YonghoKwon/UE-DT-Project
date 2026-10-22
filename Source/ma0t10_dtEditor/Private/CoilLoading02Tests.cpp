@@ -31,6 +31,22 @@ public:
             CoilLoading::FPlacement P;P.Tier=6;CoilLoading::FSettings Settings;TArray<CoilLoading::FPlacement> Plan;FString Error;
             Test->TestFalse(TEXT("plan import cannot bypass five-tier cap"),CoilLoading::PlanFromJson(CoilLoading::PlanToJson(S.Settings,{P}),Settings,Plan,Error));
             S.NextTier=1;S.RefreshPreview();
+            Test->TestTrue(TEXT("fill one base tier"),S.AddTier());Test->TestTrue(TEXT("supported upper coil"),S.PlaceNext(false));
+            const auto PlanBefore=CoilLoading::PlanToJson(S.Settings,S.Plan());const int32 Upper=S.Plan().Num()-1;
+            Test->TestFalse(TEXT("cannot remove a supporting lower coil"),S.RemoveCoil(0));Test->TestTrue(TEXT("removal explains support dependency"),S.Status.Contains(TEXT("위 코일")));
+            Test->TestTrue(TEXT("remove top coil"),S.RemoveCoil(Upper));Test->TestTrue(TEXT("undo removal"),S.Undo());
+            Test->TestEqual(TEXT("undo restores all identities, support indices and geometry"),CoilLoading::PlanToJson(S.Settings,S.Plan()),PlanBefore);
+            while(!S.Plan().IsEmpty())if(!S.RemoveCoil(S.Plan().Num()-1)){Test->AddError(TEXT("fixture drain failed"));return true;}
+            for(bool ForeToAft:{true,false})
+            {
+                S.bRowsForeToAft=ForeToAft;S.NextTier=S.NextRow=S.NextColumn=1;S.NextSpec.CoilId=TEXT("ROW-TEST");S.RefreshPreview();const double X=S.PreviewPlacement().Center.X;
+                for(int32 N=0;N<100&&S.NextRow==1;++N)if(!S.PlaceNext(false)){Test->AddError(S.Status);return true;}
+                Test->TestTrue(TEXT("full row continues at tier1 column1 in adjacent row"),S.NextRow==2&&S.NextTier==1&&S.NextColumn==1);
+                Test->TestTrue(TEXT("automatic direction follows fore/aft choice"),ForeToAft?S.PreviewPlacement().Center.X<X:S.PreviewPlacement().Center.X>X);
+                S.NextRow=100;const int32 Before=S.Plan().Num();Test->TestFalse(TEXT("hold length end refuses another placement"),S.PlaceNext(false));Test->TestEqual(TEXT("length rejection leaves plan intact"),S.Plan().Num(),Before);
+                while(!S.Plan().IsEmpty())if(!S.RemoveCoil(S.Plan().Num()-1))return true;
+            }
+            S.NextRow=S.NextTier=S.NextColumn=1;S.bRowsForeToAft=true;S.RefreshPreview();H->Monitor->SetFontPercent(150);H->Monitor->SelectView(2);H->Monitor->SetFontPercent(100);
             auto* Workspace=C.World()->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
             Test->TestFalse(TEXT("coil map disables Slab capabilities before tools are opened"),Workspace->AreSlabToolsEnabled());H->ShowTools();
             for(auto Role:{ESensorToolPanelRole::SlabProgress,ESensorToolPanelRole::Replay,ESensorToolPanelRole::SlabCharts})

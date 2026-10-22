@@ -82,6 +82,9 @@ public:
     CoilLoading::FPlacement PreviewPlacement() const;
     void RefreshPreview();
     bool PlaceNext(bool Animate=true);
+    bool RemoveCoil(int32 Index);
+    int32 PickCoil(FVector WorldOrigin,FVector WorldDirection) const;
+    bool bRowsForeToAft=true;
     bool AddTier();
     bool Undo();
     bool StartMotionTest();
@@ -157,7 +160,8 @@ private:
     UPROPERTY(Transient) TObjectPtr<USkyAtmosphereComponent> Sky;
     TArray<CoilLoading::FPlacement> Placements;
     TArray<CoilLoading::FSpec> Manifest;
-    TArray<FString> History;
+    struct FPlanUndo { FString Json;CoilLoading::FPlacement Next;int32 ManifestIndex=0;bool ForeToAft=true; };
+    TArray<FPlanUndo> History;
     CoilLoading::FResult PreviewAnalysis;
     CoilLoading::FSettings BuiltSceneSettings;
     CoilLoading::FPlacement Pending;

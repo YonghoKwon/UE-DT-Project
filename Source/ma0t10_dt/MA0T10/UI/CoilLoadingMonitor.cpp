@@ -22,6 +22,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
+#include "GameFramework/PlayerController.h"
 
 namespace {using Style=FSensorOwnedPresentationStyle;}
 void UCoilLoadingWarningButton::Bind(ACoilLoadingSimulation* S,const TArray<int32>& C){Sim=S;Indices=C;OnClicked.AddDynamic(this,&UCoilLoadingWarningButton::Highlight);}
@@ -33,6 +34,7 @@ void UCoilLoadingMonitor::NativeOnInitialized()
     Super::NativeOnInitialized();bPresistent=true;
     auto* Root=WidgetTree->ConstructWidget<UCanvasPanel>();WidgetTree->RootWidget=Root;Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     for(int I=0;I<4;++I){auto* B=WidgetTree->ConstructWidget<UBorder>();B->SetBrush(*Style::PanelBrush());B->SetBrushColor(FLinearColor(.012,.018,.022,1));B->SetVisibility(ESlateVisibility::HitTestInvisible);auto* MaskSlot=Root->AddChildToCanvas(B);MaskSlot->SetZOrder(-1);SceneMasks.Add(MaskSlot);}
+    auto* SceneInput=WidgetTree->ConstructWidget<UBorder>();SceneInput->SetBrushColor(FLinearColor::Transparent);SceneInputSlot=Root->AddChildToCanvas(SceneInput);
     const auto Label=[&](const FString& Text,int32 Size=13,bool Bold=false){auto* W=WidgetTree->ConstructWidget<UTextBlock>();W->SetText(FText::FromString(Text));W->SetFont(Style::Font(Size,1,Bold));W->SetColorAndOpacity(Style::Text());W->SetAutoWrapText(true);return W;};
     const auto Button=[&](const TCHAR* Text,FName Fn,bool Primary=false){auto* W=WidgetTree->ConstructWidget<UButton>();W->SetStyle(Primary?Style::PrimaryButton():Style::Button());W->SetContent(Label(Text));FScriptDelegate D;D.BindUFunction(this,Fn);W->OnClicked.Add(D);return W;};
     const auto Card=[&](const TCHAR* Name){auto* B=WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(),Name);B->SetBrush(*Style::PanelBrush());B->SetBrushColor(Style::Panel());B->SetPadding(FMargin(14));Slots.Add(Root->AddChildToCanvas(B));return B;};
@@ -40,22 +42,25 @@ void UCoilLoadingMonitor::NativeOnInitialized()
     const auto AddButton=[&](UHorizontalBox* R,const TCHAR* Text,FName Fn,bool Primary=false){auto* S=R->AddChildToHorizontalBox(Button(Text,Fn,Primary));S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));S->SetPadding(FMargin(2));};
     auto* Sidebar=Card(TEXT("CoilWorkflow"));auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Sidebar->SetContent(Scroll);auto* Body=WidgetTree->ConstructWidget<UVerticalBox>();Scroll->AddChild(Body);
     Body->AddChildToVerticalBox(Label(TEXT("제품 부두 · 코일 선적"),18,true));
-    Body->AddChildToVerticalBox(Label(TEXT("① 인양 → 해치 통과 → 안착\n② 홀드 내부 적층 · 경고 시에도 계속"),12));
+    Body->AddChildToVerticalBox(Label(TEXT("최대 5단 · 하중 경고는 별도 확인\n코일 클릭 → 선택 제거 · 위 코일부터"),12));
     Heading=Label(TEXT("1단 · 1열 · 1번"),16,true);Body->AddChildToVerticalBox(Heading)->SetPadding(FMargin(0,12));
-    auto* R=Row(Body);AddButton(R,TEXT("인양·놓기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnPlace),true);AddButton(R,TEXT("취소"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnCancel));
-    R=Row(Body);AddButton(R,TEXT("계획 배치"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnPlanOnly));AddButton(R,TEXT("한 단 추가"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnTier));AddButton(R,TEXT("되돌리기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnUndo));
-    R=Row(Body);AddButton(R,TEXT("크레인 근접"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnCraneClose));AddButton(R,TEXT("코일 근접"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnCoilClose));AddButton(R,TEXT("창고"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnShed));
     Badge=Label(TEXT("주의 · 해석 준비"),15,true);Body->AddChildToVerticalBox(Badge)->SetPadding(FMargin(0,8));
+    auto* R=Row(Body);AddButton(R,TEXT("인양·놓기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnPlace),true);AddButton(R,TEXT("취소"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnCancel));
+    R=Row(Body);AddButton(R,TEXT("계획 배치"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnPlanOnly));AddButton(R,TEXT("현재 단 채우기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnTier));AddButton(R,TEXT("되돌리기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnUndo));
+    R=Row(Body);RemoveButton=Button(TEXT("선택 제거"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnRemove));R->AddChildToHorizontalBox(RemoveButton)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));AddButton(R,TEXT("글자 100/150%"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnFontSize));
+    SelectionText=Label(TEXT("선택 없음 · 3D/단면/상면에서 클릭"),12);Body->AddChildToVerticalBox(SelectionText);
     Body->AddChildToVerticalBox(Label(TEXT("다음 배치 · 고스트\n코일 ID / OD·ID·폭 m / 질량 t"),12));
     TypeChoice=WidgetTree->ConstructWidget<UComboBoxString>();TypeChoice->ForegroundColor=Style::Text();TypeChoice->SetWidgetStyle(Style::ComboBox());TypeChoice->AddOption(TEXT("열연 HR · 무포장"));TypeChoice->AddOption(TEXT("냉연 CR · 포장"));TypeChoice->OnSelectionChanged.AddDynamic(this,&UCoilLoadingMonitor::OnTypeChanged);Body->AddChildToVerticalBox(TypeChoice);
     IdInput=WidgetTree->ConstructWidget<UEditableTextBox>();IdInput->WidgetStyle=Style::Input();Body->AddChildToVerticalBox(IdInput);
     auto* Choices=Row(Body);InnerChoice=WidgetTree->ConstructWidget<UComboBoxString>();InnerChoice->ForegroundColor=Style::Text();InnerChoice->SetWidgetStyle(Style::ComboBox());for(const TCHAR* V:{TEXT("ID 508 mm"),TEXT("ID 610 mm"),TEXT("ID 762 mm")})InnerChoice->AddOption(V);Choices->AddChildToHorizontalBox(InnerChoice);
     GearChoice=WidgetTree->ConstructWidget<UComboBoxString>();GearChoice->ForegroundColor=Style::Text();GearChoice->SetWidgetStyle(Style::ComboBox());GearChoice->AddOption(TEXT("훅 + 보호 슬링"));GearChoice->AddOption(TEXT("C-hook"));Choices->AddChildToHorizontalBox(GearChoice);
     const auto Number=[&](UVerticalBox* Parent,const TCHAR* Title,double Value,double Min,double Max){auto* Pair=Row(Parent);Pair->AddChildToHorizontalBox(Label(Title,12))->SetSize(FSlateChildSize(ESlateSizeRule::Fill));auto* W=WidgetTree->ConstructWidget<USpinBox>();W->SetWidgetStyle(Style::SpinBox());W->SetMinValue(Min);W->SetMaxValue(Max);W->SetValue(Value);W->SetMinDesiredWidth(100);W->SetDelta(.01);Pair->AddChildToHorizontalBox(W);Numbers.Add(W);};
-    Number(Body,TEXT("순강재 외경 OD [m]"),1.6,.05,10);Number(Body,TEXT("순강재 폭 [m]"),1.25,.05,10);Number(Body,TEXT("gross 질량 [t] · 0 순강재 자동"),0,0,500);Number(Body,TEXT("목재 접촉 μ · 포장값 확인 필요"),.3,0,2);
-    Number(Body,TEXT("단 · 최대 5단"),1,1,5);Number(Body,TEXT("열 · 선수미"),1,1,100000);Number(Body,TEXT("번호 · 횡방향"),1,1,100000);
+    Number(Body,TEXT("순강재 외경 OD [m]"),1.6,.05,10);Number(Body,TEXT("순강재 폭 [m]"),1.25,.05,10);Number(Body,TEXT("총 질량 [t] · 0 자동 계산"),0,0,500);Number(Body,TEXT("목재 접촉 μ · 포장값 확인 필요"),.3,0,2);
+    Number(Body,TEXT("단 · 최대 5단"),1,1,100000);Number(Body,TEXT("열 · 선수미"),1,1,100000);Number(Body,TEXT("번호 · 횡방향"),1,1,100000);
+    RowDirection=WidgetTree->ConstructWidget<UComboBoxString>();RowDirection->SetWidgetStyle(Style::ComboBox());RowDirection->ForegroundColor=Style::Text();RowDirection->AddOption(TEXT("자동 다음 열: 선수 → 선미"));RowDirection->AddOption(TEXT("자동 다음 열: 선미 → 선수"));RowDirection->SetSelectedIndex(0);RowDirection->OnSelectionChanged.AddDynamic(this,&UCoilLoadingMonitor::OnRowDirection);Body->AddChildToVerticalBox(RowDirection);
     R=Row(Body);AddButton(R,TEXT("사양·위치 적용"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnApply),true);AddButton(R,TEXT("설정 · 상세"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnDetails));
     Details=WidgetTree->ConstructWidget<UVerticalBox>();Body->AddChildToVerticalBox(Details);Details->SetVisibility(ESlateVisibility::Collapsed);
+    R=Row(Details);AddButton(R,TEXT("크레인 근접"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnCraneClose));AddButton(R,TEXT("코일 근접"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnCoilClose));AddButton(R,TEXT("창고"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnShed));
     Number(Details,TEXT("탱크톱 UDL [t/m²]"),14.5,.1,100);Number(Details,TEXT("승인 유효 면적 [m²] · 0 미확인"),0,0,100);Number(Details,TEXT("국부 허용압 [t/m²] · 0 미확인"),0,0,1000);
     Number(Details,TEXT("풍속 [m/s] · 합성 진자"),0,0,50);Number(Details,TEXT("횡요 진폭 [°]"),5,0,40);Number(Details,TEXT("종요 진폭 [°]"),2,0,40);Number(Details,TEXT("운동 주기 [s]"),10,2,60);
     Number(Details,TEXT("쐐기 검증 내력 [kN] · 0 미확인"),0,0,10000);Number(Details,TEXT("선체 연결 래싱 내력 [kN]"),0,0,10000);Number(Details,TEXT("보정 지름 강성 [kN/m]"),0,0,10000000);Number(Details,TEXT("제조사 ovality 한계 · 0 미확인"),0,0,.2);
@@ -69,12 +74,12 @@ void UCoilLoadingMonitor::NativeOnInitialized()
     const auto Flag=[&](const TCHAR* Name,bool Checked){auto* C=WidgetTree->ConstructWidget<UCheckBox>();C->SetCheckedState(Checked?ECheckBoxState::Checked:ECheckBoxState::Unchecked);C->SetContent(Label(Name,12));Details->AddChildToVerticalBox(C);Flags.Add(C);};
     Flag(TEXT("받침목 · 3줄 200×50 mm"),true);Flag(TEXT("쐐기 있음 · 내력 입력 별도"),true);Flag(TEXT("래싱 있음 · 선체 연결 내력 별도"),false);Flag(TEXT("eye 선수미 방향"),true);Flag(TEXT("젖은 강재 접촉 · μ0 시험"),false);Flag(TEXT("Loading Manual 입력 확인"),false);Flag(TEXT("냉연 포장 접촉 μ 인증값 확인"),false);Flag(TEXT("LCF 정수력 입력 확인"),false);Flag(TEXT("실선 TPC·기준 적재상태 확인"),false);
     Details->AddChildToVerticalBox(Label(TEXT("선박: N-class 참고 합성 배치\n174.10×22.00 m · 4 box holds\n작업 홀드/해치 24.80×18.80 m\n홀드 H14.00m · UDL14.5 t/m² · 국부 강도 미확인\nΔ30000t/KG7/KM9/자유표면0.2m 가상\nIMO CSS Annex6/13 · 연구 근거 문서 참조"),11));
-    MotionChoice=WidgetTree->ConstructWidget<UComboBoxString>();MotionChoice->ForegroundColor=Style::Text();MotionChoice->SetWidgetStyle(Style::ComboBox());for(const TCHAR* V:{TEXT("사용자 roll/pitch"),TEXT("잔잔함 · 2°/1°/12s"),TEXT("보통 · 5°/2°/10s"),TEXT("강함 · 10°/5°/8s"),TEXT("CSS lower hold 가속도")})MotionChoice->AddOption(V);MotionChoice->SetSelectedIndex(2);Body->AddChildToVerticalBox(MotionChoice);
-    R=Row(Body);AddButton(R,TEXT("선박 운동 시험"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnMotion));AddButton(R,TEXT("센서 도구"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnTools));
-    Body->AddChildToVerticalBox(Label(TEXT("불러올 계획/목록 경로 · 저장 후 자동 갱신"),12));FileInput=WidgetTree->ConstructWidget<UEditableTextBox>();FileInput->WidgetStyle=Style::Input();FileInput->SetText(FText::FromString(FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("CoilLoadingPlan.json"))));Body->AddChildToVerticalBox(FileInput);
-    R=Row(Body);AddButton(R,TEXT("JSON 저장"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnSave));AddButton(R,TEXT("계획 불러오기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnLoad));AddButton(R,TEXT("CSV/JSON 목록"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnImport));
-    R=Row(Body);AddButton(R,TEXT("슬롯 저장"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnSaveSlot));AddButton(R,TEXT("슬롯 불러오기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnLoadSlot));
-    R=Row(Body);AddButton(R,TEXT("혼적 예시 불러오기 · 경고 포함"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnMixedExample));
+    MotionChoice=WidgetTree->ConstructWidget<UComboBoxString>();MotionChoice->ForegroundColor=Style::Text();MotionChoice->SetWidgetStyle(Style::ComboBox());for(const TCHAR* V:{TEXT("사용자 roll/pitch"),TEXT("잔잔함 · 2°/1°/12s"),TEXT("보통 · 5°/2°/10s"),TEXT("강함 · 10°/5°/8s"),TEXT("CSS lower hold 가속도")})MotionChoice->AddOption(V);MotionChoice->SetSelectedIndex(2);Details->AddChildToVerticalBox(MotionChoice);
+    R=Row(Details);AddButton(R,TEXT("선박 운동 시험"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnMotion));AddButton(R,TEXT("센서 도구"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnTools));
+    Details->AddChildToVerticalBox(Label(TEXT("불러올 계획/목록 경로 · 저장 후 자동 갱신"),12));FileInput=WidgetTree->ConstructWidget<UEditableTextBox>();FileInput->WidgetStyle=Style::Input();FileInput->SetText(FText::FromString(FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("CoilLoadingPlan.json"))));Details->AddChildToVerticalBox(FileInput);
+    R=Row(Details);AddButton(R,TEXT("JSON 저장"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnSave));AddButton(R,TEXT("계획 불러오기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnLoad));AddButton(R,TEXT("CSV/JSON 목록"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnImport));
+    R=Row(Details);AddButton(R,TEXT("슬롯 저장"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnSaveSlot));AddButton(R,TEXT("슬롯 불러오기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnLoadSlot));
+    R=Row(Details);AddButton(R,TEXT("혼적 예시 불러오기 · 경고 포함"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnMixedExample));
     auto* Header=Card(TEXT("CoilViewHeader"));auto* HB=WidgetTree->ConstructWidget<UVerticalBox>();Header->SetContent(HB);HB->AddChildToVerticalBox(Label(TEXT("제품 부두 코일 선적 · 사전 해석 / 실제 놓기 비교"),17,true));
     R=Row(HB);AddButton(R,TEXT("전경"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnOverview));AddButton(R,TEXT("홀드 내부"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnInterior));AddButton(R,TEXT("단면"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnSection));AddButton(R,TEXT("2D 상면"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnTop));AddButton(R,TEXT("점군"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnPoints));
     Operation=Label(TEXT("매단 하중 아래 출입 금지 · 빨간 원은 표시용 작업구역"),12);HB->AddChildToVerticalBox(Operation);
@@ -89,13 +94,14 @@ void UCoilLoadingMonitor::Bind(ACoilLoadingMonitorHost* H,ACoilLoadingSimulation
 void UCoilLoadingMonitor::SyncInputs()
 {
     auto* S=Sim.Get();if(!S||Numbers.Num()<40)return;TGuardValue<bool> Sync(bSync,true);IdInput->SetText(FText::FromString(S->NextSpec.CoilId));
-    TypeChoice->SetSelectedIndex(int32(S->NextSpec.Type));InnerChoice->SetSelectedIndex(FMath::IsNearlyEqual(S->NextSpec.ID,.508)?0:FMath::IsNearlyEqual(S->NextSpec.ID,.610)?1:2);GearChoice->SetSelectedIndex(S->Settings.bCHook?1:0);
+    TypeChoice->SetSelectedIndex(int32(S->NextSpec.Type));InnerChoice->SetSelectedIndex(FMath::IsNearlyEqual(S->NextSpec.ID,.508)?0:FMath::IsNearlyEqual(S->NextSpec.ID,.610)?1:2);GearChoice->SetSelectedIndex(S->Settings.bCHook?1:0);RowDirection->SetSelectedIndex(S->bRowsForeToAft?0:1);
     const double V[]={S->NextSpec.OD,S->NextSpec.Width,S->NextSpec.MassOverride,S->NextSpec.Mu,double(S->NextTier),double(S->NextRow),double(S->NextColumn),S->Settings.UDLLimit,S->Settings.ApprovedPatchArea,S->Settings.LocalPressureLimit,S->Settings.WindMps,S->RollDegrees,S->PitchDegrees,S->MotionPeriod,S->NextChockKN,S->NextLashingKN,S->NextStiffness,S->NextOvalityLimit,S->Settings.HookSWL,S->Settings.GearMass,S->Settings.KM,S->NextSpec.Density,S->NextSpec.Fill,S->Settings.LegWLLTonnes,S->Settings.LegAngleDegrees,S->NextSpec.PackageRadial,S->NextSpec.PackageEnd,S->NextSpec.SteelMu,S->NextRollingResistanceM,S->Settings.MCT1cm,S->Settings.LCFFromAP,S->Settings.BerthGap,S->Settings.RailSetback,S->Settings.RailGauge,double(S->Settings.QuaySide),S->Settings.Draft,S->Settings.TPC,S->Settings.WaterplaneCoefficient,S->Settings.WaterDensity,S->Settings.SummerDraftLimit};
     for(int32 I=0;I<Numbers.Num();++I)Numbers[I]->SetValue(V[I]);const bool B[]={S->bNextDunnage,S->bNextChocks,S->bNextLashing,S->bNextForeAft,S->Settings.bWetSteel,S->Settings.bLoadingManual,S->NextSpec.bPackagedFrictionConfirmed,S->Settings.bLCFConfirmed,S->Settings.bTPCConfirmed};for(int32 I=0;I<Flags.Num();++I)Flags[I]->SetIsChecked(B[I]);
 }
 bool UCoilLoadingMonitor::ApplyInputs()
 {
     auto* S=Sim.Get();if(!S||bSync)return false;if(S->Phase()!=ECoilLoadingPhase::Idle){S->Status=TEXT("작업 중 사양 변경 불가 · 먼저 취소하세요");return false;}
+    if(FMath::RoundToInt(Numbers[4]->GetValue())>CoilLoading::MaximumTier){S->Status=TEXT("배치 거절: 최대 5단입니다. 입력한 단수를 줄이세요.");return false;}
     auto Spec=S->NextSpec;Spec.CoilId=IdInput->GetText().ToString();Spec.OD=Numbers[0]->GetValue();Spec.Width=Numbers[1]->GetValue();Spec.MassOverride=Numbers[2]->GetValue();Spec.Mu=Numbers[3]->GetValue();Spec.ID=InnerChoice->GetSelectedIndex()==0?.508:InnerChoice->GetSelectedIndex()==1?.610:.762;Spec.Density=Numbers[21]->GetValue();Spec.Fill=Numbers[22]->GetValue();FString E;
     Spec.Type=TypeChoice->GetSelectedIndex()==1?CoilLoading::ECoilType::ColdRolled:CoilLoading::ECoilType::HotRolled;Spec.PackageRadial=Numbers[25]->GetValue();Spec.PackageEnd=Numbers[26]->GetValue();Spec.SteelMu=Numbers[27]->GetValue();Spec.bPackagedFrictionConfirmed=Flags[6]->IsChecked();
     if(!Spec.Validate(E)){S->Status=E;return false;}S->NextSpec=Spec;S->NextTier=FMath::RoundToInt(Numbers[4]->GetValue());S->NextRow=FMath::RoundToInt(Numbers[5]->GetValue());S->NextColumn=FMath::RoundToInt(Numbers[6]->GetValue());
@@ -107,14 +113,15 @@ bool UCoilLoadingMonitor::ApplyInputs()
 void UCoilLoadingMonitor::Refresh()
 {
     auto* S=Sim.Get();if(!S||!IsVisible())return;if(LastPlanCount!=S->Plan().Num()){LastPlanCount=S->Plan().Num();SyncInputs();}const FVector2D Size=UWidgetLayoutLibrary::GetViewportSize(this)/UWidgetLayoutLibrary::GetViewportScale(this);if(Size.X<=0||Size.Y<=0)return;
-    const double Left=FMath::Min(360.,Size.X*.31),X=Left+24,Width=FMath::Max(100.,Size.X-X-12),FooterH=FMath::Clamp(Size.Y*.27,170.,260.);
-    const FVector2D Positions[]={{12,12},{X,12},{X,130},{X,Size.Y-FooterH-12}},Sizes[]={{Left,Size.Y-24},{Width,106},{Width,Size.Y-FooterH-154},{Width,FooterH}};
+    const double Left=FMath::Min(360.*TextScale,Size.X*.34),X=Left+24,Width=FMath::Max(100.,Size.X-X-12),FooterH=FMath::Clamp(Size.Y*.27,170.,260.),Top=130+40*(TextScale-1);
+    const FVector2D Positions[]={{12,12},{X,12},{X,Top},{X,Size.Y-FooterH-12}},Sizes[]={{Left,Size.Y-24},{Width,Top-24},{Width,Size.Y-FooterH-Top-24},{Width,FooterH}};
     for(int32 I=0;I<Slots.Num();++I){Slots[I]->SetPosition(Positions[I]);Slots[I]->SetSize(Sizes[I]);}
-    const FVector2D MaskPositions[]={{0,0},{0,Size.Y-FooterH-24},{0,130},{Size.X-12,130}},MaskSizes[]={{Size.X,130},{Size.X,FooterH+24},{X,Size.Y-FooterH-154},{12,Size.Y-FooterH-154}};
+    const FVector2D MaskPositions[]={{0,0},{0,Size.Y-FooterH-24},{0,Top},{Size.X-12,Top}},MaskSizes[]={{Size.X,Top},{Size.X,FooterH+24},{X,Size.Y-FooterH-Top-24},{12,Size.Y-FooterH-Top-24}};
     for(int32 I=0;I<SceneMasks.Num();++I){SceneMasks[I]->SetPosition(MaskPositions[I]);SceneMasks[I]->SetSize(MaskSizes[I]);}
-    ViewRect=FSlateRect(X,130,Size.X-12,Size.Y-FooterH-24);const int32 View=S->View();PlotCard->SetVisibility(View==2||View==3?ESlateVisibility::Visible:ESlateVisibility::Collapsed);if(Host.IsValid())Host->SetSceneRect(ViewRect,Size,View!=2&&View!=3);
+    ViewRect=FSlateRect(X,Top,Size.X-12,Size.Y-FooterH-24);SceneInputSlot->SetPosition({X,Top});SceneInputSlot->SetSize({Width,ViewRect.Bottom-ViewRect.Top});const int32 View=S->View();PlotCard->SetVisibility(View==2||View==3?ESlateVisibility::Visible:ESlateVisibility::Collapsed);if(Host.IsValid())Host->SetSceneRect(ViewRect,Size,View!=2&&View!=3);
+    const int32 Selected=S->HighlightedCoils().Num()==1?S->HighlightedCoils()[0]:INDEX_NONE;RemoveButton->SetIsEnabled(S->Plan().IsValidIndex(Selected)&&S->Phase()==ECoilLoadingPhase::Idle);SelectionText->SetText(FText::FromString(S->Plan().IsValidIndex(Selected)?TEXT("선택: ")+S->Plan()[Selected].Spec.CoilId:TEXT("선택 없음 · 코일 클릭 후 제거")));
     if(!S->LastPlanSavePath.IsEmpty()&&S->LastPlanSavePath!=LastShownPlanPath){LastShownPlanPath=S->LastPlanSavePath;FileInput->SetText(FText::FromString(LastShownPlanPath));}
-    Operation->SetText(FText::FromString(S->Status+TEXT(" · 매단 하중 아래 출입 금지")));
+    Operation->SetText(FText::FromString(S->Status+FString::Printf(TEXT(" · 홀드 %.2f×%.2fm / 개구 %.2f×%.2fm"),S->Settings.HoldLength,S->Settings.HoldWidth,S->Settings.OpeningLength,S->Settings.OpeningWidth)));
     const auto& R=S->Analysis();const auto& P=S->Physics();const auto Runtime=S->Lidar?S->Lidar->GetSensorRuntimeStatus():FVirtualSensorRuntimeStatus();
     Comparison->SetText(FText::FromString(FString::Printf(TEXT("물리: %s / Δ%.3fm, 회전%.1f° · LiDAR %s %.1f/20Hz · 피팅 %d개 · 중심편차p95 %s / 표면잔차 %.3fm"),*P.State,P.MaxDisplacement,P.MaxRotationDegrees,*Runtime.ActiveAcquisitionBackend,Runtime.MeasuredAcquisitionRateHz,S->FittedCoilCount,S->bLidarCompared?*FString::Printf(TEXT("%.3fm"),S->LidarDeviationP95):TEXT("자료 필요 (점/방향 부족)"),S->bLidarCompared?S->LidarFitResidualP95:0.)));
     if(LastRevision==S->Revision())return;LastRevision=S->Revision();
@@ -180,3 +187,30 @@ void UCoilLoadingMonitor::OnTypeChanged(FString Value,ESelectInfo::Type)
 void UCoilLoadingMonitor::SelectView(int32 V){if(Host.IsValid())Host->SetView(V);Refresh();}
 void UCoilLoadingMonitor::OnOverview(){SelectView(0);}void UCoilLoadingMonitor::OnInterior(){SelectView(1);}void UCoilLoadingMonitor::OnSection(){SelectView(2);}void UCoilLoadingMonitor::OnTop(){SelectView(3);}void UCoilLoadingMonitor::OnPoints(){SelectView(4);}void UCoilLoadingMonitor::OnTools(){if(Host.IsValid())Host->ShowTools();}
 void UCoilLoadingMonitor::OnCraneClose(){if(Host.IsValid())Host->Focus(0);}void UCoilLoadingMonitor::OnCoilClose(){if(Host.IsValid())Host->Focus(1);}void UCoilLoadingMonitor::OnShed(){if(Host.IsValid())Host->Focus(2);}
+void UCoilLoadingMonitor::OnRemove(){if(auto* S=Sim.Get()){S->RemoveCoil(S->HighlightedCoils().Num()==1?S->HighlightedCoils()[0]:INDEX_NONE);SyncInputs();Refresh();}}
+void UCoilLoadingMonitor::OnRowDirection(FString,ESelectInfo::Type){if(!bSync)if(auto* S=Sim.Get()){if(S->Phase()!=ECoilLoadingPhase::Idle){SyncInputs();return;}S->bRowsForeToAft=RowDirection->GetSelectedIndex()==0;S->RefreshPreview();}}
+void UCoilLoadingMonitor::OnFontSize(){SetFontPercent(TextScale>1?100:150);}
+void UCoilLoadingMonitor::SetFontPercent(int32 Percent)
+{
+    const float Scale=Percent==150?1.5f:1.f,Ratio=Scale/TextScale;TextScale=Scale;
+    TArray<UWidget*> Widgets;WidgetTree->GetAllWidgets(Widgets);
+    for(auto* W:Widgets)
+    {
+        if(auto* T=Cast<UTextBlock>(W)){auto Font=T->GetFont();Font.Size=FMath::RoundToInt(Font.Size*Ratio);T->SetFont(Font);}
+        if(auto* Spin=Cast<USpinBox>(W))Spin->SetFont(Style::Font(13,Scale));
+        if(auto* Edit=Cast<UEditableTextBox>(W)){Edit->WidgetStyle.TextStyle.SetFont(Style::Font(13,Scale));Edit->SynchronizeProperties();}
+        if(auto* Combo=Cast<UComboBoxString>(W)){Combo->Font=Style::Font(13,Scale);Combo->SynchronizeProperties();}
+    }
+    LastRevision=MAX_uint64;Refresh();
+}
+FReply UCoilLoadingMonitor::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
+{
+    auto* S=Sim.Get();auto* PC=GetOwningPlayer();const auto P=G.AbsoluteToLocal(E.GetScreenSpacePosition());
+    if(S&&PC&&E.GetEffectingButton()==EKeys::LeftMouseButton&&S->View()!=2&&S->View()!=3&&ViewRect.ContainsPoint(P))
+    {
+        int32 W,H;PC->GetViewportSize(W,H);const auto Size=G.GetLocalSize();FVector O,D;
+        if(Size.X>0&&Size.Y>0&&PC->DeprojectScreenPositionToWorld(P.X*W/Size.X,P.Y*H/Size.Y,O,D))
+        {const int32 Index=S->PickCoil(O,D);if(Index!=INDEX_NONE){S->HighlightCoils({Index});Refresh();return FReply::Handled();}}
+    }
+    return Super::NativeOnMouseButtonDown(G,E);
+}
