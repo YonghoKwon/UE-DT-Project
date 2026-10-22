@@ -19,7 +19,7 @@ void FCoilBasisCases::GetTests(TArray<FString>& Names,TArray<FString>& Commands)
 }
 bool FCoilBasisCases::RunTest(const FString& Case)
 {
-    FSettings S;FSpec C;FPlacement P;P.Center={0,0,.85};
+    FSettings S;S.UDLLimit=15;FSpec C;FPlacement P;P.Center={0,0,.85};
     if(Case==TEXT("N1Mass")){TestTrue(TEXT("HR annulus density7850 and fill0.97 ~=14.797t"),FMath::IsNearlyEqual(C.CalculatedMass(),14.797,0.001));const double M=7.85*.97*PI*.25*(1600.*1600.-762.*762.)*1250.*1.e-9;TestTrue(TEXT("mm/m units agree"),FMath::IsNearlyEqual(M,C.CalculatedMass(),1.e-9));}
     if(Case==TEXT("N2KeyReaction")){const auto K=KeyGeometry(.8,.8,0,100);TestTrue(TEXT("two point support valid"),K.bValid);TestTrue(TEXT("30 degree normal"),FMath::IsNearlyEqual(K.AngleDegrees,30.,1.e-6));TestTrue(TEXT("h sqrt(1.6²-.8²)"),FMath::IsNearlyEqual(K.Height,1.385640646,1.e-8));TestTrue(TEXT("N57.735"),FMath::IsNearlyEqual(K.NormalKN,57.7350269,1.e-6));TestTrue(TEXT("H28.868"),FMath::IsNearlyEqual(K.SpreadKN,28.86751346,1.e-6));}
     if(Case==TEXT("N3Patch")){P.Spec.MassOverride=40;S.ApprovedPatchArea=4;const auto R=Analyze(S,{P});TestEqual(TEXT("approved effective patch q=10"),R.PatchPressure[0],10.);TestTrue(TEXT("contact pressure independent"),R.ContactPressure[0]>R.PatchPressure[0]);TestFalse(TEXT("no UDL warning under80percent"),Issue(R,TEXT("UDL"))!=nullptr);}
@@ -35,7 +35,7 @@ bool FCoilBasisCases::RunTest(const FString& Case)
     if(Case==TEXT("D5SWL")){P.Spec.MassOverride=39;S.GearMass=3;const auto R=Analyze(S,{P});const auto* I=Issue(R,TEXT("SWL"));TestTrue(TEXT("42/40 exceedsSWL"),I&&I->Value==42&&I->Limit==40&&I->Severity==ESeverity::Warning);}
     if(Case==TEXT("D6GM")){S.KM=6;const auto R=Analyze(S,{P});TestTrue(TEXT("GMnonpositive invalid, never green"),Issue(R,TEXT("GM"))&&R.Severity==ESeverity::Warning);}
     if(Case==TEXT("U1UnknownOvality")){const auto R=Analyze(S,Triangle());TestTrue(TEXT("unknown stiffness does not manufacture zero ovality pass"),Issue(R,TEXT("OvalityUnknown"))&&R.Ovality[0]<0&&!R.bComplete);}
-    if(Case==TEXT("B1CSS")){S.LBP=140;S.SpeedKnots=15;S.Beam=23.4;S.KG=7;S.KM=8.7;S.FreeSurfaceCorrection=.2;FVector A;FString E;TestTrue(TEXT("CSS lower hold applicable"),CSSAcceleration(S,A,E));TestTrue(TEXT("base x1.20495 y4.01651 z3.45419 gravity excluded in z"),FMath::IsNearlyEqual(A.X,1.20495,.00002)&&FMath::IsNearlyEqual(A.Y,4.01651,.00002)&&FMath::IsNearlyEqual(A.Z,3.45419,.00002));S.KM=10.2;FVector B;CSSAcceleration(S,B,E);TestTrue(TEXT("higherGM increases transverse acceleration"),B.Y>A.Y);}
+    if(Case==TEXT("B1CSS")){S.PositionFromAP=.5;S.LBP=140;S.SpeedKnots=15;S.Beam=23.4;S.KG=7;S.KM=8.7;S.FreeSurfaceCorrection=.2;FVector A;FString E;TestTrue(TEXT("CSS lower hold applicable"),CSSAcceleration(S,A,E));TestTrue(TEXT("base x1.20495 y4.01651 z3.45419 gravity excluded in z"),FMath::IsNearlyEqual(A.X,1.20495,.00002)&&FMath::IsNearlyEqual(A.Y,4.01651,.00002)&&FMath::IsNearlyEqual(A.Z,3.45419,.00002));S.KM=10.2;FVector B;CSSAcceleration(S,B,E);TestTrue(TEXT("higherGM increases transverse acceleration"),B.Y>A.Y);}
     if(Case==TEXT("B2Overlap")){auto Plan=Triangle();Plan[2].Center.X=2;const auto R=Analyze(S,Plan);TestTrue(TEXT("2Dkey with insufficient3Doverlap rejected"),Issue(R,TEXT("UnsupportedKey"))!=nullptr);FVector2D Center;TestTrue(TEXT("unequal OD upper intersection"),UnequalKey({-.8,.8},.8,{.9,1.},1.,.8,Center));}
     if(Case==TEXT("B3PolygonSensitivity")){TestTrue(TEXT("24sides6.84mm"),FMath::IsNearlyEqual(PolygonRadialError(.8,24),.0068441,.000001));TestTrue(TEXT("48sides1.71mm"),FMath::IsNearlyEqual(PolygonRadialError(.8,48),.0017129,.000001));TestTrue(TEXT("actual32 below24 error"),PolygonRadialError(.8,32)<PolygonRadialError(.8,24));}
     if(Case==TEXT("B4UnboundedTiers"))
@@ -150,7 +150,7 @@ bool FCoilIndependentReview::RunTest(const FString& Case)
     }
     if(Case==TEXT("R8SceneCraneRadius"))
     {
-        TestTrue(TEXT("default rail midpoint derived from beam, gap, setback and gauge"),FMath::IsNearlyEqual(S.RailCenterY(),-21.2));TestTrue(TEXT("radius to centerline21.2m"),FMath::IsNearlyEqual(S.CraneRadius(A.Center),21.2));
+        TestTrue(TEXT("default rail midpoint derived from beam, gap, setback and gauge"),FMath::IsNearlyEqual(S.RailCenterY(),-22.0));TestTrue(TEXT("radius to centerline22m"),FMath::IsNearlyEqual(S.CraneRadius(A.Center),22.0));
         S.Beam=26;S.BerthGap=4;S.RailSetback=5;S.RailGauge=14;S.QuaySide=1;A.Center.Y=-2;TestEqual(TEXT("port quay radius31m"),S.CraneRadius(A.Center),31.);S.MaxRadius=30;const auto R=Analyze(S,{A});const auto* I=Issue(R,TEXT("Outreach"));TestTrue(TEXT("analysis uses same actual scene radius"),I&&I->Value==31);
         FSettings Restored;TArray<FPlacement> Plan;TestTrue(TEXT("rail and LCF metadata roundtrip"),PlanFromJson(PlanToJson(S,{A}),Restored,Plan,E));TestEqual(TEXT("rail dimensions persist"),Restored.RailCenterY(),S.RailCenterY());
     }

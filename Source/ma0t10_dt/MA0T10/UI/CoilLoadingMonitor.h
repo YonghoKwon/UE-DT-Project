@@ -39,6 +39,7 @@ class MA0T10_DT_API UCoilLoadingPlanView : public UWidget
     GENERATED_BODY()
 public:
     TWeakObjectPtr<UCoilLoadingMonitor> Monitor;
+    bool PickAt(FVector2D Point,FVector2D Size);
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
 };
@@ -51,6 +52,8 @@ public:
     void Refresh();
     void SelectView(int32 View);
     void SyncInputs();
+    void LoadMixedExample();
+    UCoilLoadingPlanView* PlanCanvas() const { return PlanView; }
     ACoilLoadingSimulation* Simulation() const { return Sim.Get(); }
     FString WarningText() const { return CachedWarnings; }
     FSlateRect SceneRect() const { return ViewRect; }
@@ -81,6 +84,7 @@ private:
     UPROPERTY(Transient) TObjectPtr<UComboBoxString> TypeChoice;
     UPROPERTY(Transient) TObjectPtr<UCoilLoadingPlanView> PlanView;
     UPROPERTY(Transient) TArray<TObjectPtr<UCanvasPanelSlot>> Slots;
+    UPROPERTY(Transient) TArray<TObjectPtr<UCanvasPanelSlot>> SceneMasks;
     UPROPERTY(Transient) TObjectPtr<UBorder> PlotCard;
     uint64 LastRevision=MAX_uint64;
     int32 LastPlanCount=INDEX_NONE;
@@ -100,6 +104,7 @@ private:
     UFUNCTION() void OnSaveSlot();
     UFUNCTION() void OnLoadSlot();
     UFUNCTION() void OnImport();
+    UFUNCTION() void OnMixedExample();
     UFUNCTION() void OnDetails();
     UFUNCTION() void OnDataNeeded();
     UFUNCTION() void OnTypeChanged(FString Value,ESelectInfo::Type Selection);

@@ -107,9 +107,12 @@ public:
     double RailX=-8;
     void HighlightCoils(const TArray<int32>& Indices);
     bool IsHighlighted(int32 Index) const { return Highlighted.Contains(Index); }
+    const TArray<int32>& HighlightedCoils() const { return Highlighted; }
     double QuayZ() const { return Settings.Draft-Settings.KeelToTanktop+3.5; }
     double QuayEdgeY() const { return Settings.QuayEdgeY(); }
     double QuayOffset(double Setback) const { return QuayEdgeY()+Settings.QuaySide*Setback; }
+    double ServiceLaneWidth() const { return 12; }
+    double ShedCenterY() const { return QuayOffset(Settings.RailSetback+Settings.RailGauge+5+ServiceLaneWidth()+5); }
     FVector PickupPosition() const { return FVector(-8,QuayOffset(8),QuayZ()+1+NextSpec.OuterDiameter()*.5); }
     FVector CraneTop() const { return FVector(RailX,Settings.RailCenterY(),QuayZ()+28); }
     FVector HookPosition() const { return CurrentHook; }
@@ -124,6 +127,11 @@ private:
     UPROPERTY(Transient) TArray<TObjectPtr<ACoilLoadingBody>> Stock;
     UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> PlanSupports;
     UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> CraneParts;
+    UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> TrolleyDetails;
+    UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> HookDetails;
+    FVector HookVisualOrigin=FVector::ZeroVector;
+    UPROPERTY(Transient) TArray<TObjectPtr<UInstancedStaticMeshComponent>> PresentationBatches;
+    UPROPERTY(Transient) TArray<TObjectPtr<UStaticMesh>> PresentationMeshes;
     TArray<FVector> CraneStarts;
     UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> Structure;
     UPROPERTY(Transient) TArray<TObjectPtr<UInstancedStaticMeshComponent>> Batches;
@@ -164,6 +172,8 @@ private:
     ACoilLoadingBody* SpawnCoil(const CoilLoading::FSpec& Spec,FVector Center);
     UStaticMeshComponent* Box(FVector Center,FVector Size,int32 Color,bool Collision=true,FRotator Rotation=FRotator::ZeroRotator);
     void BuildScene();
+    void BuildQuayPresentation();
+    void UpdateTrolley();
     void RestoreSceneGeometry();
     void ConfigureLidar();
     void RebuildBatches();

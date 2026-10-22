@@ -24,7 +24,7 @@ using namespace CoilLoading;
 namespace
 {
 bool SameScene(const FSettings& A,const FSettings& B)
-{return A.LOA==B.LOA&&A.Beam==B.Beam&&A.Depth==B.Depth&&A.Draft==B.Draft&&A.KeelToTanktop==B.KeelToTanktop&&A.HoldLength==B.HoldLength&&A.HoldWidth==B.HoldWidth&&A.HoldHeight==B.HoldHeight&&A.HoldCount==B.HoldCount&&A.Coaming==B.Coaming&&A.BerthGap==B.BerthGap&&A.RailSetback==B.RailSetback&&A.RailGauge==B.RailGauge&&A.QuaySide==B.QuaySide;}
+{return A.LOA==B.LOA&&A.Beam==B.Beam&&A.Depth==B.Depth&&A.Draft==B.Draft&&A.KeelToTanktop==B.KeelToTanktop&&A.HoldLength==B.HoldLength&&A.HoldWidth==B.HoldWidth&&A.HoldHeight==B.HoldHeight&&A.HoldCount==B.HoldCount&&A.Coaming==B.Coaming&&A.BerthGap==B.BerthGap&&A.RailSetback==B.RailSetback&&A.RailGauge==B.RailGauge&&A.QuaySide==B.QuaySide&&A.IntermediateHoldLength==B.IntermediateHoldLength&&A.HoldGap==B.HoldGap&&A.bDeckCranes==B.bDeckCranes&&A.bFoldingCovers==B.bFoldingCovers;}
 void ContactFriction(ACoilLoadingBody* B,const FPlacement& P,bool Wet)
 {
     const bool UnknownPackage=P.Spec.Type==ECoilType::ColdRolled&&!P.Spec.bPackagedFrictionConfirmed;
@@ -52,7 +52,7 @@ void ACoilLoadingSimulation::ConfigureLidar()
     if(!Lidar)return;Lidar->SetFlags(RF_Transient);Lidar->ScanComponent->bAutoStartScan=false;Lidar->FinishSpawning(GetActorTransform());
     FVirtualSensorEditableState S,Applied;FString E;Lidar->ReadEditableState(S);S.LidarProfile=EVirtualLidarDeviceProfile::HesaiXT32;S.SimulationQuality=EVirtualSensorSimulationQuality::FullSpec;
     if(!Lidar->ApplyProfileAndSimulationQuality(S,Applied,E)){Status=E;return;}Lidar->ReadEditableState(S);
-    S.SensorId=TEXT("Coil.Quay.XT32");S.ActorTransform=FTransform(GetActorQuat()*FRotator(-65,60,0).Quaternion(),GetActorTransform().TransformPosition(FVector(-26,-13,Settings.HoldHeight+8)*100));
+    S.SensorId=TEXT("Coil.Quay.XT32");S.ActorTransform=FTransform(GetActorQuat()*FRotator(-72,112,0).Quaternion(),GetActorTransform().TransformPosition(FVector(-Settings.HoldLength*.5+4,-Settings.HoldWidth*.5+3,Settings.HoldHeight+8)*100));
     S.LidarScanInterval=.05f;S.bLidarMaterialResponse=true;S.PreviewPointStride=2;S.MaxPreviewPoints=12000;S.bExportPcdOnScan=false;S.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::WhenRequested;
     if(!Lidar->ApplyEditableState(S,E)){Status=E;return;}
     FVirtualLidarSemanticClassRule Rule;Rule.Label=TEXT("Coil");Rule.ActorTags={TEXT("Coil")};Rule.DisplayColor=FLinearColor(.9,.55,.1);Lidar->ScanComponent->SemanticClassRules.Insert(Rule,0);
@@ -144,12 +144,12 @@ void ACoilLoadingSimulation::Tick(float Delta)
     if(CurrentPhase==ECoilLoadingPhase::Lifting||CurrentPhase==ECoilLoadingPhase::Traversing||CurrentPhase==ECoilLoadingPhase::Lowering)
     {
         const double Duration=CurrentPhase==ECoilLoadingPhase::Traversing?4:3,T=FMath::Clamp(PhaseTime/Duration,0.,1.),Smooth=T*T*(3-2*T);
-        const double TransitZ=FMath::Max(QuayZ()+5,Settings.HoldHeight+Settings.Coaming+Settings.GearHeadroom+NextSpec.OD);
+        const double TransitZ=FMath::Max(QuayZ()+5,Settings.HoldHeight+(Settings.bFoldingCovers?Settings.OpeningLength*.25:0)+NextSpec.OuterDiameter()*.5+Settings.ClearanceMargin+1);
         const FVector Target=CurrentPhase==ECoilLoadingPhase::Lifting?FVector(PhaseStart.X,PhaseStart.Y,TransitZ):CurrentPhase==ECoilLoadingPhase::Traversing?FVector(Pending.Center.X,Pending.Center.Y,TransitZ):Pending.Center+FVector(0,0,.015);
         FVector Position=FMath::Lerp(PhaseStart,Target,Smooth);
         if(CurrentPhase==ECoilLoadingPhase::Traversing){RailX=Position.X;for(int32 I=0;I<CraneParts.Num();++I)CraneParts[I]->SetRelativeLocation(CraneStarts[I]+FVector((RailX+8)*100,0,0));++GeometryRevision;}
         const double Rope=FMath::Max(3.,CraneTop().Z-Position.Z-Settings.GearHeadroom),Omega=FMath::Sqrt(Gravity/Rope),WindAngle=Settings.WindMps*Settings.WindMps*.00003;
-        Position.Y+=Rope*(.012+WindAngle)*FMath::Sin(Omega*SimulationTime)*FMath::Sin(PI*T);CurrentHook=Position+FVector(0,0,Settings.GearHeadroom);
+        Position.Y+=Rope*(.012+WindAngle)*FMath::Sin(Omega*SimulationTime)*FMath::Sin(PI*T);CurrentHook=Position+FVector(0,0,Settings.GearHeadroom);UpdateTrolley();
         if(Suspended){Suspended->SetActorLocationAndRotation(World(Position),GetActorRotation()+FRotator(0,Pending.bEyeForeAft?0:90,0));++GeometryRevision;}
         if(T>=1)
         {
@@ -295,14 +295,13 @@ bool ACoilLoadingSimulation::LoadSlot(const FString& Slot)
 }
 void ACoilLoadingSimulation::DrawRig()
 {
-    RigLines->Flush();if(ActiveView==4)return;
+    RigLines->Flush();if(CurrentPhase==ECoilLoadingPhase::Idle){if(RailX!=-8)++GeometryRevision;RailX=-8;for(int32 I=0;I<CraneParts.Num();++I)CraneParts[I]->SetRelativeLocation(CraneStarts[I]);CurrentHook=PickupPosition()+FVector(0,0,Settings.GearHeadroom);}UpdateTrolley();if(ActiveView==4)return;
     const FVector Load=Suspended?GetActorTransform().InverseTransformPosition(Suspended->GetActorLocation())*.01:PickupPosition();
     const FVector Hook=Suspended?CurrentHook:Load+FVector(0,0,Settings.GearHeadroom),Top(Hook.X,Hook.Y,CraneTop().Z);
     const auto W=[&](FVector P){return GetActorTransform().TransformPosition(P*100);};
     const auto Line=[&](FVector A,FVector B,FLinearColor C,float Thick){RigLines->DrawLine(W(A),W(B),C,0,Thick,.22);};
-    Line(Top,Hook,FLinearColor(.12,.12,.12),4);Line(Hook,Hook+FVector(0,0,-.35),FLinearColor::Yellow,8);
-    if(Settings.bCHook){Line(Hook,Load+FVector(-NextSpec.Width*.5-.35,0,.3),FLinearColor::Yellow,12);Line(Load+FVector(-NextSpec.Width*.5-.35,0,.3),Load+FVector(NextSpec.Width*.35,0,.3),FLinearColor::Yellow,12);}
-    else for(double X:{-.45,.45}){Line(Hook,Load+FVector(X,0,.25),FLinearColor(.85,.72,.4),5);Line(Load+FVector(X,0,.25),Load+FVector(X,0,-.15),FLinearColor(.85,.72,.4),5);}
+    for(double DX:{-.30,0.,.30})for(double DY:{-.23,.23})Line(Top+FVector(DX,DY,0),Hook+FVector(DX,DY,.25),FLinearColor(.18,.19,.18),2);Line(Hook,Hook+FVector(0,0,-.35),FLinearColor::Yellow,8);
+    // The selected solid C-hook / sling is instanced with the hook block.
     for(int32 I=0;I<48;++I){const double A=2*PI*I/48,B=2*PI*(I+1)/48;const FVector C(Load.X,Load.Y,CurrentPhase==ECoilLoadingPhase::Idle?QuayZ()+.05:.08);Line(C+FVector(3*FMath::Cos(A),3*FMath::Sin(A),0),C+FVector(3*FMath::Cos(B),3*FMath::Sin(B),0),FLinearColor::Red,2);}
     for(int32 Index:Highlighted)
     {

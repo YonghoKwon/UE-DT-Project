@@ -1,4 +1,5 @@
 #include "CoilLoadingMonitor.h"
+#include "CoilLoadingPlanProjection.h"
 #include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
@@ -26,9 +27,10 @@ public:
     void BeginRenderViewFamily(FSceneViewFamily&) override{}
     void SetupViewProjectionMatrix(FSceneViewProjectionData& Data) override
     {
-        const auto Full=Data.GetViewRect();const int32 W=Full.Width(),H=Full.Height();
-        FIntRect R(FMath::RoundToInt(W*Rect.X),FMath::RoundToInt(H*Rect.Y),FMath::RoundToInt(W*Rect.Z),FMath::RoundToInt(H*Rect.W));
-        if(R.Width()<1||R.Height()<1)return;Data.SetViewRectangle(R);Data.ProjectionMatrix.M[1][1]=Data.ProjectionMatrix.M[0][0]*R.Width()/R.Height();
+        // A nonzero native ViewRect origin can crop the final UE5.3 upscale
+        // target. Keep the full target and shift only the player projection;
+        // opaque native UI masks cover the other regions. No extra capture.
+        CoilPlan::FitPlayerProjection(Data.ProjectionMatrix,Data.GetViewRect(),Rect);
     }
 };
 ACoilLoadingMonitorHost::ACoilLoadingMonitorHost(){PrimaryActorTick.bCanEverTick=false;}
@@ -58,8 +60,13 @@ void ACoilLoadingMonitorHost::SetView(int32 View)
     if(Coordinator)Coordinator->SetPointCloudOnlyMode(false);
     for(auto C:HiddenByView)if(C.IsValid())PC->HiddenPrimitiveComponents.Remove(C);HiddenByView.Reset();
     Simulation->SetView(View);FVector Position,Target;
-    if(View==0){Position=FVector(-115,-145,100);Target=FVector(20,-3,18);}
-    else{Position=FVector(-37,-14,20);Target=FVector(-20,0,2.5);}
+    if(View==0){Position=FVector(-105,-120,46);Target=FVector(25,-4,16);}
+    else
+    {
+        Target=Simulation->PreviewPlacement().Center;
+        if(!Simulation->Plan().IsEmpty()){Target=FVector::ZeroVector;for(const auto& P:Simulation->Plan())Target+=P.Center;Target/=Simulation->Plan().Num();}
+        Target.Z=FMath::Max(2.5,Target.Z);Position=Target+FVector(8,-18,11);
+    }
     if(View==1)
     {
         TInlineComponentArray<UPrimitiveComponent*> Components(Simulation);
@@ -75,24 +82,23 @@ void ACoilLoadingMonitorHost::SetView(int32 View)
             if(FMath::Abs(P.Y)>Simulation->Settings.HoldWidth*.5||FMath::Abs(P.X)>Simulation->Settings.HoldLength*.5||P.Z>Simulation->Settings.HoldHeight+1)
             {TInlineComponentArray<UPrimitiveComponent*> Parts(*It);for(auto* C:Parts)if(!PC->HiddenPrimitiveComponents.Contains(C)){PC->HiddenPrimitiveComponents.Add(C);HiddenByView.Add(C);}}
         }
-        Position=FVector(-14,-28,25);Target=FVector(-27,0,5);
     }
     ViewCamera->SetActorLocationAndRotation(Simulation->GetActorTransform().TransformPosition(Position*100),Simulation->GetActorQuat()*(Target-Position).Rotation().Quaternion());
-    auto* Camera=ViewCamera->GetCameraComponent();Camera->FieldOfView=60;Camera->PostProcessSettings.bOverride_AutoExposureMethod=true;Camera->PostProcessSettings.AutoExposureMethod=AEM_Manual;
+    auto* Camera=ViewCamera->GetCameraComponent();Camera->FieldOfView=60;Camera->bConstrainAspectRatio=false;Camera->PostProcessSettings.bOverride_AutoExposureMethod=true;Camera->PostProcessSettings.AutoExposureMethod=AEM_Manual;
     Camera->PostProcessSettings.bOverride_AutoExposureApplyPhysicalCameraExposure=true;Camera->PostProcessSettings.AutoExposureApplyPhysicalCameraExposure=false;Camera->PostProcessSettings.bOverride_AutoExposureBias=true;Camera->PostProcessSettings.AutoExposureBias=.25;
     PC->SetViewTarget(ViewCamera);if(Coordinator)Coordinator->SetPointCloudOnlyMode(View==4);
 }
 void ACoilLoadingMonitorHost::Focus(int32 P)
 {
     if(!Simulation||!ViewCamera)return;SetView(P==1?1:0);FVector Position,Target;
-    if(P==0){Position={-38,Simulation->QuayOffset(35.8),Simulation->QuayZ()+21};Target={-8,Simulation->QuayOffset(2),Simulation->QuayZ()+14};}
+    if(P==0){Position={-52,Simulation->QuayOffset(55),Simulation->QuayZ()+17};Target={-8,Simulation->Settings.RailCenterY(),Simulation->QuayZ()+13};}
     else if(P==1)
     {
-        Position={-34,-11,6};Target={-28.845,-5.6,1.5};
+        Position={-Simulation->Settings.HoldLength*.5-4,-Simulation->Settings.HoldWidth*.5-2.5,6};Target={-Simulation->Settings.HoldLength*.5+1.45,-Simulation->Settings.HoldWidth*.5+2.9,1.5};
         if(auto* PC=GetWorld()->GetFirstPlayerController())
         {TInlineComponentArray<UPrimitiveComponent*> Cs(Simulation);for(auto* C:Cs)if(Simulation->GetActorTransform().InverseTransformPosition(C->Bounds.Origin).X*.01< -Simulation->Settings.HoldLength*.5-.01&&!PC->HiddenPrimitiveComponents.Contains(C)){PC->HiddenPrimitiveComponents.Add(C);HiddenByView.Add(C);}}
     }
-    else {Position={-23,Simulation->QuayOffset(17),Simulation->QuayZ()+4};Target={0,Simulation->QuayOffset(29),Simulation->QuayZ()+2.3};}
+    else {Position={-23,Simulation->ShedCenterY()-Simulation->Settings.QuaySide*12,Simulation->QuayZ()+4};Target={0,Simulation->ShedCenterY(),Simulation->QuayZ()+2.3};}
     ViewCamera->SetActorLocationAndRotation(Simulation->GetActorTransform().TransformPosition(Position*100),Simulation->GetActorQuat()*(Target-Position).Rotation().Quaternion());
 }
 void ACoilLoadingMonitorHost::ShowTools()

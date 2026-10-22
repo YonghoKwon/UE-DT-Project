@@ -18,6 +18,18 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### COIL-01b 혼적 적재도·사진 기준 부두
+
+`feat/coil-loading-v1b`의 #31b 추가 범위. [수치·사진 근거](docs/research/COIL-01b-basis.md), [최종 결과](Saved/Reports/COIL-01b/RESULT.md), [result.json](Saved/Reports/COIL-01b/result.json)을 따른다. 기존 CoilLoadingTestMap을 열어 PIE에서 실행한다.
+
+- `혼적 예시 불러오기 · 경고 포함`으로 [전체 계획 JSON](docs/examples/coil-loading-mixed.json)을 기존 비동기 로더에 넣는다. HR/CR,OD1.2~2.0m, 외경이 다른 key 코일10개를 제공한다. `CR-OVERLOAD-DEMO-05`의43t는 위험 표시 시연용 수동값이다.
+- 단면·상면은 HR 짙은 회색/굵은 선, CR 은색/실치수 포장선으로 표시한다. OD·ID·폭·포장 외피는 같은 축척을 사용하며 포장선의 화면 굵기만 가독성 표시다. 호버 툴팁/클릭 정보에는 ID·종류·치수·질량·단/열/번을 표시한다. 경고 원인 클릭의 선택은 단면·상면·3D에서 공유하고 위험/주의 테두리는 빨강/주황, 선택은 시안색이다.
+- 새 기본은 Wagenborg N-class 참고: LOA174.10/B22.00m, 4개 box hold, 작업 선미 홀드/해치24.80×18.80m(H14m), 중간 홀드 길이27.4m, 탱크톱 UDL14.5t/m². 표시 ballast흘수6.2m. 대상1개만 열고 접이 커버를 세우며 다른3해치는 닫는다. 갑판 크레인3기는 수납된 시각 모델로, 작업 해치 밖 붐 여유를 판정한다. Coaming/TT/간격/정수력은 합성 입력과 미확인 범위를 근거 문서에 구분했다.
+- ref6 주 기준의 노란 포털(테이퍼 박스 다리4개·다단 원형 X/K 브레이스·8대차/32휠 면·8층 계단탑·거더 플랜지/스티프너·양측 통로·드럼/페스툰·하부 운전실·6줄 와이어/훅 블록/리프터), 흰 거주구/검은 선형, 녹색·주황 창고/노란 cradle/1.8m 신호수를 추가했다. 장식은 NoCollision ISM과 거리 cull, 커버/홀드의 구조적 차폐는 분리한다. 창고 전면은 육측 레일에서5m 여유+12m 차량 통행로 뒤다. 12m는 예제 배치값이며 현장 교통 승인값이 아니다.
+- 플레이어 뷰는 full render target의 투영 중심을 우측 영역에 맞춰 검은 잘림을 제거했다. 추가 SceneCapture/readback이 없으며 GPU LiDAR·PCD 출력 계약을 유지한다. 기존 계획의 치수는 불러올 때 보존한다. 300개 혼적 성능 검사는 새 홀드 안15개 하단 열과 지지된 상단으로 구성한다.
+
+집중 검증은 `Scripts/verify.ps1 -Level feature -Tests MA0T10.CoilLoading -BaseCommit b7e4ecf`, 성능은 RT on 표준 ABAB2%다. 직접 UI와 자동 RHI/현장 수용은 결과에서 구분한다. 새 맵/텍스처 없이 기존 M_CoilSurface 한 자산의 instancing usage flag만 Unreal API로 활성화했다. `Scripts/enable_coil_instanced_material.py`는 이 소유 재질만 저장한다.
+
 ### COIL-01 제품 부두 코일 선적
 
 사용자2026-10-22의 #31 및 중간 검수/HR·CR 추가 요청. 원료 `ShipHatch*`와 별도인 `/Game/MA0T10/Maps/Tests/CoilLoadingTestMap`을 열고 PIE를 시작한다. 장면은 해당 맵의 명시적 Actor가 실행 중에 구성한다. 기존 운영맵을 재생성하지 않는다. [수치 근거](docs/research/COIL-01-basis.md), [현재 검증·제한](Saved/Reports/COIL-01/RESULT.md), [기계 판독 결과](Saved/Reports/COIL-01/result.json)를 함께 따른다. 로컬 시뮬레이션이며 실선 적재/고박 승인이 아니다.
@@ -645,6 +657,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+COIL-01b는 기존 L2 코일 모델/장면과 L3 투영·UI를 확장한다. N-class 기본/legacy JSON 호환·수납 붐 여유는 L2, 채움/실치수/선택·player projection은 L3다. L1·DTCore·새 모듈/플러그인 변경 없이 layer/allowlist0→0을 유지한다.
 
 COIL-01은 L2 `Scenario/CoilLoading*`의 SI 해석·맵 소유 실행과 L3 `UI/CoilLoading*`의 DTCore Widget/Host로 구성한다. L1은 표시 전용 GameplayDebugger proxy의 GPU snapshot 제외와 기존 semantic ID2~6을 보존한 Coil ID7 추가만 포함한다. 새 UE 모듈/플러그인·DTCore 수정 없이 layer/allowlist **0→0**을 유지한다. 측정/표시 세부 형상과 계획 파일 저장의 비동기 FileSave 경계를 구분한다.
 
