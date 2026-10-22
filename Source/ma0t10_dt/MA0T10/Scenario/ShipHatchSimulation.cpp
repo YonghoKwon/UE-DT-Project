@@ -413,9 +413,9 @@ void AShipHatchSimulation::ConfigureSensors()
         Scan->InvalidateSurfaceResponseCache();if(Enabled)A->StartSensor();
     };
     auto FieldProfile=[&](int32 I){if(FieldProfiles[I]>=3)return EVirtualLidarDeviceProfile(int32(EVirtualLidarDeviceProfile::LivoxMid360)+FieldProfiles[I]-3);return FieldProfiles[I]==1?EVirtualLidarDeviceProfile::LivoxMid360S:FieldProfiles[I]==2?EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE:EVirtualLidarDeviceProfile::IYOBOT_MLX80;};
-    Configure(MLX,bFieldLayout?FieldProfile(0):bNativeMLX?EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE:EVirtualLidarDeviceProfile::IYOBOT_MLX80,bMLX,TEXT("Hatch.MLX80"),0);
-    Configure(Livox,bFieldLayout?FieldProfile(1):EVirtualLidarDeviceProfile::LivoxMid360S,bLivox,TEXT("Hatch.Mid360S"),1);
-    if(bFieldLayout)Configure(CabRight,FieldProfile(2),bCabRight,TEXT("Hatch.CabRight"),2);else if(CabRight)CabRight->StopSensor();
+    Configure(MLX,bFieldLayout?FieldProfile(0):bNativeMLX?EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE:EVirtualLidarDeviceProfile::IYOBOT_MLX80,bMLX,bFieldLayout?TEXT("os_lidar_boom"):TEXT("Hatch.MLX80"),0);
+    Configure(Livox,bFieldLayout?FieldProfile(1):EVirtualLidarDeviceProfile::LivoxMid360S,bLivox,bFieldLayout?TEXT("os_lidar_cabin_01"):TEXT("Hatch.Mid360S"),1);
+    if(bFieldLayout)Configure(CabRight,FieldProfile(2),bCabRight,TEXT("os_lidar_cabin_02"),2);else if(CabRight)CabRight->StopSensor();
     UpdateSensorPresentation();ApplyUnloader();
 }
 void AShipHatchSimulation::CollectObservations(TArray<ShipHatch::FObservation>& Out) const

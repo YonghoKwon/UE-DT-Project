@@ -59,7 +59,7 @@ struct FHatchFeedbackProbe
         auto& S=*M.Simulation;T.TestTrue(TEXT("default is grab unloader field layout, three live selected sensors"),S.bFieldLayout&&S.bShowUnloader&&S.CabRight&&S.CabRight->IsSensorRunning());
         int32 Bodies=0,Unloaders=0;for(TActorIterator<AShipHatchPart>I(S.GetWorld());I;++I)if(I->ActorHasTag(TEXT("ShipHatchPreviewSensor"))){++Bodies;Unloaders+=I->ActorHasTag(TEXT("ShipHatchUnloader"));T.TestEqual(TEXT("only the physical GTSU blocks measured rays; sensor badges remain decorative"),I->Mesh->GetCollisionEnabled(),I->ActorHasTag(TEXT("ShipHatchUnloader"))?ECollisionEnabled::QueryOnly:ECollisionEnabled::NoCollision);}
         T.TestEqual(TEXT("three bodies plus one low-poly unloader; no high mast"),Bodies,4);T.TestEqual(TEXT("one grab unloader display"),Unloaders,1);
-        for(int32 I=0;I<3;++I){auto* A=S.SensorAt(I);T.TestNotNull(TEXT("selected detector exists"),A);if(!A)continue;T.TestTrue(TEXT("installation SI origin equals actual sensor transform"),S.GetActorTransform().InverseTransformPosition(A->GetActorLocation()).Equals(S.SensorOrigin(I)*100,.001));T.TestEqual(TEXT("user-approved default: XT32 boom and unchanged Mid360S cab pair"),A->ScanComponent->DeviceProfile,I==0?EVirtualLidarDeviceProfile::HesaiXT32:EVirtualLidarDeviceProfile::LivoxMid360S);}
+        for(int32 I=0;I<3;++I){auto* A=S.SensorAt(I);T.TestNotNull(TEXT("selected detector exists"),A);if(!A)continue;T.TestTrue(TEXT("installation SI origin equals actual sensor transform"),S.GetActorTransform().InverseTransformPosition(A->GetActorLocation()).Equals(S.SensorOrigin(I)*100,.001));T.TestEqual(TEXT("user-approved default: OS1-64 Rev7 three devices"),A->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);}
         T.TestTrue(TEXT("boom end is on sea +Y side of cab pair"),S.SensorOrigin(0).Y>S.SensorOrigin(1).Y&&S.SensorOrigin(0).Y>0);
         for(bool Along:{false,true})for(double N:{0.,.17,.5,.83,1.})
         {
@@ -114,6 +114,24 @@ struct FHatchFeedbackProbe
     }
     static void FloorView(UShipHatchMonitorWidget& M,int32 State)
     {M.bSensorColors=false;M.SelectColor(1);M.SelectView(State==0?0:State==1?1:4);}
+    static void DischargeWait(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
+    {
+        auto& S=*M.Simulation;PrepareGrab(M);
+        T.TestTrue(TEXT("first explicit dig starts a cycle"),Grab(M,T));
+        M.LastOverlayUpdate=0;M.UpdateOverlay();
+        M.FeedbackUntil=0;M.DischargeUntil=FPlatformTime::Seconds()-1;M.LastOverlayUpdate=0;M.UpdateOverlay();
+        const FVector Wait(0,S.HopperCenterY(),FMath::Max(S.HopperRimZ()+4,S.HoldDepth+9));
+        T.TestTrue(TEXT("completed discharge parks open grab above hopper"),M.bFeedbackGrabParked&&S.bGrabPoseOverride&&S.GrabLipPose.Equals(Wait,.001)&&S.GrabOpenFraction==1);
+        const auto Hash=S.Surface().Hash();
+        for(int32 I=0;I<10;++I){M.LastOverlayUpdate=0;M.UpdateOverlay();}
+        T.TestTrue(TEXT("refresh without click keeps hopper pose and does not dig"),S.GrabLipPose.Equals(Wait,.001)&&S.Surface().Hash()==Hash&&!S.IsGrabWorkActive());
+        T.TestTrue(TEXT("next explicit click starts next cycle"),Grab(M,T));
+        T.TestTrue(TEXT("next cycle owns grab work and leaves parked state"),S.IsGrabWorkActive()&&!M.bFeedbackGrabParked);
+        T.TestTrue(TEXT("next command travels from hopper before excavating"),M.bReturningFromHopper&&S.Surface().Hash()==Hash);
+        M.ReturnToHatchUntil=FPlatformTime::Seconds()-1;M.LastOverlayUpdate=0;M.UpdateOverlay();
+        T.TestTrue(TEXT("excavation starts only after travel completes"),!M.bReturningFromHopper&&S.Surface().Hash()!=Hash);
+        M.RestoreFeedbackGrab();T.TestFalse(TEXT("cancellation releases owned pose"),S.bGrabPoseOverride);
+    }
     static void FloorMeasurements(FAutomationTestBase& T,AShipHatchSimulation& S)
     {
         int32 Floor=0,FalseCargo=0;const auto& Surface=S.Surface();
@@ -183,7 +201,7 @@ public:
         if(Phase==6)
         {
             Test->TestTrue(TEXT("per-sensor installation offset reaches actual sensor"),S.GetActorTransform().InverseTransformPosition(S.CabRight->GetActorLocation()).Equals(S.SensorOrigin(2)*100,.001));
-            const auto Expected=S.GetActorQuat()*FRotator(-107.5,7,0).Quaternion();Test->TestTrue(TEXT("per-sensor tilt and yaw reach actual acquisition pose"),S.CabRight->GetActorQuat().Equals(Expected,1.e-6));
+            const auto Expected=S.GetActorQuat()*FRotator(-85,7,0).Quaternion();Test->TestTrue(TEXT("Ouster cab base-90 plus5deg tilt and7deg yaw reach acquisition pose"),S.CabRight->GetActorQuat().Equals(Expected,1.e-6));
             S.SetFieldSensor(2,false,1);Test->TestFalse(TEXT("individual third-device off stops only its selection"),S.CabRight->IsSensorRunning());S.SensorOffsets[2]=FVector::ZeroVector;S.SensorTiltTrim[2]=S.SensorYaw[2]=0;S.SetFieldSensor(2,true,1);Phase=7;return false;
         }
         if(Phase==7){Test->TestTrue(TEXT("individual third-device on resumes acquisition"),S.CabRight->IsSensorRunning());FHatchFeedbackProbe::PrepareGrab(M);State=-1;Changed=Now;Phase=8;return false;}
@@ -245,8 +263,25 @@ public:
 private:
     FAutomationTestBase* Test;double Start=FPlatformTime::Seconds();bool Began=false;TWeakObjectPtr<UTextBlock> Generated;TWeakPtr<SWidget> Native;
 };
+class FHatchDischargeWaitCommand final:public IAutomationLatentCommand
+{
+    FAutomationTestBase* Test;double Start=FPlatformTime::Seconds();
+public:
+    explicit FHatchDischargeWaitCommand(FAutomationTestBase* T):Test(T){}
+    bool Update() override
+    {
+        if(FPlatformTime::Seconds()-Start>45){Test->AddError(TEXT("discharge wait fixture timeout"));return true;}
+        for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE&&FinalAcceptanceViewportReady(C.World()))
+            for(TActorIterator<AShipHatchMonitorHost> H(C.World());H;++H)if(H->Monitor&&H->Monitor->GetAnalysis())
+            {FHatchFeedbackProbe::DischargeWait(*Test,*H->Monitor);return true;}
+        return false;
+    }
+};
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchComboLifetimeRhi,"MA0T10.Hatch.GeneratedComboLifetimeRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FHatchComboLifetimeRhi::RunTest(const FString&)
 {if(GUsingNullRHI){AddInfo(TEXT("[OPT-IN SKIP] rendered combo lifetime requires RHI"));return true;}if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchComboLifetimeCommand(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchDischargeWaitRhi,"MA0T10.Hatch.DischargeWaitForClickRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FHatchDischargeWaitRhi::RunTest(const FString&)
+{if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchDischargeWaitCommand(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
 #endif

@@ -608,8 +608,8 @@ void UVirtualLidarVisualizationComponent::RefreshColoredCpuPoints()
     auto& Batch=ColoredPointBatch->BatchedPoints;Batch.Reset(Limit);
     for(int32 I=0;I<Points.Num()&&Batch.Num()<Limit;I+=FMath::Max(1,Policy.PointStride))
     {const auto& Source=Points[I];if(Policy.bHitOnly&&!Source.bHit)continue;
-     if(PointPreviewTransform){auto P=Source;PointPreviewTransform(P,Frame?Frame->AcquisitionStartedMonotonic:0);Batch.Emplace(P.WorldLocation,CpuPointTint.Get(GetPointDisplayColor(P)),Settings.PointSize,0.f,SDPG_World);}
-     else Batch.Emplace(Source.WorldLocation,CpuPointTint.Get(GetPointDisplayColor(Source)),Settings.PointSize,0.f,SDPG_World);}
+     if(PointPreviewTransform){auto P=Source;PointPreviewTransform(P,Frame?Frame->AcquisitionStartedMonotonic:0);Batch.Emplace(P.WorldLocation,GetColoredCpuPointDisplayColor(P),Settings.PointSize,0.f,SDPG_World);}
+     else Batch.Emplace(Source.WorldLocation,GetColoredCpuPointDisplayColor(Source),Settings.PointSize,0.f,SDPG_World);}
     const int32 Visible=Batch.Num();
     // Pin the copied render-proxy allocation as well as the GT array capacity.
     // Inactive slots have zero area/alpha and a bounded existing position; they
@@ -1409,6 +1409,18 @@ FLinearColor UVirtualLidarVisualizationComponent::GetPointDisplayColor(const FVi
         NormalizeValue(Point.Distance, Settings.bUseAdaptiveDistance ? LastMinDistanceCm : 0.0f,
             Settings.bUseAdaptiveDistance ? LastMaxDistanceCm : (Frame.IsValid() ? Frame->MaxDistanceCm : 10000.0f)),
         VirtualLidarHeight::Normalize(VirtualLidarHeight::Centimeters(Settings, Pose, Point), FVector2D(LastMinHeightCm, LastMaxHeightCm))));
+}
+FLinearColor UVirtualLidarVisualizationComponent::GetColoredCpuPointDisplayColor(const FVirtualLidarPoint& Point) const
+{
+    if(!CpuHeightOverlayLabel.IsNone()&&Point.bHit&&Point.SemanticLabel==CpuHeightOverlayLabel)
+    {
+        const auto Frame=ScanComponent?ScanComponent->GetLastFrameSnapshot():nullptr;
+        const float T=VirtualLidarHeight::Normalize(VirtualLidarHeight::Centimeters(Settings,Frame?Frame->AcquisitionTransform:FTransform::Identity,Point),FVector2D(LastMinHeightCm,LastMaxHeightCm));
+        // Engine debug vertex-colour material boosts emissive output. Keep a
+        // blue-dominant violet gradient in the actual player display.
+        return FMath::Lerp(FLinearColor(.00025f,0.f,.006f),FLinearColor(.002f,0.f,.02f),T);
+    }
+    return CpuPointTint.IsSet()?CpuPointTint.GetValue():GetPointDisplayColor(Point);
 }
 
 FString UVirtualLidarVisualizationComponent::GetLegendText() const

@@ -28,6 +28,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildSidebarShell()
     for(int32 I=0;I<UE_ARRAY_COUNT(Routes);++I)
     {
         const auto Route=Routes[I];
+        if(Route==ESensorToolDestination::Scenario&&Workspace()&&!Workspace()->AreSlabToolsEnabled())continue;
         Rail->AddSlot().AutoHeight().Padding(0,4)[SNew(SOverlay)
           +SOverlay::Slot()[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::RailButton()).ContentPadding(FMargin(4,8)).ToolTipText(Labels[I])
             .ButtonColorAndOpacity_Lambda([this,Route](){return IsSidebarRouteSelected(Route)?FSensorOwnedPresentationStyle::Selection():FSensorOwnedPresentationStyle::Panel();})
@@ -59,7 +60,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildSidebarShell()
         +SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Fill).Padding(0,0,0,56)[SNew(SBox).WidthOverride_Lambda([this](){return FSensorOwnedPresentationStyle::RailWidth*(Workspace()?Workspace()->GetOwnedPanelFontScale()*Workspace()->GetOwnedPixelScale():1);})
             [SNew(SBorder).BorderImage(FSensorOwnedPresentationStyle::PanelBrush()).BorderBackgroundColor(FSensorOwnedPresentationStyle::Panel()).Padding(0)[Rail]]]
         +SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Top).Padding(16)[SNew(SBox).WidthOverride_Lambda([this](){return 260*(Workspace()?Workspace()->GetOwnedPanelFontScale()*Workspace()->GetOwnedPixelScale():1);})
-            [SAssignNew(SlabSummaryCard,SBorder).BorderImage(FSensorOwnedPresentationStyle::SectionBrush()).BorderBackgroundColor(FSensorOwnedPresentationStyle::Panel()).Padding(FSensorOwnedPresentationStyle::PanelPadding)[Summary]]]
+            [SAssignNew(SlabSummaryCard,SBorder).Visibility_Lambda([this](){auto* W=Workspace();return W&&!W->AreSlabToolsEnabled()?EVisibility::Collapsed:EVisibility::Visible;}).BorderImage(FSensorOwnedPresentationStyle::SectionBrush()).BorderBackgroundColor(FSensorOwnedPresentationStyle::Panel()).Padding(FSensorOwnedPresentationStyle::PanelPadding)[Summary]]]
         +SOverlay::Slot().HAlign(HAlign_Fill).VAlign(VAlign_Bottom)[SNew(SBox).HeightOverride_Lambda([this](){return FSensorOwnedPresentationStyle::StatusHeight*(Workspace()?Workspace()->GetOwnedPanelFontScale()*Workspace()->GetOwnedPixelScale():1);})
             [SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(FSensorOwnedPresentationStyle::Color(16,18,21)).Padding(FMargin(8,4))[BuildStatusStrip()]]];
 }

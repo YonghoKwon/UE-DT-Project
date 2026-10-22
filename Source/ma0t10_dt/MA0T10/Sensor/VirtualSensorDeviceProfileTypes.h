@@ -23,7 +23,8 @@ enum class EVirtualLidarDeviceProfile : uint8
     LivoxAvia UMETA(DisplayName = "Livox Avia"),
     OusterOS1_64_Rev05 UMETA(DisplayName = "Ouster OS1-64 Rev05"),
     HesaiXT32 UMETA(DisplayName = "Hesai XT32"),
-    VelodyneVLP16 UMETA(DisplayName = "Velodyne VLP-16")
+    VelodyneVLP16 UMETA(DisplayName = "Velodyne VLP-16"),
+    OusterOS1_64_Rev7 UMETA(DisplayName = "Ouster OS1-64 Rev7 (20Hz)")
 };
 
 UENUM(BlueprintType)

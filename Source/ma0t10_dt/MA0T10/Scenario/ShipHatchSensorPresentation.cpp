@@ -82,11 +82,13 @@ bool AShipHatchSimulation::VisibleFromSensor(int32 I,FVector Target) const
 }
 void AShipHatchSimulation::SetFieldSensor(int32 I,bool Enabled,int32 Profile)
 {
-    if(I<0||I>2||bGenerating)return;bFieldLayout=true;FieldProfiles[I]=FMath::Clamp(Profile,0,7);
+    if(I<0||I>2||bGenerating)return;bFieldLayout=true;FieldProfiles[I]=FMath::Clamp(Profile,0,8);
     if(I==0)bMLX=Enabled;else if(I==1)bLivox=Enabled;else bCabRight=Enabled;
     ConfigureSensors();++SurfaceRevision;OnSurfaceChanged.Broadcast();
 }
 void AShipHatchSimulation::ShowUnloader(bool Enabled){bShowUnloader=Enabled;if(UnloaderPresentation){UnloaderPresentation->SetActorHiddenInGame(false);UnloaderPresentation->Mesh->SetVisibility(Enabled,false);if(RigFineDetails)RigFineDetails->SetVisibility(Enabled);if(CabPresentation)CabPresentation->SetVisibility(Enabled);if(UnloaderLabel)UnloaderLabel->SetVisibility(Enabled);if(GrabPresentation)GrabPresentation->SetVisibility(bShowGrab);}}
+void AShipHatchSimulation::VisitUnloaderMeshes(TFunctionRef<void(UProceduralMeshComponent*)> Visitor) const
+{if(UnloaderPresentation)Visitor(UnloaderPresentation->Mesh);if(RigFineDetails)Visitor(RigFineDetails);if(CabPresentation)Visitor(CabPresentation);}
 void AShipHatchSimulation::ApplyUnloader()
 {
     if(!bFieldLayout){if(UnloaderPresentation)UnloaderPresentation->Destroy();UnloaderPresentation=nullptr;GrabPresentation=nullptr;CabPresentation=nullptr;UnloaderLabel=nullptr;return;}

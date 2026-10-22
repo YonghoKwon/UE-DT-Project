@@ -6,6 +6,7 @@ param(
     [string]$CornerCaptureDirectory='',
     [string]$CornerReferenceDirectory='',
     [string]$ShowcaseDirectory='',
+    [switch]$PresentationCaptures,
     [ValidateRange(1280,3840)][int]$Width=1920,
     [ValidateRange(720,2160)][int]$Height=1080,
     [ValidateRange(10,60)][int]$MemoryWarmupSeconds=35,
@@ -23,6 +24,7 @@ param(
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue){throw 'Close Editor/PIE before HATCH validation'}
+if($PresentationCaptures -and $Mode -ne 'Showcase'){throw 'PresentationCaptures requires Showcase'}
 if($WorldTraceReference -and $Mode -ne 'Performance'){throw 'WorldTraceReference is a diagnostic Performance comparison only'}
 if($MatchedMemorySeconds -gt 0 -and $Mode -notin @('Dig','DigIdle')){throw 'MatchedMemorySeconds requires Dig or DigIdle'}
 if(!$ReportRoot){$group=if($Mode -like 'Industrial*' -or $Mode -in @('Grab','Overlay','Query')){'HATCH-06'}elseif($Mode -like 'Orientation*'){'HATCH-05'}elseif($Mode -like 'Feedback*'){'HATCH-04'}elseif($Mode -like 'Dig*'){'HATCH-03'}else{'HATCH-02'};$ReportRoot=Join-Path $root ("Saved/Reports/$group/runs/"+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))}
@@ -47,6 +49,7 @@ try {
     if($Mode -eq 'CornerCaptures' -and $CornerCaptureDirectory){$hatchArgs+="-HatchCornerOutput=$([IO.Path]::GetFullPath($CornerCaptureDirectory))"}
     if($Mode -eq 'CornerCaptures' -and $CornerReferenceDirectory){$hatchArgs+="-HatchCornerReference=$([IO.Path]::GetFullPath($CornerReferenceDirectory))"}
     if($Mode -eq 'Showcase' -and $ShowcaseDirectory){$hatchArgs+="-HatchShowcaseOutput=$([IO.Path]::GetFullPath($ShowcaseDirectory))"}
+    if($PresentationCaptures){$hatchArgs+='-HatchPresentationOnly'}
     if($Mode -eq 'OrientationManual'){$hatchArgs+='-HatchOrientationManual'}
     if($Mode -eq 'IndustrialManual'){$hatchArgs+='-Hatch06Manual'}
     if($FastCaptures){if($Mode -ne 'Industrial'){throw 'FastCaptures is only a capture validation mode, not a performance gate'};$hatchArgs+='-Hatch06Fast'}

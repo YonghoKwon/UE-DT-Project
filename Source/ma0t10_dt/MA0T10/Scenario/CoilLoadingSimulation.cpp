@@ -77,7 +77,16 @@ FPlacement ACoilLoadingSimulation::PreviewPlacement() const
     P.bDunnage=bNextDunnage;P.bChocks=bNextChocks;P.bLashing=bNextLashing;P.bEyeForeAft=bNextForeAft;
     P.ChockCapacityKN=NextChockKN;P.LashingCapacityKN=NextLashingKN;P.DiametralStiffnessKNPerM=NextStiffness;P.OvalityLimit=NextOvalityLimit;P.RollingResistanceM=NextRollingResistanceM;
     const double OD=P.Spec.OuterDiameter(),Width=P.Spec.OverallWidth();
-    P.Center=FVector(-Settings.HoldLength*.5+FMath::Max(Width,Settings.GearLength)*.5+Settings.ClearanceMargin+(NextRow-1)*(Width+.15),-Settings.HoldWidth*.5+FMath::Max(OD*.5,Settings.GearWidth*.5)+Settings.ClearanceMargin+(NextColumn-1+(NextTier-1)*.5)*OD,(P.bDunnage?Settings.DunnageThickness:0)+OD*.5+(NextTier-1)*OD*.8660254038);
+    const double Direction=bRowsForeToAft?-1.:1.,HalfX=(P.bEyeForeAft?Width:OD)*.5;
+    P.Center=FVector(-Direction*(Settings.HoldLength*.5-FMath::Max(HalfX,Settings.GearLength*.5)-Settings.ClearanceMargin)+Direction*(NextRow-1)*(2*HalfX+.15),-Settings.HoldWidth*.5+FMath::Max(OD*.5,Settings.GearWidth*.5)+Settings.ClearanceMargin+(NextColumn-1+(NextTier-1)*.5)*OD,(P.bDunnage?Settings.DunnageThickness:0)+OD*.5+(NextTier-1)*OD*.8660254038);
+    int32 PreviousRow=0;for(const auto& Existing:Placements)if(Existing.Row<NextRow)PreviousRow=FMath::Max(PreviousRow,Existing.Row);
+    if(PreviousRow>0)
+    {
+        double Edge=Direction<0?DBL_MAX:-DBL_MAX;
+        for(const auto& Existing:Placements)if(Existing.Row==PreviousRow)
+        {const double Half=(Existing.bEyeForeAft?Existing.Spec.OverallWidth():Existing.Spec.OuterDiameter())*.5;Edge=Direction<0?FMath::Min(Edge,Existing.Center.X-Half):FMath::Max(Edge,Existing.Center.X+Half);}
+        P.Center.X=Edge+Direction*(HalfX+.15+(NextRow-PreviousRow-1)*(2*HalfX+.15));
+    }
     for(const auto& Existing:Placements)if(Existing.Row==NextRow)
     {P.Center.X=Existing.Center.X;if(NextTier==1&&Existing.Tier==1&&Existing.Column==NextColumn-1)P.Center.Y=Existing.Center.Y+(Existing.Spec.OuterDiameter()+OD)*.5;}
     if(NextTier>1)
@@ -108,19 +117,23 @@ void ACoilLoadingSimulation::RefreshPreview()
     }
     ++PlanRevision;OnChanged.Broadcast();
 }
-void ACoilLoadingSimulation::PushUndo(){History.Add(PlanToJson(Settings,Placements));if(History.Num()>64)History.RemoveAt(0);}
+void ACoilLoadingSimulation::PushUndo(){History.Add({PlanToJson(Settings,Placements),PreviewPlacement(),ManifestIndex,bRowsForeToAft});if(History.Num()>64)History.RemoveAt(0);}
 int32 ACoilLoadingSimulation::NominalRowCapacity() const
 {
     const double OD=NextSpec.OuterDiameter();return FMath::Max(1,FMath::FloorToInt((Settings.HoldWidth-2*FMath::Max(OD*.5,Settings.GearWidth*.5)-2*Settings.ClearanceMargin)/OD+1.e-8)+1);
 }
 bool ACoilLoadingSimulation::PlaceNext(bool Animate)
 {
+    if(NextTier<1||NextTier>MaximumTier){Status=TEXT("배치 거절: 코일은 최대 5단까지 배치할 수 있습니다. 앞/뒤 열을 선택하세요.");return false;}
     if(CurrentPhase!=ECoilLoadingPhase::Idle||bEnding){Status=TEXT("작업 중입니다. 완료 또는 취소 후 배치하세요.");return false;}
     FString E;if(!NextSpec.Validate(E)||!Settings.Validate(E)){Status=E;return false;}
+    const auto Candidate=PreviewPlacement();const double HalfX=(Candidate.bEyeForeAft?Candidate.Spec.OverallWidth():Candidate.Spec.OuterDiameter())*.5;
+    if(FMath::Abs(Candidate.Center.X)+HalfX>Settings.HoldLength*.5-Settings.ClearanceMargin+1.e-6)
+    {Status=TEXT("배치 거절: 홀드 길이 끝입니다. 진행 방향 또는 배치 열을 변경하세요.");return false;}
     for(const auto& P:Placements)if(P.Spec.CoilId.Equals(NextSpec.CoilId,ESearchCase::IgnoreCase)){Status=TEXT("코일 ID 중복: 다른 ID를 입력하세요.");return false;}
     RefreshPreview();PushUndo();PhysicsResult=FCoilPhysicsObservation();
     if(!Animate)
-    {auto* B=SpawnCoil(NextSpec,Pending.Center);if(!B)return false;CommitPlacement(B);PhysicsResult.State=TEXT("계획만 배치 · 물리 미실행");return true;}
+    {auto* B=SpawnCoil(NextSpec,Pending.Center);if(!B)return false;CommitPlacement(B);PhysicsResult.State=TEXT("계획만 배치 · 물리 미실행");Status=TEXT("계획 배치 완료 · 다음 코일 위치를 확인하세요.");return true;}
     Suspended=WaitingCoil;WaitingCoil=nullptr;if(Suspended)Suspended->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);if(!Suspended)Suspended=SpawnCoil(NextSpec,PickupPosition());if(!Suspended)return false;
     Suspended->Configure(CoilMesh(NextSpec),Materials[4],NextSpec);ApplyCoilAppearance(Suspended,NextSpec);
     Suspended->Body->SetCollisionEnabled(ECollisionEnabled::QueryOnly);++GeometryRevision;CurrentHook=PickupPosition()+FVector(0,0,Settings.GearHeadroom);
@@ -131,14 +144,16 @@ void ACoilLoadingSimulation::CommitPlacement(ACoilLoadingBody* B)
 {
     B->SetActorRotation(GetActorRotation()+FRotator(0,Pending.bEyeForeAft?0:90,0));ContactFriction(B,Pending,Settings.bWetSteel);Placements.Add(Pending);Bodies.Add(B);BuildSupports();
     ++NextColumn;const int32 Columns=FMath::Max(1,NominalRowCapacity()-NextTier+1);
-    if(NextColumn>Columns){NextColumn=1;++NextTier;}
+    if(NextColumn>Columns||PreviewPlacement().Center.Y+NextSpec.OuterDiameter()*.5>Settings.HoldWidth*.5-Settings.ClearanceMargin+1.e-6){NextColumn=1;++NextRow;NextTier=1;}
     if(Manifest.IsValidIndex(++ManifestIndex))NextSpec=Manifest[ManifestIndex];else NextSpec.CoilId=FString::Printf(TEXT("COIL-%04d"),Placements.Num()+1);
     ++GeometryRevision;RebuildBatches();RefreshPreview();
 }
 bool ACoilLoadingSimulation::AddTier()
 {
     if(CurrentPhase!=ECoilLoadingPhase::Idle)return false;
-    const int32 Tier=NextTier;for(int32 I=0;I<10000&&NextTier==Tier;++I)if(!PlaceNext(false))return false;return true;
+    const int32 Tier=NextTier,Row=NextRow;
+    for(int32 I=0;I<10000&&NextTier==Tier&&NextRow==Row;++I)if(!PlaceNext(false))return false;
+    if(Tier<MaximumTier){NextRow=Row;NextTier=Tier+1;NextColumn=1;RefreshPreview();}return true;
 }
 void ACoilLoadingSimulation::Tick(float Delta)
 {
@@ -224,12 +239,27 @@ void ACoilLoadingSimulation::RebuildPlanBodies()
 bool ACoilLoadingSimulation::Undo()
 {
     if(CurrentPhase!=ECoilLoadingPhase::Idle||History.IsEmpty())return false;FSettings S;TArray<FPlacement> P;FString E;
-    if(!PlanFromJson(History.Last(),S,P,E)){Status=E;return false;}
-    const bool SingleRemoval=Placements.Num()==P.Num()+1;FPlacement Removed;if(SingleRemoval)Removed=Placements.Last();const bool Rebuild=!SameScene(Settings,S);
+    if(!PlanFromJson(History.Last().Json,S,P,E)){Status=E;return false;}
+    const auto Saved=History.Last();const auto& Removed=Saved.Next;const bool Rebuild=!SameScene(Settings,S);
     History.Pop();Settings=S;Placements=MoveTemp(P);if(Rebuild)RestoreSceneGeometry();RebuildPlanBodies();
-    if(SingleRemoval){NextSpec=Removed.Spec;NextTier=Removed.Tier;NextRow=Removed.Row;NextColumn=Removed.Column;bNextDunnage=Removed.bDunnage;bNextChocks=Removed.bChocks;bNextLashing=Removed.bLashing;bNextForeAft=Removed.bEyeForeAft;NextChockKN=Removed.ChockCapacityKN;NextLashingKN=Removed.LashingCapacityKN;NextStiffness=Removed.DiametralStiffnessKNPerM;NextOvalityLimit=Removed.OvalityLimit;NextRollingResistanceM=Removed.RollingResistanceM;ManifestIndex=FMath::Max(0,ManifestIndex-1);}
-    else {NextSpec.CoilId=FString::Printf(TEXT("COIL-%04d"),Placements.Num()+1);NextTier=1;NextRow=1;NextColumn=1;}
-    RefreshPreview();PhysicsResult=FCoilPhysicsObservation();return true;
+    NextSpec=Removed.Spec;NextTier=Removed.Tier;NextRow=Removed.Row;NextColumn=Removed.Column;bNextDunnage=Removed.bDunnage;bNextChocks=Removed.bChocks;bNextLashing=Removed.bLashing;bNextForeAft=Removed.bEyeForeAft;NextChockKN=Removed.ChockCapacityKN;NextLashingKN=Removed.LashingCapacityKN;NextStiffness=Removed.DiametralStiffnessKNPerM;NextOvalityLimit=Removed.OvalityLimit;NextRollingResistanceM=Removed.RollingResistanceM;ManifestIndex=Saved.ManifestIndex;bRowsForeToAft=Saved.ForeToAft;Highlighted.Reset();
+    RefreshPreview();PhysicsResult=FCoilPhysicsObservation();Status=TEXT("되돌리기 완료 · 계획과 다음 코일 위치를 복원했습니다.");return true;
+}
+bool ACoilLoadingSimulation::RemoveCoil(int32 Index)
+{
+    if(CurrentPhase!=ECoilLoadingPhase::Idle){Status=TEXT("제거 거절: 작업 완료 또는 취소 후 제거하세요.");return false;}
+    if(!Placements.IsValidIndex(Index)){Status=TEXT("먼저 배치된 코일을 클릭하여 선택하세요.");return false;}
+    for(const auto& P:Placements)if(P.SupportA==Index||P.SupportB==Index)
+    {Status=TEXT("제거 불가: 위 코일이 지지받고 있습니다. 위 코일부터 제거하세요.");return false;}
+    PushUndo();const FString Id=Placements[Index].Spec.CoilId;Placements.RemoveAt(Index);
+    for(auto& P:Placements){if(P.SupportA>Index)--P.SupportA;if(P.SupportB>Index)--P.SupportB;}
+    Highlighted.Reset();RebuildPlanBodies();RefreshPreview();PhysicsResult=FCoilPhysicsObservation();Status=TEXT("선택 코일 제거: ")+Id+TEXT(" · 되돌리기로 복원 가능");return true;
+}
+int32 ACoilLoadingSimulation::PickCoil(FVector O,FVector D) const
+{
+    int32 Best=INDEX_NONE;double Distance=DBL_MAX;FCollisionQueryParams Q(SCENE_QUERY_STAT(CoilSelection),true);
+    for(int32 I=0;I<Bodies.Num();++I)if(Bodies[I]){FHitResult Hit;if(Bodies[I]->Body->LineTraceComponent(Hit,O,O+D*100000,Q)&&Hit.Distance<Distance){Best=I;Distance=Hit.Distance;}}
+    return Best;
 }
 bool ACoilLoadingSimulation::ImportCoils(const FString& Text,bool Json)
 {

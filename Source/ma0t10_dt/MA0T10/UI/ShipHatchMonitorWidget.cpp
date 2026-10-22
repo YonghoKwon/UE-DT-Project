@@ -92,7 +92,7 @@ void UShipHatchMonitorWidget::SyncSettings()
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void UShipHatchMonitorWidget::NativeOnInitialized()
 {
-    Super::NativeOnInitialized();bPresistent=true;Work=MakeShared<FShipHatchMonitorWork>();
+    Super::NativeOnInitialized();bPresistent=true;SetIsFocusable(true);Work=MakeShared<FShipHatchMonitorWork>();
     auto* Root=WidgetTree->ConstructWidget<UCanvasPanel>();WidgetTree->RootWidget=Root;Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     auto Label=[&](const FString& Value,int32 Size=Style::BodySize,bool Bold=false,FLinearColor Color=Style::Text())
     {auto* W=WidgetTree->ConstructWidget<UTextBlock>();W->SetText(FText::FromString(Value));W->SetFont(Style::Font(Size,1,Bold));W->SetColorAndOpacity(Color);W->SetAutoWrapText(false);TextBlocks.Add(W);BaseFontSizes.Add(Size);return W;};
@@ -132,8 +132,13 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     Modes->AddChildToHorizontalBox(Label(TEXT("")))->SetSize(FSlateChildSize(ESlateSizeRule::Fill));Modes->AddChildToHorizontalBox(Button(TEXT("최대화"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnMax3d)));
     ModeLabel=Label(TEXT("이동 모드 · 좌/우 드래그 회전 · 휠 확대"),Style::LabelSize,false,Style::Accent());ToolsBox->AddChildToVerticalBox(ModeLabel);
     auto* Cameras=WidgetTree->ConstructWidget<UHorizontalBox>();ToolsBox->AddChildToVerticalBox(Cameras)->SetPadding(FMargin(0,Style::Gap,0,0));
-    Cameras->AddChildToHorizontalBox(Button(TEXT("위에서 보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnTop)))->SetPadding(FMargin(0,0,Style::Gap,0));Cameras->AddChildToHorizontalBox(Button(TEXT("비스듬히 보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnOblique)))->SetPadding(FMargin(0,0,Style::Gap,0));Cameras->AddChildToHorizontalBox(Button(TEXT("시점 초기화"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnReset)));
+    CameraPresetButtons={Button(TEXT("위에서 보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnTop)),Button(TEXT("비스듬히 보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnOblique)),Button(TEXT("시점 초기화"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnReset))};for(auto B:CameraPresetButtons)Cameras->AddChildToHorizontalBox(B)->SetPadding(FMargin(0,0,Style::Gap,0));
     UndoButton=Button(TEXT("되돌리기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnUndoDig));RestoreButton=Button(TEXT("원래대로"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnRestoreCargo));Cameras->AddChildToHorizontalBox(UndoButton)->SetPadding(FMargin(Style::Gap,0));Cameras->AddChildToHorizontalBox(RestoreButton);
+    auto* SiteControls=WidgetTree->ConstructWidget<UHorizontalBox>();ToolsBox->AddChildToVerticalBox(SiteControls);
+    SiteControls->AddChildToHorizontalBox(Button(TEXT("현장 시각화 켜기/끄기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSiteVisualization)));
+    SiteControls->AddChildToHorizontalBox(Button(TEXT("회색 배경 전환"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSiteGray)))->SetPadding(FMargin(Style::Gap,0));
+    auto* FreeButton=Button(TEXT("자유 이동 켜기/끄기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnFreeCamera));FreeButton->SetToolTipText(FText::FromString(TEXT("3D를 클릭해 키보드 초점: WASD 앞뒤/좌우, QE 상하, Shift 빠르게. 좌드래그 회전, 우드래그 팬, 휠 전후. Esc 또는 프리셋으로 종료.")));SiteControls->AddChildToHorizontalBox(FreeButton);
+    SiteControls->AddChildToHorizontalBox(Button(TEXT("원료 높이 보라 전환"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSiteHeight)))->SetPadding(FMargin(Style::Gap,0));
     auto* Top=Card(TEXT("HatchTopCard"));Add(Top);auto* TopBox=WidgetTree->ConstructWidget<UVerticalBox>();Top->SetContent(TopBox);
     auto* TopHead=WidgetTree->ConstructWidget<UHorizontalBox>();TopBox->AddChildToVerticalBox(TopHead);
     MapTopButton=Button(TEXT("2D 상면"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnMapTop));MapHeatButton=Button(TEXT("히트맵"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnMapHeat));
@@ -169,9 +174,9 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     CargoChoice=Choice(TEXT("원료"),{TEXT("철광석"),TEXT("석탄")});SensorChoice=Choice(TEXT("배치 프리셋 · 현장 3대 / 이전 2대"),{TEXT("ML-X(80) Integration 200 + Mid-360S"),TEXT("ML-X(80) Integration 200"),TEXT("Livox Mid-360S"),TEXT("ML-X(80) Native + Mid-360S"),TEXT("ML-X(80) Native"),TEXT("현장 3대 구성")});
     Group(TEXT("센서 · 보기"),true);
     const TCHAR* SensorNames[]={TEXT("붐 끝 · 장비"),TEXT("운전실 좌 · 장비"),TEXT("운전실 우 · 장비")};
-    for(int32 I=0;I<3;++I){auto* C=Choice(SensorNames[I],{TEXT("끄기"),TEXT("ML-X80 Integration 200"),TEXT("Livox Mid-360S"),TEXT("ML-X80 Native"),TEXT("Livox Mid-360"),TEXT("Livox Avia"),TEXT("Ouster OS1-64 Rev05"),TEXT("Hesai XT32"),TEXT("Velodyne VLP-16")});C->SetSelectedIndex(2);FieldChoices.Add(C);}
+    for(int32 I=0;I<3;++I){auto* C=Choice(SensorNames[I],{TEXT("끄기"),TEXT("ML-X80 Integration 200"),TEXT("Livox Mid-360S"),TEXT("ML-X80 Native"),TEXT("Livox Mid-360"),TEXT("Livox Avia"),TEXT("Ouster OS1-64 Rev05"),TEXT("Hesai XT32"),TEXT("Velodyne VLP-16"),TEXT("Ouster OS1-64 Rev7 · 20Hz")});C->SetSelectedIndex(2);FieldChoices.Add(C);}
     FieldChoices[0]->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnFieldA);FieldChoices[1]->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnFieldB);FieldChoices[2]->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnFieldC);
-    auto* SiteModelNote=Label(TEXT("현장 모델 확인 필요\n기본: 붐 XT32 · 운전실 Mid-360S 2대"),Style::LabelSize,false,Style::Warning());SiteModelNote->SetAutoWrapText(true);Box->AddChildToVerticalBox(SiteModelNote);
+    auto* SiteModelNote=Label(TEXT("현장 모델 확인 필요\n기본: OS1-64 Rev7 3대 · 20Hz"),Style::LabelSize,false,Style::Warning());SiteModelNote->SetAutoWrapText(true);Box->AddChildToVerticalBox(SiteModelNote);
     Box->AddChildToVerticalBox(Button(TEXT("하역기 표시 전환"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnUnloaderToggle)));
     Box->AddChildToVerticalBox(Button(TEXT("센서별 색 구분 전환"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSensorColors)));
     Box->AddChildToVerticalBox(Button(TEXT("예상 FOV 기여/사각 전환"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnCoverage)));
@@ -219,7 +224,7 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     CargoChoice->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnCargo);SensorChoice->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnSensor);FontChoice->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnFont);GridSize->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnGrid);SizeSlider->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnSizeSlider);DensitySlider->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnDensitySlider);SetFontPercent(100);UpdateSegments();
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
-void UShipHatchMonitorWidget::NativeDestruct(){if(Overlay)Overlay->DestroyComponent();RestoreFeedbackGrab();RestorePointVisibility();Work.Reset();Super::NativeDestruct();}
+void UShipHatchMonitorWidget::NativeDestruct(){RestoreSiteVisualization();if(Overlay)Overlay->DestroyComponent();RestoreFeedbackGrab();RestorePointVisibility();Work.Reset();Super::NativeDestruct();}
 void UShipHatchMonitorWidget::RestorePointVisibility()
 {
     if(auto* PC=GetOwningPlayer())for(const auto& Part:StalePointHides)PC->HiddenPrimitiveComponents.RemoveSingle(Part);
@@ -245,7 +250,7 @@ void UShipHatchMonitorWidget::UpdateSegments()
             TEXT("반사 강도  0 → 1 · 보라 / 초록 / 노랑"),
             TEXT("거리  가까움 → 멂 · 센서별 검출 범위"),
             TEXT("단색 · 검출된 점")};
-        LegendText->SetText(FText::FromString(bSensorColors?TEXT("센서 구분 · 청록 붐 / 주황 좌 / 자홍 우"):Legends[ActiveColor]));
+        LegendText->SetText(FText::FromString(bSiteVisualization?(bSiteHeight?TEXT("원료 높이: 짙은 보라 → 밝은 보라 · 나머지는 센서 고정색"):TEXT("센서 고정색 · 노랑 boom / 빨강 cabin_01 / 파랑 cabin_02")):bSensorColors?TEXT("센서 구분 · 청록 붐 / 주황 좌 / 자홍 우"):Legends[ActiveColor]));
     }
 }
 void UShipHatchMonitorWidget::InvalidatePlots()
@@ -285,10 +290,10 @@ void UShipHatchMonitorWidget::SetFontPercent(int32 Percent)
 void UShipHatchMonitorWidget::Refresh()
 {
     auto* S=Simulation.Get();if(!S||!IsVisible()||!StatusText)return;Layout();if(bPlotsPending)InvalidatePlots();if(bSectionLabelPending)UpdateSectionLabel();if(bSettings&&LightLabel->GetParent()->IsVisible())UpdateLightingLabel();if(bWasGenerating!=!S->HasFreshMeasurement()){bWasGenerating=!S->HasFreshMeasurement();ApplyPreview();InvalidatePlots();}
-    UpdateDigControls();UpdateSensorBadges();UpdateOverlay();for(int32 I=0;I<3;++I)if(auto* Sensor=S->SensorAt(I))Sensor->VisualizationComponent->RefreshPointView();
+    UpdateDigControls();UpdateSensorBadges();UpdateOverlay();UpdateSiteVisualization();for(int32 I=0;I<3;++I)if(auto* Sensor=S->SensorAt(I))Sensor->VisualizationComponent->RefreshPointView();
     if(LastRevision!=S->Revision()&&CoverageText)CoverageText->SetText(FText::FromString(TEXT("센서 비교 · 새 측정 대기")));
     if(LastRevision!=S->Revision())
-    {LastRevision=S->Revision();LastCabRevision=S->CabRevision();LastMLX=-1;LastLivox=-1;LastCabRight=-1;SeedInput->SetText(FText::FromString(LexToString(S->Seed)));{TGuardValue<bool> Sync(bSync,true);CargoChoice->SetSelectedIndex(S->bCoal?1:0);SensorChoice->SetSelectedIndex(S->bFieldLayout?5:!S->bMLX?2:!S->bLivox?(S->bNativeMLX?4:1):(S->bNativeMLX?3:0));}{TGuardValue<bool> Sync(bSync,true);const TCHAR* Roles[]={TEXT("붐 끝"),TEXT("운전실 좌"),TEXT("운전실 우")};for(int32 I=0;I<3;++I){const int32 Profile=S->bFieldLayout?S->FieldProfiles[I]:I==0?(S->bNativeMLX?2:0):1;if(FieldChoices.IsValidIndex(I))FieldChoices[I]->SetSelectedIndex(!S->SensorEnabled(I)?0:Profile+1);if(SensorBadges.IsValidIndex(I))CastChecked<UTextBlock>(SensorBadges[I]->GetContent())->SetText(FText::FromString(S->bFieldLayout?Roles[I]:I==0?TEXT("ML-X80"):TEXT("Mid-360S")));}}RefreshEditPreview();UpdateSection();S->Coverage(Work->OpeningCoverage,Work->FloorCoverage,Work->VisibleFloorArea);ApplyPreview();}
+    {LastRevision=S->Revision();LastCabRevision=S->CabRevision();LastMLX=-1;LastLivox=-1;LastCabRight=-1;SeedInput->SetText(FText::FromString(LexToString(S->Seed)));{TGuardValue<bool> Sync(bSync,true);CargoChoice->SetSelectedIndex(S->bCoal?1:0);SensorChoice->SetSelectedIndex(S->bFieldLayout?5:!S->bMLX?2:!S->bLivox?(S->bNativeMLX?4:1):(S->bNativeMLX?3:0));}{TGuardValue<bool> Sync(bSync,true);const TCHAR* Roles[]={TEXT("os_lidar_boom"),TEXT("os_lidar_cabin_01"),TEXT("os_lidar_cabin_02")};for(int32 I=0;I<3;++I){const int32 Profile=S->bFieldLayout?S->FieldProfiles[I]:I==0?(S->bNativeMLX?2:0):1;if(FieldChoices.IsValidIndex(I))FieldChoices[I]->SetSelectedIndex(!S->SensorEnabled(I)?0:Profile+1);if(SensorBadges.IsValidIndex(I))CastChecked<UTextBlock>(SensorBadges[I]->GetContent())->SetText(FText::FromString(S->bFieldLayout?Roles[I]:I==0?TEXT("ML-X80"):TEXT("Mid-360S")));}}RefreshEditPreview();UpdateSection();S->Coverage(Work->OpeningCoverage,Work->FloorCoverage,Work->VisibleFloorArea);ApplyPreview();}
     // Cab motion invalidates sensor analysis/coverage without changing the
     // cargo surface revision or rebuilding its CPU tree/GPU geometry.
     if(LastCabRevision!=S->CabRevision()&&!S->IsCabMoving())
@@ -312,7 +317,7 @@ void UShipHatchMonitorWidget::Refresh()
             const TCHAR* Roles[]={TEXT("붐"),TEXT("좌"),TEXT("우")};
             for(int I=0;I<3;++I)if(const auto* A=S->SensorAt(I))
             {const auto* Scan=A->ScanComponent.Get();const auto D=S->DiagnoseSight(I,FVector::ZeroVector);const auto Q=Scan->GetSceneQueryStatistics();Details+=FString::Printf(TEXT("%s · %s\n목표 %.1f / 실제 %.1f Hz · %d광선/회\n바닥 중앙 %.1f m / 한계 %.1f m\n%s · 계산 %.1f / GT %.1f ms\n"),Roles[I],*Scan->DeviceSpec.Model,1.f/FMath::Max(.001f,Scan->ScanInterval),Scan->GetRuntimeStatus().MeasuredAcquisitionRateHz,Scan->HorizontalSamples*Scan->VerticalChannels,D.DistanceMeters,D.RangeMeters,*Scan->GetRuntimeStatus().ActiveAcquisitionBackend,Q.X,Q.Y);}
-            if(const auto* A=S->SensorAt(0))if(A->ScanComponent->MaxDistance*.01<S->SensorOrigin(0).Z)Details+=TEXT("붐: 40m급은 저적재/바닥 거리 부족. 권장: XT32(중앙80m)·Avia(190m). 각도만으로 거리 부족을 해결할 수 없습니다.\n");
+            if(const auto* A=S->SensorAt(0))if(A->ScanComponent->MaxDistance*.01<S->SensorOrigin(0).Z)Details+=TEXT("붐: 40m급은 저적재/바닥 거리 부족. 권장: OS1 Rev7(90m 조건부)·Avia(190m). 각도만으로 거리 부족을 해결할 수 없습니다.\n");
             Details+=TEXT("CPU 병렬 획득 · 전체 광선/재질/PCD 유지\n분석 최대5Hz · 목표 미달: 광선·충돌·프레임 예산 영향\n조명은 LiDAR 반사·분류·PCD에 영향 없음\n");Details+=S->Status;StatsText->SetText(FText::FromString(Details));
         }
     }
@@ -358,12 +363,13 @@ void UShipHatchMonitorWidget::OnHighlightLivox(){if(auto* S=Simulation.Get())S->
 void UShipHatchMonitorWidget::UpdateSensorBadges()
 {
     auto* S=Simulation.Get();auto* PC=GetOwningPlayer();if(!S||!PC||SensorBadges.Num()!=3||LayoutSlots.Num()!=9||!IsVisible()||!(bSplit||ActiveView<2))return;
-    const bool Hide=bModelPresentation||bHudSuppressed||SceneRect.Right-SceneRect.Left<720;
+    if(bSiteVisualization){if(SensorLabelView)SensorLabelView->SetVisibility(ESlateVisibility::HitTestInvisible);for(auto B:SensorBadges)B->SetVisibility(ESlateVisibility::Collapsed);for(auto B:DirectionBadges)B->SetVisibility(ESlateVisibility::Collapsed);for(bool& V:SensorBadgeLinkVisible)V=false;return;}
+    const bool Hide=!bSiteVisualization&&(bModelPresentation||bHudSuppressed||SceneRect.Right-SceneRect.Left<720);
     if(SensorLabelView)SensorLabelView->SetVisibility(Hide?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
     if(Hide){for(auto B:SensorBadges)B->SetVisibility(ESlateVisibility::Collapsed);for(auto B:DirectionBadges)B->SetVisibility(ESlateVisibility::Collapsed);for(bool& V:SensorBadgeLinkVisible)V=false;return;}
     const double Now=FPlatformTime::Seconds();if(Now-LastSensorBadgeUpdate<.2)return;LastSensorBadgeUpdate=Now;
     int32 W,H;PC->GetViewportSize(W,H);if(W<=0||H<=0)return;const FVector2D Size=GetCachedGeometry().GetLocalSize();if(Size.X<1)return;
-    const double Scale=FontScale,Gap=24*Scale,Width=FMath::Min(128*Scale,double(SceneRect.Right-SceneRect.Left-16)),Height=32*Scale;
+    const double Scale=FontScale,Gap=24*Scale,Width=FMath::Min(192*Scale,double(SceneRect.Right-SceneRect.Left-16)),Height=32*Scale;
     FVector2D P[3]={FVector2D::ZeroVector,FVector2D::ZeroVector,FVector2D::ZeroVector};bool Front[3]={false,false,false};
     for(int I=0;I<3;++I)
     {
@@ -454,7 +460,7 @@ void UShipHatchMonitorWidget::RefreshAnalysis()
 void UShipHatchMonitorWidget::OnWater(){if(auto* S=Simulation.Get())S->ShowWater(!S->IsWaterVisible());}
 void UShipHatchMonitorWidget::OnScaleReference(){if(auto* S=Simulation.Get())S->ShowScaleReference(!S->IsScaleReferenceVisible());}
 void UShipHatchMonitorWidget::OnSettings(){bOrbit=false;bSettings=!bSettings;if(bSettings){SetSplitView(true);UpdateLightingLabel();}LastLayout=FVector2D::ZeroVector;Layout();}
-void UShipHatchMonitorWidget::OnDigToggle(){bOrbit=false;bDigEnabled=!bDigEnabled;UpdateDigControls();}
+void UShipHatchMonitorWidget::OnDigToggle(){if(bFreeCamera)SetFreeCamera(false);bOrbit=false;bDigEnabled=!bDigEnabled;UpdateDigControls();}
 void UShipHatchMonitorWidget::OnUndoDig(){bOrbit=false;if(Simulation.IsValid()&&Simulation->UndoDig())Refresh();}
 void UShipHatchMonitorWidget::OnRestoreCargo(){bOrbit=false;if(Simulation.IsValid()&&Simulation->RestoreCargo())Refresh();}
 void UShipHatchMonitorWidget::UpdateDigControls()
@@ -470,10 +476,18 @@ void UShipHatchMonitorWidget::UpdateDigControls()
 }
 void UShipHatchMonitorWidget::OnSizeSlider(float V){PointSizeLabel->SetText(FText::FromString(FString::Printf(TEXT("점 크기  %.1f"),V)));ApplyPreview();}
 void UShipHatchMonitorWidget::OnDensitySlider(float V){DensityLabel->SetText(FText::FromString(FString::Printf(TEXT("표시 밀도  %.0f%%"),100./FMath::Max(1,FMath::RoundToInt(100./V)))));ApplyPreview();}
-void UShipHatchMonitorWidget::SetCameraPreset(int32 P){bFrameVessel=false;bFrameUnloader=true;bFrameSite=P==3;bPresetHidesPointControls=true;Focus=bFrameSite?FVector2D(0,-16):FVector2D::ZeroVector;const auto Top=ShipHatch::FViewTransform::TopRotation();OrbitYaw=bFrameSite?-125:P==0?Top.Yaw:48;OrbitPitch=bFrameSite?-38:P==0?Top.Pitch:-62;OrbitDistance=7800;SetModelPresentation(P==3);UpdateOverlayControlVisibility();UpdateCamera();}
+void UShipHatchMonitorWidget::SetCameraPreset(int32 P){bSiteFraming=false;if(bFreeCamera)SetFreeCamera(false);bFreeCamera=false;bFrameVessel=false;bFrameUnloader=true;bFrameSite=P==3;bPresetHidesPointControls=true;Focus=bFrameSite?FVector2D(0,-16):FVector2D::ZeroVector;const auto Top=ShipHatch::FViewTransform::TopRotation();OrbitYaw=bFrameSite?-125:P==0?Top.Yaw:48;OrbitPitch=bFrameSite?-38:P==0?Top.Pitch:-62;OrbitDistance=7800;SetModelPresentation(P==3);UpdateOverlayControlVisibility();UpdateCamera();}
 void UShipHatchMonitorWidget::UpdateCamera()
 {
     auto* H=Host.Get();auto* S=Simulation.Get();if(!H||!H->ViewCamera||!S)return;
+    if(bFreeCamera){H->ViewCamera->SetActorLocationAndRotation(FreeCameraPosition,FreeCameraRotation);UpdateSensorBadges();InvalidatePlots();return;}
+    if(bSiteFraming&&bSiteVisualization)
+    {
+        const auto Pose=S->GetActorTransform();const FVector Target=Pose.TransformPosition(SiteFocus*100);const FRotator R=(Pose.GetRotation()*FRotator(OrbitPitch,OrbitYaw,0).Quaternion()).Rotator();const FRotationMatrix Basis(R);
+        const double Aspect=FMath::Max(.25,double(SceneRect.Right-SceneRect.Left)/FMath::Max(1.f,SceneRect.Bottom-SceneRect.Top)),Tan=FMath::Tan(FMath::DegreesToRadians(29.));SiteCameraDistance=1;
+        for(int X:{0,1})for(int Y:{0,1})for(int Z:{0,1}){const auto D=Pose.TransformPosition(FVector(X?SiteMax.X:SiteMin.X,Y?SiteMax.Y:SiteMin.Y,Z?SiteMax.Z:SiteMin.Z)*100)-Target;const double F=FVector::DotProduct(D,Basis.GetUnitAxis(EAxis::X));SiteCameraDistance=FMath::Max(SiteCameraDistance,FMath::Abs(FVector::DotProduct(D,Basis.GetUnitAxis(EAxis::Y)))/(Tan*.94)-F);SiteCameraDistance=FMath::Max(SiteCameraDistance,FMath::Abs(FVector::DotProduct(D,Basis.GetUnitAxis(EAxis::Z)))*Aspect/(Tan*.94)-F);}
+        H->ViewCamera->SetActorLocationAndRotation(Target-R.Vector()*(SiteCameraDistance*OrbitDistance/7800.),R);H->ViewCamera->GetCameraComponent()->SetFieldOfView(58);UpdateSensorBadges();InvalidatePlots();return;
+    }
     const FVector Target=S->GetActorTransform().TransformPosition(FVector(Focus.X*100,Focus.Y*100,bFrameSite?(S->HoldDepth+10)*100:S->HoldDepth*70));
     const FRotator Rotation=(S->GetActorQuat()*FRotator(OrbitPitch,OrbitYaw,0).Quaternion()).Rotator();const FRotationMatrix Basis(Rotation);
     const double Aspect=FMath::Max(.2,double(SceneRect.Right-SceneRect.Left)/FMath::Max(1.f,SceneRect.Bottom-SceneRect.Top));
@@ -537,19 +551,25 @@ bool UShipHatchMonitorWidget::ExecuteDigRay(FVector O,FVector D)
     if(!Simulation.IsValid()||Simulation->IsGenerating())return false;
     const bool Animate=bGrabAnimation&&Simulation->IsGrabVisible();FVector Hit;
     if(!Simulation->PickCargo(O,D,Hit))return false;
+    if(Animate&&bFeedbackGrabParked)
+    {
+        if(!Simulation->IsGrabPoseSafe(Hit+FVector(0,0,4.1))||!Simulation->BeginGrabWork())return false;
+        PendingDigOrigin=O;PendingDigDirection=D;PendingDigRadius=RadiusMeters;PendingDigDepth=DepthMeters;PendingDigCargoHash=Simulation->Surface().Hash();ReturnStart=Simulation->GrabLip();ReturnTarget=Hit+FVector(0,0,4.1);ReturnToHatchUntil=FPlatformTime::Seconds()+1.2;
+        bReturningFromHopper=true;bFeedbackGrabParked=false;bFeedbackOwnsGrabWork=true;return true;
+    }
     if(Animate&&(!Simulation->IsGrabPoseSafe(Hit+FVector(0,0,4.1))||!Simulation->BeginGrabWork()))return false;
     if(!Simulation->Dig(O,D,RadiusMeters,DepthMeters)){Simulation->EndGrabWork();return false;}
-    bFeedbackOwnsGrabWork=Animate;FeedbackCenter=Hit;FeedbackRevision=Simulation->Revision();const double Now=FPlatformTime::Seconds();
+    bFeedbackGrabParked=false;bFeedbackOwnsGrabWork=Animate;FeedbackCenter=Hit;FeedbackRevision=Simulation->Revision();const double Now=FPlatformTime::Seconds();
     FeedbackUntil=Animate?Now+1.2:0;DischargeUntil=Animate?Now+5.2:0;bOverlayDirty=true;return true;
 }
 FReply UShipHatchMonitorWidget::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
-{if(SceneInputAt(G,E.GetScreenSpacePosition())&&(E.GetEffectingButton()==EKeys::LeftMouseButton||E.GetEffectingButton()==EKeys::RightMouseButton)){bRightOrbit=E.GetEffectingButton()==EKeys::RightMouseButton;bOrbit=true;bDragged=false;PointerDown=E.GetScreenSpacePosition();PointerDownTime=FPlatformTime::Seconds();PointerRevision=Simulation.IsValid()?Simulation->Revision():0;return FReply::Handled().CaptureMouse(TakeWidget());}return Super::NativeOnMouseButtonDown(G,E);}
+{if(SceneInputAt(G,E.GetScreenSpacePosition())&&(E.GetEffectingButton()==EKeys::LeftMouseButton||E.GetEffectingButton()==EKeys::RightMouseButton)){bRightOrbit=E.GetEffectingButton()==EKeys::RightMouseButton;bOrbit=true;bDragged=false;PointerDown=E.GetScreenSpacePosition();PointerDownTime=FPlatformTime::Seconds();PointerRevision=Simulation.IsValid()?Simulation->Revision():0;return FReply::Handled().CaptureMouse(TakeWidget()).SetUserFocus(TakeWidget());}return Super::NativeOnMouseButtonDown(G,E);}
 FReply UShipHatchMonitorWidget::NativeOnMouseButtonUp(const FGeometry& G,const FPointerEvent& E)
 {if((E.GetEffectingButton()==EKeys::LeftMouseButton||E.GetEffectingButton()==EKeys::RightMouseButton)&&(bOrbit||TakeWidget()->HasMouseCapture())){const bool Candidate=bOrbit&&!bRightOrbit;bOrbit=false;bRightOrbit=false;if(Candidate&&!bDragged&&(E.GetScreenSpacePosition()-PointerDown).Size()<=6&&FPlatformTime::Seconds()-PointerDownTime<=.35&&Simulation.IsValid()&&PointerRevision==Simulation->Revision())DigAt(G,E.GetScreenSpacePosition());return FReply::Handled().ReleaseMouseCapture();}return Super::NativeOnMouseButtonUp(G,E);}
 FReply UShipHatchMonitorWidget::NativeOnMouseMove(const FGeometry& G,const FPointerEvent& E)
-{if(bOrbit){bDragged|=(E.GetScreenSpacePosition()-PointerDown).Size()>6;if(bDragged&&(!bDigEnabled||bRightOrbit)){OrbitYaw+=E.GetCursorDelta().X*.25;OrbitPitch=FMath::Clamp(OrbitPitch-E.GetCursorDelta().Y*.25,-89.,-15.);UpdateCamera();}return FReply::Handled();}return Super::NativeOnMouseMove(G,E);}
+{if(bOrbit){bDragged|=(E.GetScreenSpacePosition()-PointerDown).Size()>6;if(bDragged&&(!bDigEnabled||bRightOrbit)){if(bFreeCamera){if(bRightOrbit){const FRotationMatrix Basis(FreeCameraRotation);FreeCameraPosition+=(-Basis.GetUnitAxis(EAxis::Y)*E.GetCursorDelta().X+Basis.GetUnitAxis(EAxis::Z)*E.GetCursorDelta().Y)*5;}else{FreeCameraRotation.Yaw+=E.GetCursorDelta().X*.25;FreeCameraRotation.Pitch=FMath::Clamp(FreeCameraRotation.Pitch-E.GetCursorDelta().Y*.25,-89.,89.);}}else{OrbitYaw+=E.GetCursorDelta().X*.25;OrbitPitch=FMath::Clamp(OrbitPitch-E.GetCursorDelta().Y*.25,-89.,bSiteVisualization?89.:-15.);}UpdateCamera();}return FReply::Handled();}return Super::NativeOnMouseMove(G,E);}
 FReply UShipHatchMonitorWidget::NativeOnMouseWheel(const FGeometry& G,const FPointerEvent& E)
-{if(SceneInputAt(G,E.GetScreenSpacePosition())){bOrbit=false;OrbitDistance=FMath::Clamp(OrbitDistance*FMath::Pow(.88,E.GetWheelDelta()),2500.,18000.);UpdateCamera();return FReply::Handled().ReleaseMouseCapture();}return Super::NativeOnMouseWheel(G,E);}
+{if(SceneInputAt(G,E.GetScreenSpacePosition())){bOrbit=false;if(bFreeCamera)FreeCameraPosition+=FreeCameraRotation.Vector()*E.GetWheelDelta()*100;else OrbitDistance=FMath::Clamp(OrbitDistance*FMath::Pow(.88,E.GetWheelDelta()),50.,18000.);UpdateCamera();return FReply::Handled().ReleaseMouseCapture();}return Super::NativeOnMouseWheel(G,E);}
 void UShipHatchMonitorWidget::NativeOnMouseCaptureLost(const FCaptureLostEvent& E){bOrbit=false;Super::NativeOnMouseCaptureLost(E);}
 
 void UShipHatchMonitorWidget::ApplyPreview()
@@ -564,7 +584,8 @@ void UShipHatchMonitorWidget::ApplyPreview()
         Settings.PointSize=SizeSlider?SizeSlider->GetValue():3;
         const bool Selected=S->SensorEnabled(SensorIndex);
         Settings.bShowWorldPointCloud=ActiveView==1&&Selected;
-        V->SetColoredCpuPointTint(bSensorColors?TOptional<FLinearColor>(SensorIndex==0?FLinearColor(.1,.9,1):SensorIndex==1?FLinearColor(1,.6,.06):FLinearColor(.9,.2,.8)):TOptional<FLinearColor>());
+        V->SetColoredCpuPointTint(bSiteVisualization?TOptional<FLinearColor>(SensorIndex==0?FLinearColor(1,1,0):SensorIndex==1?FLinearColor(1,0,0):FLinearColor(0,0,1)):bSensorColors?TOptional<FLinearColor>(SensorIndex==0?FLinearColor(.1,.9,1):SensorIndex==1?FLinearColor(1,.6,.06):FLinearColor(.9,.2,.8)):TOptional<FLinearColor>());
+        V->SetColoredCpuHeightOverlay(bSiteVisualization&&bSiteHeight?FName(TEXT("HatchCargo")):NAME_None);
         V->SetColoredCpuPointPreview(true);V->SetHeightJetPalette(ActiveColor==0,TEXT("HatchCargo"));
         // Retain the populated preview during acquisition. The map-local display
         // adapter corrects old cargo heights immediately without changing frames.

@@ -93,6 +93,7 @@ UVirtualSensorPanelWidgetBase* UVirtualSensorToolWorkspaceSubsystem::GetOwnedPan
 bool UVirtualSensorToolWorkspaceSubsystem::IsPanelOpen(ESensorToolPanelRole R) const {const auto* P=GetOwnedPanel(R);const auto* S=Preferences?Preferences->Panels.Find(R):nullptr;if(bSidebarMode&&R!=ESensorToolPanelRole::TestSet&&P&&P->SupportsOwnedDocking())return SidebarOpen.Contains(R);return S?S->bOpen:(R==ESensorToolPanelRole::Monitor||R==ESensorToolPanelRole::Placement);}
 bool UVirtualSensorToolWorkspaceSubsystem::RegisterOwnedPanel(ESensorToolPanelRole R,UVirtualSensorPanelWidgetBase* P)
 {
+	if(!bSlabToolsEnabled&&(R==ESensorToolPanelRole::Replay||R==ESensorToolPanelRole::SlabCharts||R==ESensorToolPanelRole::SlabProgress))return false;
 	if(!P||P->GetWorld()!=GetWorld()||!Preferences)return false;
 	const bool Allowed=(R==ESensorToolPanelRole::Monitor&&P->IsA<UVirtualSensorMonitorPanelWidget>())||(R==ESensorToolPanelRole::Settings&&P->IsA<UVirtualSensorSettingsPanelWidget>())||(R==ESensorToolPanelRole::Data&&P->IsA<UVirtualSensorCaptureExportPanelWidget>())||(R==ESensorToolPanelRole::Replay&&P->IsA<USlabScenarioReplayPanelWidget>())||(R==ESensorToolPanelRole::SlabCharts&&P->IsA<USlabChartsPanelWidget>())||(R==ESensorToolPanelRole::SlabProgress&&P->IsA<USlabProgressPanelWidget>())||(R==ESensorToolPanelRole::Placement&&P->IsA<UVirtualSensorPlacementPanelWidget>())||(R==ESensorToolPanelRole::TestSet&&P->IsA<UAgentTestSetWidget>());
 	if(!Allowed)return false;
@@ -177,6 +178,7 @@ void UVirtualSensorToolWorkspaceSubsystem::SavePanel(ESensorToolPanelRole R)
 }
 bool UVirtualSensorToolWorkspaceSubsystem::EnsureOwnedReplayPanel()
 {
+	if(!bSlabToolsEnabled)return false;
 	if(GetOwnedPanel(ESensorToolPanelRole::Replay))return true;
 	if(!GetWorld()||!GetWorld()->GetFirstPlayerController())return false;
 	for(TActorIterator<AVirtualSensorToolRig> It(GetWorld());It;++It){It->EnsureSetup();return GetOwnedPanel(ESensorToolPanelRole::Replay)!=nullptr;}
@@ -186,6 +188,8 @@ bool UVirtualSensorToolWorkspaceSubsystem::EnsureOwnedReplayPanel()
 }
 void UVirtualSensorToolWorkspaceSubsystem::SetPanelOpen(ESensorToolPanelRole R,bool Open)
 {
+	if(Open&&!bSlabToolsEnabled&&(R==ESensorToolPanelRole::Replay||R==ESensorToolPanelRole::SlabCharts||R==ESensorToolPanelRole::SlabProgress))
+	{PanelOpenMessage=TEXT("코일 화면에서는 Slab 시나리오 도구를 사용할 수 없습니다.");return;}
 	if(!Preferences)return;
 	if(Open&&R==ESensorToolPanelRole::Placement&&!GetOwnedPanel(R))
 	{
