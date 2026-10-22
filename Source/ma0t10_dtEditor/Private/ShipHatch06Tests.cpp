@@ -215,9 +215,9 @@ class FHatch06Run:public IAutomationLatentCommand
    R->SetBoolField(TEXT("first_visible_hit_is_tank_top"),TankTop);R->SetNumberField(TEXT("first_hit_local_z_m"),FirstZ);
    T->TestTrue(TEXT("pixel sample sightline first hits actual Z0 tank-top, with no crane/cargo occlusion"),TankTop);
    FVector2D P;const auto* S=M.GetSimulation();W->GetFirstPlayerController()->ProjectWorldLocationToScreen(S->GetActorTransform().TransformPosition(FVector(Target,0)*100),P,false);
-   int Hit=0,Total=0;for(int Y=-3;Y<=3;++Y)for(int X=-3;X<=3;++X){const int PX=FMath::RoundToInt(P.X)+X,PY=FMath::RoundToInt(P.Y)+Y;if(PX>=0&&PY>=0&&PX<Size.X&&PY<Size.Y){const auto C=Pixels[PY*Size.X+PX];++Total;Hit+=C.B>C.R*1.04&&C.G>C.R*1.04&&C.B>C.G*.98&&C.B>35;}}
-   R->SetNumberField(TEXT("floor_pixel_x"),P.X);R->SetNumberField(TEXT("floor_pixel_y"),P.Y);R->SetNumberField(TEXT("blue_gray_steel_pixels"),Hit);R->SetNumberField(TEXT("sample_pixels"),Total);
-   T->TestTrue(TEXT("actual rendered exposed tank-top center is blue-gray steel (>=60% of7x7 pixels)"),Total==49&&Hit>=30);
+   int Hit=0,Total=0;for(int Y=-3;Y<=3;++Y)for(int X=-3;X<=3;++X){const int PX=FMath::RoundToInt(P.X)+X,PY=FMath::RoundToInt(P.Y)+Y;if(PX>=0&&PY>=0&&PX<Size.X&&PY<Size.Y){const auto C=Pixels[PY*Size.X+PX];++Total;const int Low=FMath::Min3(int(C.R),int(C.G),int(C.B)),High=FMath::Max3(int(C.R),int(C.G),int(C.B));Hit+=Low>=40&&High<=180&&High-Low<=24;}}
+   R->SetNumberField(TEXT("floor_pixel_x"),P.X);R->SetNumberField(TEXT("floor_pixel_y"),P.Y);R->SetNumberField(TEXT("neutral_steel_pixels"),Hit);R->SetNumberField(TEXT("sample_pixels"),Total);
+   T->TestTrue(TEXT("actual exposed tank-top center is neutral gray steel (all49 of7x7 pixels, no water-blue tint)"),Total==49&&Hit==49);
   }
   FString Text;FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Text));FFileHelper::SaveStringToFile(Text,*FPaths::ChangeExtension(Path,TEXT("json")));
  }

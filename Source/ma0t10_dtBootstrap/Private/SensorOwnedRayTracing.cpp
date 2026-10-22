@@ -38,10 +38,12 @@ class FLidarRGS final : public FGlobalShader
         SHADER_PARAMETER_SRV(StructuredBuffer<float4>,Surface0)
         SHADER_PARAMETER_SRV(StructuredBuffer<float4>,Surface1)
         SHADER_PARAMETER_SRV(StructuredBuffer<float4>,Surface2)
+        SHADER_PARAMETER_SRV(StructuredBuffer<float4>,Surface3)
         SHADER_PARAMETER_UAV(RWStructuredBuffer<FSensorRtHit>,LidarHits)
         SHADER_PARAMETER(FMatrix44f,Normal0)
         SHADER_PARAMETER(FMatrix44f,Normal1)
         SHADER_PARAMETER(FMatrix44f,Normal2)
+        SHADER_PARAMETER(FMatrix44f,Normal3)
         SHADER_PARAMETER(uint32,RayCount)
     END_SHADER_PARAMETER_STRUCT()
     static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& P)
@@ -206,12 +208,13 @@ public:
         ResultBuffer=Cmd.CreateStructuredBuffer(sizeof(FSensorRtHit),Request.Rays.Num()*sizeof(FSensorRtHit),BUF_UnorderedAccess|BUF_ShaderResource,OutputInfo);
         ResultView=Cmd.CreateUnorderedAccessView(ResultBuffer,false,false);
         FLidarRGS::FParameters P;P.LidarTLAS=SceneView;P.LidarRays=RayView;P.LidarHits=ResultView;P.RayCount=Request.Rays.Num();
-        FShaderResourceViewRHIRef Views[3]={Blases[0]->AttributeView,Blases[0]->AttributeView,Blases[0]->AttributeView};
+        FShaderResourceViewRHIRef Views[4]={Blases[0]->AttributeView,Blases[0]->AttributeView,Blases[0]->AttributeView,Blases[0]->AttributeView};
         for(int I=0;I<Descriptors.Num();++I)Views[Descriptors[I].DefaultUserData]=Blases[I]->AttributeView;
-        P.Surface0=Views[0];P.Surface1=Views[1];P.Surface2=Views[2];
+        P.Surface0=Views[0];P.Surface1=Views[1];P.Surface2=Views[2];P.Surface3=Views[3];
         P.Normal0=FMatrix44f(Request.Meshes[0].LocalToWorld.ToInverseMatrixWithScale().GetTransposed());
         P.Normal1=Request.Meshes.Num()>1?FMatrix44f(Request.Meshes[1].LocalToWorld.ToInverseMatrixWithScale().GetTransposed()):FMatrix44f::Identity;
         P.Normal2=Request.Meshes.Num()>2?FMatrix44f(Request.Meshes[2].LocalToWorld.ToInverseMatrixWithScale().GetTransposed()):FMatrix44f::Identity;
+        P.Normal3=Request.Meshes.Num()>3?FMatrix44f(Request.Meshes[3].LocalToWorld.ToInverseMatrixWithScale().GetTransposed()):FMatrix44f::Identity;
         auto Shader=GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FLidarRGS>();
         auto HitShader=GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FLidarCHS>();
         auto MissShader=GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FDefaultPayloadMS>();
@@ -243,7 +246,7 @@ bool SensorOwnedRayTracing::IsAvailable()
 }
 TSharedPtr<ISensorRtScan,ESPMode::ThreadSafe> SensorOwnedRayTracing::Submit(FSensorRtRequest&& Request)
 {
-    if(!IsAvailable()||Request.Rays.IsEmpty()||Request.Rays.Num()>1048576||Request.Meshes.IsEmpty()||Request.Meshes.Num()>3)return {};
+    if(!IsAvailable()||Request.Rays.IsEmpty()||Request.Rays.Num()>1048576||Request.Meshes.IsEmpty()||Request.Meshes.Num()>4)return {};
     uint64 GeometryBytes=0;
     for(const auto& Mesh:Request.Meshes)if(Mesh.Vertices&&!Mesh.Vertices->IsEmpty())
     {

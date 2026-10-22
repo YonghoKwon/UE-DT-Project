@@ -7,10 +7,12 @@ StructuredBuffer<FLidarRay> LidarRays;
 StructuredBuffer<float4> Surface0;
 StructuredBuffer<float4> Surface1;
 StructuredBuffer<float4> Surface2;
+StructuredBuffer<float4> Surface3;
 RWStructuredBuffer<FLidarHit> LidarHits;
 float4x4 Normal0;
 float4x4 Normal1;
 float4x4 Normal2;
+float4x4 Normal3;
 uint RayCount;
 RAY_TRACING_ENTRY_RAYGEN(MainRGS)
 {
@@ -29,8 +31,8 @@ RAY_TRACING_ENTRY_RAYGEN(MainRGS)
     {
         uint Mesh=Payload.InstanceID;
         uint Triangle=Payload.PrimitiveIndex;
-        float4 Data=Mesh==0?Surface0[Triangle]:(Mesh==1?Surface1[Triangle]:Surface2[Triangle]);
-        float3 Normal=normalize(Mesh==0?mul(float4(Data.xyz,0),Normal0).xyz:(Mesh==1?mul(float4(Data.xyz,0),Normal1).xyz:mul(float4(Data.xyz,0),Normal2).xyz));
+        float4 Data=Mesh==0?Surface0[Triangle]:(Mesh==1?Surface1[Triangle]:(Mesh==2?Surface2[Triangle]:Surface3[Triangle]));
+        float3 Normal=normalize(Mesh==0?mul(float4(Data.xyz,0),Normal0).xyz:(Mesh==1?mul(float4(Data.xyz,0),Normal1).xyz:(Mesh==2?mul(float4(Data.xyz,0),Normal2).xyz:mul(float4(Data.xyz,0),Normal3).xyz)));
         if(dot(Normal,Ray.Direction)>0) Normal=-Normal;
         Hit.NormalAndDistance=float4(Normal,Payload.HitT);
         Hit.Surface=asuint(Data.w); Hit.Mesh=Mesh; Hit.Triangle=Triangle;

@@ -6,6 +6,16 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-22 PR69 — FOLLOWUP 독립 코드 검수6건
+
+- 운전실 LiDAR signed 좌우 장착은 ±1.30m+사용자X보정, 절대오차<=1cm다. 캐빈폭2.4m의 반폭1.20m+외측브래킷0.10m로 산출하며 원래 단방향 하한 검사를 상·하한 검사로 대체했다.
+- StopCab/도착은 SurfaceRevision을 변경하지 않는다. CabPoseRevision으로 UI coverage/비동기 분석을 무효화하고 오래된 cab pose 결과를 거절한다. 이동·정지·도착 전후 화물 CPU tree/GPU geometry의 revision/배열 동일성과 실제 BLAS build count 불변을 검사했다.
+- 디깅 위치 선택 trace는 CabPresentation을 항상 무시한다. 같은 ray의 native 첫 충돌은 여전히 운전실이고 PickCargo는 성공하는 회귀로 실제 광학/측정 차폐와 선택 정책을 구분했다.
+- BeginGrabWork/UI 대기 디깅/센터 명령은 TargetHatchCenterY 접근자를 공유한다. 현재 작업 홀드의 local Y=0을 뜻한다. 구 fixture10/8m만 이관하고 Display 로그를 남기며 유효 사용자24/16m 설정을 보존하는 회귀를 추가했다.
+- 화물/센서 적용 후 bGenerating을 해제하고 센터링 명령의 반환값을 확인한다. 거절 시 상태 문구와 Warning을 표시한다. 오프셋 위치에서 재생성 후 중앙으로 이동·정지 및 완료 알림 순서를 검사했다.
+- Editor/Game Win64 Development build exit0. D3D12/RT on 집중 자동화6 Success/0Fail/0Skip: HATCH06.SceneQueriesRhi, MA0T10.Hatch.IndependentCabRhi, SensorLabelAnchorsRhi, UserFeedbackRhi, MA0T10.GpuLidar.RigidInstanceRhi, ScheduledThree. 원본은 Saved/Reports/FOLLOWUP-26-28/progress/pr69-review/에 있다. 최종 같은HEAD release/quick/layer/schema/merge_check 결과는 RESULT.md/result.json을 따른다.
+- 새 ABAB는 검수 요청의 생략 허용을 적용한다. 변경은 해치 전용 cab 상태/선택/UI 무효화/초기화이며 공용 센서 kernel·wire·광학 설정·높이장·재질은 불변이다. 이동 시 기존 화물 BVH/BLAS 재생성을 제거하고 재사용 회귀를 통과했다. 기존49ee7a6의 RT on ABAB PASS는 과거 증거로만 남기고 새HEAD perf는 SKIPPED로 기록한다. 직접 마우스 검증은 Windows 잠금으로 미수행이며 잠금 화면은 조작하지 않는다.
+
 ## 2026-10-20 HATCH-04 — 그랩식 현장 3대 및 사용자 피드백
 
 - 출처 사용자2026-10-20의8건+현장3대/그랩식/모델미확인·개별변경/해측·육측 답변. feat/ship-hatch-v4/기준23133f6/DTCore b2504d1. cc96d63·7f5d8c4·58b333b에22코드/도구/기존머티리얼 파일을 구현·보정했다(신규소스4). 새자산/맵/모듈/플러그인0,layer/allowlist0→0(309파일/1035include). 계약/PCD/wire/SaveGame/Blueprint API 불변.
@@ -497,3 +507,33 @@ RSS초기동일프레임17편집 준비를17완전한센서/분석사이클+35�
 자동66PNG+metadata(1920×1080/font100·1280×720/font150 각두원료×5상태×3뷰+설정+센서광선2),before/original hash/부피exact·many8/undo7/reset0·windowDPI1. captures/index.html전후비교와expanded-capture-manifest.json에원본SHA256. 실제sky마우스는cce및최종215에서일반/점군·반복/undo/original·드래그/확대·150%·양원료·센서/강조/광선·개구부mask를확인.215 추가31입력:OFF무반응,3m/2m1회28.25/8회226.18→undo197.90m³,최소47·현재설정유지,random후누적0,ON-drag무편집,FOV/실측·가림상세. 잠금/보안입력0. 소유PIE/Editor정상종료,141개인원본 byte복원·832보호 hash일치. 초기외부입력보류/옛RSS·30초perf실패/기각실험은당시원문을보존한다.
 
 DTCore source/gitlink·Game.ini/SensorTransport값·PixelStreaming/Build.cs/uproject·사용자SensorTestMap/기존자산·Claude전용파일·Inspection원본수정/stage0. 승인재질1개와DefaultGame cook1줄은구분한다. push/PR/merge/worktree/submodule update/Docker/WSL0. 최종quick/문서commit·보호감사·수용제한은Saved/Reports/HATCH-03/DONE.md,상세RESULT.md를따른다. 실장비/실선박보정·DEM·모든값의직접전수검사는범위밖이다.
+
+
+## 2026-10-22 FOLLOWUP-27 CPU 경계 광선
+
+float Moller-Trumbore 내적 상쇄로 실제 공유 경계가 외부로 판정됨을 실제 snapshot 삼각형으로 재현했다. 경계 후보에 double ray-space edge 판정을 적용하고 주름 벽 인접 bay의 이음선 좌표 생성식을 통일했다. 기존4096+24576 경계 광선의 native physics 비교는0 mismatch/최대0.178mm다. 중간234→91→7 실패와 최종 CPU Hz·GPU 프로필·공통 gate는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md), 원시 자료는 같은 폴더 progress에 보존한다. 1mm 기준·계약·광학 응답·DTCore·보호 맵은 유지한다.
+
+## 2026-10-22 FOLLOWUP-29 코너 노출·재질·만재 형상
+
+해치 소유 카메라 노출 고정/종료 복원, 기존 M_HatchCargo 한 자산의 표시 albedo/roughness·코밍 절차 마모/녹/분진/AO, 높이 여유에 맞춘 실제 만재 높이장과 얕은 그랩 자국을 반영했다. 원래95% 체적 정확도/안식각을 유지하고60개 만재 case에서 relief/상한 평지를 추가 검증한다. 기존14개 해치 회귀는 성공14/실패0. 동일6카메라 비교, 230회 실제 퍼내기 잔량4.97%, GPU3센서 각각20.00Hz/59.999FPS, 원거리·조감14장과 원시 결과는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 첫 촬영의 기존 디깅 stencil은 새 표면에서 잔량5%에 못 미쳐 실패했으며 개구부 안 지점을 넓혀 같은1000회 상한/5% 기준으로 통과했다. 직접 UI 수용은 Windows 잠금으로 수행하지 않았다. 맵 저장/DTCore/광학 반응/wire/SaveGame 변경은 없다.
+
+
+## 2026-10-22 FOLLOWUP-29b 검수 후 밝기 균형
+
+사용자 검수의 검은 코밍/분홍 갑판/읽기 어려운 만재 형상을 보정했다. 해치 카메라 bias+0.25EV, key(-35°,43°,4.5), 소유 ambient1.35, 기존 무그림자 작업등1000cd/갑판 위12m로 조정했다. 코밍(.42,.085,.055), 회색 갑판(.16,.17,.17)/커버(.22,.23,.23), iron(.11,.072,.051)/coal(.033,.031,.029), 낮은 AO 대비/노멀0.85/높이 기반 정점 셰이딩±22%다. 새 빛·capture·자산은 없고 기존 해치 자원만 사용한다. 코너 camera/aim/rotation/FOV·95% 높이장 CRC는 이전과 동일하다. 회귀15 Success/0Fail, CPU/native28672개0 mismatch/최대0.178mm, GPU3센서 각각19.9986Hz/59.9968FPS. [코너2곳·조감·측면 전후 비교](../Saved/Reports/FOLLOWUP-26-28/corners-29b-check.png), 원시 자료 progress/29b, 공통 최종 gate/제한은 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md). #30 미커밋 하네스는 보존하며 별도 커밋한다.
+
+## 2026-10-22 FOLLOWUP-32 독립 운전실과 GTSU 상대 배치
+
+운전실/그랩 분리, 실제 캐빈2센서 부착, 중앙 정지 후 UI 대기 퍼내기, 작업 중 이동 차단과1m 간섭 검사를 구현했다. 레일+25m 하면은 양정과 구분한 구조 가정이며 중간 흘수14m에서 코밍 간격15.8m·캐빈 지붕 간격0.9m다. 내부 HWRT는4개 충돌 메시를 처리하고 캐빈 GPU local geometry/BLAS는 이동 중 재사용한다. 초기3메시 한도로 CPU fallback이 발생한 시도와 새 레일 지지대의 X=0 경계116건 실패는 원시 보고서에 남긴다. 지지대를 양쪽 하현재에 연결한 뒤 기존28672개/1mm 기준을 그대로 적용해 불일치0·최대0.301mm다. 해치15개 및GPU9프로필 성공, 별도GPU3센서20.0206/19.9873/20.0206Hz·59.9993FPS. source별 근거·범위·개인 설정·최종gate는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md), [배치 비교](../Saved/Reports/FOLLOWUP-26-28/corners-32-gtsu-check.png)를 따른다. Windows 잠금으로 직접 마우스 수용은 미수행이다. #28/#26은 사용자 결정으로 범위 제외한다.
+
+FOLLOWUP-32 추가 회귀: #30 촬영에서 idle UI가 자신이 시작하지 않은 외부 그랩 자세를 매번 복원하는 문제를 발견했다. UI 소유 pose/work만 종료·복원하도록 한정하고 idle refresh 뒤 외부 작업·pose 불변을 검사한다. 그랩 로프 상단은 별도 중앙 트롤리에 연결하고 캐빈+1m AABB와 사선 로프 교차도 검사한다. 기본 틀·wire·맵은 동일하다. 원시 회귀는 progress/32/rope-ownership에 둔다.
+
+## 2026-10-22 FOLLOWUP-30 전체 기능 캡처
+
+실제D3D12/RT on1920×1080 자동 장면26장과 테스트셋 완료 시연 UI1장, 전경/근접/분석/5종LiDAR의4합본을 생성했다. 하늘 배경은 소유SkyAtmosphere, 원래 태양 설정 종료복원이며 점군 플레이어 뷰에만 대기show flag를 숨긴다. 실제181회 디깅 후 잔량4.99%, 열림/닫힘 메시CRC 차이·bucket/crosshead 프레임 내 투영·확대 바닥0높이·전체 광선/HWRT를 검사했다. 첫 QA의 idle UI pose 복원과 바닥 확대 구도는 수정 후 원시 시도를 보존한다. 캡처 시료SHA와 실제 소스/재질SHA256 결합은 progress/30-source-bindings.json, 최종 이미지/조건은 [showcase manifest](../Saved/Reports/FOLLOWUP-26-28/showcase/manifest.json)다. 송신 완료는 실제 전송 없음/transport event0 시연 UI이며 전송 성능의 증거가 아니다. 직접 Windows UI 수용은 잠금으로 미수행이다. 공통release/RT on ABAB·하네스 최종 결과는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. #28/#26은 사용자 범위 제외다.
+
+FOLLOWUP-32 커버 회귀 보정: #30b의 기존 HATCH06 전체 외형 회귀에서45m 선폭에 이전23m 개구/11.5m평판 커버가 각0.65m 돌출함을 발견했다. 모델 개구를22.2m, 커버11.1m로 맞춰 개구 여유15cm/선측 여유15cm를 확보한다. 개구/선폭 수용 검사도 추가하며 기존 커버 clear/beam내 검사·광선 정확도·체적·성능 기준은 낮추지 않는다. 저장된 운영맵은 변경하지 않고 기존fixture23m만 메모리에서 보정한다. 새 치수는 특정선박GA 실측값이 아닌 두 side-rolling cover의 기하 일관성 가정이다. HATCH06.AcceptanceRhi 외형 빠른 회귀 성공1/실패0, 두 원료49/49 픽셀. FastCaptures는 성능 gate로 사용하지 않는다. 원시 증거 progress/30b/floor-pixels-final, 최종 게이트는 RESULT를 따른다.
+
+## 2026-10-22 FOLLOWUP-30b 탱크톱 / LiDAR 수치 비교
+
+중성 탱크톱 albedo(.072,.075,.078), roughness.84, 완만한 녹/분진/마모·용접선. 실제 TankTop 첫충돌과7×7표본을 유지해 기존>=30 조건을49/49로 강화했고 철광석/석탄 모두49/49다. 단면0m 빗금/문구는 모의형상 표시로 실측과 구분한다. 첫 전체 외형 회귀는 커버 돌출2건으로FAIL(픽셀은통과), #32 기하 보정 뒤 HATCH06.AcceptanceRhi 외형 회귀1 Success/0Fail(FastCaptures, 성능gate아님). 최종 Showcase1 Success/0Fail, 실제27장면+별도시연1장, 181회 디깅/잔량4.99%. LiDAR는65%와잔량4.99%의 별도full immutable HWRT frame으로 광선/hit/전체홀드1m격자관측률/Hz/설정거리/FOV·pose를기록하고 합본에만 투영참고윤곽을 추가한다. [수치표](../Saved/Reports/FOLLOWUP-26-28/showcase/lidar-compare-table.png), 4합본·원시JSON·SHA256·최종 release/RT on ABAB·하네스 결과는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)와 result.json을 따른다. 개인 설정 종료 복원, 직접 마우스는 Windows 잠금으로 미수행, #28/#26 사용자 범위 제외다.

@@ -13,6 +13,7 @@ class UTextRenderComponent;
 class ADirectionalLight;
 class UPointLightComponent;
 class USkyLightComponent;
+class USkyAtmosphereComponent;
 class IVirtualSensorRayQuery;
 struct FShipHatchRayCache;
 
@@ -57,13 +58,14 @@ class MA0T10_DT_API AShipHatchSimulation : public AInteractableActor
     GENERATED_BODY()
     friend struct FHatchFeedbackProbe;
     friend struct FHatchOrientationProbe;
+    friend struct FHatchCabProbe;
 public:
     AShipHatchSimulation();
     FShipHatchSight DiagnoseSight(int32 SensorIndex,FVector HoldTargetMeters) const;
     UPROPERTY(EditAnywhere,Category="Hatch|Dimensions",meta=(Units="m")) double HoldWidth=42.3;
     UPROPERTY(EditAnywhere,Category="Hatch|Dimensions",meta=(Units="m")) double HoldLength=25.8;
     UPROPERTY(EditAnywhere,Category="Hatch|Dimensions",meta=(Units="m")) double HoldDepth=22.5;
-    UPROPERTY(EditAnywhere,Category="Hatch|Dimensions",meta=(Units="m")) double OpeningWidth=23;
+    UPROPERTY(EditAnywhere,Category="Hatch|Dimensions",meta=(Units="m")) double OpeningWidth=22.2;
     UPROPERTY(EditAnywhere,Category="Hatch|Dimensions",meta=(Units="m")) double OpeningLength=20;
     UPROPERTY(EditAnywhere,Category="Hatch|Dimensions",meta=(Units="m")) double CoamingHeight=2;
     UPROPERTY(EditAnywhere,Category="Hatch|Sensors",meta=(Units="m")) double SensorAboveDeck=8;
@@ -81,15 +83,17 @@ public:
     UPROPERTY(EditAnywhere,Category="Hatch|Unloader") bool bShowUnloader=true;
     UPROPERTY(EditAnywhere,Category="Hatch|Vessel") bool bRealScale=true;
     UPROPERTY(EditAnywhere,Category="Hatch|Vessel",meta=(ClampMin="290",ClampMax="300",Units="m")) double VesselLength=292;
-    UPROPERTY(EditAnywhere,Category="Hatch|Vessel",meta=(ClampMin="45",ClampMax="47",Units="m")) double VesselBeam=47;
+    UPROPERTY(EditAnywhere,Category="Hatch|Vessel",meta=(ClampMin="45",ClampMax="47",Units="m")) double VesselBeam=45;
     UPROPERTY(EditAnywhere,Category="Hatch|Vessel",meta=(ClampMin="24",ClampMax="25",Units="m")) double MouldedDepth=24.7;
-    UPROPERTY(EditAnywhere,Category="Hatch|Vessel",meta=(ClampMin="17",ClampMax="19",Units="m")) double DesignDraft=18.2;
+    UPROPERTY(EditAnywhere,Category="Hatch|Vessel",meta=(ClampMin="17",ClampMax="19",Units="m")) double DesignDraft=18.222;
+    /** Explicit mid-unloading scenario, independent of the single hold's fill. */
+    UPROPERTY(EditAnywhere,Category="Hatch|Vessel",meta=(ClampMin="8",ClampMax="19",Units="m")) double OperatingDraft=14;
     UPROPERTY(EditAnywhere,Category="Hatch|Vessel",meta=(ClampMin="8",ClampMax="9")) int32 VesselHolds=9;
     UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(ClampMin="22",ClampMax="30",Units="m")) double RailSpan=28;
-    UPROPERTY(EditAnywhere,Category="Hatch|Vessel",meta=(ClampMin="2",ClampMax="5",Units="m")) double BerthGap=3.5;
+    UPROPERTY(EditAnywhere,Category="Hatch|Vessel",meta=(ClampMin="2",ClampMax="5",Units="m")) double BerthGap=2;
     UPROPERTY(EditAnywhere,Category="Hatch|Vessel",meta=(ClampMin="2",ClampMax="5",Units="m")) double QuayAboveWater=3.5;
     double KeelZ() const { return HoldDepth-MouldedDepth; }
-    double WaterZ() const { return KeelZ()+DesignDraft; }
+    double WaterZ() const { return KeelZ()+OperatingDraft; }
     double QuayZ() const { return WaterZ()+QuayAboveWater; }
     double QuayEdgeY() const { return -VesselBeam*.5-BerthGap; }
     double SeaRailY() const { return QuayEdgeY()-3; }
@@ -104,14 +108,34 @@ public:
     void SetGrabVisible(bool Enabled);
     bool IsGrabVisible() const { return bShowGrab; }
     void SetGrabPose(FVector ClosedLipMeters,double OpenFraction);
+    bool TrySetGrabPose(FVector ClosedLipMeters,double OpenFraction);
+    bool IsGrabPoseSafe(FVector ClosedLipMeters) const;
     void ResetGrabPose();
     double LastGrabMeshBuildMs=0,MaxGrabMeshBuildMs=0,GrabArmLengthErrorMeters=0;
     int32 GrabMeshCommits=0;
     UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(ClampMin="35",ClampMax="45",Units="m")) double BoomLength=42;
-    UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(ClampMin="18",ClampMax="35",Units="m")) double BoomHeight=24;
-    UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(ClampMin="12",ClampMax="24",Units="m")) double CabHeight=16;
-    UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(Units="m")) double CabX=0;
-    UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(Units="m")) double CabY=-2;
+    UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(ClampMin="8",ClampMax="35",Units="m")) double BoomHeight=16.75;
+    UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(ClampMin="6",ClampMax="30",Units="m")) double CabHeight=14.15;
+    UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(Units="m")) double CabX=4.5;
+    UPROPERTY(EditAnywhere,Category="Hatch|Unloader",meta=(Units="m")) double CabY=0;
+    double BoomSoffitZ() const { return HoldDepth+BoomHeight+1.05; }
+    double CabRoofZ() const { return HoldDepth+CabHeight+2.75; }
+    double CabTravelMinY() const { return SeaRailY()+2; }
+    double CabTravelMaxY() const { return BoomTipY()-2; }
+    /** The active hold's local origin; all cab work/centering uses this target. */
+    double TargetHatchCenterY() const { return 0.; }
+    uint64 CabRevision() const { return CabPoseRevision; }
+    static constexpr double CabTravelMetersPerSecond=25./60.;
+    bool RequestCabPosition(double TargetY);
+    void StopCab();
+    bool IsCabMoving() const { return bCabMoving; }
+    bool IsCabReady() const { return !bCabMoving&&FMath::IsNearlyEqual(CabY,CabTargetY,.001); }
+    double CabDestinationY() const { return CabTargetY; }
+    uint64 CabCommand() const { return CabCommandRevision; }
+    bool BeginGrabWork();
+    void EndGrabWork() { bGrabWorkActive=false; }
+    bool IsGrabWorkActive() const { return bGrabWorkActive; }
+    UPrimitiveComponent* CabPrimitive() const;
     bool bCabRight=true;
     int32 FieldProfiles[3]={6,1,1}; // User2026-10-21: boom XT32, cab pair Mid-360S; site hardware unconfirmed.
     FVector SensorOffsets[3]={FVector::ZeroVector,FVector::ZeroVector,FVector::ZeroVector};
@@ -166,7 +190,7 @@ public:
     uint64 DigBufferBytes() const;
     uint64 MeshScratchBytes() const { return CargoVertices.GetAllocatedSize()+CargoNormals.GetAllocatedSize()+CargoIndices.GetAllocatedSize()+CargoColors.GetAllocatedSize(); }
     void SetLighting(double Azimuth,double Elevation,double Intensity,bool Fill);
-    double LightAzimuth=-25,LightElevation=65,LightIntensity=5;
+    double LightAzimuth=-35,LightElevation=43,LightIntensity=4.5;
     bool bFillLight=true;
     uint64 GenerationBufferBytes() const { return Current.Heights.GetAllocatedSize()+RecycledHeights.GetAllocatedSize()+GenerationShape.GetAllocatedSize(); }
     FSimpleMulticastDelegate OnSurfaceChanged;
@@ -179,12 +203,14 @@ private:
     UPROPERTY(Transient) TObjectPtr<ADirectionalLight> KeyLight;
     UPROPERTY(Transient) TObjectPtr<UPointLightComponent> FillLight;
     UPROPERTY(Transient) TObjectPtr<USkyLightComponent> OutdoorAmbient;
+    UPROPERTY(Transient) TObjectPtr<USkyAtmosphereComponent> OutdoorSky;
     UPROPERTY(Transient) TObjectPtr<USkyLightComponent> FixtureSky;
     bool bFixtureSkyVisible=false;
     FRotator OriginalLightRotation;
     float OriginalLightIntensity=0;
     uint8 OriginalLightMobility=0;
     bool bOriginalLightShadows=true;
+    bool bOriginalAtmosphereSun=false;
     UPROPERTY(Transient) TArray<TObjectPtr<AShipHatchPart>> Structure;
     ShipHatch::FSurface Current;
     struct FGenerationBuffers { ShipHatch::FSurface Surface; TArray<double> Shape; };
@@ -207,6 +233,15 @@ private:
     uint32 IndustrialDetailKey=MAX_uint32;
     void BuildIndustrialDetails();
     UPROPERTY(Transient) TObjectPtr<UProceduralMeshComponent> GrabPresentation;
+    UPROPERTY(Transient) TObjectPtr<UProceduralMeshComponent> CabPresentation;
+    uint64 CabPoseRevision=0;
+    uint32 CabShapeKey=MAX_uint32;
+    FTimerHandle CabTravelTimer;
+    double CabTargetY=0,CabLastUpdate=0;
+    uint64 CabCommandRevision=0;
+    bool bCabMoving=false,bGrabWorkActive=false;
+    void BuildCabModel();
+    void UpdateCabTravel();
     bool bShowGrab=false; // DefaultOFF pending direct visual/site acceptance; instant unobstructed digging.
     bool bGrabPoseOverride=false;
     FVector GrabLipPose=FVector::ZeroVector;
@@ -237,6 +272,8 @@ private:
     void FinishCargoEdit();
     void StartGeneration();
     void PollGeneration();
+    void MigrateLegacyCabDimensions();
+    bool FinishGeneration();
     void BuildStructure();
     void ApplySurface(ShipHatch::FSurface&& Surface);
     void ConfigureSensors();

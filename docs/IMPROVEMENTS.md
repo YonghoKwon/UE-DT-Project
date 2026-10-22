@@ -4,6 +4,42 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## FOLLOWUP-30b — 탱크톱 강판 / 수치 포함 LiDAR 비교
+
+기존 승인M_HatchCargo의 TankTop만 중성 강판/녹/분진/마모로 보정했다. 단면0m 빗금+문구는 모의 노출임을 명시하며 센서 관측을 조작하지 않는다. 기존Z0첫충돌/7×7픽셀을 유지하고 원 코드>=30을49/49로 강화해 두 원료에서 통과했다. 5종 비교는 원료65%·실제181회디깅/잔량4.99%의 별도 full HWRT frame에서 광선·hit·격자관측률·Hz·설정거리/FOV·acquisition pose를 기록한다. [수치 표](../Saved/Reports/FOLLOWUP-26-28/showcase/lidar-compare-table.png)와 LiDAR 합본은 동일 카메라의 투영 참고 윤곽을 포함하며 원시PNG는 보정하지 않는다. 27장면+별도 시연1장/4합본. #32 선폭45m/23m개구 커버 돌출 회귀를22.2m개구로 고쳐 기존 검사 통과, 물리 정확도/체적/Hz/FPS 기준은 유지한다. 실패 시도·원시 측정·공통gate는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
+
+## FOLLOWUP-30 — 전체 기능 캡처
+
+실제 D3D12/RT on 1920×1080 자동 캡처27장과 별도 테스트셋 송신 완료 시연 UI1장을 PNG+JSON으로 제공한다. 전경/근접/분석/5종 LiDAR의4개 합본만 하단 제목·조건을 추가하고 원시 장면 픽셀은 수정하지 않는다. 실제181회 생산 디깅으로 바닥을 노출하고 열림/닫힘 메시CRC 차이·전체 bucket 투영·0 높이 바닥 target·원본 광선 수/HWRT backend를 검사한다. 하늘은 해치 소유 SkyAtmosphere로 표시하며 기존 태양 설정을 종료 복원한다. 점군 캡처의 외형 숨김은 플레이어의 HiddenPrimitiveComponents만 사용하고 측정 충돌은 유지한다. [합본 manifest](../Saved/Reports/FOLLOWUP-26-28/showcase/manifest.json), 제외한 QA 시도·최종 gate·직접 UI 미수행은 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 송신 완료 이미지는 실제 네트워크 송신 성공의 증거로 사용하지 않는다.
+
+## FOLLOWUP-32 — GTSU 독립 운전실 / 상대 배치
+
+PR69 검수6건 보정: 폭2.4m 캐빈 반폭1.20m+브래킷0.10m의 signed ±1.30m 장착을1cm 허용으로 검사한다. 이동/정지/도착은 CabPoseRevision만 갱신하고 화물 트리/BLAS 재사용을 검증한다. 운전실을 통과하는 디깅 선택과 실제 시야 차폐를 분리하고 목표 접근자를 통일했다. 구10/8m 기본값만 이관 로그를 남기며24/16m 설정은 보존한다. 생성 상태 해제 후 센터링을 실행하고 거절 시 상태/로그를 표시한다.
+
+사용자 현장 운영 정정에 따라 운전실은 별도 캐리지로 붐을 따라25m/min 주행한다. 해치 중앙 정지 전 퍼내기를 대기하고 그랩 작업 중 이동을 차단한다. 최소1m 외피 간격·붐 양단2m 주행 제한, 중지/대기 취소/종료 수명을 검사한다. 캐빈 센서2대의 실제 pose와 측정 snapshot을 같이 이동한다. 새 작은 캐빈 메시를 독립 CPU tree/GPU instance로 두어 이동 시 정적 하역기 전체 BVH/BLAS를 다시 만들지 않는다. 내부 HWRT 입력은4메시를 지원하며 외부 계약은 동일하다.
+
+- 명시적 중간 하역 흘수14m·붐 하면 레일+25m 가정, 코밍 간격15.8m·캐빈 지붕 간격0.9m. 제조사 양정과 구조 가정, 등록 만재흘수18.222m를 분리한다. 실제 GA 인증 치수는 아니다.
+- 측면/조감 [비교](../Saved/Reports/FOLLOWUP-26-28/corners-32-gtsu-check.png)와 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)에 실제 GPU Hz/점 수/커버리지·CPU/native 경계 정확도·제한을 기록한다. 현재 운영 홀드05의 재설정 시 중앙 정렬을 먼저 수행하며 다른8개 문맥 홀드 전체 작업 시뮬레이션은 추가하지 않는다.
+- 사용자 순서 변경으로 #28 송신 공정성과 #26 RSS5쌍은 이번 브랜치 범위에서 제외한다. #30 후 release/RT on perf 및 새 하네스로 마무리한다.
+
+## FOLLOWUP-27 — CPU snapshot BVH 경계 광선
+
+사용자2026-10-22 후속. float barycentric 내적 상쇄가 X=0 원료 경계의 실제 hit를 누락했다. 경계 후보만 double 투영 edge로 판정하며 내부 광선의 기존 경로를 유지한다. 별도로 인접 주름 벽 이음선의 부동소수 좌표 차이를 제거했다. 삼각형 확장·1mm 기준 완화는 없다.
+
+- 기존4096 무작위 및24576 축/분할면/near-zero 광선: native physics 불일치0, 최대0.178mm. 기존4096을 대체하지 않고 추가했다.
+- GPU의 기존 hit/identity/semantic ≥99%·거리p95≤1cm 검사를 유지하고 X=0 경계 최대≤1mm를 추가한다. 전체 GPU 최대 오차와 경계 최대는 구분한다.
+- CPU Hz·9개 GPU 프로필·공통 release/RT on ABAB·중간 실패/제한은 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. DTCore·wire·광학 반응·맵 저장은 변경하지 않는다.
+
+## FOLLOWUP-29 — 해치 근접 표시와 만재 형상
+
+**검수 보정 #29b:** 고정 노출에서 검게 보이던 코밍을 중간 적색으로, 갑판/커버/상부를 중성 회색으로 조정한다. 해치 보기 bias+0.25EV, 낮은 입사각 key·소유 환경광·기존 작업등의 채움, 표시 albedo/노멀·높이 기반 셰이딩만 보정한다. 높이장/95% 체적은 동일 CRC로 유지한다. 현재 값은 iron(.11,.072,.051), coal(.033,.031,.029), coaming(.42,.085,.055)이며 이전 #29 값은 아래 이력으로 남긴다. [4개 시점 전후 비교](../Saved/Reports/FOLLOWUP-26-28/corners-29b-check.png)와 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 추가 자산·빛·capture는 생성하지 않고 기존 해치 소유 자원만 사용한다.
+
+사용자2026-10-22 승인. 해치 소유 카메라만 수동 노출/물리 카메라 보정off로 고정하며 종료 시 원래 post process를 복원한다. 표시용 iron albedo(.13,.085,.060), coal(.038,.036,.033), roughness를 조정한다. LiDAR 광학 반응은 그대로다. 기존 M_HatchCargo의 코밍 분기에서 절차적 마모·녹·분진/접촉 AO를 적용하고 원료의 벽 접촉 색을 기존 정점 갱신에 포함한다. 새 장식 geometry/capture/readback은 없다.
+
+- 95% 체적의 원래 정확도 기준을 유지하며, 안식각(iron35~40°/coal33~35°) 안에서 높이 여유에 둔덕을 맞춘다. 실제 높이장에 얕은 그랩 자국을 포함해 CPU/GPU·디깅·체적과 공유한다.
+- 추가60개 만재 case는 체적오차<0.001%, relief≥1m, 상한 평지<1%, 실제 삼각형 안식각을 검사한다. 기존 체적/만재율 기대값은 낮추지 않았다.
+- 실제 D3D12 동일6카메라 [전후 합본](../Saved/Reports/FOLLOWUP-26-28/corners-before-after.png), 원거리/조감14장, GPU3×20Hz/60FPS와 실패·제한·공통gate는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 개인 설정 복원/최종 release/perf는 그룹 종료 시 별도 감사한다.
+
 ## GPU-LIDAR-01 — 센서 소유 하드웨어 RT LiDAR (#25)
 
 사용자 결정2026-10-22: 선택2(센서 소유 TLAS), Launcher 엔진 변경/새 모듈/플러그인 금지. scene TLAS 재사용은 필수 요구가 아니다. 기존 collision snapshot·광선 패턴·FrameId/시간/pose/identity·physical model·PCD/출력 계약을 보존한다.

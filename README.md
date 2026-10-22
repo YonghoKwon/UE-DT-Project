@@ -18,6 +18,20 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+PR69 검수 보정: 운전실 이동은 별도 pose revision으로 센서 분석을 갱신하며 화물 BVH/BLAS를 재생성하지 않는다. 디깅 위치 선택은 보이는 운전실도 통과하고 실제 측정 차폐는 유지한다. 센터링은 생성 종료 후 실행·실패 표시하며 구10/8m 기본값만 로그와 함께 이관한다. 좌우 센서는 캐빈 중심 기준 ±1.30m(1cm 허용)로 검사한다. [검증 이력](docs/VALIDATION_HISTORY.md)과 [최종 보고](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
+
+FOLLOWUP-30b: 탱크톱은 중성 회색 강판·녹/분진/마모로 표시하고 단면의0m 빗금·문구로 노출을 식별한다(모의 형상/실측 구분). 최종27장 장면+별도 송신 시연1장과4합본, [LiDAR 수치 표](Saved/Reports/FOLLOWUP-26-28/showcase/lidar-compare-table.png)를 제공한다. 5종 패널의 광선/hit/Hz/거리/FOV는 실제 immutable HWRT frame이며 원료65%·바닥잔량4.99%를 별도 측정한다. 커버리지는 전체 홀드1m목표격자 실제 관측 비율이다. 합본 참고 윤곽은 동일 카메라 투영이며 측정점이 아니다. 두 원료의 실제Z0 첫충돌·49/49 중성 강판 픽셀을 검사했다. 기존 45m선폭의 커버 돌출 회귀는22.2m 개구로 보정했고 기존 커버/정확도/체적/성능 기준을 유지한다. 최종 검증/제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
+
+FOLLOWUP-30: `Scripts/run_hatch_validation.ps1 -Mode Showcase -Sensors 3`는 기존 테스트 맵을 저장하지 않고 실제 D3D12/RT on 1920×1080 PNG+JSON을 생성한다. 전경·GTSU/커버/호퍼·그랩 열림/닫힘·두 원료·GPU3센서/히트맵/단면/상면/설정·5종 붐 LiDAR·실제 디깅 전후/바닥/만재 코너를 포함한다. `Scripts/assemble_hatch_showcase.py Saved/Reports/FOLLOWUP-26-28/showcase`로 [4개 주제 합본](Saved/Reports/FOLLOWUP-26-28/showcase/manifest.json)을 만든다. 송신 완료 화면은 기존 시연 UI이며 실제 네트워크 송신의 증거가 아니다. 해치 소유 SkyAtmosphere와 기존 태양 설정을 종료 시 복원하고, 점군 플레이어 뷰에만 대기 show flag를 숨긴다. 직접 UI 수용과 공통gate는 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
+
+FOLLOWUP-32(사용자 현장 정정2026-10-22): 운전실은 그랩과 분리된 붐 독립 주행 캐리지다. 해치 중앙으로25m/min 이동·정지한 뒤 그랩 작업을 허용하며 작업 중 운전실 이동을 차단한다. 캐빈 센서2대는 실제 캐리지에 부착하고 이전 CPU/GPU acquisition pose를 보존한다. 명시적 중간 하역 흘수14m, 레일+25m 붐 하면 모델 가정으로 코밍 간격15.8m·캐빈 지붕 간격0.9m를 사용한다. 양정24/25m를 붐 높이로 오해하지 않으며 현장 GA 실측을 주장하지 않는다. [측면/조감 전후와ref4/ref5](Saved/Reports/FOLLOWUP-26-28/corners-32-gtsu-check.png), 근거·검증·제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 기존 운영 홀드05를 사용하며 다른8개 홀드는 문맥 형상이다.
+
+FOLLOWUP-29b(사용자 검수 보정2026-10-22): 코밍은 중간 밝기 적색 도장, 갑판·커버는 중성 회색으로 맞췄다. 해치 카메라 bias+0.25EV, 소유 조명/환경광과 기존 작업등을 보정하고 높이 기반 정점 셰이딩·노멀 세기를 조절한다. 측정 높이장·95% 체적·광학 반응은 바꾸지 않는다. [코너2곳·조감·측면 비교](Saved/Reports/FOLLOWUP-26-28/corners-29b-check.png), 검증/중간 시도/제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
+
+FOLLOWUP-29(사용자2026-10-22): 해치 보기 카메라의 노출을 고정하고 종료 시 복원한다. 원료 표시 albedo/roughness, 기존 코밍 재질의 절차적 마모·녹·분진/접촉 AO를 조정했다. 만재 높이장은 같은95% 체적을 유지하며 높이 여유에 둔덕을 맞춰 상한 평탄화를 방지한다. 새 표면도 측정·디깅·체적의 단일 원본이다. 같은6개 카메라의 [전후 합본](Saved/Reports/FOLLOWUP-26-28/corners-before-after.png), 회귀·GPU3×20Hz/60FPS·원거리·제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 광학 반응·wire·SaveGame·DTCore·맵은 변경하지 않는다.
+
+FOLLOWUP-27(사용자2026-10-22): 해치 snapshot BVH의 경계 판정을 double ray-space edge 검사로 보완하고 주름 벽 인접 구간의 이음선 좌표를 동일한 식으로 생성한다. 기존4096 무작위+24576 축/분할면/near-zero 광선에서 native physics와 불일치0, 최대0.178mm(1mm 기준 유지)를 확인했다. CPU Hz·GPU 프로필 재측정과 공통 release/RT on perf의 최종 결과는 [후속 보고](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. wire·센서 광학 반응·DTCore·맵 저장 변경은 없다.
+
 GPU-LIDAR-01(사용자 #25): 기존 Bootstrap과 프로젝트 adapter에서 센서 소유 collision BLAS/TLAS·ray-gen/closest-hit·비동기 readback을 구현한다. 해치 CPU와 같은 immutable collision snapshot을 사용하고 점별 물리/재질 계산을 worker로 전달한다. 초기 1920×1080 오프스크린 D3D12 측정에서 기본3 및 OS1-64×3은 약20Hz·60FPS를 확인했다. 최종 SHA·정확도 최대 오차·release/perf·50회 디깅 RSS·직접 수용·제한은 [RESULT](Saved/Reports/GPU-LIDAR-01/RESULT.md), [DONE](Saved/Reports/GPU-LIDAR-01/DONE.md)를 따른다. 기존 HATCH-06 RSS 후속 #26은 별도이며 이번 작업에서 수용 완료로 바꾸지 않는다.
 
 TESTSET-PERF(사용자 직접 후속 요청2026-10-20): 최종 검증 코드 `d593d48`(런타임 수정 `bc9b936`/`d1a6a1e`). 생성 중 LiDAR 표시 자산의 동기 로딩을 제거하고 바인딩 시 비동기 준비·수명 보유로 바꿨다. 150ms 기준·기존 준비10초·측정/송수신 계약은 유지한다. ABAB 창 크기 보정의 client/outer 혼용과 기록/종료 검사를 수정했으며, 생성 콤보 항목의 GC 후 StrikeBrush 수명도 고쳤다. Editor/Game·release15단계(전체323 Success/40조건부Skip/0Fail)·WBP7/save0·어휘/quick/layer0, 기본60초 ABAB12회(A/B각6)2% PASS(FPS저하−0.012936%,engine p95증가0.000011%,GT증가−0.275725%)다. 퍼내기/그랩 촬영 하네스 모두 정상 종료·새 선택47장(자동38/직접9), 개인142원본 복원·보호561/561 동일이다. 사진은 `d1a6a1e` 촬영이며 최종 코드와 런타임/해치 하네스가 동일함을 확인했다. 초기 실패·무효 코호트·직접 수용·모의/새 모의 프레임·회사/Shipping 범위는 [RESULT](Saved/Reports/TESTSET-PERF/RESULT.md), [DONE](Saved/Reports/TESTSET-PERF/DONE.md), [새 캡처](Saved/Reports/TESTSET-PERF/CAPTURES.md)를 따른다.
@@ -612,6 +626,10 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+FOLLOWUP-29는 기존 L2 높이장/표시 재질과 L3 해치 소유 카메라 노출만 바꾼다. 기존 M_HatchCargo 한 자산을 재사용하며 새 모듈·플러그인·측정 capture·광학 계약·저장 형식 없이 layer 위반·allowlist **0→0**이다.
+
+FOLLOWUP-27은 기존 L2 해치 geometry/query와 Editor 회귀·검증 진입점만 수정한다. L0 계약·L1 센서·DTCore·모듈·자산 추가 없이 layer 위반·allowlist **0→0**이다.
 
 GPU-LIDAR-01은 L0 collision snapshot 계약, L1 static collision/공유 physical model/worker 완료 경로, L2 해치 snapshot 내보내기와 기존 Bootstrap의 공개 RHI shader 구현으로 구성한다. L1→L2 include와 새 모듈/플러그인 없이 layer 위반·allowlist **0→0**을 유지한다. DTCore·자산·wire·기존 enum 값·저장 형식은 변경하지 않는다.
 

@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$ProjectPath = "C:\Unreal Projects\ma0t10_dt\ma0t10_dt.uproject",
     [string]$EngineRoot = "C:\Program Files\Epic Games\UE_5.3",
     [string[]]$TestGroups = @(
@@ -76,7 +76,7 @@ foreach ($TestGroup in $TestGroups) {
     if ($ReportRoot) {
         $runDirectory = Join-Path $ReportRoot ($TestGroup -replace '[^a-zA-Z0-9_.-]', '_')
         New-Item -ItemType Directory -Force -Path $runDirectory | Out-Null
-        $automationArgs += @('-RenderOffscreen', '-NoVSync', "-ReportExportPath=$runDirectory", "-abslog=$runDirectory/automation.log")
+        $automationArgs += @('-RenderOffscreen', '-NoVSync', "-ReportExportPath=$runDirectory", "-HatchReport=$runDirectory/measurements", "-abslog=$runDirectory/automation.log")
         $quotedArgs = @($automationArgs | ForEach-Object { '"' + $_ + '"' })
         $process = Start-Process $EditorCmd -ArgumentList $quotedArgs -WindowStyle Hidden -Wait -PassThru `
             -RedirectStandardOutput (Join-Path $runDirectory 'console.log') -RedirectStandardError (Join-Path $runDirectory 'stderr.log')

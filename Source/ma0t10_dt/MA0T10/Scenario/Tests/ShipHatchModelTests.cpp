@@ -38,6 +38,29 @@ bool FHatchGeneration::RunTest(const FString&)
     TestEqual(TEXT("all material/seed fields distinct"),Hashes.Num(),100);
     TestTrue(TEXT("coal is less reflective"),ShipHatch::Reflectivity(ShipHatch::ECargo::Coal)<ShipHatch::Reflectivity(ShipHatch::ECargo::IronOre));return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchFullLoadRelief,"MA0T10.Hatch.FullLoadKeepsVolumeAndRelief",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FHatchFullLoadRelief::RunTest(const FString&)
+{
+    for(auto Cargo:{ShipHatch::ECargo::IronOre,ShipHatch::ECargo::Coal})for(int32 Seed=0;Seed<30;++Seed)
+    {
+        ShipHatch::FSettings S;S.Cargo=Cargo;S.Seed=Seed;S.FillMin=S.FillMax=95;
+        const auto F=ShipHatch::Generate(S);const double Target=S.Length*S.Width*S.Depth*.95;
+        TestTrue(TEXT("full load keeps original95percent triangle-volume target within0.001percent"),FMath::Abs(F.Volume-Target)/Target<.00001);
+        double Low=DBL_MAX,High=-DBL_MAX;int32 Clipped=0;
+        for(float H:F.Heights){Low=FMath::Min(Low,double(H));High=FMath::Max(High,double(H));Clipped+=H>=S.Depth-.001;}
+        TestTrue(TEXT("full load has at least1m actual mound/wall relief"),High-Low>=1);
+        TestTrue(TEXT("deck clipping covers less than1percent of the full-load vertices"),Clipped<F.Heights.Num()*.01);
+        TestTrue(TEXT("configured material repose retains user ranges"),Cargo==ShipHatch::ECargo::Coal?(F.Repose>=33&&F.Repose<=35):(F.Repose>=35&&F.Repose<=40));
+        const double Limit=FMath::Tan(FMath::DegreesToRadians(F.Repose));
+        for(int Y=0;Y<F.NY;++Y)for(int X=0;X<F.NX;++X)
+        {
+            const double GX1=(F.At(X+1,Y)-F.At(X,Y))/F.DX,GY1=(F.At(X+1,Y+1)-F.At(X+1,Y))/F.DY;
+            const double GX2=(F.At(X+1,Y+1)-F.At(X,Y+1))/F.DX,GY2=(F.At(X,Y+1)-F.At(X,Y))/F.DY;
+            if(FMath::Max(GX1*GX1+GY1*GY1,GX2*GX2+GY2*GY2)>Limit*Limit+1.e-5){AddError(TEXT("full-load actual triangle exceeds repose"));break;}
+        }
+    }
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchAnalysis,"MA0T10.Hatch.AnalysisRejectsStructureAndMissingCells",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FHatchAnalysis::RunTest(const FString&)
 {

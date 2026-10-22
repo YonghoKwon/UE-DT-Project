@@ -89,10 +89,6 @@ void AShipHatchSimulation::BuildUnloaderDetails()
   }
  }
  Box(FVector(0,Back+2,H+1.2),FVector(4,5,2.2),Dark); // counterweight / machinery
- // Fixed under-trolley cab; existing cab center and two sensor mounts retained.
- Box(FVector(CabX,CabY+1.42,HoldDepth+CabHeight+1.7),FVector(4.4,.06,1.2),Glass);
- for(int Sign:{-1,1})Box(FVector(CabX+Sign*2.52,CabY,HoldDepth+CabHeight+1.7),FVector(.06,2.3,1.2),Glass);
- Beam(FVector(CabX,CabY,HoldDepth+CabHeight+2.6),FVector(CabX,CabY,H),.35,.35,Steel);
  // One separate grab component owns shells, rods, ropes and moving carriage.
  // Landside tapered receiving hopper and conveyor under the portal.
  const double HopperY=HopperCenterY(),TopZ=HopperRimZ(),LowZ=RailZ+7;

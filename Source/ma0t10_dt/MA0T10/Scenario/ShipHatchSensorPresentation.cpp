@@ -45,6 +45,7 @@ FShipHatchSight AShipHatchSimulation::DiagnoseSight(int32 I,FVector Target) cons
     FHitResult Hit;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchCellDiagnostic),true);
     if(!GetWorld()->LineTraceSingleByChannel(Hit,Origin,World+(World-Origin).GetSafeNormal()*.5,ECC_Visibility,Query))return Cause(TEXT("Clear"),TEXT("가시: 샘플링·재질 검출·갱신 확인"));
     R.FirstHitMeters=GetActorTransform().InverseTransformPosition(Hit.ImpactPoint)*.01;
+    if(Hit.GetComponent()==CabPresentation)return Cause(TEXT("Cab"),TEXT("차폐: 독립 운전실 캐리지"));
     if(Hit.GetComponent()==GrabPresentation)return Cause(TEXT("Grab"),TEXT("차폐: 그랩·로프"));
     if(FVector::Distance(Hit.ImpactPoint,World)<8)return Cause(TEXT("Clear"),TEXT("가시: 샘플링·재질 검출·갱신 확인"));
     if(Hit.GetActor()==UnloaderPresentation)
@@ -64,13 +65,14 @@ FShipHatchSight AShipHatchSimulation::DiagnoseSight(int32 I,FVector Target) cons
 FVector AShipHatchSimulation::SensorOrigin(int32 I) const
 {
     if(!bFieldLayout)return SensorLocalOrigin(I==0);
-    return (I==0?FVector(0,BoomTipY(),HoldDepth+BoomHeight):FVector(CabX+(I==1?-2.:2.),CabY,HoldDepth+CabHeight))+SensorOffsets[FMath::Clamp(I,0,2)];
+    return (I==0?FVector(0,BoomTipY(),HoldDepth+BoomHeight):FVector(CabX+(I==1?-1.3:1.3),CabY,HoldDepth+CabHeight))+SensorOffsets[FMath::Clamp(I,0,2)];
 }
 bool AShipHatchSimulation::VisibleFromSensor(int32 I,FVector Target) const
 {
     if(!SensorEnabled(I)||!ShipHatch::ThroughOpening(Current.Settings,SensorOrigin(I),Target)||!InFov(SensorAt(I),GetActorTransform().TransformPosition(Target*100)))return false;
     if(bShowGrab&&GrabPresentation){FHitResult Hit;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchGrabCoverage),true);if(GrabPresentation->LineTraceComponent(Hit,GetActorTransform().TransformPosition(SensorOrigin(I)*100),GetActorTransform().TransformPosition(Target*100),Query))return false;}
     if(Vessel){FHitResult Hit;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchVesselCoverage),true);if(Vessel->Mesh->LineTraceComponent(Hit,GetActorTransform().TransformPosition(SensorOrigin(I)*100),GetActorTransform().TransformPosition(Target*100),Query))return false;}
+    if(CabPresentation){FHitResult Hit;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchCabCoverage),true);if(CabPresentation->LineTraceComponent(Hit,GetActorTransform().TransformPosition(SensorOrigin(I)*100),GetActorTransform().TransformPosition(Target*100),Query))return false;}
     if(UnloaderPresentation)
     {
         FHitResult Hit;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchRigCoverage),true);
@@ -84,10 +86,10 @@ void AShipHatchSimulation::SetFieldSensor(int32 I,bool Enabled,int32 Profile)
     if(I==0)bMLX=Enabled;else if(I==1)bLivox=Enabled;else bCabRight=Enabled;
     ConfigureSensors();++SurfaceRevision;OnSurfaceChanged.Broadcast();
 }
-void AShipHatchSimulation::ShowUnloader(bool Enabled){bShowUnloader=Enabled;if(UnloaderPresentation){UnloaderPresentation->SetActorHiddenInGame(false);UnloaderPresentation->Mesh->SetVisibility(Enabled,false);if(RigFineDetails)RigFineDetails->SetVisibility(Enabled);if(UnloaderLabel)UnloaderLabel->SetVisibility(Enabled);if(GrabPresentation)GrabPresentation->SetVisibility(bShowGrab);}}
+void AShipHatchSimulation::ShowUnloader(bool Enabled){bShowUnloader=Enabled;if(UnloaderPresentation){UnloaderPresentation->SetActorHiddenInGame(false);UnloaderPresentation->Mesh->SetVisibility(Enabled,false);if(RigFineDetails)RigFineDetails->SetVisibility(Enabled);if(CabPresentation)CabPresentation->SetVisibility(Enabled);if(UnloaderLabel)UnloaderLabel->SetVisibility(Enabled);if(GrabPresentation)GrabPresentation->SetVisibility(bShowGrab);}}
 void AShipHatchSimulation::ApplyUnloader()
 {
-    if(!bFieldLayout){if(UnloaderPresentation)UnloaderPresentation->Destroy();UnloaderPresentation=nullptr;GrabPresentation=nullptr;UnloaderLabel=nullptr;return;}
+    if(!bFieldLayout){if(UnloaderPresentation)UnloaderPresentation->Destroy();UnloaderPresentation=nullptr;GrabPresentation=nullptr;CabPresentation=nullptr;UnloaderLabel=nullptr;return;}
     if(!UnloaderPresentation)
     {
         FActorSpawnParameters P;P.Owner=this;P.ObjectFlags|=RF_Transient;UnloaderPresentation=GetWorld()->SpawnActor<AShipHatchPart>(AShipHatchPart::StaticClass(),GetActorTransform(),P);
@@ -98,12 +100,13 @@ void AShipHatchSimulation::ApplyUnloader()
     const double Tip=BoomTipY(),Root=Tip-BoomLength,H=HoldDepth+BoomHeight+1.2;
     for(int Sign:{-1,1})HatchPresentationBox(V,T,FVector(Sign*.7,(Root+Tip)*.5,H),FVector(.22,BoomLength,.3));
     for(double Y:{Root,(Root+Tip)*.5,Tip})HatchPresentationBox(V,T,FVector(0,Y,H),FVector(1.6,.22,.3));
-    HatchPresentationBox(V,T,FVector(CabX,CabY,HoldDepth+CabHeight+1.6),FVector(5,2.8,2));
-    HatchPresentationBox(V,T,FVector(0,CabY,H+.4),FVector(2,2.4,.6)); // grab trolley
+    // Separate side rail lets the independent cab pass the central grab trolley.
+    HatchPresentationBox(V,T,FVector(CabX,(Root+Tip)*.5,H),FVector(.22,BoomLength,.3));
+    for(double Y=Root;Y<=Tip;Y+=4)HatchPresentationBox(V,T,FVector((CabX-1.5)*.5,Y,H+.15),FVector(FMath::Abs(CabX)+1.5,.18,.3));
     TArray<FVector> N;N.Init(FVector::UpVector,V.Num());auto* M=UnloaderPresentation->Mesh.Get();
     if(M->GetProcMeshSection(0)&&M->GetProcMeshSection(0)->ProcVertexBuffer.Num()==V.Num()){if(!HatchPresentationSamePositions(M->GetProcMeshSection(0),V))M->UpdateMeshSection_LinearColor(0,V,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>());}
     else M->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>(),true);
-    BuildUnloaderDetails();
+    BuildCabModel();BuildUnloaderDetails();
     if(!UnloaderLabel){UnloaderLabel=NewObject<UTextRenderComponent>(UnloaderPresentation);UnloaderLabel->SetupAttachment(M);UnloaderLabel->SetText(FText::FromString(TEXT("GTSU 10")));UnloaderLabel->SetHorizontalAlignment(EHTA_Center);UnloaderLabel->SetWorldSize(110);UnloaderLabel->SetTextRenderColor(FColor(245,220,110));UnloaderLabel->SetCollisionEnabled(ECollisionEnabled::NoCollision);UnloaderLabel->SetHiddenInSceneCapture(true);UnloaderLabel->SetCastShadow(false);UnloaderLabel->RegisterComponent();}
     UnloaderLabel->SetRelativeLocationAndRotation(FVector(0,Root+1.0,H+1.8)*100,FRotator(0,90,0));
     ShowUnloader(bShowUnloader);
@@ -149,7 +152,7 @@ void AShipHatchSimulation::UpdateSensorPresentation()
     if(SensorPresentation.Num()!=(bFieldLayout?3:2)){for(auto A:SensorPresentation)if(A)A->Destroy();SensorPresentation.Reset();UpdateSensorPresentation();return;}
     for(int32 I=0;I<(bFieldLayout?3:2);++I)
     {
-        auto* A=SensorPresentation[I].Get();A->Mesh->SetVisibility(bSensorMarkersVisible);TArray<FVector> V;TArray<int32> T;
+        auto* A=SensorPresentation[I].Get();A->SetActorTransform(GetActorTransform());A->Mesh->SetVisibility(bSensorMarkersVisible);TArray<FVector> V;TArray<int32> T;
         if(I<3)
         {
             const FVector O=SensorOrigin(I);HatchPresentationBox(V,T,O,FVector(I==0?1.4:.9,1.,.8));
@@ -160,6 +163,7 @@ void AShipHatchSimulation::UpdateSensorPresentation()
         const auto* Existing=A->Mesh->GetProcMeshSection(0);
         if(Existing&&Existing->ProcVertexBuffer.Num()==V.Num())A->Mesh->UpdateMeshSection_LinearColor(0,V,Normals,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>());
         else A->Mesh->CreateMeshSection_LinearColor(0,V,T,Normals,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>(),false);
+        if(I>0&&CabPresentation)A->AttachToComponent(CabPresentation,FAttachmentTransformRules::KeepWorldTransform);
     }
 }
 void AShipHatchSimulation::SetSensorMarkersVisible(bool Visible)

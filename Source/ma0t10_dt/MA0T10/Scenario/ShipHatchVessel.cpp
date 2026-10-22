@@ -36,11 +36,11 @@ AShipHatchVessel::AShipHatchVessel()
 }
 bool AShipHatchSimulation::ValidateSceneScale(FString& Error) const
 {
- for(double V:{VesselLength,VesselBeam,MouldedDepth,DesignDraft,RailSpan,BerthGap,QuayAboveWater,BoomLength,BoomHeight,CabHeight})if(!FMath::IsFinite(V)){Error=TEXT("선박/하역기 치수는 유한수여야 합니다.");return false;}
- if(VesselLength<290||VesselLength>300||VesselBeam<45||VesselBeam>47||MouldedDepth<24||MouldedDepth>25||DesignDraft<17||DesignDraft>19||
+ for(double V:{VesselLength,VesselBeam,MouldedDepth,DesignDraft,OperatingDraft,RailSpan,BerthGap,QuayAboveWater,BoomLength,BoomHeight,CabHeight,CabX,CabY,OpeningWidth})if(!FMath::IsFinite(V)){Error=TEXT("선박/하역기 치수는 유한수여야 합니다.");return false;}
+ if(VesselLength<290||VesselLength>300||VesselBeam<45||VesselBeam>47||MouldedDepth<24||MouldedDepth>25||DesignDraft<17||DesignDraft>19||OperatingDraft<8||OperatingDraft>DesignDraft||
     RailSpan<22||RailSpan>30||BerthGap<2||BerthGap>5||QuayAboveWater<2||QuayAboveWater>5||VesselHolds!=9||HoldWidth>VesselBeam-1||
-    MouldedDepth-HoldDepth<1||MouldedDepth-HoldDepth>3||BoomLength<35||BoomLength>45||BoomHeight<18||BoomHeight>35||CabHeight<12||CabHeight>24||
-    SeaRailY()>=QuayEdgeY()||BoomTipY()<=0||BoomTipY()>=VesselBeam*.5)
+    MouldedDepth-HoldDepth<1||MouldedDepth-HoldDepth>3||BoomLength<35||BoomLength>45||BoomSoffitZ()-QuayZ()<18||BoomSoffitZ()-QuayZ()>35||CabRoofZ()>BoomSoffitZ()-.5||CabRoofZ()<BoomSoffitZ()-3||FMath::Abs(CabX)<4.5||FMath::Abs(CabX)>8||CabY<CabTravelMinY()||CabY>CabTravelMaxY()||
+    OpeningWidth+.15>VesselBeam*.5||SeaRailY()>=QuayEdgeY()||BoomTipY()<=0||BoomTipY()>=VesselBeam*.5)
  {Error=TEXT("케이프사이즈/그랩 하역기 제원 범위를 확인하세요. 선박290–300×45–47×24–25m, 레일22–30m, 아웃리치35–45m.");return false;}
  Error.Reset();return true;
 }
@@ -52,7 +52,7 @@ void AShipHatchSimulation::BuildVessel()
  if(!bRealScale){if(Vessel)Vessel->Destroy();Vessel=nullptr;return;}
  if(!Vessel){FActorSpawnParameters P;P.Owner=this;P.ObjectFlags|=RF_Transient;Vessel=GetWorld()->SpawnActor<AShipHatchVessel>(AShipHatchVessel::StaticClass(),GetActorTransform(),P);}if(!Vessel)return;
  const double Half=VesselLength*.5,Deck=HoldDepth,Keel=KeelZ(),Water=WaterZ();
- const FLinearColor Red(.22,.035,.025),Black(.025,.035,.042),White(.57,.6,.59),DeckColor(.30,.15,.135),Cover(.46,.27,.25),Glass(.012,.035,.047),Steel(.22,.09,.065),Rope(.35,.29,.18);
+ const FLinearColor Red(.22,.035,.025),Black(.025,.035,.042),White(.38,.40,.40),DeckColor(.16,.17,.17),Cover(.22,.23,.23),Glass(.012,.035,.047),Steel(.22,.09,.065),Rope(.35,.29,.18);
  auto Breadth=[&](double X){if(X>Half-34)return VesselBeam*.5*FMath::Max(.018,FMath::Sqrt(FMath::Clamp((Half-X)/34.,0.,1.)));if(X<-Half+30){const double U=FMath::Clamp((X+Half)/30.,0.,1.);return FMath::Lerp(8.,VesselBeam*.5,U*U*(3-2*U));}return VesselBeam*.5;};
  auto Sheer=[&](double X){return .75*FMath::Square(FMath::Clamp((FMath::Abs(X)-110)/(Half-110),0.,1.));};
  auto SectionPoint=[&](double X,double Z,double Factor,int Sign){const double Rake=X>Half-34?4*(X-(Half-34))/34*FMath::Clamp((Deck-Z)/(Deck-Water),0.,1.):0.;return FVector(X-Rake,Sign*Breadth(X)*Factor,Z+Sheer(X)*FMath::Clamp((Z-Water)/(Deck-Water),0.,1.));};
@@ -101,7 +101,7 @@ void AShipHatchSimulation::BuildVessel()
   }
  }
  // Two side-rolling panels travel only along hold breadth (+/-Y). The
- // configured47m beam leaves35cm outside each fully open11.5m panel.
+ // A45m beam /22.2m opening leaves15cm outside each fully open11.1m panel.
  FVesselMesh Covers;
  const double PanelWidth=OpeningWidth*.5,ParkY=OpeningWidth*.75+.15,PanelZ=Deck+CoamingHeight+.56;
  // First16 vertices are the two actual panel boxes, for independent geometry QA.
@@ -190,10 +190,13 @@ void AShipHatchSimulation::BuildCorrugatedWalls(AShipHatchPart* Part)
   const int Bays=FMath::CeilToInt(Span/1.5);const double Pitch=Span/Bays;
   for(int I=0;I<Bays;++I)
   {
-   const double Base=-Span*.5+I*Pitch,Steps[]={0.,.2,.6,.8,1.},Depth[]={.015,.265,.265,.015,.015};
+   const double Steps[]={0.,.2,.6,.8,1.},Depth[]={.015,.265,.265,.015,.015};
    for(int J=0;J<4;++J)
    {
-    auto P=[&](int K,double Z){return End?FVector(Sign*(Across-Depth[K]),Base+Steps[K]*Pitch,Z):FVector(Base+Steps[K]*Pitch,Sign*(Across-Depth[K]),Z);};
+    // Form the shared bay coordinate before multiplying by pitch. Separate
+    // Base+Pitch rounding left one center seam at-2.2e-14cm and the adjacent
+    // seam at0; native parallel-ray BVH culling then disagreed at X=0.
+    auto P=[&](int K,double Z){const double Along=(I+Steps[K]-Bays*.5)*Pitch;return End?FVector(Sign*(Across-Depth[K]),Along,Z):FVector(Along,Sign*(Across-Depth[K]),Z);};
     const auto A=P(J,0),B=P(J+1,0),C=P(J+1,HoldDepth),D=P(J,HoldDepth);const FLinearColor Brown=J==1?FLinearColor(.11,.075,.05):FLinearColor(.075,.045,.028);
     if((End&&Sign>0)||(!End&&Sign<0))Walls.Quad(B,A,D,C,Brown);else Walls.Quad(A,B,C,D,Brown);
    }
