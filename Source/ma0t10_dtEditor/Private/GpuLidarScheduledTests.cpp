@@ -23,7 +23,7 @@
 namespace
 {
 double Average(const TArray<double>& A){double S=0;for(double V:A)S+=V;return A.IsEmpty()?0:S/A.Num();}
-double P95(TArray<double> A){A.Sort();return A.IsEmpty()?0:A[FMath::Clamp(FMath::CeilToInt(A.Num()*.95)-1,0,A.Num()-1)];}
+double GpuScheduledP95(TArray<double> A){A.Sort();return A.IsEmpty()?0:A[FMath::Clamp(FMath::CeilToInt(A.Num()*.95)-1,0,A.Num()-1)];}
 class FGpuScheduledRun final:public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;int SensorCount;bool OS1,Operating;TWeakObjectPtr<AVirtualCameraSensorActor> OperatingCamera;
@@ -98,7 +98,7 @@ public:
         if(Now-Measured<30)return false;
         auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("measurement_started_utc"),MeasurementUtc.ToIso8601());R->SetStringField(TEXT("measurement_ended_utc"),FDateTime::UtcNow().ToIso8601());R->SetNumberField(TEXT("seconds"),Now-Measured);R->SetNumberField(TEXT("engine_fps"),1000/FMath::Max(.001,Average(Engine)));
         R->SetNumberField(TEXT("callback_wall_fps"),1000/FMath::Max(.001,Average(Wall)));R->SetNumberField(TEXT("engine_counter_fps"),(GFrameCounter-FirstFrame)/(Now-Measured));
-        R->SetNumberField(TEXT("engine_frame_p95_ms"),P95(Engine));R->SetNumberField(TEXT("game_thread_mean_ms"),Average(Game));R->SetNumberField(TEXT("gpu_frame_mean_ms"),Average(Gpu));R->SetNumberField(TEXT("frames_over_150ms"),Slow);int WallSlow=0;for(double Ms:Wall)WallSlow+=Ms>150;R->SetNumberField(TEXT("callback_frames_over_150ms"),WallSlow);
+        R->SetNumberField(TEXT("engine_frame_p95_ms"),GpuScheduledP95(Engine));R->SetNumberField(TEXT("game_thread_mean_ms"),Average(Game));R->SetNumberField(TEXT("gpu_frame_mean_ms"),Average(Gpu));R->SetNumberField(TEXT("frames_over_150ms"),Slow);int WallSlow=0;for(double Ms:Wall)WallSlow+=Ms>150;R->SetNumberField(TEXT("callback_frames_over_150ms"),WallSlow);
         R->SetNumberField(TEXT("rss_bytes"),FPlatformMemory::GetStats().UsedPhysical);R->SetNumberField(TEXT("sensor_count"),Sensors.Num());
         R->SetBoolField(TEXT("pcd_send_enabled"),PcdPort!=0);
         R->SetStringField(TEXT("pcd_transport"),PcdPort?TEXT("credential-free TCP STOMP loopback, receipts + local receiver"):TEXT("disabled"));

@@ -11,8 +11,8 @@
 
 void ACoilLoadingSimulation::BuildQuayPresentation()
 {
-    // All additions here are visual. Tanktop/box-hold/crane structural collision
-    // remains in BuildScene; decorative geometry never enters sensor snapshots.
+    // All additions here are visual. BuildScene owns simple measured structure;
+    // decorative geometry never enters sensor snapshots.
     const double Q=BaseQuayZ(),Side=Settings.QuaySide,Rail=QuayOffset(Settings.RailSetback),Mid=Settings.RailCenterY(),X=-8;
     auto* Cube=StructureCubeAsset?StructureCubeAsset.Get():LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube"));
     auto* Cylinder=LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));auto* Sphere=LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Sphere.Sphere"));
@@ -44,9 +44,9 @@ void ACoilLoadingSimulation::BuildQuayPresentation()
     };
     const auto TextSign=[&](FVector C,const FString& Text,double Height,FRotator Rotation=FRotator(0,0,0),bool Moving=false)
     {auto* T=NewObject<UTextRenderComponent>(this);T->SetupAttachment(Moving?PortalRoot.Get():Shore?ShoreRoot.Get():GetRootComponent());T->SetRelativeLocation(C*100);T->SetRelativeRotation(Rotation);T->SetText(FText::FromString(Text));T->SetWorldSize(Height*100);T->SetTextRenderColor(FColor(225,230,223));T->SetCollisionEnabled(ECollisionEnabled::NoCollision);T->SetCastShadow(false);T->SetCullDistance(18000);T->ComponentTags.Add(TEXT("CoilDisplayOnly"));T->ComponentTags.Add(TEXT("CoilQuayPresentation"));T->RegisterComponent();return T;};
-    // Ref6 is the principal construction reference. Four tapered box legs,
-    // multi-level tubular portal bracing and two four-wheel bogies per leg.
-    // These render-only members surround the unchanged simple collision frame.
+    // Ref6: two-segment sea legs lean strongly into the upper portal/boom
+    // connection. Four large horizontal tubes dominate the side elevation;
+    // sparse diagonals follow the photograph rather than a repeated X grid.
     FMeshDescription LegD;FStaticMeshAttributes LegA(LegD);LegA.Register();LegA.GetVertexInstanceUVs().SetNumChannels(1);const auto LegPG=LegD.CreatePolygonGroup();
     const auto LegFace=[&](FVector A,FVector B,FVector C,FVector D)
     {
@@ -87,8 +87,14 @@ void ACoilLoadingSimulation::BuildQuayPresentation()
         const double Y=Rail+Side*RailIndex*Settings.RailGauge;
         for(double Sign:{-1.,1.})
         {
-            const double LX=X+Sign*4;const FVector A=Node(Sign,RailIndex,1.4),B=Node(Sign,RailIndex,28),D=B-A;const FRotator Rotation=FRotationMatrix::MakeFromZ(D).Rotator();
-            Part((A+B)*.5,{1.6,1.6,D.Size()},2,Rotation,1,LegMesh,false,TEXT("CoilPortalLeg"));
+            const double LX=X+Sign*4;const int Segments=RailIndex==0?2:1;
+            for(int Segment=0;Segment<Segments;++Segment)
+            {
+                const double ZA=Segment==0?CoilQuay::LegBaseZ:CoilQuay::LegKneeZ,ZB=Segments==2&&Segment==0?CoilQuay::LegKneeZ:CoilQuay::LegTopZ;
+                const FVector A=Node(Sign,RailIndex,ZA),B=Node(Sign,RailIndex,ZB),D=B-A;
+                Part((A+B)*.5,{RailIndex==0&&Segment==1?1.85:1.6,1.6,D.Size()+.12},2,FRotationMatrix::MakeFromZ(D).Rotator(),1,LegMesh,false,TEXT("CoilPortalLeg"));
+            }
+            const FRotator Rotation=FRotationMatrix::MakeFromZ(Node(Sign,RailIndex,3.3)-Node(Sign,RailIndex,3.1)).Rotator();
             Part({LX,Y,Q+1.65},{5.3,1.4,.52},2,FRotator(0,0,0),1,nullptr,false,TEXT("CoilEqualizer"));
             for(double End:{-1.,1.})
             {
@@ -111,14 +117,16 @@ void ACoilLoadingSimulation::BuildQuayPresentation()
                 Number->SetHorizontalAlignment(EHorizTextAligment::EHTA_Center);Number->SetTextRenderColor(FColor(22,25,21));Number->ComponentTags.Add(TEXT("CoilEquipmentNumber"));
             }
         }
-        for(double Z:{4.3,11.,19.,26.})Tube(Node(-1,RailIndex,Z),Node(1,RailIndex,Z),.32,2,1,false,TEXT("CoilPortalTube"));
-        for(int Bay=0;Bay<3;++Bay){const double Low=4.3+Bay*7.2,High=Low+6.7;Tube(Node(-1,RailIndex,Low),Node(1,RailIndex,High),.27,2,1,false,TEXT("CoilPortalTube"));Tube(Node(1,RailIndex,Low),Node(-1,RailIndex,High),.27,2,1,false,TEXT("CoilPortalTube"));}
+        // Front/rear ties visible behind the principal side frame, not an
+        // invented full-height lattice of repeated small X members.
+        for(double Z:{6.5,17.5,26.4})Tube(Node(-1,RailIndex,Z),Node(1,RailIndex,Z),.42,2,1,false,TEXT("CoilPortalEndTie"));
     }
     for(double Sign:{-1.,1.})
     {
-        for(double Z:{6.,13.,20.})Tube(Node(Sign,0,Z),Node(Sign,1,Z),.36,2,1,false,TEXT("CoilPortalTube"));
-        for(double Z:{6.,13.})for(int End=0;End<2;++End)Tube((Node(Sign,0,Z)+Node(Sign,1,Z))*.5,Node(Sign,End,Z+6),.30,2,1,false,TEXT("CoilPortalTube"));
-        Beam(Node(Sign,0,26.4),Node(Sign,1,26.4),1.4,2,1,false);
+        for(double Z:CoilQuay::PortalTubeLevels)Tube(Node(Sign,0,Z),Node(Sign,1,Z),CoilQuay::PortalTubeDiameter,2,1,false,TEXT("CoilPortalHorizontal"));
+        Tube(Node(Sign,0,23.),Node(Sign,1,12.),.42,2,1,false,TEXT("CoilPortalDiagonal"));
+        Tube(Node(Sign,0,17.5),Node(Sign,1,6.5),.42,2,1,false,TEXT("CoilPortalDiagonal"));
+        Beam(Node(Sign,0,26.4),Node(Sign,1,26.4),1.4,2,1,false,TEXT("CoilPortalHeader"));
         const double GX=X+Sign*CoilQuay::TopHalfX;
         Part({GX,Center,Q+28},{1.3,Length,1.7},2,FRotator(0,0,0),1,nullptr,false);
         for(double DZ:{-.9,.9})Part({GX,Center,Q+28+DZ},{1.85,Length,.20},2,FRotator(0,0,0),1,nullptr,false,TEXT("CoilGirderFlange"));
@@ -126,7 +134,7 @@ void ACoilLoadingSimulation::BuildQuayPresentation()
         for(double Face:{-1.,1.}){const double WalkX=GX+Face*1.1;Part({WalkX,Center,Q+29.12},{.72,Length,.10},4,FRotator(0,0,0),1);Railing({WalkX+Face*.37,Land,Q+29.2},{WalkX+Face*.37,Sea,Q+29.2},1);}
         Part({GX,Center,Q+29.06},{.14,Length,.18},4,FRotator(0,0,0),1,nullptr,false,TEXT("CoilTrolleyRail"));
         // Ref1/ref4 upper-left slender stays; no cantilever lower knee struts.
-        const FVector Post=Node(Sign,0,28),Anchor=Post+(Post-Node(Sign,0,1.4)).GetSafeNormal()*6;
+        const FVector Post=Node(Sign,0,28),Anchor=Post+(Post-Node(Sign,0,CoilQuay::LegKneeZ)).GetSafeNormal()*6;
         Beam(Post,Anchor,.75,2,1,false,TEXT("CoilUpperStayPost"));Tube(Anchor,{GX,Sea,Q+28.9},.10,2,1,false,TEXT("CoilUpperStay"));
     }
     for(double Y:{Sea,Land}){Part({X,Y,Q+28},{2*CoilQuay::TopHalfX+1.8,.9,2.05},2,FRotator(0,0,0),1,nullptr,false,TEXT("CoilEndCarriage"));for(double DX:{-CoilQuay::TopHalfX,CoilQuay::TopHalfX})Part({X+DX,Y,Q+29.3},{.6,.4,.5},12,FRotator(0,0,0),1);}

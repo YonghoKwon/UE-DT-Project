@@ -5,6 +5,10 @@
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
 
+## COIL-01d — 주 다리·수평 강관·저각 비교
+
+#31d: 해측 주 다리2구간/상부20.1°, 굵은 수평 강관4단과 사진의 소수 대각재, 주 다리→붐 연결과 저각 카메라를 반영한다. [부재별 근거·후보·예비안](research/COIL-01d-basis.md), [결과](../Saved/Reports/COIL-01d/RESULT.md)를 따른다. 실제 구조 인증 각도는 미확인이고 반경·양정·적재 판정 기준은 유지한다. release/RT on ABAB2%/layer0/복원은 최종 result.json으로 보고한다.
+
 ## COIL-01c — 사진 비례·idle·흘수
 
 #31c: 기울어진 다리/상부 스테이·ref6 방향·대차/번호, 소유 부모 이동과 idle 변환0, SX/SY·lens offset/DPI/picking, 적재 질량/TPC 흘수/양정/자료 필요를 구현했다. [근거](research/COIL-01c-basis.md), [결과](../Saved/Reports/COIL-01c/RESULT.md)와 하네스 result.json을 따른다. 일정 TPC·합성 수선면은 실선 정수력 승인값이 아니다.
