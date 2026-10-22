@@ -1,0 +1,4 @@
+coil_id,od,inner_diameter,width,weight,type
+HR-EXAMPLE-01,1.600,0.762,1.250,0,HR
+CR-EXAMPLE-02,1.500,0.508,1.250,0,CR
+HR-EXAMPLE-03,1.600,0.762,1.250,14.8,HR

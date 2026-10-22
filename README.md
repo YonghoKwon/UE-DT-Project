@@ -18,6 +18,25 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### COIL-01 제품 부두 코일 선적
+
+사용자2026-10-22의 #31 및 중간 검수/HR·CR 추가 요청. 원료 `ShipHatch*`와 별도인 `/Game/MA0T10/Maps/Tests/CoilLoadingTestMap`을 열고 PIE를 시작한다. 장면은 해당 맵의 명시적 Actor가 실행 중에 구성한다. 기존 운영맵을 재생성하지 않는다. [수치 근거](docs/research/COIL-01-basis.md), [현재 검증·제한](Saved/Reports/COIL-01/RESULT.md), [기계 판독 결과](Saved/Reports/COIL-01/result.json)를 함께 따른다. 로컬 시뮬레이션이며 실선 적재/고박 승인이 아니다.
+
+- 기본은 근거 문서의 R-class 합성 예제(169.75×20.40m, 60.59×17.00×13.55m box hold 2개, UDL15t/m²)와 열연 OD1.600/ID0.762/폭1.250m, 밀도7.85·충전율0.97로 약14.797t다. 냉연 프리셋은 OD1.500/ID0.508/폭1.250m·충전율1로 약15.351t의 순강재다. 라벨 gross mass를 수동 입력하면 선박·크레인 하중에 우선 사용한다.
+- 왼쪽의 사양/단·열·번호를 입력하고 `사양·위치 적용` → `인양·놓기`를 누른다. 훅+슬링 기본/C-hook, 포털의 레일 이동·진자 표시, 하강 뒤 Chaos 정착 및 roll/pitch/CSS 등가가속도 운동 시험을 제공한다. `계획 배치`는 물리 확인 없이 계획만 추가한다. `한 단 추가`와 직접 단 입력에 3단 등의 고정 상한은 없으며 위반 시 배치를 보존하고 원인·수치를 표시한다. `되돌리기`는 최근64단계의 배치를 복원한다.
+- 상단은 **위험(확인된 기준 초과)·주의(여유/손상 검토)** 원인 수만 표시한다. **자료 필요**는 접힌 별도 영역이며 원인별 `N개 코일`로 묶는다. 행을 누르면 해당 코일을 표시한다. 위험0만으로 자료가 갖춰졌다는 뜻은 아니다. UDL의 승인 분산면적과 받침목 국부 접촉압을 구분하며, 쐐기/래싱 bool만으로 인증 내력을 만들지 않는다.
+- 전경/홀드 내부/단면/2D 상면/점군과 크레인·코일·창고 근접 구도를 제공한다. 내부 절개·점군 숨김은 플레이어 뷰에만 적용한다. 기본 eye는 선수미 +X 방향(CSS Annex6)이며 방위를 바꾸면 별도 확인이 필요하다. 측정은 기존 GPU LiDAR·immutable snapshot을 사용하고 CoilId 태그로 모은 점군의 원통 중심 편차와 표면 피팅 잔차를 구분한다. 관측점/방향이 부족하면 미관측으로 남긴다. 소유 센서만 기존 binary PCD/ConnectedNoLoss 기본 on을 사용하며 Broker receipt/소비자 ACK를 획득 성공과 혼동하지 않는다.
+- HR은 무포장 밀스케일·산화 얼룩·대표 lap/미세 텔레스코프·tail·밴드·ID 표찰, CR은 은회색 커버·VCI 가장자리·보호 링·밴드·라벨이다. 미세 디테일/표찰은 NoCollision이며 측정 외피만 포장 치수를 포함한다. CR의 방사1.5mm/측면당2mm는 **조절 가능한 합성 예제 입력**이고 제조사 공통 규격이 아니다. 포장 포함 계근 질량/포장 계면 마찰 인증값이 없으면 자료 필요로 남긴다. [HR/CR 비교](Saved/Reports/COIL-01/progress/coil-hr-vs-cr.png).
+- 목록 경로를 입력한 뒤 `CSV/JSON 목록`을 누른다. [CSV](docs/examples/coil-loading.csv) / [JSON](docs/examples/coil-loading.json) 예제를 제공한다. 길이는 m, 질량은 t, weight0은 밀도 계산이다. CSV는 `coil_id,od,inner_diameter,width,weight[,type]`이며 기존 `id,od,id,width,weight` 순서도 허용한다. JSON은 배열과 문자열 `id`/`coil_id`, 숫자 `inner_diameter`(또는 coil_id와 함께 숫자 id)를 사용한다. type은 HR/CR, 생략 시 HR이다. ID는 대소문자 중복 없이 고유해야 한다. CSV 인용 쉼표는 미지원이고 목록은16MiB/10000개 이하로 검증한다.
+- `JSON 저장`은 기존 비동기 FileSave 서비스에 요청 시점의 배치·사양·선박 설정을 저장하고 완료 후 경로를 자동 갱신한다(1MiB 한도). `계획 불러오기`는 그 경로를 사용한다. `슬롯 저장/불러오기`는 별도 `CoilLoading_v1` SaveGame을 사용한다. 물리 결과와 미배치 목록 큐는 계획 JSON의 영구 replay가 아니며 불러온 계획은 물리 재시험이 필요하다. 기존 개인 센서/Workspace 슬롯은 지우지 않는다.
+
+독립 리뷰 보정: 코일 간섭은 eye X/Y 축·끝면·내경을 포함한 유한 중공 원통으로 검사하고, 해치 외피도 방향에 따라 OD/폭을 교체한다. 구름은 `a_limit=(g-|az|)·b/r+F_cert/M`의 모멘트 평형으로 별도 판정한다. `b`는 입력한 구름 저항 팔(m)이며 기본0은 이상 강체 원통이다. 쐐기는 기본 on이고 인증 등가 수평 내력(고정·접촉 기하 포함) 미입력은 자료 필요다. 마찰계수를 구름 저항으로 대신하지 않는다. LCF(AP 기준 m) 확인과 MCT1cm가 있어야 `Σm·(홀드 AP 위치+local X-LCF)/MCT1cm`로 트림을 계산한다. 부두 간격·레일 후퇴·간격·방향은 장면과 반경 해석이 같은 입력을 사용한다.
+
+계획 파일 읽기·JSON 파싱은 작업 스레드에서, 슬롯은 `AsyncLoadGameFromSlot` 후 작업 스레드 파싱으로 처리한다. 장면 적용은 게임 스레드에서만 하며 취소·재요청·배치/설정 revision 변경·종료 뒤의 결과를 폐기한다. 잘못된 계획은 기존 배치를 보존하고 `coils[인덱스].필드` 오류를 표시한다. 추가 LCF/레일/구름 저항 필드가 없는 기존 v1 계획도 기본값과 미확인 상태로 읽는다.
+
+집중 검증은 `Scripts/verify.ps1 -Level feature -Tests MA0T10.CoilLoading -BaseCommit 0af7476`이며 실제 D3D12 RHI가 필요하다. 전체 release, RT on ABAB2%, 직접 마우스 수용, 회사/실선 수용은 결과에서 각각 구분한다. 새 자산은 이 테스트 맵과 `Content/MA0T10/Coil/Materials/M_CoilSurface.uasset` 두 개뿐이다. 생성 스크립트는 일반 검증 때 실행하지 않는다. 패키징 시 새 맵을 명시적으로 포함해야 하며 Shipping/실장비 수용을 로컬 테스트로 대신하지 않는다.
+
+
 PR69 검수 보정: 운전실 이동은 별도 pose revision으로 센서 분석을 갱신하며 화물 BVH/BLAS를 재생성하지 않는다. 디깅 위치 선택은 보이는 운전실도 통과하고 실제 측정 차폐는 유지한다. 센터링은 생성 종료 후 실행·실패 표시하며 구10/8m 기본값만 로그와 함께 이관한다. 좌우 센서는 캐빈 중심 기준 ±1.30m(1cm 허용)로 검사한다. [검증 이력](docs/VALIDATION_HISTORY.md)과 [최종 보고](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
 
 FOLLOWUP-30b: 탱크톱은 중성 회색 강판·녹/분진/마모로 표시하고 단면의0m 빗금·문구로 노출을 식별한다(모의 형상/실측 구분). 최종27장 장면+별도 송신 시연1장과4합본, [LiDAR 수치 표](Saved/Reports/FOLLOWUP-26-28/showcase/lidar-compare-table.png)를 제공한다. 5종 패널의 광선/hit/Hz/거리/FOV는 실제 immutable HWRT frame이며 원료65%·바닥잔량4.99%를 별도 측정한다. 커버리지는 전체 홀드1m목표격자 실제 관측 비율이다. 합본 참고 윤곽은 동일 카메라 투영이며 측정점이 아니다. 두 원료의 실제Z0 첫충돌·49/49 중성 강판 픽셀을 검사했다. 기존 45m선폭의 커버 돌출 회귀는22.2m 개구로 보정했고 기존 커버/정확도/체적/성능 기준을 유지한다. 최종 검증/제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
@@ -626,6 +645,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+COIL-01은 L2 `Scenario/CoilLoading*`의 SI 해석·맵 소유 실행과 L3 `UI/CoilLoading*`의 DTCore Widget/Host로 구성한다. L1은 표시 전용 GameplayDebugger proxy의 GPU snapshot 제외와 기존 semantic ID2~6을 보존한 Coil ID7 추가만 포함한다. 새 UE 모듈/플러그인·DTCore 수정 없이 layer/allowlist **0→0**을 유지한다. 측정/표시 세부 형상과 계획 파일 저장의 비동기 FileSave 경계를 구분한다.
 
 FOLLOWUP-29는 기존 L2 높이장/표시 재질과 L3 해치 소유 카메라 노출만 바꾼다. 기존 M_HatchCargo 한 자산을 재사용하며 새 모듈·플러그인·측정 capture·광학 계약·저장 형식 없이 layer 위반·allowlist **0→0**이다.
 

@@ -1,0 +1,5 @@
+[
+  {"coil_id":"HR-EXAMPLE-01","type":"HR","od":1.6,"inner_diameter":0.762,"width":1.25,"weight":0},
+  {"coil_id":"CR-EXAMPLE-02","type":"CR","od":1.5,"inner_diameter":0.508,"width":1.25,"weight":0,"package_radial_m":0.0015,"package_end_m":0.002},
+  {"coil_id":"HR-EXAMPLE-03","type":"HR","od":1.6,"inner_diameter":0.762,"width":1.25,"weight":14.8}
+]
