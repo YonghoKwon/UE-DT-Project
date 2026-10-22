@@ -53,7 +53,7 @@ public:
             {Workspace->SetPanelOpen(Role,true);Test->TestNull(TEXT("direct/back/preflight navigation cannot create Slab UI"),Workspace->GetOwnedPanel(Role));}
             Test->TestFalse(TEXT("replay lazy factory is also blocked"),Workspace->EnsureOwnedReplayPanel());
             if(auto* Toolbar=Cast<USensorToolToolbarWidget>(Workspace->GetOwnedNavigation()))
-            {Test->TestFalse(TEXT("scenario button cannot open Slab"),Toolbar->OpenOwnedDestination(ESensorToolDestination::Scenario));Test->TestFalse(TEXT("charts button cannot open Slab"),Toolbar->OpenOwnedDestination(ESensorToolDestination::ScenarioCharts));}
+            {Toolbar->TakeWidget()->SlatePrepass(1);Test->TestTrue(TEXT("Slab progress/meandering summary is collapsed in coil tools"),Toolbar->GetSlabSummaryCard()&&Toolbar->GetSlabSummaryCard()->GetVisibility()==EVisibility::Collapsed);Test->TestFalse(TEXT("scenario button cannot open Slab"),Toolbar->OpenOwnedDestination(ESensorToolDestination::Scenario));Test->TestFalse(TEXT("charts button cannot open Slab"),Toolbar->OpenOwnedDestination(ESensorToolDestination::ScenarioCharts));}
             int32 SlabHosts=0;for(TActorIterator<ASlabSimulationUiHostActor> I(C.World());I;++I)++SlabHosts;for(TActorIterator<ASlabScenarioReplayUiHostActor> I(C.World());I;++I)++SlabHosts;
             Test->TestEqual(TEXT("blocked buttons do not spawn Slab hosts"),SlabHosts,0);return true;
         }

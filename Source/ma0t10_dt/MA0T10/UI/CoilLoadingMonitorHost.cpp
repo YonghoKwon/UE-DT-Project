@@ -102,7 +102,7 @@ void ACoilLoadingMonitorHost::Focus(int32 P)
     if(P==0){Position={45,Simulation->QuayOffset(23),Simulation->QuayZ()+1.8};Target={-8,Simulation->Settings.RailCenterY(),Simulation->QuayZ()+17.5};ViewCamera->GetCameraComponent()->SetFieldOfView(72);}
     else if(P==1)
     {
-        Position={-Simulation->Settings.HoldLength*.5-4,-Simulation->Settings.HoldWidth*.5-2.5,6};Target={-Simulation->Settings.HoldLength*.5+1.45,-Simulation->Settings.HoldWidth*.5+2.9,1.5};
+        Target=Simulation->PreviewPlacement().Center;if(!Simulation->Plan().IsEmpty()){const auto& Selected=Simulation->HighlightedCoils();Target=Simulation->Plan()[Selected.Num()==1&&Simulation->Plan().IsValidIndex(Selected[0])?Selected[0]:0].Center;}Position=Target+FVector(-4.655,-2.8,2.7);
         if(auto* PC=GetWorld()->GetFirstPlayerController())
         {TInlineComponentArray<UPrimitiveComponent*> Cs(Simulation);for(auto* C:Cs)if(Simulation->GetActorTransform().InverseTransformPosition(C->Bounds.Origin).X*.01< -Simulation->Settings.HoldLength*.5-.01&&!PC->HiddenPrimitiveComponents.Contains(C)){PC->HiddenPrimitiveComponents.Add(C);HiddenByView.Add(C);}}
     }
