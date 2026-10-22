@@ -18,25 +18,27 @@
 
 ## 1. 현재 상태 한눈에 보기
 
-### FOLLOWUP-28-26 최종 검증 — RSS 차단
+### FOLLOWUP-28-26 — 기본80 MiB/s·RSS 후속 #26b 수용
 
-코드67f1a91에서 수행한 기본Rev7×3/90초 localhost 재검증은16.741/16.730/16.730Hz·편차0.011Hz로 각10Hz·공정성 기준을 통과했다. Game Development·WBP7 메모리컴파일/저장0·현재어휘·layer0→0·DTCore guard를 확인했다. be29ab4 대비 RT on 표준ABAB12회는FPS59.9870→59.9738(저하0.0221%),engine p95 동일16.6669ms,GT7.0021→7.1051ms(+1.4715%)로2% PASS다.
+기본 Ouster OS1-64 Rev7×3의 PCD 송신 예산을 사용자 승인(2026-10-23)으로64→80 MiB/s로 올렸다. 실측 필요량 약75.9 MiB/s가 근거이며 기존 지정값을 덮어쓰는 migration/Load/ini/SaveGame 변경은 없다. 기본값·UI·진단은 공통 상수를 사용하고, 직렬화된64 MiB/s 지정값 보존 회귀를 통과했다. 90초 localhost 외부수신은19.695/19.684/19.672Hz, 편차0.022Hz로 각19Hz 목표를 만족했다. 필요75.942/예산80 MiB/s, 필요>예산 경고·송신 생략·외부 오류·150ms 초과0, 표시형 D3D12/RT on 59.097FPS다. 관련 그룹84 Success/6조건부skip/0Fail 및 직접UI4항목을 확인했다. [측정·한계](Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md).
 
-**종합 머지 gate는 #26 RSS 실패로 차단이다.** 코일 밝기 검사는 테스트 초기화를 수정해 해소했다. `be29ab4` 단독·COIL 묶음에서도 기존 실패가 재현됐으며, 원인은 `3bf72a7`의 기본 열 방향 변경을 테스트가 상속해 장면과 카메라가 10.7m 이동한 것이다. PRES-01의 원래 진행 방향을 테스트에 명시한 뒤 1280×720 D3D12 단독 1 Success·COIL 42 Success/0 Fail, 근흑색 23.3872%/23.9010%다. 제품 기본값·조명·노출·카메라 공식·30% 임계값은 유지했다. 테스트 전용 수정이므로 승인된 집중 회귀로 검증했고, 전체 release는 재실행하지 않았다. 이전 전체 391 Success/40조건부skip/1Fail 원본은 보존한다. [원인·검증](Saved/Reports/FOLLOWUP-28-26/r3/CAUSE.md)·[결과](Saved/Reports/FOLLOWUP-28-26/result.json)·[머지검사](Saved/Reports/FOLLOWUP-28-26/merge-check.json)·[RSS](Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md). 회사/실장비 수용과 구분한다.
+현재80MiB/s 구현 f2b9526의 표준 RT on ABAB도 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.991854→59.989020(저하0.004725%), engine p9516.666900→16.666900ms(+0.000000%), GT6.863771→6.873585ms(+0.142974%)로 각각2% 이내다. 이 표준1+1 workload와 기본3대 PCD90초 절대수치는 구분한다. [manifest](Saved/Reports/verify/20261022T210412625Z/manifest.json).
+
+RSS는 **user accepted unresolved RSS (2026-10-23)** 결정에 따라 미해결 후속 **#26b**로 이관한다. 원래 GPU5쌍의 절대·차이8MiB FAIL과 조사 한계는 보존하며 측정 통과로 바꾸지 않는다. 현재 머지 범위에서 수용한 미해결 사항으로 기록하고 Claude의 독립 검수로 진행한다. 코일 밝기 fixture 수정은 유지했다. [결과](Saved/Reports/FOLLOWUP-28-26/result.json)·[머지검사](Saved/Reports/FOLLOWUP-28-26/merge-check.json)·[RSS 원문](Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md). 회사/실장비 수용과 구분한다.
 
 ### FOLLOWUP-28-26 코일 자동화 보고 경로
 
 Acceptance/Variants/Presentation 테스트의 공통 루트는 `Saved/Reports/COIL`이며 `-CoilReport=<루트>`로 한 번에 지정한다. acceptance·variants 하위 폴더와 공통 progress·presentation.json을 같은 루트에 둔다. Presentation의 이전 `-CoilPhotoReport`도 이 옵션으로 통합했다. 제품 저장 슬롯과 데이터 형식은 바꾸지 않는다. 세 계열 실제 RHI 테스트와 지정루트53개 산출물을 확인했다. [경로 검증](Saved/Reports/FOLLOWUP-28-26/r2/coil-path-override/paths-verified.json).
 
-### FOLLOWUP-26 해치 RSS 재검증 — 미해결
+### FOLLOWUP-26b 해치 RSS — 사용자 수용한 미해결 후속
 
-기본 Rev7×3·GPU/RT on·35초 준비/90초·50회−0회 교차5쌍에서 원래 절대8MiB 및 별도차이8MiB가 모두 종합FAIL이다. 절대3쌍/차이2쌍 실패,디깅 RSS 중앙값+10.43MiB,최대 raw차이+17.67MiB다. CPU·LLM·Binned2 진단은 별도 표로 구분한다. 두 할당 재사용 후보는 RSS 개선을 입증하지 못해 원복했다. 약90분 조사에서 완전 귀속·검증된 수정안을 확보하지 못했으며 기준/횟수/기본allocator는 유지한다. [증거·한계](Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md). release/perf 통과로 이 실패를 덮지 않는다.
+사용자는2026-10-23에 미해결 RSS를 수용하고 머지 진행을 승인했다. 기본 Rev7×3·GPU/RT on·35초 준비/90초·50회−0회 교차5쌍의 원래 절대8MiB 및 별도차이8MiB는 FAIL이다. 절대3쌍/차이2쌍 실패, 디깅RSS 중앙값+10.43MiB/최대raw차이+17.67MiB다. 약90분 조사에서 두 할당 재사용 후보는 개선을 입증하지 못해 원복했으며 완전 귀속·검증된 수정안은 미확보다. #26b는 같은 기준·횟수·기본 allocator로 원인을 추적하는 후속이며 완료로 표시하지 않는다. [증거·한계](Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md).
 
 ### FOLLOWUP-28 PCD 송신 예산·공정성
 
-기본 Ouster OS1-64 Rev7 3대(1024×64·20Hz 요청)에 센서별 토큰 버킷과 프레임 크기를 반영한 균등 Hz 상한을 적용한다. 기본64MiB/s·PCD33-byte·승인FIFO·기본출력은 유지한다. `데이터 → 전송 → 고급 → PCD 예산`에서 현재 세션 예산을 바꾸며, 필요/예산 MiB/s와 최근 약1초의 실제 송신Hz를 표시한다. 저장 형식은 바꾸지 않는다.
+기본 Ouster OS1-64 Rev7 3대(1024×64·20Hz 요청)에 센서별 토큰 버킷과 프레임 크기를 반영한 균등 Hz 상한을 적용한다. 기본 송신 예산은80MiB/s(사용자 승인2026-10-23)이며 PCD33-byte·승인FIFO·기본출력과 전역128MiB/스트림64MiB 예약 상한은 유지한다. `데이터 → 전송 → 고급 → PCD 예산`에서 현재 세션 예산을 바꾸며, 필요/예산 MiB/s와 최근 약1초의 실제 송신Hz를 표시한다. 저장 형식은 바꾸지 않는다.
 
-be29ab4 대비 기본Rev7×3/1920×1080/실제D3D12·RT on/90초 localhost 외부수신은19.799/13.255/19.221→16.788/16.788/16.788Hz,편차6.544→0Hz다. 필요75.946/실제63.731MiB/s. 기준선의 기존 획득20Hz assertion2건 실패는 보존하고 후보는 동일 assertion까지 통과했다. [측정·제한](Saved/Reports/FOLLOWUP-28-26/r2/PCD-28.md)·[직접UI](Saved/Reports/FOLLOWUP-28-26/r2/manual/CHECKLIST.md). #26 RSS는 미해결 실패이며 최종release/RT on ABAB는 별도 검증이다.
+기본80MiB/s/90초/1920×1080 표시형 실제D3D12·RT on·자격증명 없는localhost 수신은19.695/19.684/19.672Hz(편차0.022), 필요75.942MiB/s, 실제74.718MiB/s다. 정확한 벽시계20.000Hz 보장과 구분한다. 최초 오프스크린 실행도 각19Hz 송신 목표를 만족했으나 기존 엔진3프레임당 획득 assertion3건이 실패했고, 표시형은 같은 assertion까지통과했다. 두 원본과 환경을 [측정표](Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md)에 남긴다. 과거64MiB/s 비교는 [이전 기록](Saved/Reports/FOLLOWUP-28-26/r2/PCD-28.md)이다. 전체 반환점65,536×33B×20Hz×3의 최악가정123.75MiB/s+헤더는80MiB/s를 넘으므로 이번 기본맵의 실측 필요량과 구분한다.
 
 ### HATCH-07 / COIL-02 현장 보기·배치 흐름
 

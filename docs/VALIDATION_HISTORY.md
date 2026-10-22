@@ -584,3 +584,17 @@ CoilLoadingAcceptanceTests/VariantsTests/PresentationTests의 기본 작업ID �
 테스트 PIE 인스턴스에 원래 aft-to-fore 방향을 명시하고 target X=−5.35m assertion 및 방향 JSON 필드를 추가했다. `be29ab4` Source에서 이 테스트 파일만 수정한 대조는23.3472222%·1 Success다. 현재 소스 재빌드 후 D3D12/프로젝트RT on/오프스크린1280×720 단독1 Success·23.3871528%, COIL 묶음42 Success/0 Fail·23.9010417%를 확인했다. 17개 코일·후크·녹색 목표·동일 계획 검사를 유지했다. 제품 기본 방향/조명/노출/FOV/카메라 공식/샘플링/30% 임계값 변경0이다. [원인 분리](../Saved/Reports/FOLLOWUP-28-26/r3/CAUSE.md)·[집중 회귀](../Saved/Reports/FOLLOWUP-28-26/r3/repair-manifest.json).
 
 기준 소스에서 후보로 돌아온 첫 빌드는 이전 UHT 생성 헤더로 C4430이 발생했으며, 소스 hash 일치를 확인한 뒤 `-ForceHeaderGeneration`으로 정상 빌드했다. 실패 원문을 보존했다. 테스트 전용 변경이므로 사용자 지시대로 집중 회귀+quick으로 검증하고 전체 release/Game/perf는 재실행하지 않았다. 이전 전체432개 결과와 RT on ABAB PASS 증거는 보존한다. 개인 설정은 이번 실행 직전 새43파일 백업만 복원한다. #26 RSS 실패·기준·횟수·수치는 변경하지 않는다.
+
+
+## 2026-10-23 — FOLLOWUP-28-26 사용자 결정: PCD80·RSS #26b
+
+구현 f2b9526/DTCore b2504d1. 사용자 승인으로 PCD 기본 송신 예산64→80MiB/s를 공통 L0 상수에 두고 publisher/preflight/status/UI 기본 표시를 맞췄다. 실측 필요량 약75.9MiB/s가 근거다. migration·PostLoad 강제대입·ini/SaveGame 형식 변경·자산 저장은 없다. FObjectWriter/Reader로 직렬화된 사용자64MiB/s 지정값을80 기본 인스턴스에 복원한 뒤 stream 재구성 후에도64를 유지하는 회귀를 추가했다. 기존64MiB/s 공정성/최악점수 검사는 명시적 저예산 fixture로 유지한다.
+
+기본 Rev7×3/1024×64/요청20Hz/실제HWRT/프로젝트RT on/1920×1080 표시형 D3D12/준비10초+90초/localhost 무자격 STOMP receipt+echo: 외부19.695/19.684/19.672Hz, 편차0.022216Hz, 필요75.941849/실제74.718458MiB/s. 경고5Hz 표본0·송신 생략0·외부 gap/invalid/duplicate0·encode/overload/delivery0·engine/callback150ms 초과0이다. 평균59.096662FPS, framep95 18.253002ms, GT 12.068335ms. 첫 오프스크린은19.820/19.809/19.786Hz·경고/생략/150ms0이지만 기존3프레임 획득assertion3건 FAIL이다. 표시형에서는 기준을 바꾸지 않고 동일assertion까지 Success다. 두 조건의 전체 원문은 [비교표](../Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md)로 보존한다.
+
+집중 SensorStream·SensorReceiver·PCD pose·preflight·COIL은84 Success/6조건부skip/0Fail(코일42포함)이다. 표시형/오프스크린 판별 보고 필드만 마지막에 수정했으며 집중 그룹이 실행하는 제품/테스트 코드는 동일하다. 직접 UI는 별도 단일MLX fixture/1920×1080/DPI1/font100%에서 기본80 입력·툴팁·진단,64 지정 유지,80 복원을 확인했다. 신규84Success와 조건부skip6·로컬/현장 범위를 구분한다. 사용자 지시대로 전체 release 대신 관련 그룹을 재실행했다. [UI](../Saved/Reports/FOLLOWUP-28-26/r4/manual/CHECKLIST.md).
+
+RSS는 **user accepted unresolved RSS (2026-10-23)**로 #26b에 이관하고 머지 진행을 수용했다. 원래 절대·차이8MiB,50회−0회/5쌍·실패 수치와 원문을 유지한다. memory PASS로 바꾸지 않는다. result의 현재 feature gate는80MiB/s 변경 범위를 판정하며 RSS는 수용한 미해결 이력/INFO로 분리하고 원래 FAIL/threshold를 별도 원문에 보존한다. 이번 r4의 새43파일 백업을 복원했고 보호297해시는 불변이다. [결과](../Saved/Reports/FOLLOWUP-28-26/result.json).
+
+
+현재80MiB/s 구현 f2b9526의 표준 RT on ABAB도 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.991854→59.989020(저하0.004725%), engine p9516.666900→16.666900ms(+0.000000%), GT6.863771→6.873585ms(+0.142974%)로 각각2% 이내다. 이 표준1+1 workload와 기본3대 PCD90초 절대수치는 구분한다. [실행 manifest](../Saved/Reports/verify/20261022T210412625Z/manifest.json)·[ABAB 원시표](../Saved/Reports/verify/20261022T210412625Z/perf/manifest.json). 모든12회 valid, 동일 instrument/map/의존성, 다른Editor0이다. 이후 결과 문서만 커밋하며 구현 소스는 f2b9526과 동일하다.
