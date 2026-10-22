@@ -612,3 +612,17 @@ RSS는 **user accepted unresolved RSS (2026-10-23)**로 #26b에 이관하고 머
 
 
 리뷰 구현4c24907의 새 표준 RT on ABAB 판정은 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.977644→59.990261(개선0.021035%), enginep9516.666900→16.666900ms(+0.000000%), GT7.009674→6.964796ms(-0.640233%)다. 이1+1 표준 상대비교는 별도3-PCD90초의≥59FPS/cadence FAIL을 대체하지 않는다. [manifest](../Saved/Reports/verify/20261022T215939434Z/manifest.json)·[12회 원시표](../Saved/Reports/verify/20261022T215939434Z/perf/manifest.json). 모든12회 valid, 동일instrument/map/의존성, 다른Editor0. 이후 문서만 커밋하며 구현 소스는4c24907과 동일하다.
+
+## 2026-10-23 — FOLLOWUP-28-26 90초 실패 교차 판별: 환경 요인 분기로 종료
+
+실행 HEADaaa2284→수정 전3229bee 전체Source snapshot→HEADaaa2284, 동일조건1920×1080표시형/D3D12·HWRT·프로젝트RT on/기본Rev7×3·1024×64·20Hz요청/기본80MiB/s/준비10초+90초/무자격localhost receipt+echo를 수행했다. Source 대입마다 Development 재빌드exit0, 전체 Source 해시는 각ref git blob과 일치(개행만 정규화), HEAD A/B·최종Source 바이트동일. gitHEAD/index/브랜치는바꾸지않았고 사용자 dirty 자산/config는고정했다.
+
+| 순서 | FPS(≥59) | p95 ms | GT ms | 외부 Hz(boom/cabin01/cabin02) | 편차 Hz |
+|---|---:|---:|---:|---|---:|
+| HEAD A | 58.623682 | 19.410800 | 12.358084 | 19.474855/19.463745/19.452636 | 0.022219 |
+| 3229bee Source | 57.603361 | 20.863999 | 13.092464 | 19.128461/19.117352/19.072919 | 0.055541 |
+| HEAD B | 57.359583 | 21.450099 | 12.993610 | 19.054291/19.043181/19.020960 | 0.033331 |
+
+세 실행 모두 기존≥59FPS 미달이며 각1test에 FPS3건+3frame 획득cadence3건의 assertion FAIL(합계3test/18assertion)이다. 각 스트림≥19Hz, 예산 경고/송신생략/overload/교체/외부오류/engine·callback150ms 초과0. 최초r5 58.132591FPS 실패와 이전r4 통과는원문그대로보존했다. 사용자지시의 “둘다<59면환경요인,기록하고멈춤” 분기로종료한다. HEAD만의회귀패턴은확인되지않았으며 특정프로세스인과관계·작은회귀부재까지증명하지않는다. 소스수정/임계값변경/추가측정/프로파일은수행하지않았다.
+
+실행전후총6회프로세스/GPU읽기전용기록: INNORIX·OneDrive CPU활동반복, Rider/브라우저/Claude 순간활동관찰, NVIDIA스냅샷GPU1~3%/43~46°C/다른Editor0. 측정구간밖순간값이며특정원인으로단정하지않는다. 이번r6새개인43파일복원·보호297해시불변. 기존1+1 RTonABAB PASS·quick/layer0→0/guard 이력유지, feature/release통합FAIL유지, 전체release추가실행없음. RSS는user accepted unresolved RSS (2026-10-23),#26b 및원래8MiB/5쌍FAIL유지. [교차판별·호스트표](../Saved/Reports/FOLLOWUP-28-26/r6/CROSS-90.md)·[manifest](../Saved/Reports/FOLLOWUP-28-26/r6/cross-manifest.json)·[Source감사](../Saved/Reports/FOLLOWUP-28-26/r6/source-audit.json). 문서만커밋하고종료한다.
