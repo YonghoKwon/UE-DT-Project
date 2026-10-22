@@ -539,7 +539,7 @@ bool UShipHatchMonitorWidget::ExecuteDigRay(FVector O,FVector D)
     if(!Simulation->PickCargo(O,D,Hit))return false;
     if(Animate&&(!Simulation->IsGrabPoseSafe(Hit+FVector(0,0,4.1))||!Simulation->BeginGrabWork()))return false;
     if(!Simulation->Dig(O,D,RadiusMeters,DepthMeters)){Simulation->EndGrabWork();return false;}
-    bFeedbackOwnsGrabWork=Animate;FeedbackCenter=Hit;FeedbackRevision=Simulation->Revision();const double Now=FPlatformTime::Seconds();
+    bFeedbackGrabParked=false;bFeedbackOwnsGrabWork=Animate;FeedbackCenter=Hit;FeedbackRevision=Simulation->Revision();const double Now=FPlatformTime::Seconds();
     FeedbackUntil=Animate?Now+1.2:0;DischargeUntil=Animate?Now+5.2:0;bOverlayDirty=true;return true;
 }
 FReply UShipHatchMonitorWidget::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)

@@ -224,7 +224,7 @@ private:
     uint64 FeedbackRevision=0;
     TWeakObjectPtr<UPrimitiveComponent> FeedbackGrabHidden;
     bool bFeedbackOwnsGrabHide=false;
-    bool bFeedbackOwnsGrabPose=false,bFeedbackOwnsGrabWork=false;
+    bool bFeedbackOwnsGrabPose=false,bFeedbackOwnsGrabWork=false,bFeedbackGrabParked=false;
     bool bPendingCabDig=false;
     FVector PendingDigOrigin,PendingDigDirection;
     uint32 PendingDigCargoHash=0;

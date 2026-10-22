@@ -114,6 +114,21 @@ struct FHatchFeedbackProbe
     }
     static void FloorView(UShipHatchMonitorWidget& M,int32 State)
     {M.bSensorColors=false;M.SelectColor(1);M.SelectView(State==0?0:State==1?1:4);}
+    static void DischargeWait(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
+    {
+        auto& S=*M.Simulation;PrepareGrab(M);
+        T.TestTrue(TEXT("first explicit dig starts a cycle"),Grab(M,T));
+        M.LastOverlayUpdate=0;M.UpdateOverlay();
+        M.FeedbackUntil=0;M.DischargeUntil=FPlatformTime::Seconds()-1;M.LastOverlayUpdate=0;M.UpdateOverlay();
+        const FVector Wait(0,S.HopperCenterY(),FMath::Max(S.HopperRimZ()+4,S.HoldDepth+9));
+        T.TestTrue(TEXT("completed discharge parks open grab above hopper"),M.bFeedbackGrabParked&&S.bGrabPoseOverride&&S.GrabLipPose.Equals(Wait,.001)&&S.GrabOpenFraction==1);
+        const auto Hash=S.Surface().Hash();
+        for(int32 I=0;I<10;++I){M.LastOverlayUpdate=0;M.UpdateOverlay();}
+        T.TestTrue(TEXT("refresh without click keeps hopper pose and does not dig"),S.GrabLipPose.Equals(Wait,.001)&&S.Surface().Hash()==Hash&&!S.IsGrabWorkActive());
+        T.TestTrue(TEXT("next explicit click starts next cycle"),Grab(M,T));
+        T.TestTrue(TEXT("next cycle owns grab work and leaves parked state"),S.IsGrabWorkActive()&&!M.bFeedbackGrabParked);
+        M.RestoreFeedbackGrab();T.TestFalse(TEXT("cancellation releases owned pose"),S.bGrabPoseOverride);
+    }
     static void FloorMeasurements(FAutomationTestBase& T,AShipHatchSimulation& S)
     {
         int32 Floor=0,FalseCargo=0;const auto& Surface=S.Surface();
@@ -245,8 +260,25 @@ public:
 private:
     FAutomationTestBase* Test;double Start=FPlatformTime::Seconds();bool Began=false;TWeakObjectPtr<UTextBlock> Generated;TWeakPtr<SWidget> Native;
 };
+class FHatchDischargeWaitCommand final:public IAutomationLatentCommand
+{
+    FAutomationTestBase* Test;double Start=FPlatformTime::Seconds();
+public:
+    explicit FHatchDischargeWaitCommand(FAutomationTestBase* T):Test(T){}
+    bool Update() override
+    {
+        if(FPlatformTime::Seconds()-Start>45){Test->AddError(TEXT("discharge wait fixture timeout"));return true;}
+        for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE&&FinalAcceptanceViewportReady(C.World()))
+            for(TActorIterator<AShipHatchMonitorHost> H(C.World());H;++H)if(H->Monitor&&H->Monitor->GetAnalysis())
+            {FHatchFeedbackProbe::DischargeWait(*Test,*H->Monitor);return true;}
+        return false;
+    }
+};
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchComboLifetimeRhi,"MA0T10.Hatch.GeneratedComboLifetimeRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FHatchComboLifetimeRhi::RunTest(const FString&)
 {if(GUsingNullRHI){AddInfo(TEXT("[OPT-IN SKIP] rendered combo lifetime requires RHI"));return true;}if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchComboLifetimeCommand(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchDischargeWaitRhi,"MA0T10.Hatch.DischargeWaitForClickRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FHatchDischargeWaitRhi::RunTest(const FString&)
+{if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchDischargeWaitCommand(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
 #endif

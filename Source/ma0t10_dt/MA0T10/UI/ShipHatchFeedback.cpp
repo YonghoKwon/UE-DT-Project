@@ -60,7 +60,7 @@ void UShipHatchMonitorWidget::FocusAt(FVector2D XY)
     Focus=FVector2D(FMath::Clamp(XY.X,-Simulation->HoldLength*.5,Simulation->HoldLength*.5),FMath::Clamp(XY.Y,-Simulation->HoldWidth*.5,Simulation->HoldWidth*.5));UpdateCamera();
 }
 void UShipHatchMonitorWidget::RestoreFeedbackGrab()
-{bPendingCabDig=false;if(Simulation.IsValid()&&bFeedbackOwnsGrabWork)Simulation->EndGrabWork();bFeedbackOwnsGrabWork=false;if(auto* PC=GetOwningPlayer())if(bFeedbackOwnsGrabHide)PC->HiddenPrimitiveComponents.RemoveSingle(FeedbackGrabHidden);FeedbackGrabHidden.Reset();bFeedbackOwnsGrabHide=false;if(Simulation.IsValid()&&bFeedbackOwnsGrabPose)Simulation->ResetGrabPose();bFeedbackOwnsGrabPose=false;}
+{bPendingCabDig=false;bFeedbackGrabParked=false;if(Simulation.IsValid()&&bFeedbackOwnsGrabWork)Simulation->EndGrabWork();bFeedbackOwnsGrabWork=false;if(auto* PC=GetOwningPlayer())if(bFeedbackOwnsGrabHide)PC->HiddenPrimitiveComponents.RemoveSingle(FeedbackGrabHidden);FeedbackGrabHidden.Reset();bFeedbackOwnsGrabHide=false;if(Simulation.IsValid()&&bFeedbackOwnsGrabPose)Simulation->ResetGrabPose();bFeedbackOwnsGrabPose=false;}
 void UShipHatchMonitorWidget::UpdateOverlay()
 {
     const auto* S=GetSurface();if(!S||S->Heights.IsEmpty()||!Host.IsValid())return;
@@ -71,10 +71,21 @@ void UShipHatchMonitorWidget::UpdateOverlay()
         else {bPendingCabDig=false;TGuardValue<double> Radius(RadiusMeters,PendingDigRadius),Depth(DepthMeters,PendingDigDepth);ExecuteDigRay(PendingDigOrigin,PendingDigDirection);}
     }
     const double Clock=FPlatformTime::Seconds();
-    if(!Simulation->IsGrabVisible()){FeedbackUntil=DischargeUntil=0;}
-    if(Simulation->Revision()!=FeedbackRevision){FeedbackUntil=DischargeUntil=0;}
+    if(!Simulation->IsGrabVisible()){FeedbackUntil=DischargeUntil=0;if(bFeedbackGrabParked)RestoreFeedbackGrab();}
+    if(Simulation->Revision()!=FeedbackRevision){FeedbackUntil=DischargeUntil=0;if(bFeedbackGrabParked)RestoreFeedbackGrab();}
     const bool Feedback=FeedbackUntil>Clock,Carry=DischargeUntil>Clock,Running=Feedback||Carry;
-    if(!Running)RestoreFeedbackGrab();
+    if(!Running&&!bFeedbackGrabParked)
+    {
+        // Completing a discharge is a wait state. Only a new dig command starts
+        // another cycle; cancellation/destruction still restores owned state.
+        if(DischargeUntil>0&&bFeedbackOwnsGrabPose&&Simulation->IsGrabVisible())
+        {
+            const FVector Wait(0,Simulation->HopperCenterY(),FMath::Max(Simulation->HopperRimZ()+4,Simulation->HoldDepth+9));
+            bFeedbackGrabParked=Simulation->TrySetGrabPose(Wait,1);
+            if(bFeedbackGrabParked){Simulation->EndGrabWork();bFeedbackOwnsGrabWork=false;FeedbackUntil=DischargeUntil=0;}
+        }
+        if(!bFeedbackGrabParked)RestoreFeedbackGrab();
+    }
     if(!IsVisible()||!(bSplit||ActiveView<2))return;
     if(!bOverlayDirty&&!Running&&!bHadFeedback)return;bOverlayDirty=false;bHadFeedback=Running;
     const double Now=FPlatformTime::Seconds();if(Now-LastOverlayUpdate<.2){bOverlayDirty=true;return;}LastOverlayUpdate=Now;
