@@ -137,7 +137,7 @@ public:
     bool IsGrabWorkActive() const { return bGrabWorkActive; }
     UPrimitiveComponent* CabPrimitive() const;
     bool bCabRight=true;
-    int32 FieldProfiles[3]={6,1,1}; // User2026-10-21: boom XT32, cab pair Mid-360S; site hardware unconfirmed.
+    int32 FieldProfiles[3]={8,8,8}; // User2026-10-22: OS1-64 Rev7, 1024x20Hz; actual site revision unconfirmed.
     FVector SensorOffsets[3]={FVector::ZeroVector,FVector::ZeroVector,FVector::ZeroVector};
     double SensorTiltTrim[3]={0,0,0},SensorYaw[3]={0,0,0};
     double GrabAspect=1.4;

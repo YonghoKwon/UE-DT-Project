@@ -82,7 +82,7 @@ bool AShipHatchSimulation::VisibleFromSensor(int32 I,FVector Target) const
 }
 void AShipHatchSimulation::SetFieldSensor(int32 I,bool Enabled,int32 Profile)
 {
-    if(I<0||I>2||bGenerating)return;bFieldLayout=true;FieldProfiles[I]=FMath::Clamp(Profile,0,7);
+    if(I<0||I>2||bGenerating)return;bFieldLayout=true;FieldProfiles[I]=FMath::Clamp(Profile,0,8);
     if(I==0)bMLX=Enabled;else if(I==1)bLivox=Enabled;else bCabRight=Enabled;
     ConfigureSensors();++SurfaceRevision;OnSurfaceChanged.Broadcast();
 }

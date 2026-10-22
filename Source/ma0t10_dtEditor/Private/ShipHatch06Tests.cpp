@@ -126,7 +126,7 @@ struct FHatch06Probe
  }
  static void Scale(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
  {
-  auto& S=*M.Simulation;T.TestEqual(TEXT("user2026-10-21 default boom is XT32"),S.SensorAt(0)->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::HesaiXT32);for(int I=1;I<3;++I)T.TestEqual(TEXT("cab defaults remain Mid360S"),S.SensorAt(I)->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::LivoxMid360S);FString Error;T.TestTrue(TEXT("live vessel and rig dimensions satisfy real-scale ranges"),S.ValidateSceneScale(Error));
+  auto& S=*M.Simulation;T.TestEqual(TEXT("user2026-10-22 default boom is OS1-64 Rev7"),S.SensorAt(0)->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);for(int I=1;I<3;++I)T.TestEqual(TEXT("cab defaults are OS1-64 Rev7"),S.SensorAt(I)->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);FString Error;T.TestTrue(TEXT("live vessel and rig dimensions satisfy real-scale ranges"),S.ValidateSceneScale(Error));
   T.TestTrue(TEXT("rail is on land side of quay edge; boom reaches into vessel"),S.SeaRailY()<S.QuayEdgeY()&&S.QuayEdgeY()<-S.VesselBeam*.5&&S.BoomTipY()>0&&S.BoomTipY()<S.VesselBeam*.5);
   T.TestTrue(TEXT("tank top is reachable within reference25m hoist below rail"),S.QuayZ()>0&&S.QuayZ()<25);
   T.TestTrue(TEXT("hopper near face is attached to sea portal, not isolated at rail midpoint"),FMath::Abs(S.HopperCenterY()+4.8-S.SeaRailY())<.001&&S.HopperCenterY()>S.SeaRailY()-S.RailSpan*.5&&S.HopperRimZ()<S.HoldDepth+S.BoomHeight);
@@ -177,7 +177,7 @@ class FHatch06Run:public IAutomationLatentCommand
  }
  void DefaultEvidence(const AShipHatchSimulation& S)
  {
-  auto R=MakeShared<FJsonObject>();TArray<TSharedPtr<FJsonValue>> Devices;for(int I=0;I<3;++I){auto D=BoomEvidence(S,I);if(I==0)T->TestTrue(TEXT("new XT32 default contributes at least50percent initial hold coverage"),D->GetNumberField(TEXT("observed_percent"))>=50);Devices.Add(MakeShared<FJsonValueObject>(D));}R->SetArrayField(TEXT("sensors"),Devices);TArray<ShipHatch::FObservation> Points;S.CollectObservations(Points);const auto A=ShipHatch::Analyze(S.Settings(),1,Points);R->SetNumberField(TEXT("combined_observed_percent"),100*A.Coverage);R->SetNumberField(TEXT("combined_unobserved_percent"),100*(1-A.Coverage));R->SetStringField(TEXT("authorization"),TEXT("user2026-10-21: boom XT32; cab Mid360S pair unchanged; performance/RSS gates unchanged"));Save06(TEXT("default-configuration.json"),R);
+  auto R=MakeShared<FJsonObject>();TArray<TSharedPtr<FJsonValue>> Devices;for(int I=0;I<3;++I){auto D=BoomEvidence(S,I);if(I==0)T->TestTrue(TEXT("new Ouster default contributes at least50percent initial hold coverage"),D->GetNumberField(TEXT("observed_percent"))>=50);Devices.Add(MakeShared<FJsonValueObject>(D));}R->SetArrayField(TEXT("sensors"),Devices);TArray<ShipHatch::FObservation> Points;S.CollectObservations(Points);const auto A=ShipHatch::Analyze(S.Settings(),1,Points);R->SetNumberField(TEXT("combined_observed_percent"),100*A.Coverage);R->SetNumberField(TEXT("combined_unobserved_percent"),100*(1-A.Coverage));R->SetStringField(TEXT("authorization"),TEXT("user2026-10-22: OS1-64 Rev7 x3; performance/RSS gates unchanged"));Save06(TEXT("default-configuration.json"),R);
  }
  void DiagnoseGray(UShipHatchMonitorWidget& M)
  {
@@ -308,7 +308,7 @@ public:
    if(!S->HasFreshMeasurement()||!M.GetAnalysis()||Now-Changed<2)return false;
    Shot(W,M,FString::Printf(TEXT("%s-full-floor-%s"),Material?TEXT("coal"):TEXT("iron"),View==0?TEXT("3d"):View==1?TEXT("points"):TEXT("section")),View==0);
    if(++View<3){M.SelectView(View==1?1:4);if(View==2)M.SetSection(true,Target.Y/S->HoldWidth+.5);Changed=Now;return false;}
-   if(Material==1){LowBoomBefore=BoomEvidence(*S);T->TestTrue(TEXT("new default XT32 boom observes actual exposed floor"),LowBoomBefore->GetNumberField(TEXT("floor_points"))>0);S->SetFieldSensor(0,true,1);M.SelectView(1);M.SetSplitView(true);M.SetCameraPreset(0);FHatch06Probe::Cargo(M);Changed=Now;Phase=21;return false;}
+   if(Material==1){LowBoomBefore=BoomEvidence(*S);T->TestTrue(TEXT("new default Ouster boom observes actual exposed floor"),LowBoomBefore->GetNumberField(TEXT("floor_points"))>0);S->SetFieldSensor(0,true,1);M.SelectView(1);M.SetSplitView(true);M.SetCameraPreset(0);FHatch06Probe::Cargo(M);Changed=Now;Phase=21;return false;}
    T->TestTrue(TEXT("undo restores a prior physical excavation"),S->UndoDig());T->TestTrue(TEXT("restore returns bit-exact original detail"),S->RestoreCargo()&&S->Surface().Hash()==OriginalHash);
    if(Material++==0){S->bCoal=true;S->Regenerate(false);M.SelectView(0);M.SetSplitView(true);M.SetCameraPreset(0);Changed=Now;Phase=6;return false;}
    auto Done=MakeShared<FJsonObject>();Done->SetBoolField(TEXT("valid"),!T->HasAnyErrors());Done->SetArrayField(TEXT("models"),Rows);Save06(TEXT("acceptance.json"),Done);return true;
@@ -316,7 +316,7 @@ public:
   if(Phase==21)
   {
    if(!S->HasFreshMeasurement()||!M.GetAnalysis()||Now-Changed<10)return false;const auto Mid=BoomEvidence(*S);auto R=MakeShared<FJsonObject>();R->SetObjectField(TEXT("default_xt32"),LowBoomBefore);R->SetObjectField(TEXT("comparison_mid360s_40m"),Mid);Save06(TEXT("low-fill-boom-comparison.json"),R);
-   T->TestEqual(TEXT("40m comparison keeps actual boom mounting position"),Mid->GetNumberField(TEXT("mount_z_m")),LowBoomBefore->GetNumberField(TEXT("mount_z_m")));T->TestEqual(TEXT("40m comparison cannot reach empty floor center"),Mid->GetStringField(TEXT("floor_center_cause")),FString(TEXT("Range")));T->TestTrue(TEXT("new default XT32 increases actual low-fill boom coverage over40m comparison"),LowBoomBefore->GetNumberField(TEXT("observed_percent"))>Mid->GetNumberField(TEXT("observed_percent")));Shot(W,M,TEXT("coal-low-fill-boom-mid360s-40m"));S->SetFieldSensor(0,true,6);Changed=Now;Phase=23;return false;
+   T->TestEqual(TEXT("40m comparison keeps actual boom mounting position"),Mid->GetNumberField(TEXT("mount_z_m")),LowBoomBefore->GetNumberField(TEXT("mount_z_m")));T->TestEqual(TEXT("40m comparison cannot reach empty floor center"),Mid->GetStringField(TEXT("floor_center_cause")),FString(TEXT("Range")));T->TestTrue(TEXT("new default Ouster increases actual low-fill boom coverage over40m comparison"),LowBoomBefore->GetNumberField(TEXT("observed_percent"))>Mid->GetNumberField(TEXT("observed_percent")));Shot(W,M,TEXT("coal-low-fill-boom-mid360s-40m"));S->SetFieldSensor(0,true,6);Changed=Now;Phase=23;return false;
   }
   if(Phase==23)
   {

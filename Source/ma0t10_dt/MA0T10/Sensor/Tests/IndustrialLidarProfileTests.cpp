@@ -6,9 +6,9 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FIndustrialSpecs,"MA0T10.Hatch.IndustrialSpecs",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FIndustrialSpecs::RunTest(const FString&)
 {
- const int32 Points[]={20000,24000,65536,32000,14400},Echoes[]={1,3,1,2,2};
- const float HFov[]={360,70.4f,360,360,360},VFov[]={59,77.2f,45,31,30},Range[]={4000,19000,4500,8000,10000},Hz[]={10,10,10,20,20};
- const int32 Beams[]={0,0,64,32,16},Rates[]={200000,240000,655360,640000,288000};const float Precision[]={20,20,20,5,30},Wavelength[]={905,905,865,905,903};
+ const int32 Points[]={20000,24000,65536,32000,14400,65536},Echoes[]={1,3,1,2,2,2};
+ const float HFov[]={360,70.4f,360,360,360,360},VFov[]={59,77.2f,45,31,30,42.4f},Range[]={4000,19000,4500,8000,10000,9000},Hz[]={10,10,10,20,20,20};
+ const int32 Beams[]={0,0,64,32,16,64},Rates[]={200000,240000,655360,640000,288000,1310720};const float Precision[]={20,20,20,5,30,30},Wavelength[]={905,905,865,905,903,865};
  int I=0;for(const auto& S:IndustrialLidar::Specs())
  {
   const auto P=UVirtualLidarScanComponent::ResolveProfilePreset(S.Profile,EVirtualSensorSimulationQuality::FullSpec);
@@ -23,7 +23,10 @@ bool FIndustrialSpecs::RunTest(const FString&)
   for(int R=0;R<Points[I];R+=37){const auto D=IndustrialLidar::Beam(S.Profile,R,P.HorizontalSamples,P.VerticalChannels,3,FMath::Lerp(P.MinVerticalAngleDegrees,P.MaxVerticalAngleDegrees,float(R/P.HorizontalSamples)/(P.VerticalChannels-1)),-180.f+360.f*(R%P.HorizontalSamples)/P.HorizontalSamples);TestTrue(TEXT("every sampled physical beam is inside declared envelope"),D.Pitch>=P.MinVerticalAngleDegrees-1.e-4&&D.Pitch<=P.MaxVerticalAngleDegrees+1.e-4&&FMath::Abs(D.Yaw)<=P.HorizontalFovDegrees*.5+1.e-4);}
   ++I;
  }
- TestEqual(TEXT("five added device choices"),I,5);
+ TestEqual(TEXT("six added device choices"),I,6);
+ const auto* Rev05=IndustrialLidar::Find(EVirtualLidarDeviceProfile::OusterOS1_64_Rev05);
+ const auto* Rev7=IndustrialLidar::Find(EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);
+ TestTrue(TEXT("Rev05 conditional45m is preserved; Rev7 is a separate90m model"),Rev05&&Rev7&&Rev05->RangeMeters==45&&Rev7->RangeMeters==90);
  const auto Old=UVirtualLidarScanComponent::ResolveProfilePreset(EVirtualLidarDeviceProfile::LivoxMid360S,EVirtualSensorSimulationQuality::FullSpec);TestEqual(TEXT("legacy default ray budget unchanged"),Old.HorizontalSamples*Old.VerticalChannels,21600);return true;
 }
 #endif

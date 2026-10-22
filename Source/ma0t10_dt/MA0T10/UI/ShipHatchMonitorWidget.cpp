@@ -169,9 +169,9 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     CargoChoice=Choice(TEXT("원료"),{TEXT("철광석"),TEXT("석탄")});SensorChoice=Choice(TEXT("배치 프리셋 · 현장 3대 / 이전 2대"),{TEXT("ML-X(80) Integration 200 + Mid-360S"),TEXT("ML-X(80) Integration 200"),TEXT("Livox Mid-360S"),TEXT("ML-X(80) Native + Mid-360S"),TEXT("ML-X(80) Native"),TEXT("현장 3대 구성")});
     Group(TEXT("센서 · 보기"),true);
     const TCHAR* SensorNames[]={TEXT("붐 끝 · 장비"),TEXT("운전실 좌 · 장비"),TEXT("운전실 우 · 장비")};
-    for(int32 I=0;I<3;++I){auto* C=Choice(SensorNames[I],{TEXT("끄기"),TEXT("ML-X80 Integration 200"),TEXT("Livox Mid-360S"),TEXT("ML-X80 Native"),TEXT("Livox Mid-360"),TEXT("Livox Avia"),TEXT("Ouster OS1-64 Rev05"),TEXT("Hesai XT32"),TEXT("Velodyne VLP-16")});C->SetSelectedIndex(2);FieldChoices.Add(C);}
+    for(int32 I=0;I<3;++I){auto* C=Choice(SensorNames[I],{TEXT("끄기"),TEXT("ML-X80 Integration 200"),TEXT("Livox Mid-360S"),TEXT("ML-X80 Native"),TEXT("Livox Mid-360"),TEXT("Livox Avia"),TEXT("Ouster OS1-64 Rev05"),TEXT("Hesai XT32"),TEXT("Velodyne VLP-16"),TEXT("Ouster OS1-64 Rev7 · 20Hz")});C->SetSelectedIndex(2);FieldChoices.Add(C);}
     FieldChoices[0]->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnFieldA);FieldChoices[1]->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnFieldB);FieldChoices[2]->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnFieldC);
-    auto* SiteModelNote=Label(TEXT("현장 모델 확인 필요\n기본: 붐 XT32 · 운전실 Mid-360S 2대"),Style::LabelSize,false,Style::Warning());SiteModelNote->SetAutoWrapText(true);Box->AddChildToVerticalBox(SiteModelNote);
+    auto* SiteModelNote=Label(TEXT("현장 모델 확인 필요\n기본: OS1-64 Rev7 3대 · 20Hz"),Style::LabelSize,false,Style::Warning());SiteModelNote->SetAutoWrapText(true);Box->AddChildToVerticalBox(SiteModelNote);
     Box->AddChildToVerticalBox(Button(TEXT("하역기 표시 전환"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnUnloaderToggle)));
     Box->AddChildToVerticalBox(Button(TEXT("센서별 색 구분 전환"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSensorColors)));
     Box->AddChildToVerticalBox(Button(TEXT("예상 FOV 기여/사각 전환"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnCoverage)));
@@ -288,7 +288,7 @@ void UShipHatchMonitorWidget::Refresh()
     UpdateDigControls();UpdateSensorBadges();UpdateOverlay();for(int32 I=0;I<3;++I)if(auto* Sensor=S->SensorAt(I))Sensor->VisualizationComponent->RefreshPointView();
     if(LastRevision!=S->Revision()&&CoverageText)CoverageText->SetText(FText::FromString(TEXT("센서 비교 · 새 측정 대기")));
     if(LastRevision!=S->Revision())
-    {LastRevision=S->Revision();LastCabRevision=S->CabRevision();LastMLX=-1;LastLivox=-1;LastCabRight=-1;SeedInput->SetText(FText::FromString(LexToString(S->Seed)));{TGuardValue<bool> Sync(bSync,true);CargoChoice->SetSelectedIndex(S->bCoal?1:0);SensorChoice->SetSelectedIndex(S->bFieldLayout?5:!S->bMLX?2:!S->bLivox?(S->bNativeMLX?4:1):(S->bNativeMLX?3:0));}{TGuardValue<bool> Sync(bSync,true);const TCHAR* Roles[]={TEXT("붐 끝"),TEXT("운전실 좌"),TEXT("운전실 우")};for(int32 I=0;I<3;++I){const int32 Profile=S->bFieldLayout?S->FieldProfiles[I]:I==0?(S->bNativeMLX?2:0):1;if(FieldChoices.IsValidIndex(I))FieldChoices[I]->SetSelectedIndex(!S->SensorEnabled(I)?0:Profile+1);if(SensorBadges.IsValidIndex(I))CastChecked<UTextBlock>(SensorBadges[I]->GetContent())->SetText(FText::FromString(S->bFieldLayout?Roles[I]:I==0?TEXT("ML-X80"):TEXT("Mid-360S")));}}RefreshEditPreview();UpdateSection();S->Coverage(Work->OpeningCoverage,Work->FloorCoverage,Work->VisibleFloorArea);ApplyPreview();}
+    {LastRevision=S->Revision();LastCabRevision=S->CabRevision();LastMLX=-1;LastLivox=-1;LastCabRight=-1;SeedInput->SetText(FText::FromString(LexToString(S->Seed)));{TGuardValue<bool> Sync(bSync,true);CargoChoice->SetSelectedIndex(S->bCoal?1:0);SensorChoice->SetSelectedIndex(S->bFieldLayout?5:!S->bMLX?2:!S->bLivox?(S->bNativeMLX?4:1):(S->bNativeMLX?3:0));}{TGuardValue<bool> Sync(bSync,true);const TCHAR* Roles[]={TEXT("os_lidar_boom"),TEXT("os_lidar_cabin_01"),TEXT("os_lidar_cabin_02")};for(int32 I=0;I<3;++I){const int32 Profile=S->bFieldLayout?S->FieldProfiles[I]:I==0?(S->bNativeMLX?2:0):1;if(FieldChoices.IsValidIndex(I))FieldChoices[I]->SetSelectedIndex(!S->SensorEnabled(I)?0:Profile+1);if(SensorBadges.IsValidIndex(I))CastChecked<UTextBlock>(SensorBadges[I]->GetContent())->SetText(FText::FromString(S->bFieldLayout?Roles[I]:I==0?TEXT("ML-X80"):TEXT("Mid-360S")));}}RefreshEditPreview();UpdateSection();S->Coverage(Work->OpeningCoverage,Work->FloorCoverage,Work->VisibleFloorArea);ApplyPreview();}
     // Cab motion invalidates sensor analysis/coverage without changing the
     // cargo surface revision or rebuilding its CPU tree/GPU geometry.
     if(LastCabRevision!=S->CabRevision()&&!S->IsCabMoving())
@@ -312,7 +312,7 @@ void UShipHatchMonitorWidget::Refresh()
             const TCHAR* Roles[]={TEXT("붐"),TEXT("좌"),TEXT("우")};
             for(int I=0;I<3;++I)if(const auto* A=S->SensorAt(I))
             {const auto* Scan=A->ScanComponent.Get();const auto D=S->DiagnoseSight(I,FVector::ZeroVector);const auto Q=Scan->GetSceneQueryStatistics();Details+=FString::Printf(TEXT("%s · %s\n목표 %.1f / 실제 %.1f Hz · %d광선/회\n바닥 중앙 %.1f m / 한계 %.1f m\n%s · 계산 %.1f / GT %.1f ms\n"),Roles[I],*Scan->DeviceSpec.Model,1.f/FMath::Max(.001f,Scan->ScanInterval),Scan->GetRuntimeStatus().MeasuredAcquisitionRateHz,Scan->HorizontalSamples*Scan->VerticalChannels,D.DistanceMeters,D.RangeMeters,*Scan->GetRuntimeStatus().ActiveAcquisitionBackend,Q.X,Q.Y);}
-            if(const auto* A=S->SensorAt(0))if(A->ScanComponent->MaxDistance*.01<S->SensorOrigin(0).Z)Details+=TEXT("붐: 40m급은 저적재/바닥 거리 부족. 권장: XT32(중앙80m)·Avia(190m). 각도만으로 거리 부족을 해결할 수 없습니다.\n");
+            if(const auto* A=S->SensorAt(0))if(A->ScanComponent->MaxDistance*.01<S->SensorOrigin(0).Z)Details+=TEXT("붐: 40m급은 저적재/바닥 거리 부족. 권장: OS1 Rev7(90m 조건부)·Avia(190m). 각도만으로 거리 부족을 해결할 수 없습니다.\n");
             Details+=TEXT("CPU 병렬 획득 · 전체 광선/재질/PCD 유지\n분석 최대5Hz · 목표 미달: 광선·충돌·프레임 예산 영향\n조명은 LiDAR 반사·분류·PCD에 영향 없음\n");Details+=S->Status;StatsText->SetText(FText::FromString(Details));
         }
     }
@@ -363,7 +363,7 @@ void UShipHatchMonitorWidget::UpdateSensorBadges()
     if(Hide){for(auto B:SensorBadges)B->SetVisibility(ESlateVisibility::Collapsed);for(auto B:DirectionBadges)B->SetVisibility(ESlateVisibility::Collapsed);for(bool& V:SensorBadgeLinkVisible)V=false;return;}
     const double Now=FPlatformTime::Seconds();if(Now-LastSensorBadgeUpdate<.2)return;LastSensorBadgeUpdate=Now;
     int32 W,H;PC->GetViewportSize(W,H);if(W<=0||H<=0)return;const FVector2D Size=GetCachedGeometry().GetLocalSize();if(Size.X<1)return;
-    const double Scale=FontScale,Gap=24*Scale,Width=FMath::Min(128*Scale,double(SceneRect.Right-SceneRect.Left-16)),Height=32*Scale;
+    const double Scale=FontScale,Gap=24*Scale,Width=FMath::Min(192*Scale,double(SceneRect.Right-SceneRect.Left-16)),Height=32*Scale;
     FVector2D P[3]={FVector2D::ZeroVector,FVector2D::ZeroVector,FVector2D::ZeroVector};bool Front[3]={false,false,false};
     for(int I=0;I<3;++I)
     {
