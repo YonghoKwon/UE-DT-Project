@@ -557,3 +557,9 @@ FOLLOWUP-32 커버 회귀 보정: #30b의 기존 HATCH06 전체 외형 회귀에
 외부수신19.799/13.255/19.221→16.788/16.788/16.788Hz,편차6.544→0Hz. 실제body×요청Hz 필요75.946/실제63.731MiB/s. 각10Hz 이상·오류0. 기준선의 기존 엔진3프레임당 획득 assertion2건 FAIL은 보존하고 후보는 같은 assertion까지Success다. 획득/직렬화/제출/receipt/내부·외부수신·생략/gap은 [원시표](../Saved/Reports/FOLLOWUP-28-26/r2/PCD-28.md)에 구분한다. 최악가정65,536점×33B×20Hz×3=123.75MiB/s+헤더이며128MiB/s는 제안만,기본값 변경0이다.
 
 직접UI는 별도 SlabScenarioValidationMap/MLX 단일센서 진단fixture에서1920×1080·DPI1·글자100%로64→8→64,필요경고·최근7.6Hz·복원19.3Hz,패널숨김 수신2008→3408을 확인했다. 기본Rev7×3 성능과 직접UI fixture를 혼동하지 않는다. [체크리스트](../Saved/Reports/FOLLOWUP-28-26/r2/manual/CHECKLIST.md). 이번 실행 직전 새 개인43파일을 복원하며 이전 백업을 사용하지 않는다. 보호569파일 불변. 최종release/perf/RSS는 후속 기록을 따른다.
+
+## 2026-10-23 — FOLLOWUP-26 기본 GPU RSS 5쌍 실패 및 원인 조사
+
+cd59793/DTCore b2504d1,기본Rev7×3/1024×64/GPU HWRT/프로젝트RT on/D3D12 오프스크린1920×1080/미리보기12000점·35초준비/90초동일구간/0회·50회 순서교차5쌍. 기본실행은 LLM off,추가계측은 별도. 원래raw/retainedRSS·commit 절대8MiB 및 별도(50회−0회)8MiB를 각각 유지했다. 절대3쌍/차이2쌍 실패·기능오류0,디깅RSS중앙값+10.429688MiB/최대raw차이+17.671875MiB/retained차이+18.257813MiB다.
+
+CPU1쌍의디깅RSS+9.710938MiB/차이−9.507813MiB도 별도 기록한다. LLM·memreport·allocator진단에서 소유버퍼/RHI/UObject 수량은 유지되었으나 Untracked·allocator-unused 등의 증가가 남았다. Mimalloc 상세dump는 UE5.3 미구현이다. Binned2 진단도rawRSS+13.457031MiB로 실패했으며 기본 allocator를 바꾸지 않았다. 태그배열 재사용과16MiB CPU scratch 후보는 각각집중22 Success였으나 RSS+17.308594/+20.718750MiB로 개선을 입증하지 못해 모두원복했다. 기본값·데이터·기준·횟수·OSworking-set·대조차감 변경0. 약90분 조사에서 완전귀속/검증된수정안 없음으로 미해결 인계한다. [전체표·원시경로](../Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md). 최종코드는editor-only fallback/allocator계측과계수회귀만 남긴다. release/perf는 이 RSS실패를 대체하지 않는다.

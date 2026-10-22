@@ -123,6 +123,9 @@ private:
     TWeakPtr<FVirtualLidarScenePointPool,ESPMode::ThreadSafe> ScenePublishedPool;
     TWeakPtr<TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe> ScenePublishedPoints;
     int32 ScenePointCapacity=0;
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    uint64 ScenePointPoolFallbacksForTesting=0;
+#endif
     void AcquireScenePointStorage(int32 Capacity);
     void RecycleScenePointStorage();
     TSharedPtr<TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe> CompleteScenePointStorage();
@@ -140,6 +143,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|VirtualLidar")
     void StartScan();
     FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    uint64 GetScenePointPoolFallbacksForTesting() const { return ScenePointPoolFallbacksForTesting; }
+#endif
     UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="DigitalTwin|VirtualLidar|Output")
     EVirtualLidarCompatibilityOutputPolicy CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::LegacyAlways;
     void SetCompatibilityOutputPolicy(EVirtualLidarCompatibilityOutputPolicy Policy);

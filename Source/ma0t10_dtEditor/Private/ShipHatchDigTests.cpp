@@ -11,6 +11,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/LidarPlayerDisplayComponent.h"
 #include "HAL/LowLevelMemTracker.h"
+#include "Misc/OutputDeviceRedirector.h"
 #include "Components/Button.h"
 #include "Components/SpinBox.h"
 #include "Components/TextBlock.h"
@@ -210,8 +211,17 @@ class FHatchDig final:public IAutomationLatentCommand
         for(const auto& P:MemoryCurve){auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("cycle"),P.Cycle);R->SetNumberField(TEXT("seconds"),P.Seconds);R->SetNumberField(TEXT("rss_bytes"),double(P.Rss));R->SetNumberField(TEXT("commit_bytes"),double(P.Commit));R->SetNumberField(TEXT("uobject_count"),P.Objects);auto Tags=MakeShared<FJsonObject>();for(int I=0;I<10;++I)Tags->SetNumberField(Names[I],double(P.Tags[I]));R->SetObjectField(TEXT("llm_default"),Tags);Rows.Add(MakeShared<FJsonValueObject>(R));}
         Result->SetArrayField(TEXT("memory_curve"),Rows);
     }
-    void MemoryDetails(const TCHAR* Boundary)
+    void MemoryDetails(const TCHAR* Boundary,const AShipHatchSimulation& Simulation)
     {
+        auto Pools=MakeShared<FJsonObject>();
+        for(const auto* Actor:{Simulation.MLX.Get(),Simulation.Livox.Get(),Simulation.CabRight.Get()})
+            if(Actor&&Actor->ScanComponent)Pools->SetNumberField(Actor->GetSensorId(),double(Actor->ScanComponent->GetScenePointPoolFallbacksForTesting()));
+        Result->SetObjectField(FString(Boundary)+TEXT("_point_pool_fallbacks"),Pools);
+        if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDeepReport")))
+        {
+            UE_LOG(LogTemp,Display,TEXT("[FOLLOWUP26-ALLOC] %s"),Boundary);
+            FPlatformMemory::DumpPlatformAndAllocatorStats(*GLog);
+        }
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
         if(!FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit"))||!FLowLevelMemTracker::IsEnabled())return;
         auto& LLM=FLowLevelMemTracker::Get();LLM.UpdateStatsPerFrame();Result->SetBoolField(TEXT("diagnostic_only"),true);
@@ -339,7 +349,7 @@ public:
         }
         if(Phase==4)
         {
-            if(!MemoryPrimed){MemoryCurve.Reserve(64);MeasureStart=Now;CurvePoint(-1);MemoryCurve.Reset();MemoryDetails(TEXT("priming"));if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDeepReport")))GEngine->Exec(W,TEXT("memreport -full"));MemoryPrimed=true;}
+            if(!MemoryPrimed){MemoryCurve.Reserve(64);MeasureStart=Now;CurvePoint(-1);MemoryCurve.Reset();MemoryDetails(TEXT("priming"),S);if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDeepReport")))GEngine->Exec(W,TEXT("memreport -full"));MemoryPrimed=true;}
             int32 Warmup=35;FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryWarmup="),Warmup);
             if(Now-Changed<Warmup||M.AnalysisBuilds<WarmBuilds+5)return false;Stop(S);Changed=Now;Phase=5;return false;
         }
@@ -355,7 +365,7 @@ public:
             if(Now-Changed<.2||GFrameCounter<BoundaryFrame+3)return false;
             DrainBoundary();RawBefore=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();
             Rss=FPlatformMemory::GetStats().UsedPhysical;Commit=FPlatformMemory::GetStats().UsedVirtual;Buffers=S.DigBufferBytes();MeshBytes=S.MeshScratchBytes();
-            MemoryDetails(TEXT("before"));
+            MemoryDetails(TEXT("before"),S);
             Result->SetObjectField(TEXT("resources_before"),Resources(S));
             MeasureStart=Now;
             CurvePoint(0);
@@ -395,7 +405,7 @@ public:
         {
             if(Now-Changed<.2||GFrameCounter<BoundaryFrame+3)return false;
             DrainBoundary();const uint64 RawAfter=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();const auto Memory=FPlatformMemory::GetStats();
-            MemoryDetails(TEXT("after"));
+            MemoryDetails(TEXT("after"),S);
             SaveCurve();
             if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDeepReport")))GEngine->Exec(W,TEXT("memreport -full"));
             Result->SetObjectField(TEXT("resources_after"),Resources(S));

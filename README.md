@@ -18,11 +18,15 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### FOLLOWUP-26 해치 RSS 재검증 — 미해결
+
+기본 Rev7×3·GPU/RT on·35초 준비/90초·50회−0회 교차5쌍에서 원래 절대8MiB 및 별도차이8MiB가 모두 종합FAIL이다. 절대3쌍/차이2쌍 실패,디깅 RSS 중앙값+10.43MiB,최대 raw차이+17.67MiB다. CPU·LLM·Binned2 진단은 별도 표로 구분한다. 두 할당 재사용 후보는 RSS 개선을 입증하지 못해 원복했다. 약90분 조사에서 완전 귀속·검증된 수정안을 확보하지 못했으며 기준/횟수/기본allocator는 유지한다. [증거·한계](Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md). release/perf 통과로 이 실패를 덮지 않는다.
+
 ### FOLLOWUP-28 PCD 송신 예산·공정성
 
 기본 Ouster OS1-64 Rev7 3대(1024×64·20Hz 요청)에 센서별 토큰 버킷과 프레임 크기를 반영한 균등 Hz 상한을 적용한다. 기본64MiB/s·PCD33-byte·승인FIFO·기본출력은 유지한다. `데이터 → 전송 → 고급 → PCD 예산`에서 현재 세션 예산을 바꾸며, 필요/예산 MiB/s와 최근 약1초의 실제 송신Hz를 표시한다. 저장 형식은 바꾸지 않는다.
 
-be29ab4 대비 기본Rev7×3/1920×1080/실제D3D12·RT on/90초 localhost 외부수신은19.799/13.255/19.221→16.788/16.788/16.788Hz,편차6.544→0Hz다. 필요75.946/실제63.731MiB/s. 기준선의 기존 획득20Hz assertion2건 실패는 보존하고 후보는 동일 assertion까지 통과했다. [측정·제한](Saved/Reports/FOLLOWUP-28-26/r2/PCD-28.md)·[직접UI](Saved/Reports/FOLLOWUP-28-26/r2/manual/CHECKLIST.md). #26 RSS와 최종release/RT on ABAB는 별도 후속 검증이다.
+be29ab4 대비 기본Rev7×3/1920×1080/실제D3D12·RT on/90초 localhost 외부수신은19.799/13.255/19.221→16.788/16.788/16.788Hz,편차6.544→0Hz다. 필요75.946/실제63.731MiB/s. 기준선의 기존 획득20Hz assertion2건 실패는 보존하고 후보는 동일 assertion까지 통과했다. [측정·제한](Saved/Reports/FOLLOWUP-28-26/r2/PCD-28.md)·[직접UI](Saved/Reports/FOLLOWUP-28-26/r2/manual/CHECKLIST.md). #26 RSS는 미해결 실패이며 최종release/RT on ABAB는 별도 검증이다.
 
 ### HATCH-07 / COIL-02 현장 보기·배치 흐름
 

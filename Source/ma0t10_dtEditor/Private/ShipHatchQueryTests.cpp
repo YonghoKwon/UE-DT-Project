@@ -113,6 +113,11 @@ bool FHatchPointPoolLifetimeTest::RunTest(const FString&)
  for(int I=0;I<8;++I){Scan->AcquireScenePointStorage(64);TestTrue(TEXT("held immutable storage cannot be leased"),Scan->ScheduledPoints.GetData()!=Held->GetData());Scan->ScheduledPoints.SetNum(1);auto Next=Scan->CompleteScenePointStorage();}
  TestTrue(TEXT("held point values survive repeated acquisitions"),(*Held)[0].WorldLocation==FVector(4,5,6));
  Scan->AcquireScenePointStorage(128);Scan->RecycleScenePointStorage();TestTrue(TEXT("profile resize preserves held old publication"),HeldWeak.IsValid()&&(*Held)[0].WorldLocation==FVector(4,5,6));Held.Reset();TestFalse(TEXT("old pool weak pointer expires after final consumer"),HeldWeak.IsValid());
+ const uint64 BeforeFallbacks=Scan->GetScenePointPoolFallbacksForTesting();
+ TArray<TSharedPtr<TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe>> Leases;
+ for(int I=0;I<4;++I){Scan->AcquireScenePointStorage(32);Scan->ScheduledPoints.SetNum(1);Leases.Add(Scan->CompleteScenePointStorage());}
+ TestEqual(TEXT("diagnostic counts a real retained-lease fallback"),Scan->GetScenePointPoolFallbacksForTesting(),BeforeFallbacks+1);
+ Scan->RecycleScenePointStorage();Leases.Reset();
  return true;
 }
 #endif

@@ -4,6 +4,10 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## FOLLOWUP-26 — RSS 8MiB 재검증 미해결
+
+기본Rev7×3/GPU/RT on/35초+90초/50회−0회 교차5쌍: 절대3쌍·차이2쌍 실패,기능오류0. 디깅RSS 중앙값+10.43MiB/최대raw차이+17.67MiB. CPU/LLM/Binned2 진단과 두 미채택 후보는 [원문](../Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md)에 구분한다. 기본Mimalloc 상세dump미구현,소유버퍼·RHI수량 불변만으로 무누수를 입증하지 않는다. 두 후보는 원복하고 editor-only계측만 남겼다. 약90분 조사 후 검증된 수정안 없음으로 인계하며 기준·횟수·기본정책을 완화하지 않는다.
+
 ## FOLLOWUP-28 — Rev7×3 PCD 송신 공정성
 
 2026-10-23 재개,기준be29ab4/DTCore b2504d1. 센서별 토큰·균등Hz 배분,필요/예산 경고·최근송신Hz·세션 예산 입력을 구현했다. 기본64MiB/s·33-byte·승인FIFO·기본출력은 유지한다. 기본Rev7×3/90초 localhost는 각16.788Hz,편차6.544→0Hz로 각10Hz·공정성 기준을 통과했다. 필요75.946/실제63.731MiB/s이며20Hz 무생략 송신으로 표시하지 않는다. 기준선 획득20Hz assertion2건 실패와 후보 동일 assertion 통과를 구분한다. [상세](../Saved/Reports/FOLLOWUP-28-26/r2/PCD-28.md)·[직접UI](../Saved/Reports/FOLLOWUP-28-26/r2/manual/CHECKLIST.md). #26과 최종release/RT on ABAB는 이어서 검증한다.
