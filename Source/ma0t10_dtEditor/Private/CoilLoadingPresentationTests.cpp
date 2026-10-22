@@ -1,6 +1,8 @@
 #include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h"
+#include "ma0t10_dt/MA0T10/Scenario/CoilLoadingQuayLayout.h"
+#include "Components/SceneComponent.h"
 #include "ma0t10_dt/MA0T10/UI/CoilLoadingPlanProjection.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
@@ -51,12 +53,51 @@ bool FCoilNClassTest::RunTest(const FString&)
     FString OldText;FJsonSerializer::Serialize(Old.ToSharedRef(),TJsonWriterFactory<>::Create(&OldText));TestTrue(TEXT("legacy two-hold geometry remains unchanged when fields absent"),CoilLoading::PlanFromJson(OldText,Loaded,Empty,Error)&&Loaded.HoldLength==60.59&&Loaded.HoldCount==2&&Loaded.HoldGap==3&&Loaded.IntermediateHoldLength==0&&!Loaded.bDeckCranes&&!Loaded.bFoldingCovers);
     S.OpeningWidth=S.Beam;const auto Bad=CoilLoading::Analyze(S,{});TestTrue(TEXT("stowed boom crossing opening is a real warning"),Bad.Issues.ContainsByPredicate([](const CoilLoading::FIssue& I){return I.Code==TEXT("DeckCraneClearance")&&I.Severity==CoilLoading::ESeverity::Warning;}));return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCoilDraftResponseTest,"MA0T10.CoilLoading.Hydrostatics.LoadAndHoist",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FCoilDraftResponseTest::RunTest(const FString&)
+{
+    using namespace CoilLoading;FSettings S;S.TPC=25;S.bTPCConfirmed=true;const auto H=DraftResponse(S,2500);
+    TestTrue(TEXT("2500t /25t per cm =1m sinkage"),FMath::IsNearlyEqual(H.Sinkage,1.,1.e-9)&&FMath::IsNearlyEqual(H.Draft,7.2,1.e-9)&&H.bConfirmed);
+    S.TPC=0;S.bTPCConfirmed=false;const auto Estimate=DraftResponse(S,1000);TestTrue(TEXT("synthetic Awp*seawater density /100 gives TPC"),FMath::IsNearlyEqual(Estimate.TonnesPerCm,31.81805,1.e-7)&&!Estimate.bConfirmed);
+    FPlacement P;P.Center={0,0,.85};P.Spec.MassOverride=1000;auto R=Analyze(S,{P});TestTrue(TEXT("unapproved synthetic hydrostatics is data needed"),R.Issues.ContainsByPredicate([](const FIssue& I){return I.Code==TEXT("HydrostaticsUnknown")&&!I.bKnown;}));
+    TestFalse(TEXT("default-estimate lower hoist limit clear"),R.Issues.ContainsByPredicate([](const FIssue& I){return I.Code==TEXT("HoistLimit");}));
+    S.TPC=1;S.bTPCConfirmed=true;R=Analyze(S,{P});TestTrue(TEXT("loaded draft changes lower hoist and draft-limit screening"),R.Issues.ContainsByPredicate([](const FIssue& I){return I.Code==TEXT("HoistLimit");})&&R.Issues.ContainsByPredicate([](const FIssue& I){return I.Code==TEXT("DraftLimit");}));
+    S=FSettings();S.HoldHeight=100;S.TPC=10;S.bTPCConfirmed=true;P.Center.Z=S.Draft-S.KeelToTanktop+3.5+28-S.GearHeadroom+.05;P.Spec.MassOverride=1;const auto Light=Analyze(S,{P});P.Spec.MassOverride=100;const auto Heavy=Analyze(S,{P});
+    TestTrue(TEXT("upper hoist boundary uses loaded rather than fixed ballast draft"),Light.Issues.ContainsByPredicate([](const FIssue& I){return I.Code==TEXT("HoistLimit");})&&!Heavy.Issues.ContainsByPredicate([](const FIssue& I){return I.Code==TEXT("HoistLimit");}));
+    FSettings Loaded;TArray<FPlacement> Plan;FString E;TestTrue(TEXT("TPC and confirmation survive plan roundtrip"),PlanFromJson(PlanToJson(S,{P}),Loaded,Plan,E)&&Loaded.TPC==10&&Loaded.bTPCConfirmed&&Loaded.WaterplaneCoefficient==.85&&Loaded.WaterDensity==1.025);
+    S.TPC=0;TestFalse(TEXT("certified flag cannot approve zero TPC"),S.Validate(E));S.bTPCConfirmed=false;S.WaterplaneCoefficient=1.01;TestFalse(TEXT("invalid synthetic waterplane coefficient rejected"),S.Validate(E));return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCoilProjectionResizeTest,"MA0T10.CoilLoading.Presentation.ProjectionResizeDpiAndPick",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FCoilProjectionResizeTest::RunTest(const FString&)
+{
+    const FVector4 Regions[]={FVector4(.2,.12,.99,.74),FVector4(.4,.12,.99,.74),FVector4(.2,.25,.99,.60),FVector4(.2,.05,.99,.90)};
+    for(double Dpi:{1.,1.25,1.5,2.})for(const auto R:Regions)
+    {
+        FMatrix P=FMatrix::Identity;P.M[0][0]=1.732050807568877;P.M[1][1]=P.M[0][0]*1920/1080;P.M[2][0]=.11;P.M[2][1]=-.07;P.M[2][2]=0;P.M[2][3]=1;P.M[3][2]=.1;P.M[3][3]=0;
+        CoilPlan::FitPlayerProjection(P,FIntRect(0,0,1920,1080),R);
+        const auto Screen=[&](FVector V){const FVector4 C=P.TransformFVector4(FVector4(V,1));return FVector2D((C.X/C.W+1)*960,(1-C.Y/C.W)*540);};
+        const auto Center=Screen({0,0,20}),X=Screen({1,0,20}),Y=Screen({0,1,20});TestTrue(TEXT("drawer aspect changes preserve circular pixels"),FMath::IsNearlyEqual((X-Center).Size(),(Y-Center).Size(),1.e-6));
+        TestTrue(TEXT("film offset remapped on both content axes"),FMath::IsNearlyEqual(Center.X,(R.X+R.Z+.11*(R.Z-R.X))*960,1.e-6)&&FMath::IsNearlyEqual(Center.Y,(R.Y+R.W+.07*(R.W-R.Y))*540,1.e-6));
+        const FVector World(.3,-.2,20);const FVector4 C=P.TransformFVector4(FVector4(World,1));const auto Pixel=Screen(World);const FVector2D SlatePixel=Pixel/Dpi;const FVector4 U=P.Inverse().TransformFVector4(FVector4(SlatePixel.X*Dpi/960-1,1-SlatePixel.Y*Dpi/540,C.Z/C.W,1));
+        TestTrue(TEXT("physical/slate DPI roundtrip yields same picking point"),FVector::Distance(FVector(U.X/U.W,U.Y/U.W,U.Z/U.W),World)<1.e-6);
+        CoilLoading::FSettings S;CoilLoading::FPlacement A,Next;A.Center={0,0,.85};Next=A;Next.Center.Y=4;const FVector2D Logical(1000,600);auto Plan=CoilPlan::Build(S,{A},Next,{}, {},Logical,true,1);const auto Point=Plan.Glyphs[0].Center+FVector2D((Plan.Glyphs[0].Radius+Plan.Glyphs[0].Bore)*.5,0);const auto G=FGeometry::MakeRoot(Logical,FSlateLayoutTransform(float(Dpi),FVector2D(45,60)));TestEqual(TEXT("plan picking remains correct at DPI"),Plan.Hit(G.AbsoluteToLocal(G.LocalToAbsolute(Point))),0);
+    }
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCoilRakedLayoutTest,"MA0T10.CoilLoading.Presentation.RakedPortalLayout",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FCoilRakedLayoutTest::RunTest(const FString&)
+{
+    CoilLoading::FSettings S;for(int Rail=0;Rail<2;++Rail)for(double Sign:{-1.,1.}){const auto A=CoilQuay::LegNode(S,Sign,Rail,1.4),B=CoilQuay::LegNode(S,Sign,Rail,28);TestTrue(TEXT("A-frame top contracts toward portal center in both directions"),FMath::Abs(B.X+8)<FMath::Abs(A.X+8)&&FMath::Abs(B.Y-S.RailCenterY())<FMath::Abs(A.Y-S.RailCenterY()));TestTrue(TEXT("leg inclination matches photo-proportion fixture"),FMath::IsNearlyEqual((B-A).Size2D(),FMath::Sqrt(4.36),1.e-8));}
+    TestTrue(TEXT("sea cantilever projects beyond the entire beam"),CoilQuay::GirderSea(S)>S.Beam*.5);S.RailGauge=1;TestTrue(TEXT("valid narrow rail gauge keeps upper portal ordered"),CoilQuay::LegNode(S,1,0,28).Y>CoilQuay::LegNode(S,1,1,28).Y);return true;
+}
 namespace
 {
-FString Root(){return FPaths::ProjectSavedDir()/TEXT("Reports/COIL-01b");}
+FString Root(){return FPaths::ProjectSavedDir()/TEXT("Reports/COIL-01c");}
 class FCoilPresentationRun final:public IAutomationLatentCommand
 {
-    FAutomationTestBase* Test;int Step=0;double Begin=FPlatformTime::Seconds(),Changed=0;TSharedRef<FJsonObject> Evidence=MakeShared<FJsonObject>();
+    FAutomationTestBase* Test;int Step=0;
+    uint64 IdleWrites=0,IdleCalls=0;TSharedPtr<int32> IdleEvents=MakeShared<int32>(0);
+    TArray<TPair<TWeakObjectPtr<USceneComponent>,FDelegateHandle>> ProbeHandles;double Begin=FPlatformTime::Seconds(),Changed=0;TSharedRef<FJsonObject> Evidence=MakeShared<FJsonObject>();
     void Capture(UWorld& W,const FString& Name,bool CheckBackground=false)
     {
         TArray<FColor> Pixels;FIntVector Size;if(!Test->TestTrue(TEXT("actual D3D12 presentation screenshot"),FSlateApplication::Get().TakeScreenshot(W.GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,Size)))return;
@@ -107,23 +148,37 @@ class FCoilPresentationRun final:public IAutomationLatentCommand
         {
             if(C->ComponentHasTag(TEXT("CoilBogieWheel")))for(int I=0;I<C->GetInstanceCount();++I)
             {
-                FTransform T;C->GetInstanceTransform(I,T,false);const double Bottom=T.GetLocation().Z*.01-C->GetStaticMesh()->GetBounds().BoxExtent.X*T.GetScale3D().X*.01;
-                Test->TestTrue(TEXT("bogie wheel tread at rail top, not floating"),FMath::IsNearlyEqual(Bottom,S.QuayZ()+.16,.015));
+                FTransform T;C->GetInstanceTransform(I,T,true);const double Center=S.GetActorTransform().InverseTransformPosition(T.GetLocation()).Z*.01,Bottom=Center-CoilQuay::WheelTreadRadius;
+                Test->TestTrue(TEXT("bogie steel tread at rail top; flange extends below rail head"),FMath::IsNearlyEqual(Bottom,S.QuayZ()+.16,.015));Test->TestTrue(TEXT("wheel has real flange profile"),FMath::IsNearlyEqual(C->GetStaticMesh()->GetBounds().BoxExtent.X*.01,CoilQuay::WheelFlangeRadius,.001));
                 Test->TestTrue(TEXT("wheel axle perpendicular to rail"),FMath::Abs(T.GetRotation().RotateVector(FVector::UpVector).Y)>.99);
             }
             if(C->ComponentHasTag(TEXT("CoilDeckCranePost"))){FLinearColor Paint;C->GetMaterial(0)->GetVectorParameterValue(FMaterialParameterInfo(TEXT("ColdColor")),Paint);Test->TestTrue(TEXT("deck crane neutral white rather than pink"),FMath::Abs(Paint.R-Paint.B)<.04&&Paint.R>.75);}
         }
+        int Numbers=0,Positive=0,Negative=0;TInlineComponentArray<UTextRenderComponent*> Labels(&S);for(auto* T:Labels)if(T->ComponentHasTag(TEXT("CoilEquipmentNumber"))){++Numbers;Test->TestEqual(TEXT("equipment number literal31"),T->Text.ToString(),FString(TEXT("31")));Test->TestTrue(TEXT("number has positive scale, no mirrored geometry"),T->GetComponentTransform().GetDeterminant()>0);const double Face=FVector::DotProduct(T->GetForwardVector(),S.GetActorForwardVector());Positive+=Face>.8;Negative+=Face<-.8;}
+        Test->TestTrue(TEXT("four leg numbers on each outward face"),Numbers==8&&Positive==4&&Negative==4);
+        for(auto* C:Parts)if(C->ComponentHasTag(TEXT("CoilPortalLeg")))for(int I=0;I<C->GetInstanceCount();++I){FTransform T;C->GetInstanceTransform(I,T,false);const FVector Axis=T.GetRotation().RotateVector(FVector::UpVector);Test->TestTrue(TEXT("ref6 legs rake rather than vertical"),FMath::Abs(Axis.Z)<.999&&FMath::Abs(Axis.Y)>.05);}
+        Test->TestEqual(TEXT("ref1 upper stays visible; no lower knee struts"),Count(TEXT("CoilUpperStay")),2);
+        Evidence->SetNumberField(TEXT("loaded_draft_m"),S.Hydrostatics().Draft);Evidence->SetNumberField(TEXT("estimated_tpc_t_per_cm"),S.Hydrostatics().TonnesPerCm);
         Evidence->SetBoolField(TEXT("ref6_construction_checks"),!Test->HasAnyErrors());
     }
 public:
     explicit FCoilPresentationRun(FAutomationTestBase* T):Test(T){}
     bool Update() override
     {
-        const double Now=FPlatformTime::Seconds();if(Now-Begin>180){Test->AddError(TEXT("COIL-01b presentation timeout"));return true;}
+        const double Now=FPlatformTime::Seconds();if(Now-Begin>180){Test->AddError(TEXT("COIL-01c presentation timeout"));return true;}
         if(GShaderCompilingManager&&GShaderCompilingManager->IsCompiling()){Changed=Now;return false;}
         UWorld* W=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)W=C.World();if(!W||!FinalAcceptanceViewportReady(W))return false;ACoilLoadingMonitorHost* H=nullptr;for(TActorIterator<ACoilLoadingMonitorHost> I(W);I;++I)H=*I;if(!H||!H->Simulation||!H->Monitor)return false;
         if(!Changed){Changed=Now;return false;}if(Now-Changed<1)return false;auto& S=*H->Simulation;auto& M=*H->Monitor;
-        if(Step==0){M.LoadMixedExample();Test->TestTrue(TEXT("UI button starts existing async load"),S.IsPlanLoadPending());Step=1;Changed=Now;return false;}
+        if(Step==0)
+        {
+            IdleWrites=S.RigTransformWriteCount();IdleCalls=S.RigRefreshCount();TInlineComponentArray<USceneComponent*> Cs(&S);for(auto* C:Cs){const auto Counter=IdleEvents;auto Handle=C->TransformUpdated.AddLambda([Counter](USceneComponent*,EUpdateTransformFlags,ETeleportType){++*Counter;});ProbeHandles.Add({C,Handle});}Step=100;Changed=Now;return false;
+        }
+        if(Step==100)
+        {
+            if(Now-Changed<1.5)return false;for(auto& P:ProbeHandles)if(P.Key.IsValid())P.Key->TransformUpdated.Remove(P.Value);ProbeHandles.Reset();
+            Test->TestTrue(TEXT("idle probe covered at least5 real visual timer callbacks"),S.RigRefreshCount()-IdleCalls>=5);Test->TestEqual(TEXT("idle transform API writes0"),S.RigTransformWriteCount()-IdleWrites,uint64(0));Test->TestEqual(TEXT("idle observed component transform events0"),*IdleEvents,0);Evidence->SetNumberField(TEXT("idle_transform_writes"),S.RigTransformWriteCount()-IdleWrites);Evidence->SetNumberField(TEXT("idle_transform_events"),*IdleEvents);
+            const auto Original=S.NextSpec;S.NextSpec.CoilId=TEXT("DRAFT-PROBE");S.NextSpec.MassOverride=100;Test->TestTrue(TEXT("draft probe placement"),S.PlaceNext(false));Test->TestTrue(TEXT("actual scene sinkage responds to placed cargo"),S.Hydrostatics().Sinkage>0&&FMath::IsNearlyEqual(S.QuayZ()-S.BaseQuayZ(),S.Hydrostatics().Sinkage,1.e-8));bool RootShift=false;TInlineComponentArray<USceneComponent*> Roots(&S);for(auto* C:Roots)if(C->ComponentHasTag(TEXT("CoilShoreMotionRoot")))RootShift=FMath::IsNearlyEqual(C->GetRelativeLocation().Z*.01,S.Hydrostatics().Sinkage,1.e-8);Test->TestTrue(TEXT("quay/crane/water common parent reflects physical relative height"),RootShift);Test->TestTrue(TEXT("undo restores draft"),S.Undo());Test->TestTrue(TEXT("empty ship returns to reference draft"),FMath::IsNearlyZero(S.Hydrostatics().Sinkage,1.e-9));S.NextSpec=Original;S.RefreshPreview();
+            M.LoadMixedExample();Test->TestTrue(TEXT("UI button starts existing async load"),S.IsPlanLoadPending());Step=1;Changed=Now;return false;}
         if(Step==1)
         {
             if(S.IsPlanLoadPending())return false;Test->TestEqual(TEXT("mixed example loaded through UI"),S.Plan().Num(),10);M.SyncInputs();M.Refresh();M.SelectView(2);Step=11;Changed=Now;return false;
@@ -141,22 +196,27 @@ public:
             Capture(*W,TEXT("04-quay-ref1-ref3"),true);Construction(S);int Instances=0,Groups=0;TInlineComponentArray<UInstancedStaticMeshComponent*> Cs(&S);for(auto* C:Cs)if(C->ComponentHasTag(TEXT("CoilQuayPresentation"))){++Groups;Instances+=C->GetInstanceCount();Test->TestEqual(TEXT("visual architecture excluded from sensor/physics collision"),C->GetCollisionEnabled(),ECollisionEnabled::NoCollision);Test->TestTrue(TEXT("persisted material has instancing shader, no gray fallback"),C->GetMaterial(0)->GetMaterial()->GetUsageByFlag(MATUSAGE_InstancedStaticMeshes));if(C->ComponentHasTag(TEXT("CoilPalette2"))){FLinearColor Paint;C->GetMaterial(0)->GetVectorParameterValue(FMaterialParameterInfo(TEXT("ColdColor")),Paint);Test->TestTrue(TEXT("crane yellow paint matches reference"),Paint.R>.8&&Paint.G>.45&&Paint.B<.08);}}
             Test->TestTrue(TEXT("quay details batched rather than individual actors"),Groups>5&&Instances>400);Evidence->SetNumberField(TEXT("decorative_instances"),Instances);Evidence->SetNumberField(TEXT("decorative_groups"),Groups);bool ScaleSign=false;TInlineComponentArray<UTextRenderComponent*> Signs(&S);for(auto* T:Signs)if(T->Text.ToString()==TEXT("1.8 m"))ScaleSign=true;Test->TestTrue(TEXT("1.8m signalman reference present"),ScaleSign);int Closed=0;TInlineComponentArray<UStaticMeshComponent*> Shapes(&S);for(auto* C:Shapes)if(C->ComponentHasTag(TEXT("CoilClosedHatchCover")))++Closed;Test->TestEqual(TEXT("only working hold open; other3 hatches closed"),Closed,3);Test->TestTrue(TEXT("12m traffic corridor plus5m rail/stair clearance before shed"),FMath::Abs(S.ShedCenterY()-S.Settings.QuayEdgeY())-5-(S.Settings.RailSetback+S.Settings.RailGauge)>=17-.00001);H->Focus(0);Step=6;Changed=Now;return false;
         }
-        if(Step==6){Capture(*W,TEXT("05-portal-detail-ref1"));Test->TestTrue(TEXT("mixed demonstration can be undone before clean crane cycle"),S.Undo());S.HighlightCoils({});S.NextSpec.CoilId=TEXT("COIL-01b-LIFT");S.Settings.bCHook=true;S.RefreshPreview();M.SyncInputs();const FVector Ref4Position(-1,-5,S.QuayZ()+10.5),Ref4Target(-9,-17,S.Settings.HoldHeight+9);H->ViewCamera->SetActorLocationAndRotation(S.GetActorTransform().TransformPosition(Ref4Position*100),S.GetActorQuat()*(Ref4Target-Ref4Position).Rotation().Quaternion());Test->TestTrue(TEXT("detailed crane still operates"),S.PlaceNext());Step=7;Changed=Now;return false;}
-        if(Step==7){if(Now-Changed<4.5)return false;Capture(*W,TEXT("06-trolley-hook-sling-ref2"));Capture(*W,TEXT("08-ref4-coil-lifter"));S.CancelOperation();H->Focus(2);Step=8;Changed=Now;return false;}
+        if(Step==6){Capture(*W,TEXT("05-portal-detail-ref1"));Test->TestTrue(TEXT("mixed demonstration can be undone before clean crane cycle"),S.Undo());S.HighlightCoils({});S.NextSpec.CoilId=TEXT("COIL-01c-LIFT");S.Settings.bCHook=true;S.RefreshPreview();M.SyncInputs();const FVector Ref4Position(-1,-5,S.QuayZ()+10.5),Ref4Target(-9,-17,S.Settings.HoldHeight+9);H->ViewCamera->SetActorLocationAndRotation(S.GetActorTransform().TransformPosition(Ref4Position*100),S.GetActorQuat()*(Ref4Target-Ref4Position).Rotation().Quaternion());Test->TestTrue(TEXT("detailed crane still operates"),S.PlaceNext());Step=7;Changed=Now;return false;}
+        if(Step==7){if(Now-Changed<4.5)return false;Capture(*W,TEXT("06-trolley-hook-sling-ref2"));Capture(*W,TEXT("08-ref4-coil-lifter"));Camera(*H,{70,S.QuayOffset(38),S.QuayZ()+2.5},{-8,S.Settings.RailCenterY(),S.QuayZ()+18});Step=71;Changed=Now;return false;}
+        if(Step==71){Capture(*W,TEXT("15-ref6-lift"));Test->TestTrue(TEXT("ref6 direction: boom and vessel project left"),FVector::DotProduct(H->ViewCamera->GetActorRightVector(),S.GetActorQuat().RotateVector(FVector(0,-S.Settings.QuaySide,0)))<0);S.CancelOperation();H->Focus(2);Step=8;Changed=Now;return false;}
         if(Step==8)
         {
             Capture(*W,TEXT("07-shed-cradles-ref3"));M.SelectView(0);const FVector Ref5Position(180,S.QuayOffset(50),S.QuayZ()+7.5),Ref5Target(S.Settings.VesselCenterX(),0,S.Settings.HoldHeight+1);H->ViewCamera->SetActorLocationAndRotation(S.GetActorTransform().TransformPosition(Ref5Position*100),S.GetActorQuat()*(Ref5Target-Ref5Position).Rotation().Quaternion());Step=9;Changed=Now;return false;
         }
         if(Step==9)
         {
-            Capture(*W,TEXT("09-ref5-ship-quay-side"));Camera(*H,{-52,S.QuayOffset(57),S.QuayZ()+2.2},{-8,S.Settings.RailCenterY(),S.QuayZ()+15});Step=10;Changed=Now;return false;
+            Capture(*W,TEXT("09-ref5-ship-quay-side"));Camera(*H,{70,S.QuayOffset(38),S.QuayZ()+2.5},{-8,S.Settings.RailCenterY(),S.QuayZ()+18});Step=10;Changed=Now;return false;
         }
         if(Step==10){Capture(*W,TEXT("10-ref6-low-quay"));Camera(*H,{-19,S.QuayOffset(22),S.QuayZ()+2.4},{-12,S.QuayOffset(15),S.QuayZ()+.95});Step=12;Changed=Now;return false;}
-        if(Step==12){Capture(*W,TEXT("11-bogie-close"));Camera(*H,{-8,0,S.QuayZ()+27},{-5.3,S.PickupPosition().Y+2.3,S.QuayZ()+26.5});Step=13;Changed=Now;return false;}
+        if(Step==12){Capture(*W,TEXT("11-bogie-close"));Camera(*H,{5,S.PickupPosition().Y-2,S.QuayZ()+26},{-6,S.PickupPosition().Y,S.QuayZ()+26.5});Step=13;Changed=Now;return false;}
         if(Step==13){Capture(*W,TEXT("12-trolley-cab-close"));Camera(*H,{-25,S.QuayOffset(24),S.QuayZ()+36},{-8,-8,S.QuayZ()+29});Step=14;Changed=Now;return false;}
         if(Step==14)
         {
-            Capture(*W,TEXT("13-girder-top-close"));const auto Status=S.Lidar->GetSensorRuntimeStatus();Test->TestTrue(TEXT("presentation retains HWRT acquisition"),Status.ActiveAcquisitionBackend==TEXT("hardware_ray_tracing"));Evidence->SetStringField(TEXT("backend"),Status.ActiveAcquisitionBackend);Evidence->SetNumberField(TEXT("acquisition_hz"),Status.MeasuredAcquisitionRateHz);Evidence->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());Evidence->SetStringField(TEXT("scope"),TEXT("automated RHI and Slate delegation; distinct from direct mouse acceptance"));FString Text;FJsonSerializer::Serialize(Evidence,TJsonWriterFactory<>::Create(&Text));FFileHelper::SaveStringToFile(Text,*(Root()/TEXT("presentation.json")));return true;
+            Capture(*W,TEXT("13-girder-top-close"));Camera(*H,{45,-5,S.QuayZ()+26},{-8,-8.5,S.QuayZ()+29});Step=15;Changed=Now;return false;
+        }
+        if(Step==15)
+        {
+            Capture(*W,TEXT("14-boom-side"));const auto Status=S.Lidar->GetSensorRuntimeStatus();Test->TestTrue(TEXT("presentation retains HWRT acquisition"),Status.ActiveAcquisitionBackend==TEXT("hardware_ray_tracing"));Evidence->SetStringField(TEXT("backend"),Status.ActiveAcquisitionBackend);Evidence->SetNumberField(TEXT("acquisition_hz"),Status.MeasuredAcquisitionRateHz);Evidence->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());Evidence->SetStringField(TEXT("scope"),TEXT("automated RHI and Slate delegation; distinct from direct mouse acceptance"));FString Text;FJsonSerializer::Serialize(Evidence,TJsonWriterFactory<>::Create(&Text));FFileHelper::SaveStringToFile(Text,*(Root()/TEXT("presentation.json")));return true;
         }
         return false;
     }

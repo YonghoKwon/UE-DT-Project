@@ -5,6 +5,10 @@
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
 
+## COIL-01c — 사진 비례·idle·흘수
+
+#31c: 기울어진 다리/상부 스테이·ref6 방향·대차/번호, 소유 부모 이동과 idle 변환0, SX/SY·lens offset/DPI/picking, 적재 질량/TPC 흘수/양정/자료 필요를 구현했다. [근거](research/COIL-01c-basis.md), [결과](../Saved/Reports/COIL-01c/RESULT.md)와 하네스 result.json을 따른다. 일정 TPC·합성 수선면은 실선 정수력 승인값이 아니다.
+
 ## COIL-01b — 혼적 도형·사진 기준 부두
 
 #31b r1~r8: HR/CR 채움·실치수·툴팁/선택·경고 하이라이트와 혼적 계획 예시, 사진 ref4/ref5에 맞춘 N-class4홀드/접이식 커버/수납 갑판 크레인, ref6의 테이퍼 다리·강관 브레이스·계단탑·복수 대차·거더/트롤리/인양 상세, 창고 이격/12m 통행로를 구현했다. [근거](research/COIL-01b-basis.md), [사용법](../README.md#coil-01b-혼적-적재도사진-기준-부두), [결과](../Saved/Reports/COIL-01b/RESULT.md)를 따른다. 실제 local RHI·release·RT on ABAB2%·layer0→0과 직접 UI의 수행/미수행은 result.json에 구분한다. DTCore 변경 후보는 추가하지 않는다.

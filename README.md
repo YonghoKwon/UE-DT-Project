@@ -18,6 +18,16 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### COIL-01c 사진 비례·idle 변환·적재 흘수
+
+#31c는 ref6의 기울어진 사다리꼴 다리/접점, 선박 위로 화면 왼쪽으로 뻗는 거더와 가는 상부 스테이, 아치형 대차·강철 휠/모터/클램프/버퍼, 양면 정방향31을 반영한다. 사진에서 확인한 부재와 비례 가정은 [근거표](docs/research/COIL-01c-basis.md)에 구분했다. 새 저장 자산/맵은 없다.
+
+크레인 주행은 PortalRoot, 적재 후 상대 흘수는 ShoreRoot로 묶고 변할 때만 적용한다. Idle 변환0은 실제 타이머·transform 이벤트와 API write counter로 검사한다. 투영은 content aspect와 SX/SY full-target remap을 분리하고 비영점 lens 중심도 스케일한다. 기존 가로FOV60°/별도 player target 정책을 유지하며 드로어·DPI·역투영/picking을 검증한다.
+
+6.20m는 초기 기준 흘수다. 적재 질량/TPC로 현재/다음 포함 흘수를 표시하고 양정·커버 통과 여유·허용 흘수 판정에 반영한다. 실선 TPC 미제공이면 Cwp0.85·ρ1.025의 **합성 선형 추정/자료 필요**이며, 설정에서 초기 흘수/TPC/계수/밀도/허용값/인증 여부를 바꾼다. JSON/Undo가 이 입력을 보존한다. 큰 침하·실제 정수력 곡선/밸러스트·국부 흘수는 한계다.
+
+검증 명령은 `Scripts/verify.ps1 -Level release -Tests MA0T10.CoilLoading -BaseCommit 33d44ac`, 표준 RT on ABAB2%다. 수행·skip·직접 UI 보류와 최종 수치는 [RESULT](Saved/Reports/COIL-01c/RESULT.md)/[result.json](Saved/Reports/COIL-01c/result.json)을 따른다.
+
 ### COIL-01b 혼적 적재도·사진 기준 부두
 
 `feat/coil-loading-v1b`의 #31b 추가 범위. [수치·사진 근거](docs/research/COIL-01b-basis.md), [최종 결과](Saved/Reports/COIL-01b/RESULT.md), [result.json](Saved/Reports/COIL-01b/result.json)을 따른다. 기존 CoilLoadingTestMap을 열어 PIE에서 실행한다.
@@ -657,6 +667,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+COIL-01c는 L2의 사진 레이아웃/소유 이동 루트·흘수 계산과 L3의 투영 remap/입력을 갱신한다. DTCore·L1·새 모듈/플러그인 없이 allowlist/위반0→0을 유지한다.
 
 COIL-01b는 기존 L2 코일 모델/장면과 L3 투영·UI를 확장한다. N-class 기본/legacy JSON 호환·수납 붐 여유는 L2, 채움/실치수/선택·player projection은 L3다. L1·DTCore·새 모듈/플러그인 변경 없이 layer/allowlist0→0을 유지한다.
 

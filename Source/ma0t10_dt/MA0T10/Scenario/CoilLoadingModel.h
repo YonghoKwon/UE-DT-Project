@@ -52,6 +52,8 @@ struct MA0T10_DT_API FSettings
     double ApprovedPatchArea=0,LocalPressureLimit=0; // 0 = not provided, never a green approval
     double Displacement=30000,KG=7,KM=9,FreeSurfaceCorrection=.2,MCT1cm=0,KeelToTanktop=.2;
     double LBP=166,SpeedKnots=14,PositionFromAP=.25; // synthetic navigation inputs
+    double TPC=0,WaterplaneCoefficient=.85,WaterDensity=1.025,SummerDraftLimit=9.38;
+    bool bTPCConfirmed=false; // positive certified TPC required; otherwise data needed
     double LCFFromAP=0; // metres from AP; unavailable until explicitly confirmed
     bool bLCFConfirmed=false;
     double BerthGap=2,RailSetback=3,RailGauge=12;
@@ -85,6 +87,12 @@ struct MA0T10_DT_API FKeyGeometry
     FVector2D Center=FVector2D::ZeroVector;
     double Height=0,AngleDegrees=0,PenetrationRatio=0,NormalKN=0,SpreadKN=0;
 };
+struct MA0T10_DT_API FDraftResponse
+{
+    double AddedMass=0,TonnesPerCm=0,Sinkage=0,Draft=0,WaterplaneArea=0;
+    bool bConfirmed=false;
+};
+MA0T10_DT_API FDraftResponse DraftResponse(const FSettings& Settings,double AddedMass);
 struct MA0T10_DT_API FResult
 {
     TArray<FIssue> Issues;
@@ -92,6 +100,7 @@ struct MA0T10_DT_API FResult
     ESeverity Severity=ESeverity::Normal;
     bool bComplete=true;
     double TotalMass=0,FloorReaction=0,KG=0,GM=0,HeelDegrees=0,TrimCm=0,TrimMomentTonnesM=0,MaxUtilization=0;
+    FDraftResponse Hydro;
     int32 UnknownCount=0;
     void Add(FName Code,ESeverity Level,const FString& Reason,int32 Coil=INDEX_NONE,double Value=0,double Limit=0,bool Known=true);
 };

@@ -50,12 +50,19 @@ bool FSettings::Validate(FString& E) const
 {
     const double Values[]={LOA,Beam,Depth,Draft,HoldLength,HoldWidth,HoldHeight,OpeningLength,OpeningWidth,UDLLimit,DunnageWidth,DunnageThickness,ContactLength,Displacement,LBP,HookSWL,MaxRadius,GearHeadroom,GearWidth,GearLength};
     for(double V:Values)if(!Positive(V)){E=TEXT("선박·장구·받침 치수와 하중 입력은 유한한 양수여야 합니다.");return false;}
-    const double Optional[]={Coaming,ApprovedPatchArea,LocalPressureLimit,FreeSurfaceCorrection,MCT1cm,KeelToTanktop,SpeedKnots,GearMass,MinRadius,ClearanceMargin,WindMps,BerthGap,RailSetback,LCFFromAP,IntermediateHoldLength,HoldGap};
+    const double Optional[]={Coaming,ApprovedPatchArea,LocalPressureLimit,FreeSurfaceCorrection,MCT1cm,KeelToTanktop,SpeedKnots,GearMass,MinRadius,ClearanceMargin,WindMps,BerthGap,RailSetback,LCFFromAP,IntermediateHoldLength,HoldGap,TPC,SummerDraftLimit};
     for(double V:Optional)if(!Nonnegative(V)){E=TEXT("선박/장구 옵션은 유한한 비음수여야 합니다.");return false;}
     if(!FMath::IsFinite(KG)||!FMath::IsFinite(KM)||!FMath::IsFinite(Ax)||!FMath::IsFinite(Ay)||!FMath::IsFinite(Az)||!FMath::IsFinite(Outreach)||!Nonnegative(LegWLLTonnes)||!Nonnegative(LegAngleDegrees)||LegAngleDegrees>=89||HoldCount<1||DunnageLines<1||MinRadius>=MaxRadius||PositionFromAP<0||PositionFromAP>1||!FMath::IsFinite(PositionFromAP))
     {E=TEXT("선박/크레인 상태 입력 범위 오류");return false;}
+    if(!Positive(WaterplaneCoefficient)||WaterplaneCoefficient>1||!Positive(WaterDensity)||(bTPCConfirmed&&TPC<=0)){E=TEXT("TPC/WaterplaneCoefficient/WaterDensity: 유효 정수력 입력 필요");return false;}
     if(Coaming>=HoldHeight){E=TEXT("Coaming: 홀드 높이보다 작아야 합니다.");return false;}
     if(!Positive(RailGauge)||(QuaySide!=-1&&QuaySide!=1)||(bLCFConfirmed&&LCFFromAP>LBP)){E=TEXT("RailGauge/QuaySide/LCFFromAP 범위 오류");return false;}return true;
+}
+FDraftResponse DraftResponse(const FSettings& S,double AddedMass)
+{
+    FDraftResponse H;H.AddedMass=FMath::Max(0.,AddedMass);H.WaterplaneArea=S.LBP*S.Beam*S.WaterplaneCoefficient;
+    H.TonnesPerCm=S.TPC>0?S.TPC:S.WaterDensity*H.WaterplaneArea/100.;
+    H.Sinkage=H.TonnesPerCm>0?H.AddedMass/(H.TonnesPerCm*100.):0;H.Draft=S.Draft+H.Sinkage;H.bConfirmed=S.bTPCConfirmed&&S.TPC>0;return H;
 }
 void FResult::Add(FName C,ESeverity L,const FString& R,int32 I,double V,double Limit,bool Known)
 {
@@ -133,6 +140,11 @@ FResult Analyze(const FSettings& S,const TArray<FPlacement>& Plan)
     TArray<int32> Order;TArray<double> HorizontalKN,NormalSumKN;HorizontalKN.Init(0,N);NormalSumKN.Init(0,N);TSet<FString> Ids;double MX=0,MY=0,MZ=0;FVector Acc(S.Ax,S.Ay,S.Az);
     if(S.bUseCSS&&!CSSAcceleration(S,Acc,Error))R.Add(TEXT("CSSUnknown"),ESeverity::Caution,Error,INDEX_NONE,0,0,false);
     if(S.bDeckCranes){const double Margin=S.DeckCraneInnerY()-S.OpeningWidth*.5;if(Margin<S.ClearanceMargin)R.Add(TEXT("DeckCraneClearance"),Margin<0?ESeverity::Warning:ESeverity::Caution,TEXT("수납 갑판 붐 / 작업 해치 외곽 여유 [m]"),INDEX_NONE,Margin,S.ClearanceMargin);}
+    double AddedMass=0;for(const auto& P:Plan){FString Why;if(P.Spec.Validate(Why))AddedMass+=P.Spec.GrossMass();}
+    R.Hydro=DraftResponse(S,AddedMass);
+    if(!R.Hydro.bConfirmed)R.Add(TEXT("HydrostaticsUnknown"),ESeverity::Caution,TEXT("흘수/양정: 실선 TPC·수선면·기준 적재상태 확인 필요 (입력/합성 선형값 사용, 승인 아님)"),INDEX_NONE,R.Hydro.Draft,0,false);
+    if(S.SummerDraftLimit<=0)R.Add(TEXT("DraftLimitUnknown"),ESeverity::Caution,TEXT("허용 흘수 자료 필요"),INDEX_NONE,0,0,false);
+    else if(R.Hydro.Draft>S.SummerDraftLimit)R.Add(TEXT("DraftLimit"),ESeverity::Warning,TEXT("적재 후 평균 흘수 / 입력 허용 흘수 [m]"),INDEX_NONE,R.Hydro.Draft,S.SummerDraftLimit);
     const double Geff=Gravity-FMath::Abs(Acc.Z);
     if(Geff<=0)R.Add(TEXT("ContactLiftOff"),ESeverity::Warning,TEXT("수직가속도가 중력 이상: 접촉 유지 불가"));
     for(int32 I=0;I<N;++I)
@@ -156,8 +168,11 @@ FResult Analyze(const FSettings& S,const TArray<FPlacement>& Plan)
         if(U>=.8)R.Add(TEXT("SWL"),Utilization(U),TEXT("훅 총하중/SWL (장구 자중 포함, 합성 load chart)"),I,M+S.GearMass,S.HookSWL);
         const double Radius=S.Outreach>0?S.Outreach:S.CraneRadius(P.Center);
         if(Radius<S.MinRadius||Radius>S.MaxRadius)R.Add(TEXT("Outreach"),ESeverity::Warning,TEXT("레일 X 정렬 후 크레인 작업 반경 범위 초과 [m]"),I,Radius,S.MaxRadius);
-        const double RailZ=S.Draft-S.KeelToTanktop+3.5,HookZ=P.Center.Z+S.GearHeadroom;
+        const double RailZ=R.Hydro.Draft-S.KeelToTanktop+3.5,HookZ=P.Center.Z+S.GearHeadroom;
         if(HookZ>RailZ+28||HookZ<RailZ-15)R.Add(TEXT("HoistLimit"),ESeverity::Warning,TEXT("훅 양정 범위 초과: 레일 위28/아래15m [m]"),I,HookZ-RailZ,28);
+        const double Transit=S.HoldHeight+(S.bFoldingCovers?S.OpeningLength*.25:0)+C.OuterDiameter()*.5+S.ClearanceMargin+1;
+        const double TransitClearance=RailZ+28-(FMath::Max(RailZ+5,Transit)+S.GearHeadroom);
+        if(TransitClearance<S.ClearanceMargin)R.Add(TEXT("TransitHoistClearance"),TransitClearance<0?ESeverity::Warning:ESeverity::Caution,TEXT("적재 흘수 반영: 커버 통과 시 훅/상부 양정 여유 [m]"),I,TransitClearance,S.ClearanceMargin);
         const double Leg=(M+S.GearMass)/(2*FMath::Cos(FMath::DegreesToRadians(S.LegAngleDegrees)));
         if(S.LegWLLTonnes<=0)R.Add(TEXT("GearWLLUnknown"),ESeverity::Caution,TEXT("슬링/C-hook 인증 WLL 미확인. 형상 시연"),I,Leg,0,false);
         else if(Leg>S.LegWLLTonnes)R.Add(TEXT("GearWLL"),ESeverity::Warning,TEXT("슬링 다리 장력/WLL [t 상당]"),I,Leg,S.LegWLLTonnes);
@@ -288,6 +303,7 @@ FString PlanToJson(const FSettings& S,const TArray<FPlacement>& Plan)
     Settings->SetNumberField(TEXT("LCFFromAP"),S.LCFFromAP);Settings->SetBoolField(TEXT("bLCFConfirmed"),S.bLCFConfirmed);
     Settings->SetNumberField(TEXT("BerthGap"),S.BerthGap);Settings->SetNumberField(TEXT("RailSetback"),S.RailSetback);Settings->SetNumberField(TEXT("RailGauge"),S.RailGauge);Settings->SetNumberField(TEXT("QuaySide"),S.QuaySide);
     Settings->SetNumberField(TEXT("IntermediateHoldLength"),S.IntermediateHoldLength);Settings->SetNumberField(TEXT("HoldGap"),S.HoldGap);Settings->SetBoolField(TEXT("bDeckCranes"),S.bDeckCranes);Settings->SetBoolField(TEXT("bFoldingCovers"),S.bFoldingCovers);
+    Settings->SetNumberField(TEXT("TPC"),S.TPC);Settings->SetBoolField(TEXT("bTPCConfirmed"),S.bTPCConfirmed);Settings->SetNumberField(TEXT("WaterplaneCoefficient"),S.WaterplaneCoefficient);Settings->SetNumberField(TEXT("WaterDensity"),S.WaterDensity);Settings->SetNumberField(TEXT("SummerDraftLimit"),S.SummerDraftLimit);
     TArray<TSharedPtr<FJsonValue>> Items;
     for(const auto& P:Plan)
     {
@@ -323,8 +339,10 @@ bool PlanFromJson(const FString& Text,FSettings& OutS,TArray<FPlacement>& OutP,F
     // New screening inputs are optional for existing v1 plans; unavailable LCF
     // and zero rolling resistance keep their explicit unknown/ideal meanings.
 #define READ_OPTIONAL(Name) if(O->HasField(TEXT(#Name))&&!O->TryGetNumberField(TEXT(#Name),S.Name)){E=TEXT("settings.") TEXT(#Name) TEXT(": 숫자 필요");return false;}
-    READ_OPTIONAL(LCFFromAP) READ_OPTIONAL(BerthGap) READ_OPTIONAL(RailSetback) READ_OPTIONAL(RailGauge) READ_OPTIONAL(QuaySide) READ_OPTIONAL(IntermediateHoldLength) READ_OPTIONAL(HoldGap)
+    READ_OPTIONAL(LCFFromAP) READ_OPTIONAL(BerthGap) READ_OPTIONAL(RailSetback) READ_OPTIONAL(RailGauge) READ_OPTIONAL(QuaySide) READ_OPTIONAL(IntermediateHoldLength) READ_OPTIONAL(HoldGap) READ_OPTIONAL(TPC) READ_OPTIONAL(WaterplaneCoefficient) READ_OPTIONAL(WaterDensity) READ_OPTIONAL(SummerDraftLimit)
 #undef READ_OPTIONAL
+    if(!O->HasField(TEXT("SummerDraftLimit")))S.SummerDraftLimit=0;
+    if(O->HasField(TEXT("bTPCConfirmed"))&&!O->TryGetBoolField(TEXT("bTPCConfirmed"),S.bTPCConfirmed)){E=TEXT("settings.bTPCConfirmed: bool 필요");return false;}
     if(!O->HasField(TEXT("IntermediateHoldLength")))S.IntermediateHoldLength=0;if(!O->HasField(TEXT("HoldGap")))S.HoldGap=3;
     S.bDeckCranes=false;S.bFoldingCovers=false;
     if(O->HasField(TEXT("bDeckCranes"))&&!O->TryGetBoolField(TEXT("bDeckCranes"),S.bDeckCranes)){E=TEXT("settings.bDeckCranes: bool 필요");return false;}

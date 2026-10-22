@@ -1,16 +1,19 @@
 #include "CoilLoadingSimulation.h"
+#include "CoilLoadingQuayLayout.h"
+#include "Components/SceneComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
 #include "MeshDescription.h"
 #include "StaticMeshAttributes.h"
+#include "Algo/Reverse.h"
 #include "Materials/MaterialInstanceDynamic.h"
 
 void ACoilLoadingSimulation::BuildQuayPresentation()
 {
     // All additions here are visual. Tanktop/box-hold/crane structural collision
     // remains in BuildScene; decorative geometry never enters sensor snapshots.
-    const double Q=QuayZ(),Side=Settings.QuaySide,Rail=QuayOffset(Settings.RailSetback),Mid=Settings.RailCenterY(),X=-8;
+    const double Q=BaseQuayZ(),Side=Settings.QuaySide,Rail=QuayOffset(Settings.RailSetback),Mid=Settings.RailCenterY(),X=-8;
     auto* Cube=StructureCubeAsset?StructureCubeAsset.Get():LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube"));
     auto* Cylinder=LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));auto* Sphere=LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Sphere.Sphere"));
     // Reuse the coil material's already supported instancing shader in uniform
@@ -18,14 +21,14 @@ void ACoilLoadingSimulation::BuildQuayPresentation()
     TArray<UMaterialInterface*> Palette;auto* Surface=CoilSurfaceAsset.Get();if(!Surface)Surface=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/MA0T10/Coil/Materials/M_CoilSurface.M_CoilSurface"));
     const FLinearColor Swatches[]={FLinearColor(.14,.2,.25),FLinearColor(.4,.42,.42),FLinearColor(.92,.58,.025),FLinearColor(.2,.1,.04),FLinearColor(.29,.34,.38),FLinearColor(.07,.28,.12),FLinearColor(.8,.12,.025),FLinearColor(.025,.09,.15),FLinearColor(.84,.86,.85),FLinearColor(.035,.095,.13),FLinearColor(.82,.22,.055),FLinearColor(.095,.26,.17),FLinearColor(.065,.075,.08),FLinearColor(.52,.31,.19),FLinearColor(.055,.11,.23),FLinearColor(.55,.12,.085)};
     for(const auto Color:Swatches){auto* M=UMaterialInstanceDynamic::Create(Surface,this);M->SetVectorParameterValue(TEXT("ColdColor"),Color);M->SetScalarParameterValue(TEXT("ColdRolled"),1);M->SetScalarParameterValue(TEXT("Roughness"),.76);M->SetScalarParameterValue(TEXT("Metallic"),.08);Palette.Add(M);}
-    TMap<FString,UInstancedStaticMeshComponent*> Groups;
+    TMap<FString,UInstancedStaticMeshComponent*> Groups;bool Shore=true;
     const auto Part=[&](FVector C,FVector Size,int32 Color,FRotator Rotation=FRotator(0,0,0),int32 Moving=0,UStaticMesh* Mesh=nullptr,bool Detail=true,const TCHAR* Category=TEXT(""))
     {
         if(!Mesh)Mesh=Cube;const FString Key=FString::Printf(TEXT("%s/%d/%d/%d/%s"),*Mesh->GetName(),Color,Moving,Detail,Category);auto*& B=Groups.FindOrAdd(Key);
         if(!B)
         {
-            B=NewObject<UInstancedStaticMeshComponent>(this);B->SetupAttachment(GetRootComponent());B->SetMobility(EComponentMobility::Movable);B->SetStaticMesh(Mesh);B->SetMaterial(0,Palette[Color]);B->SetCollisionEnabled(ECollisionEnabled::NoCollision);B->SetGenerateOverlapEvents(false);B->SetCastShadow(false);B->ComponentTags.Add(TEXT("CoilDisplayOnly"));B->ComponentTags.Add(TEXT("CoilQuayPresentation"));B->ComponentTags.Add(FName(*FString::Printf(TEXT("CoilPalette%d"),Color)));if(*Category)B->ComponentTags.Add(FName(Category));if(Detail)B->SetCullDistances(9000,15000);B->RegisterComponent();PresentationBatches.Add(B);Structure.Add(B);
-            if(Moving==1){CraneParts.Add(B);CraneStarts.Add(FVector::ZeroVector);}else if(Moving==2)TrolleyDetails.Add(B);else if(Moving==3)HookDetails.Add(B);
+            B=NewObject<UInstancedStaticMeshComponent>(this);B->SetupAttachment(Moving==1||Moving==2?PortalRoot.Get():Moving==3||Moving==4?GetRootComponent():Shore?ShoreRoot.Get():GetRootComponent());B->SetMobility(EComponentMobility::Movable);B->SetStaticMesh(Mesh);B->SetMaterial(0,Palette[Color]);B->SetCollisionEnabled(ECollisionEnabled::NoCollision);B->SetGenerateOverlapEvents(false);B->SetCastShadow(false);B->ComponentTags.Add(TEXT("CoilDisplayOnly"));B->ComponentTags.Add(TEXT("CoilQuayPresentation"));B->ComponentTags.Add(FName(*FString::Printf(TEXT("CoilPalette%d"),Color)));if(*Category)B->ComponentTags.Add(FName(Category));if(Detail)B->SetCullDistances(9000,15000);B->RegisterComponent();PresentationBatches.Add(B);Structure.Add(B);
+            if(Moving==2)TrolleyDetails.Add(B);else if(Moving==3)HookDetails.Add(B);else if(Moving==4)HoistFalls=B;
         }
         B->AddInstance(FTransform(Rotation,C*100,Size),false);
     };
@@ -39,8 +42,8 @@ void ACoilLoadingSimulation::BuildQuayPresentation()
         const int32 N=FMath::Max(1,FMath::CeilToInt(FVector::Distance(A,B)/1.6));for(int32 I=0;I<=N;++I){const auto P=FMath::Lerp(A,B,double(I)/N);Tube(P,P+FVector(0,0,1.15),.065,2,Moving);}
         Beam(A+FVector(0,0,.12),B+FVector(0,0,.12),.10,2,Moving);
     };
-    const auto Sign=[&](FVector C,const FString& Text,double Height,FRotator Rotation=FRotator(0,0,0))
-    {auto* T=NewObject<UTextRenderComponent>(this);T->SetupAttachment(GetRootComponent());T->SetRelativeLocation(C*100);T->SetRelativeRotation(Rotation);T->SetText(FText::FromString(Text));T->SetWorldSize(Height*100);T->SetTextRenderColor(FColor(225,230,223));T->SetCollisionEnabled(ECollisionEnabled::NoCollision);T->SetCastShadow(false);T->SetCullDistance(18000);T->ComponentTags.Add(TEXT("CoilDisplayOnly"));T->ComponentTags.Add(TEXT("CoilQuayPresentation"));T->RegisterComponent();};
+    const auto TextSign=[&](FVector C,const FString& Text,double Height,FRotator Rotation=FRotator(0,0,0),bool Moving=false)
+    {auto* T=NewObject<UTextRenderComponent>(this);T->SetupAttachment(Moving?PortalRoot.Get():Shore?ShoreRoot.Get():GetRootComponent());T->SetRelativeLocation(C*100);T->SetRelativeRotation(Rotation);T->SetText(FText::FromString(Text));T->SetWorldSize(Height*100);T->SetTextRenderColor(FColor(225,230,223));T->SetCollisionEnabled(ECollisionEnabled::NoCollision);T->SetCastShadow(false);T->SetCullDistance(18000);T->ComponentTags.Add(TEXT("CoilDisplayOnly"));T->ComponentTags.Add(TEXT("CoilQuayPresentation"));T->RegisterComponent();return T;};
     // Ref6 is the principal construction reference. Four tapered box legs,
     // multi-level tubular portal bracing and two four-wheel bogies per leg.
     // These render-only members surround the unchanged simple collision frame.
@@ -53,85 +56,97 @@ void ACoilLoadingSimulation::BuildQuayPresentation()
     const FVector LB[]={FVector(-.5,-.5,-.5),FVector(-.5,.5,-.5),FVector(.5,.5,-.5),FVector(.5,-.5,-.5)};
     const FVector LT[]={FVector(-.34,-.34,.5),FVector(-.34,.34,.5),FVector(.34,.34,.5),FVector(.34,-.34,.5)};
     for(int I=0;I<4;++I)LegFace(LB[I],LB[(I+1)%4],LT[(I+1)%4],LT[I]);LegFace(LT[0],LT[1],LT[2],LT[3]);LegFace(LB[3],LB[2],LB[1],LB[0]);
-    auto* LegMesh=NewObject<UStaticMesh>(this,TEXT("CoilTaperedPortalLeg"));LegMesh->GetStaticMaterials().Add(FStaticMaterial());UStaticMesh::FBuildMeshDescriptionsParams LegBuild;LegBuild.bFastBuild=true;LegBuild.bBuildSimpleCollision=false;LegMesh->BuildFromMeshDescriptions({&LegD},LegBuild);PresentationMeshes.Add(LegMesh);
-    const double Sea=Mid-Side*Settings.MaxRadius,Land=Mid+Side*(Settings.RailGauge*.5+2),Center=(Sea+Land)*.5,Length=FMath::Abs(Sea-Land);
-    for(double Y:{Rail,Rail+Side*Settings.RailGauge})
+    auto* LegMesh=NewObject<UStaticMesh>(this);LegMesh->GetStaticMaterials().Add(FStaticMaterial());UStaticMesh::FBuildMeshDescriptionsParams LegBuild;LegBuild.bFastBuild=true;LegBuild.bBuildSimpleCollision=false;LegMesh->BuildFromMeshDescriptions({&LegD},LegBuild);PresentationMeshes.Add(LegMesh);
+    // Wheel housing side plates have real arched clearances; rail wheels have
+    // a steel tread/flange/hub profile rather than a rubber cylinder silhouette.
+    const auto VisualMesh=[&](FMeshDescription& D){auto* M=NewObject<UStaticMesh>(this);M->GetStaticMaterials().Add(FStaticMaterial());UStaticMesh::FBuildMeshDescriptionsParams P;P.bFastBuild=true;P.bBuildSimpleCollision=false;M->BuildFromMeshDescriptions({&D},P);PresentationMeshes.Add(M);return M;};
+    const auto Polygon=[](FMeshDescription& D,FStaticMeshAttributes& A,FPolygonGroupID G,TArray<FVector> Points,FVector Desired)
     {
-        for(double DX:{-4.,4.})
+        FVector N=-FVector::CrossProduct(Points[1]-Points[0],Points[2]-Points[0]).GetSafeNormal();if(FVector::DotProduct(N,Desired)<0){Algo::Reverse(Points);N=-N;}
+        TArray<FVertexInstanceID> Corners;for(auto P:Points){auto V=D.CreateVertex();A.GetVertexPositions()[V]=FVector3f(P*100);auto I=D.CreateVertexInstance(V);A.GetVertexInstanceNormals()[I]=FVector3f(N);A.GetVertexInstanceColors()[I]=FVector4f(1,1,1,1);A.GetVertexInstanceUVs().Set(I,0,FVector2f(P.X,P.Z));Corners.Add(I);}D.CreatePolygon(G,Corners);
+    };
+    FMeshDescription HousingD;FStaticMeshAttributes HA(HousingD);HA.Register();HA.GetVertexInstanceUVs().SetNumChannels(1);auto HG=HousingD.CreatePolygonGroup();
+    TArray<FVector2D> Profile={{-1.25,.4}};
+    for(double Axle:{-.72,.72})for(int I=0;I<=16;++I){const double Angle=PI*(1-double(I)/16);Profile.Add({Axle+.46*FMath::Cos(Angle),.57+.46*FMath::Sin(Angle)});}
+    Profile.Append({FVector2D(1.25,.4),FVector2D(1.25,1.25),FVector2D(-1.25,1.25)});
+    for(double SideFace:{-1.,1.})
+    {
+        for(double Face:{-.055,.055}){TArray<FVector> Points;for(auto P:Profile)Points.Add({P.X,SideFace*.68+Face,P.Y});Polygon(HousingD,HA,HG,Points,{0,FMath::Sign(Face),0});}
+        for(int I=0;I<Profile.Num();++I){auto A=Profile[I],B=Profile[(I+1)%Profile.Num()];Polygon(HousingD,HA,HG,{{A.X,SideFace*.68-.055,A.Y},{B.X,SideFace*.68-.055,B.Y},{B.X,SideFace*.68+.055,B.Y},{A.X,SideFace*.68+.055,A.Y}},{B.Y-A.Y,0,A.X-B.X});}
+    }
+    auto* Housing=VisualMesh(HousingD);
+    FMeshDescription WheelD;FStaticMeshAttributes WA(WheelD);WA.Register();WA.GetVertexInstanceUVs().SetNumChannels(1);auto WG=WheelD.CreatePolygonGroup();
+    const FVector2D Rim[]={{.0,-.16},{.17,-.16},{.19,-.12},{.41,-.12},{.41,.08},{.45,.09},{.45,.14},{.17,.16},{0.,.16}};
+    for(int Ring=0;Ring<8;++Ring)for(int I=0;I<64;++I)
+    {const double A=I*2*PI/64,B=(I+1)*2*PI/64;const auto P=Rim[Ring],N=Rim[Ring+1];TArray<FVector> Points={{P.X*FMath::Cos(A),P.X*FMath::Sin(A),P.Y},{P.X*FMath::Cos(B),P.X*FMath::Sin(B),P.Y},{N.X*FMath::Cos(B),N.X*FMath::Sin(B),N.Y},{N.X*FMath::Cos(A),N.X*FMath::Sin(A),N.Y}};if(P.X==0)Points.RemoveAt(1);if(N.X==0)Points.RemoveAt(3);Polygon(WheelD,WA,WG,Points,{FMath::Cos(A),FMath::Sin(A),Ring==0?-1.:Ring==7?1.:0.});}
+    auto* RailWheel=VisualMesh(WheelD);
+    const double Sea=CoilQuay::GirderSea(Settings),Land=CoilQuay::GirderLand(Settings),Center=(Sea+Land)*.5,Length=FMath::Abs(Sea-Land);
+    const auto Node=[&](double Sign,int RailIndex,double Z){return CoilQuay::LegNode(Settings,Sign,RailIndex,Z)+FVector(0,0,Q);};
+    for(int RailIndex=0;RailIndex<2;++RailIndex)
+    {
+        const double Y=Rail+Side*RailIndex*Settings.RailGauge;
+        for(double Sign:{-1.,1.})
         {
-            const double LX=X+DX;
-            Part({LX,Y,Q+14.7},{1.6,1.6,26.6},2,FRotator(0,0,0),1,LegMesh,false,TEXT("CoilPortalLeg"));
+            const double LX=X+Sign*4;const FVector A=Node(Sign,RailIndex,1.4),B=Node(Sign,RailIndex,28),D=B-A;const FRotator Rotation=FRotationMatrix::MakeFromZ(D).Rotator();
+            Part((A+B)*.5,{1.6,1.6,D.Size()},2,Rotation,1,LegMesh,false,TEXT("CoilPortalLeg"));
             Part({LX,Y,Q+1.65},{5.3,1.4,.52},2,FRotator(0,0,0),1,nullptr,false,TEXT("CoilEqualizer"));
             for(double End:{-1.,1.})
             {
-                const double BX=LX+End*1.55;
-                Part({BX,Y,Q+.92},{2.35,1.3,.55},2,FRotator(0,0,0),1,nullptr,false,TEXT("CoilRailBogie"));
-                for(double Wheel:{-.72,.72})for(double WY:{-.59,.59})
-                {
-                    Part({BX+Wheel,Y+WY,Q+.57},{.82,.82,.23},12,FRotator(0,0,90),1,Cylinder,true,TEXT("CoilBogieWheel"));
-                    Part({BX+Wheel,Y+WY*1.23,Q+.57},{.32,.32,.055},4,FRotator(0,0,90),1,Cylinder);
-                }
-                // Equalizer pivot, drive housing, buffer and parked rail clamp.
+                const double BX=LX+End*1.55;Part({BX,Y,Q},{1,1,1},2,FRotator(0,0,0),1,Housing,false,TEXT("CoilRailBogie"));Part({BX,Y,Q+1.27},{2.65,1.55,.12},2,FRotator(0,0,0),1);
+                for(double Wheel:{-.72,.72})for(double WY:{-.59,.59})Part({BX+Wheel,Y+WY,Q+.57},{1,1,1},4,FRotator(0,0,WY<0?90:-90),1,RailWheel,true,TEXT("CoilBogieWheel"));
                 Tube({BX,Y-.75,Q+1.13},{BX,Y+.75,Q+1.13},.33,4,1);
-                Part({BX+.6,Y+Side*.95,Q+.85},{.65,.5,.55},4,FRotator(0,0,0),1);
-                Part({BX+End*1.32,Y,Q+.75},{.28,.7,.65},12,FRotator(0,0,0),1,nullptr,true,TEXT("CoilBuffer"));
-                for(int Stripe=0;Stripe<4;++Stripe)Part({BX+End*1.475,Y-.27+Stripe*.18,Q+.76},{.02,.13,.58},Stripe%2?12:2,FRotator(0,0,0),1);
-                for(double WY:{-.24,.24})Part({BX,Y+WY,Q+.25},{.4,.12,.3},4,FRotator(0,0,0),1,nullptr,true,TEXT("CoilRailClamp"));
+                Part({BX+.62,Y+Side*.99,Q+.85},{.65,.5,.55},4,FRotator(0,0,0),1);
+                Tube({BX+.45,Y+Side*1.1,Q+.85},{BX+.45,Y+Side*1.85,Q+.85},.42,4,1,true,TEXT("CoilBogieMotor"));
+                for(int Fin=0;Fin<6;++Fin)Part({BX+.45,Y+Side*(1.16+Fin*.11),Q+.85},{.49,.035,.49},4,FRotator(0,0,0),1);
+                Part({BX+End*1.45,Y,Q+.75},{.30,.75,.65},12,FRotator(0,0,0),1,nullptr,true,TEXT("CoilBuffer"));
+                for(int Stripe=0;Stripe<5;++Stripe)Part({BX+End*1.61,Y-.32+Stripe*.16,Q+.76},{.02,.11,.54},Stripe%2?12:2,FRotator(0,0,30),1);
+                for(double WY:{-.24,.24})Part({BX,Y+WY,Q+.25},{.42,.12,.3},4,FRotator(0,0,0),1,nullptr,true,TEXT("CoilRailClamp"));Tube({BX,Y,Q+.30},{BX,Y,Q+.65},.13,4,1);
                 Part({BX-End*.6,Y+Side*.82,Q+.25},{.35,.35,.4},2,FRotator(0,0,0),1,nullptr,true,TEXT("CoilStormAnchor"));
             }
-            for(double Z:{2.,8.,15.,22.,27.2})Part({LX,Y,Q+Z},{1.64,1.64,.13},2,FRotator(0,0,0),1);
-            // Painted equipment number 31, assembled in the leg face plane.
-            const double MarkX=LX-.815,MarkZ=Q+3.2;
-            for(double H:{0.,.3,.6})Tube({MarkX,Y-.45,MarkZ+H},{MarkX,Y-.1,MarkZ+H},.055,12,1);
-            Tube({MarkX,Y-.1,MarkZ},{MarkX,Y-.1,MarkZ+.6},.055,12,1);Tube({MarkX,Y+.25,MarkZ},{MarkX,Y+.25,MarkZ+.6},.055,12,1);
-            // Small exposed primer/wear patches, never a separate collision skin.
-            for(int Patch=0;Patch<4;++Patch)Part({LX-.812,Y+.25-Patch*.16,Q+2.5+Patch*3.2},{.014,.11,.27},15,FRotator(0,0,0),1);
+            // Each face has its own outward, non-mirrored text basis.
+            const FVector Up=Rotation.RotateVector(FVector::UpVector),Normal=Rotation.RotateVector(FVector::ForwardVector);
+            for(double Face:{-1.,1.})
+            {
+                auto* Number=TextSign(Node(Sign,RailIndex,3.2)+Normal*Face*.80-Up*.35,TEXT("31"),.6,FRotationMatrix::MakeFromXZ(Normal*Face,Up).Rotator(),true);
+                Number->SetHorizontalAlignment(EHorizTextAligment::EHTA_Center);Number->SetTextRenderColor(FColor(22,25,21));Number->ComponentTags.Add(TEXT("CoilEquipmentNumber"));
+            }
         }
-        // Longitudinal X/K braces in three bays; all have circular sections.
-        for(double Z:{4.3,11.,19.,26.})Tube({X-4,Y,Q+Z},{X+4,Y,Q+Z},.32,2,1,false,TEXT("CoilPortalTube"));
-        for(int Bay=0;Bay<3;++Bay)
-        {
-            const double Low=4.3+Bay*7.2,High=Low+6.7;
-            Tube({X-4,Y,Q+Low},{X+4,Y,Q+High},.27,2,1,false,TEXT("CoilPortalTube"));
-            Tube({X+4,Y,Q+Low},{X-4,Y,Q+High},.27,2,1,false,TEXT("CoilPortalTube"));
-        }
+        for(double Z:{4.3,11.,19.,26.})Tube(Node(-1,RailIndex,Z),Node(1,RailIndex,Z),.32,2,1,false,TEXT("CoilPortalTube"));
+        for(int Bay=0;Bay<3;++Bay){const double Low=4.3+Bay*7.2,High=Low+6.7;Tube(Node(-1,RailIndex,Low),Node(1,RailIndex,High),.27,2,1,false,TEXT("CoilPortalTube"));Tube(Node(1,RailIndex,Low),Node(-1,RailIndex,High),.27,2,1,false,TEXT("CoilPortalTube"));}
     }
-    // Sea/land portals span the road at 6/13/20m, with tubular K bracing.
-    for(double DX:{-4.,4.})
+    for(double Sign:{-1.,1.})
     {
-        for(double Z:{6.,13.,20.})Tube({X+DX,Rail,Q+Z},{X+DX,Rail+Side*Settings.RailGauge,Q+Z},.36,2,1,false,TEXT("CoilPortalTube"));
-        for(double Z:{6.,13.})for(double S:{-1.,1.})Tube({X+DX,Mid,Q+Z},{X+DX,Mid+S*Settings.RailGauge*.5,Q+Z+6},.30,2,1,false,TEXT("CoilPortalTube"));
-        Part({X+DX,Mid,Q+26.4},{1.4,Settings.RailGauge+1.4,1.5},2,FRotator(0,0,0),1,nullptr,false);
-        // Built-up girder: webs, two flanges, twin rows of stiffeners.
-        Part({X+DX,Center,Q+28},{1.3,Length,1.7},2,FRotator(0,0,0),1,nullptr,false);
-        for(double DZ:{-.9,.9})Part({X+DX,Center,Q+28+DZ},{1.85,Length,.20},2,FRotator(0,0,0),1,nullptr,false,TEXT("CoilGirderFlange"));
-        for(double Along=1;Along<Length;Along+=1.8)for(double Face:{-1.,1.})Part({X+DX+Face*.69,Land-Side*Along,Q+28},{.12,.16,1.62},2,FRotator(0,0,0),1,nullptr,true,TEXT("CoilGirderStiffener"));
-        for(double Face:{-1.,1.})
-        {
-            const double WalkX=X+DX+Face*1.1;
-            Part({WalkX,Center,Q+29.12},{.72,Length,.10},4,FRotator(0,0,0),1);Railing({WalkX+Face*.37,Land,Q+29.2},{WalkX+Face*.37,Sea,Q+29.2},1);
-        }
-        Part({X+DX,Center,Q+29.06},{.14,Length,.18},4,FRotator(0,0,0),1,nullptr,false,TEXT("CoilTrolleyRail"));
-        // Ref1/ref4/ref6 have no lower cantilever knee strut.
+        for(double Z:{6.,13.,20.})Tube(Node(Sign,0,Z),Node(Sign,1,Z),.36,2,1,false,TEXT("CoilPortalTube"));
+        for(double Z:{6.,13.})for(int End=0;End<2;++End)Tube((Node(Sign,0,Z)+Node(Sign,1,Z))*.5,Node(Sign,End,Z+6),.30,2,1,false,TEXT("CoilPortalTube"));
+        Beam(Node(Sign,0,26.4),Node(Sign,1,26.4),1.4,2,1,false);
+        const double GX=X+Sign*CoilQuay::TopHalfX;
+        Part({GX,Center,Q+28},{1.3,Length,1.7},2,FRotator(0,0,0),1,nullptr,false);
+        for(double DZ:{-.9,.9})Part({GX,Center,Q+28+DZ},{1.85,Length,.20},2,FRotator(0,0,0),1,nullptr,false,TEXT("CoilGirderFlange"));
+        for(double Along=1;Along<Length;Along+=1.8)for(double Face:{-1.,1.})Part({GX+Face*.69,Land-Side*Along,Q+28},{.12,.16,1.62},2,FRotator(0,0,0),1,nullptr,true,TEXT("CoilGirderStiffener"));
+        for(double Face:{-1.,1.}){const double WalkX=GX+Face*1.1;Part({WalkX,Center,Q+29.12},{.72,Length,.10},4,FRotator(0,0,0),1);Railing({WalkX+Face*.37,Land,Q+29.2},{WalkX+Face*.37,Sea,Q+29.2},1);}
+        Part({GX,Center,Q+29.06},{.14,Length,.18},4,FRotator(0,0,0),1,nullptr,false,TEXT("CoilTrolleyRail"));
+        // Ref1/ref4 upper-left slender stays; no cantilever lower knee struts.
+        const FVector Post=Node(Sign,0,28),Anchor=Post+(Post-Node(Sign,0,1.4)).GetSafeNormal()*6;
+        Beam(Post,Anchor,.75,2,1,false,TEXT("CoilUpperStayPost"));Tube(Anchor,{GX,Sea,Q+28.9},.10,2,1,false,TEXT("CoilUpperStay"));
     }
-    for(double Y:{Sea,Land}){Part({X,Y,Q+28},{9.8,.9,2.05},2,FRotator(0,0,0),1,nullptr,false,TEXT("CoilEndCarriage"));for(double DX:{-4.,4.})Part({X+DX,Y,Q+29.3},{.6,.4,.5},12,FRotator(0,0,0),1);}
+    for(double Y:{Sea,Land}){Part({X,Y,Q+28},{2*CoilQuay::TopHalfX+1.8,.9,2.05},2,FRotator(0,0,0),1,nullptr,false,TEXT("CoilEndCarriage"));for(double DX:{-CoilQuay::TopHalfX,CoilQuay::TopHalfX})Part({X+DX,Y,Q+29.3},{.6,.4,.5},12,FRotator(0,0,0),1);}
     // Machinery house at girder end, with painted roof, door and ventilation.
     Part({X,Land+Side*.7,Q+30.6},{5.8,3.7,2.6},2,FRotator(0,0,0),1,nullptr,false,TEXT("CoilMachineryHouse"));Part({X,Land+Side*.7,Q+31.96},{6,3.9,.14},8,FRotator(0,0,0),1);
     for(int I=0;I<14;++I)Part({X-2.35+I*.34,Land-Side*1.17,Q+30.5},{.23,.035,1.35},12,FRotator(0,0,0),1);
     Part({X+2.92,Land+Side*.8,Q+30.5},{.035,.86,1.95},8,FRotator(0,0,0),1);Part({X+2.95,Land+Side*.55,Q+30.5},{.08,.08,.12},12,FRotator(0,0,0),1);
     // Ref6 zigzag stair tower lies outside the land rail, within the 5m apron.
-    const double StairY=Rail+Side*(Settings.RailGauge+2.15);
-    for(double DX:{-4.1,4.1})for(double DY:{-.8,.8})Tube({X+DX,StairY+DY,Q+.2},{X+DX,StairY+DY,Q+29.2},.13,2,1);
+    const auto StairPoint=[&](double Sign,double Z){return Node(Sign,1,Z)+FVector(Sign*.1,Side*2.15,0);};
+    for(double Sign:{-1.,1.})for(double DY:{-.8,.8})Tube(StairPoint(Sign,.2)+FVector(0,DY,0),StairPoint(Sign,29.2)+FVector(0,DY,0),.13,2,1);
     for(int Flight=0;Flight<8;++Flight)
     {
-        const double Z=Q+.4+Flight*3.55,Direction=Flight%2?-1:1;const FVector A(X-3.35*Direction,StairY,Z),B(X+3.35*Direction,StairY,Z+3.3);
+        const double Z=.4+Flight*3.55,Direction=Flight%2?-1:1;const FVector A=StairPoint(-Direction,Z)+FVector(Direction*.75,0,0),B=StairPoint(Direction,Z+3.3)-FVector(Direction*.75,0,0);
         for(double DY:{-.58,.58})Beam(A+FVector(0,DY,0),B+FVector(0,DY,0),.15,4,1);
         for(int Step=0;Step<18;++Step)Part(FMath::Lerp(A,B,double(Step)/18),{.43,1.15,.075},4,FRotator(0,0,0),1,nullptr,true,TEXT("CoilStairTread"));
         for(double DY:{-.64,.64})Railing(A+FVector(0,DY,0),B+FVector(0,DY,0),1);
         Part(B,{1.4,1.7,.13},4,FRotator(0,0,0),1,nullptr,true,TEXT("CoilStairLanding"));Railing(B+FVector(-.65,-.85,0),B+FVector(.65,-.85,0),1);Railing(B+FVector(-.65,.85,0),B+FVector(.65,.85,0),1);
     }
     // Visible cable festoon: hangers ride an outer beam and carry slack loops.
-    const double CableX=X-5.7;
+    const double CableX=X-CoilQuay::TopHalfX-1.7;
     for(int I=0;I<17;++I)
     {
         const double Y=Land-Side*(I*1.7+.3);Tube({CableX,Y,Q+29.0},{CableX,Y,Q+28.25},.055,4,1);
@@ -144,9 +159,9 @@ void ACoilLoadingSimulation::BuildQuayPresentation()
     }
     // Moving trolley: four rail wheels, open frame, winch drums and gearboxes.
     const double TY=PickupPosition().Y;
-    for(double DY:{-.95,.95})Part({X,TY+DY,Q+29.45},{8.15,.28,.6},4,FRotator(0,0,0),2,nullptr,false);
-    for(double DX:{-3.7,0.,3.7})Part({X+DX,TY,Q+29.45},{.3,2.2,.6},4,FRotator(0,0,0),2,nullptr,false);
-    for(double DX:{-4.,4.})for(double DY:{-.8,.8})Part({X+DX,TY+DY,Q+29.29},{.48,.48,.24},12,FRotator(0,0,90),2,Cylinder,false,TEXT("CoilTrolleyWheel"));
+    for(double DY:{-.95,.95})Part({X,TY+DY,Q+29.45},{6.95,.28,.6},4,FRotator(0,0,0),2,nullptr,false);
+    for(double DX:{-3.1,0.,3.1})Part({X+DX,TY,Q+29.45},{.3,2.2,.6},4,FRotator(0,0,0),2,nullptr,false);
+    for(double DX:{-CoilQuay::TopHalfX,CoilQuay::TopHalfX})for(double DY:{-.8,.8})Part({X+DX,TY+DY,Q+29.29},{.48,.48,.24},12,FRotator(0,0,90),2,Cylinder,false,TEXT("CoilTrolleyWheel"));
     for(double DY:{-.48,.48})
     {
         Tube({X-1.35,TY+DY,Q+30.05},{X+1.35,TY+DY,Q+30.05},.85,4,2,false,TEXT("CoilWinchDrum"));
@@ -156,7 +171,7 @@ void ACoilLoadingSimulation::BuildQuayPresentation()
     }
     for(double DX:{-.3,.3})for(double DY:{-.23,.23})Part({X+DX,TY+DY,Q+29.1},{.5,.5,.10},4,FRotator(0,0,90),2,Cylinder,true,TEXT("CoilTopSheave"));
     // Underhung glazed operator cab follows trolley, as in ref4/ref6.
-    const FVector Cab(X+2.7,TY+2.3,Q+24.9);
+    const FVector Cab(X+2.0,TY,Q+24.9);
     for(double DX:{-.95,.95})for(double DY:{-.8,.8})Tube(Cab+FVector(DX,DY,1.2),{Cab.X+DX,TY+DY,Q+29.3},.13,2,2,false);
     Part(Cab,{2.3,2.2,2.55},8,FRotator(0,0,0),2,nullptr,false,TEXT("CoilOperatorCab"));Part(Cab+FVector(0,0,1.35),{2.6,2.5,.18},2,FRotator(0,0,0),2);
     for(double Face:{-1.,1.})
@@ -171,6 +186,7 @@ void ACoilLoadingSimulation::BuildQuayPresentation()
     for(double Z=Cab.Z-1.1;Z<Q+29.3;Z+=.3)Tube({Cab.X-.45,Cab.Y+1.65,Z},{Cab.X+.45,Cab.Y+1.65,Z},.055,4,2);
     // Six falls are drawn between the top sheaves and this multi-sheave block.
     HookVisualOrigin=PickupPosition()+FVector(0,0,Settings.GearHeadroom);
+    for(double DX:{-.30,0.,.30})for(double DY:{-.23,.23})Tube({X+DX,TY+DY,Q+29.1},HookVisualOrigin+FVector(DX,DY,.25),.04,12,4,false,TEXT("CoilHoistFalls"));
     for(double DY:{-.29,.29})Part(HookVisualOrigin+FVector(0,DY,.18),{1.0,.10,.85},2,FRotator(0,0,0),3,nullptr,false,TEXT("CoilHookBlock"));
     for(double DX:{-.30,0.,.30})Part(HookVisualOrigin+FVector(DX,0,.25),{.48,.48,.42},4,FRotator(0,0,90),3,Cylinder);
     Tube(HookVisualOrigin+FVector(0,0,-.2),HookVisualOrigin+FVector(0,0,-.65),.16,4,3,false);
@@ -198,7 +214,7 @@ void ACoilLoadingSimulation::BuildQuayPresentation()
     for(double End:{-14.,18.}){Part({End,Shed,Q+3.15},{.18,10,6.3},10,FRotator(0,0,0),0,nullptr,false);for(int I=0;I<24;++I)Part({End-.1,Shed-4.8+I*.4,Q+3.2},{.12,.04,6.3},11);}
     for(double Y:{Shed-2.6,Shed+2.6})Part({2,Y,Q+6.28},{32,5.4,.14},11,FRotator(0,0,Y<Shed?-6:6),0,nullptr,false);
     for(int I=0;I<8;++I){const double SX=-10+I*3.2;Part({SX,Shed,Q+.35},{2.6,2.4,.7},2,FRotator(0,0,0),0,nullptr,false);for(double DY:{-1.1,1.1})Part({SX,Shed+DY,Q+.75},{2.4,.2,.3},2);}
-    Sign({-13,Shed-Side*5.15,Q+5.4},TEXT("COIL STORAGE  /  HR · CR"),.45,FRotator(0,90,0));
+    TextSign({-13,Shed-Side*5.15,Q+5.4},TEXT("COIL STORAGE  /  HR · CR"),.45,FRotator(0,90,0));
     // Quay bollards, fenders, lane paint and safety reference (1.8m standing).
     for(double SX=-60;SX<140;SX+=12)
     {
@@ -210,6 +226,7 @@ void ACoilLoadingSimulation::BuildQuayPresentation()
     for(double DX:{-.13,.13}){Human({DX,0,.43},{.17,.21,.72},14,Cylinder);Human({DX,-.055,.08},{.21,.35,.14},12);}
     Human({0,0,1.13},{.48,.28,.59},10);Human({0,-.151,1.2},{.49,.025,.07},8);Human({0,-.151,1.02},{.49,.025,.07},8);Human({0,0,1.62},{.23,.23,.25},13,Sphere);Human({0,0,1.76},{.29,.29,.08},2,Sphere);Human({0,0,1.79},{.34,.32,.025},2);
     Beam(Person+FVector(-.23,0,1.37),Person+FVector(-.37,0,.96),.11,14);Beam(Person+FVector(.23,0,1.37),Person+FVector(.42,0,1.92),.11,14);Human({.42,0,1.98},{.12,.12,.16},13,Sphere);
+    Shore=false;
     // Tapered general-cargo hull visual shell; primary measured box holds stay
     // unchanged. Published four-hold geared N-class proportions.
     const double VesselX=Settings.VesselCenterX(),L=Settings.LOA,B=Settings.Beam,H=Settings.WeatherDeckZ();
@@ -286,10 +303,36 @@ void ACoilLoadingSimulation::BuildQuayPresentation()
     }
     Part({House+4,0,H+9.1},{.04,11.3,1.35},9,FRotator(0,0,0),0,nullptr,false);Part({House-2,1.5,H+12.4},{2.8,2.5,4},6,FRotator(0,0,0),0,nullptr,false);Part({House-2,1.5,H+14.5},{3.1,2.8,.7},12,FRotator(0,0,0),0,nullptr,false);
     Beam({House+1,-2,H+11},{House+1,-2,H+16},.15,8);Beam({House-1,-2,H+15},{House+3,-2,H+15},.1,8);
-    Sign({VesselX+L*.43,-B*.34,H-2.5},TEXT("COIL DEMONSTRATOR"),.8,FRotator(0,-90,0));
-    Sign(Person+FVector(-1,-.5,.15),TEXT("1.8 m"),.22,FRotator(0,-90,0));
+    TextSign({VesselX+L*.43,-B*.34,H-2.5},TEXT("COIL DEMONSTRATOR"),.8,FRotator(0,-90,0));
+    TextSign(Person+FVector(-1,-.5,.15),TEXT("1.8 m"),.22,FRotator(0,-90,0));
+}
+void ACoilLoadingSimulation::ApplyOwnedTransform(USceneComponent* C,FVector Location,FQuat Rotation)
+{
+    if(!C||(C->GetRelativeLocation().Equals(Location,1.e-6)&&C->GetRelativeRotation().Quaternion().Equals(Rotation,1.e-8)))return;
+    ++RigTransformWrites;C->SetRelativeLocationAndRotation(Location,Rotation);
+}
+void ACoilLoadingSimulation::UpdatePortalPosition(){ApplyOwnedTransform(PortalRoot,FVector((RailX+8)*100,0,0));}
+void ACoilLoadingSimulation::UpdateHydrostaticPresentation()
+{
+    double Mass=0;for(const auto& P:Placements)Mass+=P.Spec.GrossMass();LoadedHydro=CoilLoading::DraftResponse(Settings,Mass);
+    const FVector Shift(0,0,LoadedHydro.Sinkage*100);if(ShoreRoot&&!ShoreRoot->GetRelativeLocation().Equals(Shift,1.e-6)){ApplyOwnedTransform(ShoreRoot,Shift);++GeometryRevision;}
 }
 void ACoilLoadingSimulation::UpdateTrolley()
 {
-    const FVector Shift((RailX+8)*100,(CurrentHook.Y-PickupPosition().Y)*100,0);for(auto C:TrolleyDetails)if(C)C->SetRelativeLocation(Shift);const FVector HookShift=(CurrentHook-HookVisualOrigin)*100;for(auto C:HookDetails)if(C){const bool Attachment=C->ComponentHasTag(TEXT("CoilCHook"))||C->ComponentHasTag(TEXT("CoilSling"));const FQuat Rotation(FVector::UpVector,Attachment&&!Pending.bEyeForeAft?PI*.5:0);C->SetRelativeLocationAndRotation(Attachment?(CurrentHook-Rotation.RotateVector(HookVisualOrigin))*100:HookShift,Rotation);if(C->ComponentHasTag(TEXT("CoilCHook")))C->SetHiddenInGame(!Settings.bCHook);if(C->ComponentHasTag(TEXT("CoilSling")))C->SetHiddenInGame(Settings.bCHook);}
+    const FVector Shift(0,(CurrentHook.Y-PickupPosition().Y)*100,0);const bool ForeAft=Pending.bEyeForeAft;const double FallTop=QuayZ()+29.1;
+    if(bRigTransformsReady&&LastTrolley.Equals(Shift,1.e-6)&&LastHook.Equals(CurrentHook,1.e-8)&&bLastCHook==Settings.bCHook&&bLastForeAft==ForeAft&&LastFallTopZ==FallTop)return;
+    for(auto C:TrolleyDetails)ApplyOwnedTransform(C,Shift);
+    for(auto C:HookDetails)if(C)
+    {
+        const bool Attachment=C->ComponentHasTag(TEXT("CoilCHook"))||C->ComponentHasTag(TEXT("CoilSling"));const FQuat Rotation(FVector::UpVector,Attachment&&!ForeAft?PI*.5:0);
+        ApplyOwnedTransform(C,(CurrentHook-Rotation.RotateVector(HookVisualOrigin))*100,Rotation);
+        if(C->ComponentHasTag(TEXT("CoilCHook"))&&C->bHiddenInGame==Settings.bCHook)C->SetHiddenInGame(!Settings.bCHook);
+        if(C->ComponentHasTag(TEXT("CoilSling"))&&C->bHiddenInGame!=Settings.bCHook)C->SetHiddenInGame(Settings.bCHook);
+    }
+    if(HoistFalls&&(!bRigTransformsReady||!LastHook.Equals(CurrentHook,1.e-8)||LastFallTopZ!=FallTop))
+    {
+        int32 I=0;for(double DX:{-.30,0.,.30})for(double DY:{-.23,.23})
+        {const FVector A(CurrentHook.X+DX,CurrentHook.Y+DY,FallTop),B=CurrentHook+FVector(DX,DY,.25),D=B-A;++RigTransformWrites;HoistFalls->UpdateInstanceTransform(I++,FTransform(FRotationMatrix::MakeFromZ(D).Rotator(),(A+B)*50,FVector(.04,.04,D.Size())),false,false,true);}HoistFalls->MarkRenderStateDirty();
+    }
+    LastFallTopZ=FallTop;LastTrolley=Shift;LastHook=CurrentHook;bLastCHook=Settings.bCHook;bLastForeAft=ForeAft;bRigTransformsReady=true;
 }
