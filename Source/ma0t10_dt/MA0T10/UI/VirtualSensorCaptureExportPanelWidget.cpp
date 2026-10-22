@@ -232,6 +232,11 @@ FSlabExecutionOptions UVirtualSensorCaptureExportPanelWidget::GetLiveScenarioExe
 void UVirtualSensorCaptureExportPanelWidget::BindSensorManager(AVirtualSensorCoordinator* InSensorManager)
 {
     SensorManager = InSensorManager;
+    if(SensorManager&&SensorManager->StreamPublisherComponent)
+        if(auto* Preferences=UVirtualSensorUiPreferencesSaveGame::LoadOrCreate())
+            for(const auto& Pair:Preferences->PcdSendOptionsBySensor)
+                if(!SensorManager->StreamPublisherComponent->PcdSendOptionsBySensor.Contains(Pair.Key))
+                    SensorManager->StreamPublisherComponent->PcdSendOptionsBySensor.Add(Pair.Key,Pair.Value);
 	TopicReceiverHost = nullptr;
 	if (UWorld* World = GetWorld())
 	{

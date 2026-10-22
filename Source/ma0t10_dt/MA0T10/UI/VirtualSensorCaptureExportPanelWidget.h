@@ -317,6 +317,15 @@ private:
 	FString GetSelectedSensorIdForStream(EVirtualSensorStreamKind StreamKind) const;
 	void ApplyStreamConfig(EVirtualSensorStreamKind StreamKind, const FString& SensorId, bool bEnabled);
 	TSharedRef<SWidget> BuildLiveStreamTab();
+    TSharedRef<SWidget> BuildPcdBandwidthOptions();
+    FVirtualPcdSendOptions ReadPcdBandwidthOptions() const;
+    void ApplyPcdBandwidthOptions(const FVirtualPcdSendOptions& Options);
+    FString BuildPcdBandwidthEstimate() const;
+    bool bPcdApplyAll=false;
+    TArray<TSharedPtr<EVirtualPcdFieldProfile>> PcdProfileChoices;
+    TArray<TSharedPtr<int32>> PcdDivisorChoices;
+    mutable double NextPcdBandwidthEstimate=0;
+    mutable FString CachedPcdBandwidthEstimate;
 	TSharedRef<SWidget> BuildCaptureTab();
 	TSharedRef<SWidget> BuildExportTab(TSharedPtr<EVirtualSensorExportKind> InitiallySelected);
 	TSharedRef<SWidget> BuildConnectionLogTab();

@@ -908,3 +908,9 @@ int32 AVirtualSensorCoordinator::SetLidarAcquisitionBackend(EVirtualLidarAcquisi
     {FString Reason;if(Lidar->SetLidarAcquisitionBackend(Backend,Reason))++Applied;}
     return Applied;
 }
+
+bool AVirtualSensorCoordinator::SetPcdBandwidthOptions(const FString& Id,const FVirtualPcdSendOptions& Options,bool All,FString& Error)
+{
+    if(!StreamPublisherComponent){Error=TEXT("PCD publisher is unavailable");return false;}
+    return StreamPublisherComponent->SetPcdSendOptions(Id,Options,All,Error);
+}

@@ -2,6 +2,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPcdReceiveContract.h"
 
 #include "Json.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualPcdCodec.h"
 #include "Misc/Base64.h"
 #include "Misc/SecureHash.h"
 #include "ma0t10_dt/ma0t10_dt.h"
@@ -149,14 +150,10 @@ TSharedPtr<FTransactionCodeDataBase> UVirtualPointCloudStreamReceiverTC::ParseBi
 	Data->Format = TEXT("PCD");
 	Data->Encoding = TEXT("binary");
 	Data->DecodedByteCount = Body.Num();
-	const int32 PayloadOffset = FindBinaryPayloadOffset(Body);
-	if (PayloadOffset == INDEX_NONE)
-	{
-		Data->Message = TEXT("PCD DATA binary marker is missing.");
-		return Data;
-	}
-	FUTF8ToTCHAR HeaderUtf8(reinterpret_cast<const ANSICHAR*>(Body.GetData()), PayloadOffset);
-	const FString Header(HeaderUtf8.Length(), HeaderUtf8.Get());
+	FVirtualPcdDocument Pcd; FString PcdError;
+	if(!FVirtualPcdCodec::Decode(Body,Pcd,PcdError)){Data->Message=PcdError;return Data;}
+	Data->Encoding=Pcd.Encoding;
+	const FString& Header=Pcd.Header;
 	TMap<FName,FString> CombinedHeaders = IncomingHeaders;
 	TSharedPtr<FJsonObject> Embedded;
 	TArray<FString> Lines; Header.ParseIntoArrayLines(Lines);
@@ -222,19 +219,7 @@ TSharedPtr<FTransactionCodeDataBase> UVirtualPointCloudStreamReceiverTC::ParseBi
 			!Embedded->TryGetStringField(TEXT("timestamp_utc"),Utc) || Utc!=TimestampText)
 		{ Data->Message=TEXT("PCD 내부 센서 식별 정보와 STOMP 헤더가 다릅니다."); return Data; }
 	}
-	const FString RequiredFields = TEXT("FIELDS x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence");
-	const bool bHeaderContractValid = Header.Contains(TEXT("# .PCD v0.7")) && Header.Contains(TEXT("VERSION 0.7")) &&
-		Header.Contains(RequiredFields) && Header.Contains(TEXT("SIZE 4 4 4 2 2 2 1 1 8 1 4")) &&
-		Header.Contains(TEXT("TYPE F F F U U U U U I U F")) && Header.Contains(TEXT("COUNT 1 1 1 1 1 1 1 1 1 1 1")) &&
-		Header.Contains(FString::Printf(TEXT("POINTS %d"), Data->PointCount));
-	constexpr int32 PointRecordBytes = 33;
-	const int64 ExpectedBytes = static_cast<int64>(PayloadOffset) + static_cast<int64>(Data->PointCount) * PointRecordBytes;
-	if (!bHeaderContractValid || ExpectedBytes != Body.Num())
-	{
-		Data->Message = FString::Printf(TEXT("Binary PCD header/body mismatch: points=%d expectedBytes=%lld actualBytes=%d"),
-			Data->PointCount, ExpectedBytes, Body.Num());
-		return Data;
-	}
+	if(Pcd.PointCount!=Data->PointCount){Data->Message=TEXT("PCD POINTS and transport header disagree");return Data;}
 
 	uint8 Hash[FSHA1::DigestSize];
 	FSHA1::HashBuffer(Body.GetData(), Body.Num(), Hash);

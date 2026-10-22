@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
+#include "VirtualPcdCodec.h"
 #include "VirtualSensorRuntimeTypes.generated.h"
 
 UENUM(BlueprintType)
@@ -196,6 +197,9 @@ struct MA0T10_DT_API FVirtualSensorStreamConfig
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
 	FVirtualPointCloudFilterConfig PointCloudFilter;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DigitalTwin|VirtualSensor|Stream")
+	FVirtualPcdSendOptions PcdSendOptions;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream", meta = (ClampMin = "1", ClampMax = "120"))
 	int32 MaxBufferedFrames = 20;
 
@@ -245,6 +249,9 @@ struct MA0T10_DT_API FVirtualSensorStreamStatus
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
 	int64 InputFrameCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category="DigitalTwin|VirtualSensor|Stream")
+	int64 ConfiguredDivisorSkippedCount = 0;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Stream")
 	int64 SubmittedFrameCount = 0;

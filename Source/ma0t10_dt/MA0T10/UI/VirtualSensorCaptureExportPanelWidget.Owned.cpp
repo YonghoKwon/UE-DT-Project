@@ -402,6 +402,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
             .OnAreaExpansionChanged_Lambda([this](bool Open){bOwnedDirectExpanded=Open;LastNativeStatusRefreshSeconds=-1;})
             .HeaderContent()[SNewSensorTool(STextBlock).Text(SensorToolUiText::DirectTransfer())]
             .BodyContent()[Direct]]
+        +SVerticalBox::Slot().AutoHeight().Padding(0,8)[BuildPcdBandwidthOptions()]
         +SVerticalBox::Slot().AutoHeight()[SNew(SHorizontalBox)+SHorizontalBox::Slot().FillWidth(1)[Column(false)]+SHorizontalBox::Slot().FillWidth(1).Padding(8,0,0,0)[Column(true)]]
         +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SVerticalBox)
             +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Text(SensorToolUiText::PreflightTarget())]

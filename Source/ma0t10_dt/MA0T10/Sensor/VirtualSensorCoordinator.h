@@ -102,6 +102,8 @@ class MA0T10_DT_API AVirtualSensorCoordinator : public AActor
     GENERATED_BODY()
 
 public:
+    UFUNCTION(BlueprintCallable, Category="DigitalTwin|Sensor|PCD")
+    bool SetPcdBandwidthOptions(const FString& SensorId,const FVirtualPcdSendOptions& Options,bool bApplyToAll,FString& Error);
     AVirtualSensorCoordinator();
 
 protected:

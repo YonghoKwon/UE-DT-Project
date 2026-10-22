@@ -1,6 +1,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "VirtualPointCloudCoordinates.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualPcdCodec.h"
 #include "VirtualSensorWireHeaders.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 
@@ -69,40 +70,11 @@ bool PointPassesStreamFilter(const FVirtualLidarPoint& Point, const FVirtualPoin
 	return true;
 }
 
-void AppendUint16LittleEndian(TArray<uint8>& OutBytes, uint16 Value)
-{
-	OutBytes.Add(static_cast<uint8>(Value));
-	OutBytes.Add(static_cast<uint8>(Value >> 8));
-}
-
-void AppendUint32LittleEndian(TArray<uint8>& OutBytes, uint32 Value)
-{
-	OutBytes.Add(static_cast<uint8>(Value));
-	OutBytes.Add(static_cast<uint8>(Value >> 8));
-	OutBytes.Add(static_cast<uint8>(Value >> 16));
-	OutBytes.Add(static_cast<uint8>(Value >> 24));
-}
-
-void AppendUint64LittleEndian(TArray<uint8>& OutBytes, uint64 Value)
-{
-	for (int32 ByteIndex = 0; ByteIndex < 8; ++ByteIndex)
-	{
-		OutBytes.Add(static_cast<uint8>(Value >> (ByteIndex * 8)));
-	}
-}
-
-void AppendFloatLittleEndian(TArray<uint8>& OutBytes, float Value)
-{
-	uint32 Bits = 0;
-	static_assert(sizeof(Bits) == sizeof(Value), "PCD float layout changed");
-	FMemory::Memcpy(&Bits, &Value, sizeof(Bits));
-	AppendUint32LittleEndian(OutBytes, Bits);
-}
-
 bool SerializeBinaryPcd(
 	const TArray<FVirtualLidarPoint>& Source,
 	const FVirtualSensorFrameEnvelope& Frame,
 	const FVirtualPointCloudFilterConfig& Filter,
+	const FVirtualPcdSendOptions& Options,
 	TArray<uint8>& OutBytes,
 	int32& OutPointCount)
 {
@@ -137,32 +109,7 @@ bool SerializeBinaryPcd(
 	const auto MetadataWriter = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&MetadataJson);
 	FJsonSerializer::Serialize(Metadata, MetadataWriter);
 
-	const FString Header = FString::Printf(
-		TEXT("# .PCD v0.7\n# MA0T10_META %s\nVERSION 0.7\nFIELDS x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence\n")
-		TEXT("SIZE 4 4 4 2 2 2 1 1 8 1 4\nTYPE F F F U U U U U I U F\nCOUNT 1 1 1 1 1 1 1 1 1 1 1\n")
-		TEXT("WIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA binary\n"),
-		*MetadataJson, OutPointCount,
-		OutPointCount);
-	FTCHARToUTF8 HeaderUtf8(*Header);
-	constexpr int32 PointRecordBytes = 33;
-	OutBytes.Reserve(HeaderUtf8.Length() + OutPointCount * PointRecordBytes);
-	OutBytes.Append(reinterpret_cast<const uint8*>(HeaderUtf8.Get()), HeaderUtf8.Length());
-
-	for (const FVirtualLidarPoint* Point : FilteredPoints)
-	{
-		AppendFloatLittleEndian(OutBytes, static_cast<float>(Point->SensorLocalPositionMeters.X));
-		AppendFloatLittleEndian(OutBytes, static_cast<float>(Point->SensorLocalPositionMeters.Y));
-		AppendFloatLittleEndian(OutBytes, static_cast<float>(Point->SensorLocalPositionMeters.Z));
-		AppendUint16LittleEndian(OutBytes, static_cast<uint16>(FMath::Clamp(Point->RawIntensity, 0, 65535)));
-		AppendUint16LittleEndian(OutBytes, static_cast<uint16>(FMath::Clamp(Point->Ring, 0, 65535)));
-		AppendUint16LittleEndian(OutBytes, static_cast<uint16>(FMath::Clamp(Point->HorizontalIndex, 0, 65535)));
-		OutBytes.Add(static_cast<uint8>(FMath::Clamp(Point->EchoIndex, 0, 255)));
-		OutBytes.Add(static_cast<uint8>(FMath::Clamp(Point->EchoCount, 0, 255)));
-		AppendUint64LittleEndian(OutBytes, static_cast<uint64>(Point->PointTimeOffsetNanoseconds));
-		OutBytes.Add(static_cast<uint8>(Point->Validity));
-		AppendFloatLittleEndian(OutBytes, Point->Confidence);
-	}
-	return true;
+	return FVirtualPcdCodec::Encode(FilteredPoints, MetadataJson, Options, OutBytes);
 }
 
 template <typename T>
@@ -339,7 +286,7 @@ bool SerializePointCloud(
 		OutExtension = TEXT("pcd");
 		if (Config.PcdDataMode == EVirtualPcdDataMode::Binary)
 		{
-			return SerializeBinaryPcd(Points, Frame, Config.PointCloudFilter, OutBytes, OutPointCount);
+			return SerializeBinaryPcd(Points, Frame, Config.PointCloudFilter, Config.PcdSendOptions, OutBytes, OutPointCount);
 		}
 		for (const FVirtualLidarPoint& Point : Points) if (Point.bHit) ++OutPointCount;
 		Text = FString::Printf(TEXT("# .PCD v0.7\nVERSION 0.7\nFIELDS x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence\nSIZE 4 4 4 2 2 2 1 1 8 1 4\nTYPE F F F U U U U U I U F\nCOUNT 1 1 1 1 1 1 1 1 1 1 1\nWIDTH %d\nHEIGHT 1\nPOINTS %d\nDATA ascii\n"), OutPointCount, OutPointCount);
@@ -514,6 +461,7 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 		Runtime.Status.FrameGapCount += Frame.FrameId - Sequence.Frame - 1;
 	}
 	Sequence.Frame=Frame.FrameId;Sequence.bHave=true;Runtime.LastSlabSegment=SegmentKey;
+	++Sequence.InputCount;
 	++Runtime.Status.InputFrameCount;
 	Runtime.Status.LastInputFrameId = Frame.FrameId;
 	Runtime.bHasInputFrameInSegment=true;
@@ -524,9 +472,16 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 
 	if (Runtime.Config.StreamKind == EVirtualSensorStreamKind::PointCloud)
 	{
+		const auto SendOptions=GetPcdSendOptions(Frame.SensorId);
+		if(((Sequence.InputCount-1)%SendOptions.Divisor())!=0)
+		{
+			++Runtime.Status.ConfiguredDivisorSkippedCount;
+			RecordSlabFailure(Frame.SlabContext.RunId,Frame.SensorId,EVirtualSensorStreamKind::PointCloud,Frame.FrameId,TEXT("Configured PCD send divisor"));
+			return;
+		}
 		if (TransportComponent && Frame.PointSnapshot.IsValid())
 		{
-			const int64 Estimate = Frame.PointSnapshot->Num() * 33LL + 1024;
+			const int64 Estimate = Frame.PointSnapshot->Num() * int64(FVirtualPcdCodec::BytesPerPoint(SendOptions)) * (SendOptions.bCompressed?33:32) / 32 + 65536;
 			FString SizeError;
 			if (!ValidateBinaryBodySize(Estimate, TransportComponent->GetTransportProfile().MaxMessageBytes, SizeError))
 			{
@@ -667,7 +622,8 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 	Runtime.SerializationSensorId=Frame.SensorId;
 	Runtime.SerializationFrameId=Frame.FrameId;
 	Runtime.Status.bProcessing = true;
-	const FVirtualSensorStreamConfig Config = Runtime.Config;
+	FVirtualSensorStreamConfig Config = Runtime.Config;
+	Config.PcdSendOptions = GetPcdSendOptions(Frame.SensorId);
 	const int32 CapturedConfigRevision = Runtime.ConfigRevision;
 	const TWeakObjectPtr<UVirtualSensorStreamPublisherComponent> WeakThis(this);
 	Async(EAsyncExecution::ThreadPool, [WeakThis, StreamKey, Frame, Config, CapturedConfigRevision]()
