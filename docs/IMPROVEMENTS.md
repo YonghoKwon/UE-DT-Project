@@ -5,6 +5,10 @@
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
 
+## COIL-01b — 혼적 도형·사진 기준 부두
+
+#31b r1~r8: HR/CR 채움·실치수·툴팁/선택·경고 하이라이트와 혼적 계획 예시, 사진 ref4/ref5에 맞춘 N-class4홀드/접이식 커버/수납 갑판 크레인, ref6의 테이퍼 다리·강관 브레이스·계단탑·복수 대차·거더/트롤리/인양 상세, 창고 이격/12m 통행로를 구현했다. [근거](research/COIL-01b-basis.md), [사용법](../README.md#coil-01b-혼적-적재도사진-기준-부두), [결과](../Saved/Reports/COIL-01b/RESULT.md)를 따른다. 실제 local RHI·release·RT on ABAB2%·layer0→0과 직접 UI의 수행/미수행은 result.json에 구분한다. DTCore 변경 후보는 추가하지 않는다.
+
 ## COIL-01 — 제품 부두 코일 선적
 
 사용자 #31(2026-10-22)과 검수 보정/HR·CR 추가 범위. 별도 CoilLoadingTestMap, SI 접촉망 해석·고스트, 훅/슬링·C-hook 시연과 Chaos 정착/운동, 무고정 단수 적층, 세 종류 판정 UI·원인별 하이라이트, 원통 피팅 편차, HR/CR 포장 치수/외형, 목록 입력·비동기 계획 저장/불러오기·Undo를 구현한다. [사용법](../README.md#coil-01-제품-부두-코일-선적), [근거](research/COIL-01-basis.md), [최종 결과](../Saved/Reports/COIL-01/RESULT.md), [result.json](../Saved/Reports/COIL-01/result.json)을 현재 근거로 삼는다.

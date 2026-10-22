@@ -50,10 +50,11 @@ bool FSettings::Validate(FString& E) const
 {
     const double Values[]={LOA,Beam,Depth,Draft,HoldLength,HoldWidth,HoldHeight,OpeningLength,OpeningWidth,UDLLimit,DunnageWidth,DunnageThickness,ContactLength,Displacement,LBP,HookSWL,MaxRadius,GearHeadroom,GearWidth,GearLength};
     for(double V:Values)if(!Positive(V)){E=TEXT("선박·장구·받침 치수와 하중 입력은 유한한 양수여야 합니다.");return false;}
-    const double Optional[]={Coaming,ApprovedPatchArea,LocalPressureLimit,FreeSurfaceCorrection,MCT1cm,KeelToTanktop,SpeedKnots,GearMass,MinRadius,ClearanceMargin,WindMps,BerthGap,RailSetback,LCFFromAP};
+    const double Optional[]={Coaming,ApprovedPatchArea,LocalPressureLimit,FreeSurfaceCorrection,MCT1cm,KeelToTanktop,SpeedKnots,GearMass,MinRadius,ClearanceMargin,WindMps,BerthGap,RailSetback,LCFFromAP,IntermediateHoldLength,HoldGap};
     for(double V:Optional)if(!Nonnegative(V)){E=TEXT("선박/장구 옵션은 유한한 비음수여야 합니다.");return false;}
     if(!FMath::IsFinite(KG)||!FMath::IsFinite(KM)||!FMath::IsFinite(Ax)||!FMath::IsFinite(Ay)||!FMath::IsFinite(Az)||!FMath::IsFinite(Outreach)||!Nonnegative(LegWLLTonnes)||!Nonnegative(LegAngleDegrees)||LegAngleDegrees>=89||HoldCount<1||DunnageLines<1||MinRadius>=MaxRadius||PositionFromAP<0||PositionFromAP>1||!FMath::IsFinite(PositionFromAP))
     {E=TEXT("선박/크레인 상태 입력 범위 오류");return false;}
+    if(Coaming>=HoldHeight){E=TEXT("Coaming: 홀드 높이보다 작아야 합니다.");return false;}
     if(!Positive(RailGauge)||(QuaySide!=-1&&QuaySide!=1)||(bLCFConfirmed&&LCFFromAP>LBP)){E=TEXT("RailGauge/QuaySide/LCFFromAP 범위 오류");return false;}return true;
 }
 void FResult::Add(FName C,ESeverity L,const FString& R,int32 I,double V,double Limit,bool Known)
@@ -131,6 +132,7 @@ FResult Analyze(const FSettings& S,const TArray<FPlacement>& Plan)
     const int32 N=Plan.Num();R.VerticalTonnes.Init(0,N);R.SpreadKN.Init(0,N);R.ContactPressure.Init(0,N);R.PatchPressure.Init(0,N);R.Ovality.Init(-1,N);
     TArray<int32> Order;TArray<double> HorizontalKN,NormalSumKN;HorizontalKN.Init(0,N);NormalSumKN.Init(0,N);TSet<FString> Ids;double MX=0,MY=0,MZ=0;FVector Acc(S.Ax,S.Ay,S.Az);
     if(S.bUseCSS&&!CSSAcceleration(S,Acc,Error))R.Add(TEXT("CSSUnknown"),ESeverity::Caution,Error,INDEX_NONE,0,0,false);
+    if(S.bDeckCranes){const double Margin=S.DeckCraneInnerY()-S.OpeningWidth*.5;if(Margin<S.ClearanceMargin)R.Add(TEXT("DeckCraneClearance"),Margin<0?ESeverity::Warning:ESeverity::Caution,TEXT("수납 갑판 붐 / 작업 해치 외곽 여유 [m]"),INDEX_NONE,Margin,S.ClearanceMargin);}
     const double Geff=Gravity-FMath::Abs(Acc.Z);
     if(Geff<=0)R.Add(TEXT("ContactLiftOff"),ESeverity::Warning,TEXT("수직가속도가 중력 이상: 접촉 유지 불가"));
     for(int32 I=0;I<N;++I)
@@ -285,6 +287,7 @@ FString PlanToJson(const FSettings& S,const TArray<FPlacement>& Plan)
     Settings->SetNumberField(TEXT("HoldCount"),S.HoldCount);Settings->SetNumberField(TEXT("DunnageLines"),S.DunnageLines);Root->SetObjectField(TEXT("settings"),Settings);
     Settings->SetNumberField(TEXT("LCFFromAP"),S.LCFFromAP);Settings->SetBoolField(TEXT("bLCFConfirmed"),S.bLCFConfirmed);
     Settings->SetNumberField(TEXT("BerthGap"),S.BerthGap);Settings->SetNumberField(TEXT("RailSetback"),S.RailSetback);Settings->SetNumberField(TEXT("RailGauge"),S.RailGauge);Settings->SetNumberField(TEXT("QuaySide"),S.QuaySide);
+    Settings->SetNumberField(TEXT("IntermediateHoldLength"),S.IntermediateHoldLength);Settings->SetNumberField(TEXT("HoldGap"),S.HoldGap);Settings->SetBoolField(TEXT("bDeckCranes"),S.bDeckCranes);Settings->SetBoolField(TEXT("bFoldingCovers"),S.bFoldingCovers);
     TArray<TSharedPtr<FJsonValue>> Items;
     for(const auto& P:Plan)
     {
@@ -320,8 +323,12 @@ bool PlanFromJson(const FString& Text,FSettings& OutS,TArray<FPlacement>& OutP,F
     // New screening inputs are optional for existing v1 plans; unavailable LCF
     // and zero rolling resistance keep their explicit unknown/ideal meanings.
 #define READ_OPTIONAL(Name) if(O->HasField(TEXT(#Name))&&!O->TryGetNumberField(TEXT(#Name),S.Name)){E=TEXT("settings.") TEXT(#Name) TEXT(": 숫자 필요");return false;}
-    READ_OPTIONAL(LCFFromAP) READ_OPTIONAL(BerthGap) READ_OPTIONAL(RailSetback) READ_OPTIONAL(RailGauge) READ_OPTIONAL(QuaySide)
+    READ_OPTIONAL(LCFFromAP) READ_OPTIONAL(BerthGap) READ_OPTIONAL(RailSetback) READ_OPTIONAL(RailGauge) READ_OPTIONAL(QuaySide) READ_OPTIONAL(IntermediateHoldLength) READ_OPTIONAL(HoldGap)
 #undef READ_OPTIONAL
+    if(!O->HasField(TEXT("IntermediateHoldLength")))S.IntermediateHoldLength=0;if(!O->HasField(TEXT("HoldGap")))S.HoldGap=3;
+    S.bDeckCranes=false;S.bFoldingCovers=false;
+    if(O->HasField(TEXT("bDeckCranes"))&&!O->TryGetBoolField(TEXT("bDeckCranes"),S.bDeckCranes)){E=TEXT("settings.bDeckCranes: bool 필요");return false;}
+    if(O->HasField(TEXT("bFoldingCovers"))&&!O->TryGetBoolField(TEXT("bFoldingCovers"),S.bFoldingCovers)){E=TEXT("settings.bFoldingCovers: bool 필요");return false;}
     if(O->HasField(TEXT("bLCFConfirmed"))&&!O->TryGetBoolField(TEXT("bLCFConfirmed"),S.bLCFConfirmed)){E=TEXT("settings.bLCFConfirmed: bool 필요");return false;}
     if(!S.Validate(E)){E=TEXT("settings.validation: ")+E;return false;}
     TArray<FPlacement> Plan;TSet<FString> Ids;

@@ -72,21 +72,25 @@ UStaticMeshComponent* ACoilLoadingSimulation::Box(FVector C,FVector Size,int32 C
 }
 void ACoilLoadingSimulation::BuildScene()
 {
-    Material(FLinearColor(.14,.2,.25));Material(FLinearColor(.4,.42,.42));Material(FLinearColor(.92,.58,.025));Material(FLinearColor(.2,.1,.04));Material(FLinearColor(.29,.34,.38));Material(FLinearColor(.07,.28,.12));Material(FLinearColor(.8,.12,.025));Material(FLinearColor(.025,.09,.15));
-    const auto& S=Settings;const double L=S.HoldLength,W=S.HoldWidth,H=S.HoldHeight;
-    // Two actual box holds, with working hold centered at local X=0. 169.75m hull envelope.
+    Material(FLinearColor(.035,.045,.05));Material(FLinearColor(.18,.19,.185));Material(FLinearColor(.92,.58,.025));Material(FLinearColor(.2,.1,.04));Material(FLinearColor(.29,.34,.38));Material(FLinearColor(.07,.28,.12));Material(FLinearColor(.8,.12,.025));Material(FLinearColor(.29,.48,.53));Material(FLinearColor(.53,.57,.55));
+    if(auto* Water=Cast<UMaterialInstanceDynamic>(Materials[7])){Water->SetScalarParameterValue(TEXT("Metallic"),0);Water->SetScalarParameterValue(TEXT("Roughness"),.82);}
+    const auto& S=Settings;const double L=S.HoldLength,W=S.HoldWidth,H=S.WeatherDeckZ();
+    // Four N-class box holds; the aft working hold is centered at local X=0.
     for(int32 Hold=0;Hold<S.HoldCount;++Hold)
     {
-        const double X=Hold*(L+3);
-        Box({X,0,-.2},{L,W,.4},1);Box({X,-W*.5-.25,H*.5},{L,.5,H},0);Box({X,W*.5+.25,H*.5},{L,.5,H},0);
-        for(double End:{-1.,1.})Box({X+End*(L*.5+.25),0,H*.5},{.5,W+1,H},0);
-        for(double Side:{-1.,1.})Box({X,Side*(W*.5+.25),H+S.Coaming*.5},{L+.8,.5,S.Coaming},6);
+        const double X=S.HoldCenterX(Hold),HL=S.HoldLengthAt(Hold);
+        Box({X,0,-.2},{HL,W,.4},1);Box({X,-W*.5-.25,H*.5},{HL,.5,H},0);Box({X,W*.5+.25,H*.5},{HL,.5,H},0);
+        for(double End:{-1.,1.})Box({X+End*(HL*.5+.25),0,H*.5},{.5,W+1,H},0);
+        for(double Side:{-1.,1.})Box({X,Side*(W*.5+.25),H+S.Coaming*.5},{HL+.8,.5,S.Coaming},8);
+        if(Hold>0){auto* Cover=Box({X,0,H+S.Coaming+.15},{HL,W,.3},8);Cover->ComponentTags.Add(TEXT("CoilClosedHatchCover"));}
     }
-    const double VesselX=(S.HoldCount-1)*(L+3)*.5;
-    Box({VesselX,0,-1.2},{S.LOA,S.Beam,2},0);Box({-L*.5-7,0,H+4},{12,15,8},1);Box({-L*.5-7,0,H+9},{9,12,2},0);
-    Box({VesselX,QuayOffset(20),QuayZ()-.6},{S.LOA+30,40,1.2},1);
+    const double VesselX=S.VesselCenterX();
+    Box({VesselX,0,-1.2},{S.LOA,S.Beam,2},0);
+    Box({VesselX,QuayOffset(180),QuayZ()-.6},{900,360,1.2},1);
     // Water is display only, has no measurement/collision.
-    Box({VesselX,-S.QuaySide*(S.Beam*.5+35.1),S.Draft-S.KeelToTanktop-.1},{S.LOA+100,70,.05},7,false)->ComponentTags.Add(TEXT("CoilDisplayOnly"));
+    for(const FVector C:{FVector(VesselX,-S.QuaySide*(S.Beam*.5+6000),S.Draft-S.KeelToTanktop-.1),FVector(VesselX-S.LOA*.5-6000,0,S.Draft-S.KeelToTanktop-.1),FVector(VesselX+S.LOA*.5+6000,0,S.Draft-S.KeelToTanktop-.1)})
+        {auto* Water=Box(C,C.Y==0?FVector(12000,24000,.05):FVector(24000,12000,.05),7,false);Water->SetCastShadow(false);Water->ComponentTags.Add(TEXT("CoilDisplayOnly"));}
+    Box({VesselX,QuayEdgeY()-S.QuaySide*S.BerthGap*.5,S.Draft-S.KeelToTanktop-.1},{S.LOA,S.BerthGap,.05},7,false)->ComponentTags.Add(TEXT("CoilDisplayOnly"));
     const double RailY=QuayOffset(S.RailSetback),Q=QuayZ(),CraneX=-8,Side=S.QuaySide;
     const auto CraneBox=[&](FVector C,FVector Size,int32 Color,bool Collision=true){auto* M=Box(C,Size,Color,Collision);CraneParts.Add(M);CraneStarts.Add(C*100);return M;};
     for(double Y:{RailY,RailY+Side*S.RailGauge})
@@ -98,10 +102,10 @@ void ACoilLoadingSimulation::BuildScene()
     for(double X:{CraneX-4,CraneX+4}){CraneBox({X,S.RailCenterY(),Q+20},{1,S.RailGauge+1,1},2);CraneBox({X,RailY-Side*(30-S.RailGauge)*.5,Q+28},{1,31+S.RailGauge,1.2},2);}
     CraneBox({CraneX,RailY-Side*30,Q+28},{9,1,1.2},2);CraneBox({CraneX,RailY+Side*S.RailGauge,Q+28},{9,1,1.2},2);
     for(double Offset=-S.RailGauge+2;Offset<30;Offset+=4)CraneBox({CraneX,RailY-Side*Offset,Q+28},{7,.2,.2},2,false);
-    CraneBox({CraneX+4,RailY-Side*4,Q+25},{2.5,3,2.5},0);
+
     Box({-8,QuayOffset(8),Q+.5},{2.5,2.3,1},2);for(double Y:{-.7,.7})Box({-8,QuayOffset(8)+Y,Q+1.05},{2,.25,.3},2,true,FRotator(0,0,Y<0?-35:35));
     // ref3: open-front coil shed, individual yellow cradles and visible coil eyes.
-    const double ShedY=QuayOffset(29);
+    const double ShedY=ShedCenterY();
     Box({2,ShedY,Q+6},{32,10,.3},5);Box({2,ShedY+Side*5,Q+3},{32,.2,6},5);
     for(double X=-12;X<=16;X+=7)for(double Y:{ShedY-4.8,ShedY+4.8})Box({X,Y,Q+3},{.25,.25,6},2);
     for(int32 I=0;I<8;++I)
@@ -109,6 +113,7 @@ void ACoilLoadingSimulation::BuildScene()
         const FVector C(-10+I*3.2,ShedY,Q+1.35);auto Spec=NextSpec;Spec.CoilId=FString::Printf(TEXT("STOCK-%03d"),I+1);auto* A=SpawnCoil(Spec,C);if(A){Stock.Add(A);A->AttachToActor(this,FAttachmentTransformRules::KeepWorldTransform);}
         for(double Y:{-.8,.8})Box(C+FVector(0,Y,-.85),{1.8,.35,.35},2);
     }
+    BuildQuayPresentation();
     BuiltSceneSettings=Settings;CurrentHook=PickupPosition()+FVector(0,0,3);++GeometryRevision;
 }
 void ACoilLoadingSimulation::BuildSupports()
@@ -134,19 +139,20 @@ void ACoilLoadingSimulation::RebuildBatches()
         for(auto* Component:{A->Body.Get(),A->Detail.Get()})
         {
             UStaticMesh* Mesh=Component->GetStaticMesh();if(!Mesh)continue;auto*& Group=Groups.FindOrAdd(Mesh);
-            if(!Group){Group=NewObject<UInstancedStaticMeshComponent>(this);Group->SetupAttachment(GetRootComponent());Group->SetStaticMesh(Mesh);for(int32 I=0;I<Component->GetNumMaterials();++I)Group->SetMaterial(I,Component->GetMaterial(I));Group->SetCollisionEnabled(ECollisionEnabled::NoCollision);if(Component==A->Detail)Group->SetCullDistances(3000,4500);Group->RegisterComponent();Batches.Add(Group);}
+            if(!Group){Group=NewObject<UInstancedStaticMeshComponent>(this);Group->SetupAttachment(GetRootComponent());Group->SetStaticMesh(Mesh);for(int32 I=0;I<Component->GetNumMaterials();++I)Group->SetMaterial(I,Component->GetMaterial(I));Group->SetCollisionEnabled(ECollisionEnabled::NoCollision);if(Component==A->Detail)Group->SetCullDistances(3000,4500);Group->RegisterComponent();Group->ComponentTags.Add(TEXT("CoilSettledBatch"));Batches.Add(Group);}
             Group->AddInstance(A->GetActorTransform(),true);Component->SetHiddenInGame(true);
         }
     }
 }
 void ACoilLoadingSimulation::RestoreSceneGeometry()
 {
-    for(auto M:Structure)if(M)M->DestroyComponent();Structure.Reset();PlanSupports.Reset();CraneParts.Reset();CraneStarts.Reset();RailX=-8;SupportedPlacementCount=0;
+    for(auto M:Structure)if(M)M->DestroyComponent();Structure.Reset();PlanSupports.Reset();CraneParts.Reset();CraneStarts.Reset();TrolleyDetails.Reset();HookDetails.Reset();PresentationBatches.Reset();PresentationMeshes.Reset();RailX=-8;SupportedPlacementCount=0;
+    TInlineComponentArray<UTextRenderComponent*> Signs(this);for(auto* T:Signs)if(T->ComponentHasTag(TEXT("CoilQuayPresentation")))T->DestroyComponent();
     for(auto A:Stock)if(A)A->Destroy();Stock.Reset();Materials.Reset();BuildScene();
     BuildSupports();if(WaitingCoil)WaitingCoil->SetActorLocation(GetActorTransform().TransformPosition(PickupPosition()*100));
     if(Lidar)
     {
         FVirtualSensorEditableState S;FString E;Lidar->ReadEditableState(S);
-        S.ActorTransform=FTransform(GetActorQuat()*FRotator(-65,60,0).Quaternion(),GetActorTransform().TransformPosition(FVector(-26,-13,Settings.HoldHeight+8)*100));Lidar->ApplyEditableState(S,E);
+        S.ActorTransform=FTransform(GetActorQuat()*FRotator(-72,112,0).Quaternion(),GetActorTransform().TransformPosition(FVector(-Settings.HoldLength*.5+4,-Settings.HoldWidth*.5+3,Settings.HoldHeight+8)*100));Lidar->ApplyEditableState(S,E);
     }
 }

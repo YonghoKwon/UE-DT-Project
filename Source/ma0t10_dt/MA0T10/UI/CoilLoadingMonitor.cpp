@@ -32,6 +32,7 @@ void UCoilLoadingMonitor::NativeOnInitialized()
 {
     Super::NativeOnInitialized();bPresistent=true;
     auto* Root=WidgetTree->ConstructWidget<UCanvasPanel>();WidgetTree->RootWidget=Root;Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    for(int I=0;I<4;++I){auto* B=WidgetTree->ConstructWidget<UBorder>();B->SetBrush(*Style::PanelBrush());B->SetBrushColor(FLinearColor(.012,.018,.022,1));B->SetVisibility(ESlateVisibility::HitTestInvisible);auto* MaskSlot=Root->AddChildToCanvas(B);MaskSlot->SetZOrder(-1);SceneMasks.Add(MaskSlot);}
     const auto Label=[&](const FString& Text,int32 Size=13,bool Bold=false){auto* W=WidgetTree->ConstructWidget<UTextBlock>();W->SetText(FText::FromString(Text));W->SetFont(Style::Font(Size,1,Bold));W->SetColorAndOpacity(Style::Text());W->SetAutoWrapText(true);return W;};
     const auto Button=[&](const TCHAR* Text,FName Fn,bool Primary=false){auto* W=WidgetTree->ConstructWidget<UButton>();W->SetStyle(Primary?Style::PrimaryButton():Style::Button());W->SetContent(Label(Text));FScriptDelegate D;D.BindUFunction(this,Fn);W->OnClicked.Add(D);return W;};
     const auto Card=[&](const TCHAR* Name){auto* B=WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(),Name);B->SetBrush(*Style::PanelBrush());B->SetBrushColor(Style::Panel());B->SetPadding(FMargin(14));Slots.Add(Root->AddChildToCanvas(B));return B;};
@@ -55,7 +56,7 @@ void UCoilLoadingMonitor::NativeOnInitialized()
     Number(Body,TEXT("단 · 상한 없이 입력"),1,1,100000);Number(Body,TEXT("열 · 선수미"),1,1,100000);Number(Body,TEXT("번호 · 횡방향"),1,1,100000);
     R=Row(Body);AddButton(R,TEXT("사양·위치 적용"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnApply),true);AddButton(R,TEXT("설정 · 상세"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnDetails));
     Details=WidgetTree->ConstructWidget<UVerticalBox>();Body->AddChildToVerticalBox(Details);Details->SetVisibility(ESlateVisibility::Collapsed);
-    Number(Details,TEXT("탱크톱 UDL [t/m²]"),15,.1,100);Number(Details,TEXT("승인 유효 면적 [m²] · 0 미확인"),0,0,100);Number(Details,TEXT("국부 허용압 [t/m²] · 0 미확인"),0,0,1000);
+    Number(Details,TEXT("탱크톱 UDL [t/m²]"),14.5,.1,100);Number(Details,TEXT("승인 유효 면적 [m²] · 0 미확인"),0,0,100);Number(Details,TEXT("국부 허용압 [t/m²] · 0 미확인"),0,0,1000);
     Number(Details,TEXT("풍속 [m/s] · 합성 진자"),0,0,50);Number(Details,TEXT("횡요 진폭 [°]"),5,0,40);Number(Details,TEXT("종요 진폭 [°]"),2,0,40);Number(Details,TEXT("운동 주기 [s]"),10,2,60);
     Number(Details,TEXT("쐐기 검증 내력 [kN] · 0 미확인"),0,0,10000);Number(Details,TEXT("선체 연결 래싱 내력 [kN]"),0,0,10000);Number(Details,TEXT("보정 지름 강성 [kN/m]"),0,0,10000000);Number(Details,TEXT("제조사 ovality 한계 · 0 미확인"),0,0,.2);
     Number(Details,TEXT("훅 SWL [t]"),40,.1,500);Number(Details,TEXT("장구 자중 [t]"),2,0,100);Number(Details,TEXT("합성 KM [m]"),9,0,100);Number(Details,TEXT("강 밀도 [t/m³]"),7.85,.1,30);Number(Details,TEXT("권취 충전율 η"),.97,.01,1);
@@ -66,12 +67,13 @@ void UCoilLoadingMonitor::NativeOnInitialized()
     Number(Details,TEXT("LCF · AP 기준 [m]"),0,0,300);Number(Details,TEXT("선체-부두 간격 [m]"),2,0,20);Number(Details,TEXT("부두 끝-안쪽 레일 [m]"),3,0,20);Number(Details,TEXT("레일 간격 [m]"),12,1,30);Number(Details,TEXT("부두 방향 · -1 우현 / +1 좌현"),-1,-1,1);
     const auto Flag=[&](const TCHAR* Name,bool Checked){auto* C=WidgetTree->ConstructWidget<UCheckBox>();C->SetCheckedState(Checked?ECheckBoxState::Checked:ECheckBoxState::Unchecked);C->SetContent(Label(Name,12));Details->AddChildToVerticalBox(C);Flags.Add(C);};
     Flag(TEXT("받침목 · 3줄 200×50 mm"),true);Flag(TEXT("쐐기 있음 · 내력 입력 별도"),true);Flag(TEXT("래싱 있음 · 선체 연결 내력 별도"),false);Flag(TEXT("eye 선수미 방향"),true);Flag(TEXT("젖은 강재 접촉 · μ0 시험"),false);Flag(TEXT("Loading Manual 입력 확인"),false);Flag(TEXT("냉연 포장 접촉 μ 인증값 확인"),false);Flag(TEXT("LCF 정수력 입력 확인"),false);
-    Details->AddChildToVerticalBox(Label(TEXT("선박: R-class 참고 합성 예제\n169.75×20.40 m · 2 box holds\n홀드 60.59×17.00×13.55 m\nUDL15 t/m² · 국부 강도 미확인\nΔ30000t/KG7/KM9/자유표면0.2m 가상\nIMO CSS Annex6/13 · 연구 근거 문서 참조"),11));
+    Details->AddChildToVerticalBox(Label(TEXT("선박: N-class 참고 합성 배치\n174.10×22.00 m · 4 box holds\n작업 홀드/해치 24.80×18.80 m\n홀드 H14.00m · UDL14.5 t/m² · 국부 강도 미확인\nΔ30000t/KG7/KM9/자유표면0.2m 가상\nIMO CSS Annex6/13 · 연구 근거 문서 참조"),11));
     MotionChoice=WidgetTree->ConstructWidget<UComboBoxString>();MotionChoice->ForegroundColor=Style::Text();MotionChoice->SetWidgetStyle(Style::ComboBox());for(const TCHAR* V:{TEXT("사용자 roll/pitch"),TEXT("잔잔함 · 2°/1°/12s"),TEXT("보통 · 5°/2°/10s"),TEXT("강함 · 10°/5°/8s"),TEXT("CSS lower hold 가속도")})MotionChoice->AddOption(V);MotionChoice->SetSelectedIndex(2);Body->AddChildToVerticalBox(MotionChoice);
     R=Row(Body);AddButton(R,TEXT("선박 운동 시험"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnMotion));AddButton(R,TEXT("센서 도구"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnTools));
     Body->AddChildToVerticalBox(Label(TEXT("불러올 계획/목록 경로 · 저장 후 자동 갱신"),12));FileInput=WidgetTree->ConstructWidget<UEditableTextBox>();FileInput->WidgetStyle=Style::Input();FileInput->SetText(FText::FromString(FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("CoilLoadingPlan.json"))));Body->AddChildToVerticalBox(FileInput);
     R=Row(Body);AddButton(R,TEXT("JSON 저장"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnSave));AddButton(R,TEXT("계획 불러오기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnLoad));AddButton(R,TEXT("CSV/JSON 목록"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnImport));
     R=Row(Body);AddButton(R,TEXT("슬롯 저장"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnSaveSlot));AddButton(R,TEXT("슬롯 불러오기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnLoadSlot));
+    R=Row(Body);AddButton(R,TEXT("혼적 예시 불러오기 · 경고 포함"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnMixedExample));
     auto* Header=Card(TEXT("CoilViewHeader"));auto* HB=WidgetTree->ConstructWidget<UVerticalBox>();Header->SetContent(HB);HB->AddChildToVerticalBox(Label(TEXT("제품 부두 코일 선적 · 사전 해석 / 실제 놓기 비교"),17,true));
     R=Row(HB);AddButton(R,TEXT("전경"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnOverview));AddButton(R,TEXT("홀드 내부"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnInterior));AddButton(R,TEXT("단면"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnSection));AddButton(R,TEXT("2D 상면"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnTop));AddButton(R,TEXT("점군"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnPoints));
     Operation=Label(TEXT("매단 하중 아래 출입 금지 · 빨간 원은 표시용 작업구역"),12);HB->AddChildToVerticalBox(Operation);
@@ -107,6 +109,8 @@ void UCoilLoadingMonitor::Refresh()
     const double Left=FMath::Min(360.,Size.X*.31),X=Left+24,Width=FMath::Max(100.,Size.X-X-12),FooterH=FMath::Clamp(Size.Y*.27,170.,260.);
     const FVector2D Positions[]={{12,12},{X,12},{X,130},{X,Size.Y-FooterH-12}},Sizes[]={{Left,Size.Y-24},{Width,106},{Width,Size.Y-FooterH-154},{Width,FooterH}};
     for(int32 I=0;I<Slots.Num();++I){Slots[I]->SetPosition(Positions[I]);Slots[I]->SetSize(Sizes[I]);}
+    const FVector2D MaskPositions[]={{0,0},{0,Size.Y-FooterH-24},{0,130},{Size.X-12,130}},MaskSizes[]={{Size.X,130},{Size.X,FooterH+24},{X,Size.Y-FooterH-154},{12,Size.Y-FooterH-154}};
+    for(int32 I=0;I<SceneMasks.Num();++I){SceneMasks[I]->SetPosition(MaskPositions[I]);SceneMasks[I]->SetSize(MaskSizes[I]);}
     ViewRect=FSlateRect(X,130,Size.X-12,Size.Y-FooterH-24);const int32 View=S->View();PlotCard->SetVisibility(View==2||View==3?ESlateVisibility::Visible:ESlateVisibility::Collapsed);if(Host.IsValid())Host->SetSceneRect(ViewRect,Size,View!=2&&View!=3);
     if(!S->LastPlanSavePath.IsEmpty()&&S->LastPlanSavePath!=LastShownPlanPath){LastShownPlanPath=S->LastPlanSavePath;FileInput->SetText(FText::FromString(LastShownPlanPath));}
     Operation->SetText(FText::FromString(S->Status+TEXT(" · 매단 하중 아래 출입 금지")));
@@ -157,6 +161,12 @@ void UCoilLoadingMonitor::OnSave(){if(auto* S=Sim.Get())S->RequestPlanSave();}
 void UCoilLoadingMonitor::OnLoad(){if(auto* S=Sim.Get())S->LoadPlan(FileInput->GetText().ToString());SyncInputs();}
 void UCoilLoadingMonitor::OnSaveSlot(){if(auto* S=Sim.Get())S->SaveSlot();}
 void UCoilLoadingMonitor::OnLoadSlot(){if(auto* S=Sim.Get())S->LoadSlot();SyncInputs();}
+void UCoilLoadingMonitor::LoadMixedExample()
+{
+    if(auto* S=Sim.Get())if(S->Phase()==ECoilLoadingPhase::Idle)
+    {S->NextSpec=CoilLoading::FSpec::Representative(CoilLoading::ECoilType::HotRolled);S->NextTier=1;S->NextRow=1;S->NextColumn=7;const FString Path=FPaths::ProjectDir()/TEXT("docs/examples/coil-loading-mixed.json");FileInput->SetText(FText::FromString(Path));S->LoadPlan(Path);}
+}
+void UCoilLoadingMonitor::OnMixedExample(){LoadMixedExample();}
 void UCoilLoadingMonitor::OnImport(){auto* S=Sim.Get();if(!S)return;const FString Path=FileInput->GetText().ToString();if(IFileManager::Get().FileSize(*Path)>16*1024*1024){S->Status=TEXT("목록 파일16MiB 초과");return;}FString Text;if(FFileHelper::LoadFileToString(Text,*Path))S->ImportCoils(Text,Path.EndsWith(TEXT(".json")));else S->Status=TEXT("목록 파일 읽기 실패");SyncInputs();}
 void UCoilLoadingMonitor::OnDetails(){Details->SetVisibility(Details->IsVisible()?ESlateVisibility::Collapsed:ESlateVisibility::Visible);}
 void UCoilLoadingMonitor::OnDataNeeded(){DataRows->SetVisibility(DataExpanded()?ESlateVisibility::Collapsed:ESlateVisibility::Visible);LastRevision=MAX_uint64;Refresh();}

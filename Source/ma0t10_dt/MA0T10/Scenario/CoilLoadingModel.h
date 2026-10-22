@@ -42,13 +42,16 @@ struct MA0T10_DT_API FPlacement
 };
 struct MA0T10_DT_API FSettings
 {
-    double LOA=169.75,Beam=20.4,Depth=13.75,Draft=9.718,HoldLength=60.59,HoldWidth=17,HoldHeight=13.55;
-    double OpeningLength=60.59,OpeningWidth=17,Coaming=1.2,UDLLimit=15;
-    int32 HoldCount=2,DunnageLines=3;
+    // Wagenborg N-class, working aft hold: published box-hold/hatch dimensions.
+    double LOA=174.10,Beam=22,Depth=12.80,Draft=6.20,HoldLength=24.80,HoldWidth=18.80,HoldHeight=14;
+    double OpeningLength=24.80,OpeningWidth=18.80,Coaming=1.4,UDLLimit=14.5;
+    int32 HoldCount=4,DunnageLines=3;
+    double IntermediateHoldLength=27.4,HoldGap=4; // gap is a layout assumption
+    bool bDeckCranes=true,bFoldingCovers=true;
     double DunnageWidth=.2,DunnageThickness=.05,ContactLength=1.6;
     double ApprovedPatchArea=0,LocalPressureLimit=0; // 0 = not provided, never a green approval
     double Displacement=30000,KG=7,KM=9,FreeSurfaceCorrection=.2,MCT1cm=0,KeelToTanktop=.2;
-    double LBP=162,SpeedKnots=14,PositionFromAP=.5;
+    double LBP=166,SpeedKnots=14,PositionFromAP=.25; // synthetic navigation inputs
     double LCFFromAP=0; // metres from AP; unavailable until explicitly confirmed
     bool bLCFConfirmed=false;
     double BerthGap=2,RailSetback=3,RailGauge=12;
@@ -60,6 +63,11 @@ struct MA0T10_DT_API FSettings
     double QuayEdgeY() const { return QuaySide*(Beam*.5+BerthGap); }
     double RailCenterY() const { return QuayEdgeY()+QuaySide*(RailSetback+RailGauge*.5); }
     double CraneRadius(const FVector& Load) const { return FMath::Abs(Load.Y-RailCenterY()); }
+    double HoldLengthAt(int32 I) const { return I>0&&I<HoldCount-1&&IntermediateHoldLength>0?IntermediateHoldLength:HoldLength; }
+    double HoldCenterX(int32 Index) const { double X=0;for(int32 I=1;I<=Index;++I)X+=(HoldLengthAt(I-1)+HoldLengthAt(I))*.5+HoldGap;return X; }
+    double VesselCenterX() const { return (HoldCenterX(HoldCount-1)+(HoldLengthAt(HoldCount-1)-HoldLength)*.5)*.5; }
+    double WeatherDeckZ() const { return HoldHeight-Coaming; }
+    double DeckCraneInnerY() const { return Beam*.5-.8-.37; }
     bool Validate(FString& Error) const;
 };
 struct MA0T10_DT_API FIssue
