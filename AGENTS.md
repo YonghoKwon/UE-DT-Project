@@ -129,20 +129,38 @@
 
 ## 6. 에이전트 협업 (계획·검토 Claude / 구현 Codex)
 
-현재 이 저장소는 **Claude가 분석·계획·독립 검토**를, **Codex가 구현·빌드·테스트**를 맡는다. 사용자는 최종 승인자다.
+현재 이 저장소는 **운영 방식 v2(사용자 승인 2026-10-22)**를 따른다. Claude는 계획(예비안 포함)·머지 전 독립 검수·승인 범위의 머지, Codex는 실행·보고, 사용자는 결정·현장 검증을 맡는다. 기존 보호·승인 규칙을 우선하며 이 절은 기능 구현이나 push/PR/merge 권한을 새로 부여하지 않는다.
 
 **역할**
+
+| 업무 | 담당·책임 |
+|---|---|
+| 계획 | Claude: 한 항목의 목표·범위·기준 SHA·게이트·예비안을 지시서에 명시 |
+| 실행 | Codex: 승인된 항목의 구현·빌드·테스트·결과 작성 |
+| 병렬 | Claude 조율 / Codex 실행: 명시적으로 승인·지정한 worktree에서 측정 없는 일만 |
+| 보고 | Codex: 20분마다 진행, 변화 없으면 한 줄; 결정·이미지·완료·실패는 즉시 |
+| 검수 | Claude: 머지 전 diff·게이트·증거 독립 재확인 |
+| 머지 | Claude: 독립 검수 통과 후 별도 승인 범위 안에서 수행 |
+| 결정 | 사용자: 정책·보호 경로·범위 변경 등 최종 결정 |
+| 현장 검증 | 사용자: 현장/실장비 수용, 로컬 자동화 결과와 구분 |
 
 - Claude: 관리 문서 갱신, 단계별 작업 요청 작성, Codex 결과의 diff·gate·빌드/테스트 재확인, 수정 요청. Claude는 기본적으로 production 코드를 직접 고치지 않는다. 사용자 요청(2026-10-13)에 따라 Unreal을 쓰지 않는 검증 도구·문서(Scripts, docs)는 별도 작업 복사본에서 Claude가 직접 맡을 수 있고, 같은 gate(quick 등)를 통과시킨 뒤 Codex 작업 브랜치에 합친다.
 - Codex: 요청받은 **한 항목(ARCH-0N 등)**만 구현한다. 범위 밖 문제를 발견하면 고치지 말고 보고한다. 관리 문서는 해당 항목의 진행률·결과·README §10.2 표 갱신 범위에서만 수정한다.
 
 **요청 단위와 진행**
 
-1. 작업 시작 시 `C:\Unreal Projects\ma0t10_dt`로 이동하고 §2 시작 점검(branch/HEAD/status)을 한다. 다른 폴더·worktree에서 작업하지 않는다.
+1. 기본 작업 폴더는 `C:\Unreal Projects\ma0t10_dt`이며 §2 시작 점검(branch/HEAD/remote/status)을 한다. 명시적으로 승인된 측정 없는 병렬 지시서는 지정 worktree에서만 수행한다(아래 병렬 규칙). 승인 없는 다른 폴더·worktree 작업은 금지한다.
 2. 한 요청 = 한 항목. 의미 단위로 여러 커밋을 만들 수 있다. 명시 파일만 stage하고 커밋 메시지에 항목 ID를 넣는다(예: `refactor(ARCH-02): move slab services to Scenario`).
-3. 기술적으로 막히거나 계약 변경이 필요해 보이면 그 지점에서 멈추고 근거와 선택지를 보고한다. 추정으로 계약·보호 경로를 바꾸지 않는다.
+3. 지시서의 예비안은 범위·계약·보호 규칙 안에서 재질문 없이 적용하고 선택·근거·검증 한계를 결과에 기록한다. 예비안으로 해결할 수 없는 진짜 차단(계약·보호 경로 변경 필요 등)만 해당 지점에서 멈추고 근거와 선택지를 즉시 보고한다. 추정으로 권한이나 계약을 바꾸지 않는다.
 4. push·PR·merge·worktree 생성·submodule update는 하지 않는다.
 5. **Computer Use(마우스·키보드) 기능 점검은 Codex가 한다(2026-10-12 사용자 요청).** UI·조작에 영향을 주는 항목은 자동화와 별도로 PIE에서 주요 동작을 직접 눌러 확인하고, 단계별 스크린샷·체크리스트(누른 것 / 기대 / 실제)를 `Saved/Reports/<그룹>/<ID>/manual/`에 남긴다. 화면 충돌을 막기 위해 **Codex 작업 중에는 Claude와 사용자가 화면을 조작하지 않는다.** Claude는 요청 전송 때만 Codex 앱을 잠깐 조작하고, 완료 감지는 화면이 아닌 로그로 한다. Codex는 점검을 끝내면 자신이 띄운 Editor/PIE를 정상 종료하고, 사용자 창 배치·개인 UI 저장값은 백업 후 복원한다. 구조 전용 항목(ARCH)은 기존대로 명령줄 검증으로 충분하다.
+
+**지시서·보고·머지 게이트 (v2)**
+
+- [Tools/agent](Tools/agent/README.md)의 작업 지시서·공통 규칙·병렬 추가 제한을 사용한다. 예비안은 조건·대안·검증 방법을 표로 적는다. 템플릿과 기존 규칙이 충돌하면 기존 규칙을 우선하고 충돌 지점을 보고한다.
+- 진행은 20분마다 보고하며 변화가 없으면 한 줄로 충분하다. 결정 필요·이미지 산출·완료·실패는 즉시 보고한다.
+- 완료 시 **`Saved/Reports/<ID>/result.json` 작성 의무**: [schema](Tools/agent/schema/result.schema.json)를 준수해 커밋·gate·측정 조건/수치/기준·미수행·한계·결정 필요·증거 경로·개인 설정 복원·비밀 노출 여부를 기록한다. `secrets_exposed`는 bool, 설명은 `secrets_note`에 쓰며 비밀 원문을 옮기지 않는다. Saved 결과는 커밋하지 않는다.
+- `Scripts/validate_agent_result.ps1 -ResultJson <path>` 후 `Scripts/merge_check.ps1 -ResultJson <path> -BaseCommit <sha> [-Head <ref>]`를 사용한다. merge_check는 Editor/빌드 없이 결과·manifest·커밋 diff만 판정하고 result 옆 `merge-check.json`을 남긴다. exit 0=머지 가능 후보 / 1=사용자 확인 필요 / 2=차단이다. 자동 머지 승인이 아니며 Claude의 독립 검수와 기존 권한이 최종 기준이다.
 
 **완료 보고 형식 (Codex → Claude)**
 
@@ -151,23 +169,28 @@
 커밋: <sha> <subject> (순서대로)
 변경 요약: 이동/수정 파일 수, 핵심 설계 결정
 검증: 명령 / 결과(Success·실패·skip 수와 이름) / 보고서 경로
+결과: Saved/Reports/<ID>/result.json / merge-check.json 판정
 layer gate: 이전 allowlist 수 → 현재 수
 보호 경로: DTCore gitlink·worktree, Config/Game.ini, Samples/PixelStreaming, 운영맵, .uasset 변경 여부
 미수행·제한: (없으면 "없음")
 질문·결정 필요: (없으면 "없음")
 ```
 
-**작업 환경 운영 (2026-10-13)**
+**작업 환경 운영 (2026-10-13, v2 병렬 규칙 2026-10-22 추가)**
+
+- **측정 없는 병렬 worktree:** 사용자가 승인·지정한 경로/branch에서만 도구·문서 등 측정 없는 일을 수행한다. 메인 폴더는 읽기 전용이며 다른 작업의 Editor·화면·GPU를 건드리지 않는다. Unreal Editor·UBT/Build.bat·성능 측정·GPU 작업 금지. quick/layer도 Editor/빌드 없는 스크립트 경로인지 확인한 뒤 실행한다. DTCore 미초기화는 한계로 기록하고 자동 update하지 않는다.
+- 증거 원본은 해당 worktree `Saved/Reports/<ID>/`에 둔다. 메인 쓰기의 유일한 예외는 지시서가 명시한 사용자 확인용 문서 사본을 메인 `Saved/Reports/<ID>/` 한 경로 아래에 복사하는 것이다. 허용 파일만 복사하고 다른 메인 소스·자산·설정·인덱스를 수정하지 않는다. 이 규칙은 worktree 생성·push·PR·merge의 자동 승인이 아니다.
+
 
 - 한 Codex 대화가 너무 길어지면(기록 파일 수백 MB 이상) 새 대화로 넘긴다. 새 대화 첫 요청은 AGENTS.md·README §10·IMPROVEMENTS 요약표를 읽게 하고, 이전 대화 ID와 마지막 커밋을 적는다.
 - 사용자가 한글을 입력하면 Windows `TextInputHost`가 전경을 잡아 Computer Use가 막힐 수 있다. 마우스 점검은 사용자가 PC를 쓰지 않는 시간에 몰아서 하고, 막히면 원인(전경 프로세스)을 기록한 뒤 2회 재시도 후 해당 행만 보류한다.
 - 모니터가 꺼져 화면이 없거나 앱 조작이 불가능하면 Claude는 Codex CLI(`codex exec`, 새 대화)로 화면 없는 작업만 요청하고, 마우스 점검은 보류로 남긴다.
 - 모델 용량 오류(`server_overloaded`)는 코드 문제가 아니다. 자동 재시도를 기다리고, 중단되면 같은 범위를 다시 요청한다. 부분 커밋·미커밋 상태를 먼저 검토하게 한다.
 - **병행 작업용 복사본 (2026-10-13 사용자 승인):** 개발은 `C:\Unreal Projects\ma0t10_dt`, 마우스 점검은 검수 전용 복사본 `C:\Unreal Projects\ma0t10_dt_qa`(일반 git clone, worktree 아님)에서 동시에 할 수 있다. 검수 복사본에서는 소스·자산 수정·커밋·push를 하지 않고(push URL 비활성), 결과는 그 폴더의 `Saved/Reports` 아래에 남긴다. 새 커밋을 검수하려면 검수 복사본에서 `git pull` 후 다시 빌드한다. 두 Editor가 동시에 도는 동안 성능 측정은 하지 않는다.
-- 성능 gate는 같은 방식의 변경 전/후 **ABAB 교차 측정 중앙값**으로 판정하고, 마우스 점검·다른 Editor 세션 중에는 측정하지 않는다. 상대 비교와 별도로 절대 수치(표시형/오프스크린 구분)를 함께 기록한다. 표준 실행은 `Scripts/verify.ps1 -Level perf -BaseCommit <기준>`(QA-02)이다.
+- 성능 gate는 같은 방식의 변경 전/후 **ABAB 교차 측정 중앙값**으로 판정하고, 마우스 점검·다른 Editor 세션 중에는 측정하지 않는다. 상대 비교와 별도로 절대 수치(표시형/오프스크린 구분)를 함께 기록한다. 표준 실행은 `Scripts/verify.ps1 -Level perf -BaseCommit <기준> -PerfRayTracing ProjectDefault`(QA-02, RT on 기준)이다.
 
 **검토와 재요청**
 
-- Claude는 보고만 믿지 않고 `git diff`, layer gate, 빌드, 관련 테스트를 직접 다시 확인한다.
+- Claude는 보고만 믿지 않고 `git diff`, result.json, merge_check, layer gate, 해당 범위의 빌드·관련 테스트 증거를 머지 전에 독립 재확인한다. 측정 없는 병렬 작업에서는 Editor·빌드를 새로 실행하지 않는다.
 - 같은 문제의 수정 재요청은 최대 3회다. 3회 후에도 해결되지 않으면 Claude가 사용자에게 상황과 선택지를 보고한다.
 - 검토 통과 후에만 다음 항목을 요청한다.
