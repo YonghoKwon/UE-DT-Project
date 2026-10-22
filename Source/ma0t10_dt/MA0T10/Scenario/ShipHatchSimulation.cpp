@@ -13,6 +13,7 @@
 #include "Components/DirectionalLightComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SkyLightComponent.h"
+#include "Components/SkyAtmosphereComponent.h"
 #include "Engine/TextureCube.h"
 #include "Engine/SkyLight.h"
 #include "EngineUtils.h"
@@ -84,7 +85,8 @@ void AShipHatchSimulation::BeginPlay()
     for(TActorIterator<ADirectionalLight> I(GetWorld());I;++I){KeyLight=*I;break;}
     if(KeyLight)
     {
-        auto* Light=KeyLight->GetLightComponent();OriginalLightRotation=KeyLight->GetActorRotation();OriginalLightIntensity=Light->Intensity;OriginalLightMobility=uint8(Light->Mobility);bOriginalLightShadows=Light->CastShadows;
+        auto* Light=CastChecked<UDirectionalLightComponent>(KeyLight->GetLightComponent());OriginalLightRotation=KeyLight->GetActorRotation();OriginalLightIntensity=Light->Intensity;OriginalLightMobility=uint8(Light->Mobility);bOriginalLightShadows=Light->CastShadows;
+        bOriginalAtmosphereSun=Light->bAtmosphereSunLight;if(bRealScale)Light->SetAtmosphereSunLight(true);
         Light->SetMobility(EComponentMobility::Movable);
         // Repeated height-field edits must not grow virtual shadow-map residency.
         // The cargo's bounded vertex shading supplies the cavity/AO cue instead.
@@ -93,6 +95,9 @@ void AShipHatchSimulation::BeginPlay()
     FillLight=NewObject<UPointLightComponent>(this);FillLight->SetupAttachment(GetRootComponent());FillLight->SetMobility(EComponentMobility::Movable);
     FillLight->SetCastShadows(false);FillLight->SetIntensityUnits(ELightUnits::Candelas);FillLight->SetIntensity(1000);FillLight->SetAttenuationRadius(6500);FillLight->RegisterComponent();
     FillLight->SetRelativeLocation(FVector(0,0,(HoldDepth+12)*100));SetLighting(-35,43,4.5,true);Regenerate(false);
+    // Visible outdoor background, with no collision or sensor readback. The
+    // player's point-only view suppresses this show flag locally in its view.
+    if(bRealScale){OutdoorSky=NewObject<USkyAtmosphereComponent>(this,TEXT("HatchOutdoorSky"));OutdoorSky->SetupAttachment(GetRootComponent());OutdoorSky->RegisterComponent();}
     // The fixture has no sky geometry, so its captured skylight is black.
     // A hatch-owned, one-time engine cubemap supplies outdoor diffuse fill on
     // the portal's back faces without recapture, shadows or a new asset.
@@ -417,8 +422,8 @@ void AShipHatchSimulation::VisitGeometryBounds(bool IncludeUnloader,TFunctionRef
 void AShipHatchSimulation::EndPlay(const EEndPlayReason::Type Reason)
 {
     bEnding=true;GetWorldTimerManager().ClearTimer(CabTravelTimer);bCabMoving=false;bGrabWorkActive=false;GetWorldTimerManager().ClearTimer(PollTimer);OnSurfaceChanged.Clear();
-    if(OutdoorAmbient)OutdoorAmbient->DestroyComponent();if(IsValid(FixtureSky))FixtureSky->SetVisibility(bFixtureSkyVisible);
-    if(KeyLight){KeyLight->SetActorRotation(OriginalLightRotation);KeyLight->GetLightComponent()->SetIntensity(OriginalLightIntensity);KeyLight->GetLightComponent()->SetCastShadows(bOriginalLightShadows);KeyLight->GetLightComponent()->SetMobility(EComponentMobility::Type(OriginalLightMobility));}
+    if(OutdoorSky)OutdoorSky->DestroyComponent();if(OutdoorAmbient)OutdoorAmbient->DestroyComponent();if(IsValid(FixtureSky))FixtureSky->SetVisibility(bFixtureSkyVisible);
+    if(KeyLight){KeyLight->SetActorRotation(OriginalLightRotation);KeyLight->GetLightComponent()->SetIntensity(OriginalLightIntensity);KeyLight->GetLightComponent()->SetCastShadows(bOriginalLightShadows);CastChecked<UDirectionalLightComponent>(KeyLight->GetLightComponent())->SetAtmosphereSunLight(bOriginalAtmosphereSun);KeyLight->GetLightComponent()->SetMobility(EComponentMobility::Type(OriginalLightMobility));}
     GetWorldTimerManager().ClearTimer(ScanDisplayTimer);for(auto A:SensorPresentation)if(IsValid(A))A->Destroy();SensorPresentation.Reset();
     if(MLX)MLX->Destroy();if(Livox)Livox->Destroy();if(CabRight)CabRight->Destroy();if(UnloaderPresentation)UnloaderPresentation->Destroy();if(Vessel)Vessel->Destroy();if(Cargo)Cargo->Destroy();
     for(auto A:Structure)if(IsValid(A))A->Destroy();Structure.Reset();

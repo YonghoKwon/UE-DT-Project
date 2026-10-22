@@ -18,6 +18,8 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+FOLLOWUP-30: `Scripts/run_hatch_validation.ps1 -Mode Showcase -Sensors 3`는 기존 테스트 맵을 저장하지 않고 실제 D3D12/RT on 1920×1080 PNG+JSON을 생성한다. 전경·GTSU/커버/호퍼·그랩 열림/닫힘·두 원료·GPU3센서/히트맵/단면/상면/설정·5종 붐 LiDAR·실제 디깅 전후/바닥/만재 코너를 포함한다. `Scripts/assemble_hatch_showcase.py Saved/Reports/FOLLOWUP-26-28/showcase`로 [4개 주제 합본](Saved/Reports/FOLLOWUP-26-28/showcase/manifest.json)을 만든다. 송신 완료 화면은 기존 시연 UI이며 실제 네트워크 송신의 증거가 아니다. 해치 소유 SkyAtmosphere와 기존 태양 설정을 종료 시 복원하고, 점군 플레이어 뷰에만 대기 show flag를 숨긴다. 직접 UI 수용과 공통gate는 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
+
 FOLLOWUP-32(사용자 현장 정정2026-10-22): 운전실은 그랩과 분리된 붐 독립 주행 캐리지다. 해치 중앙으로25m/min 이동·정지한 뒤 그랩 작업을 허용하며 작업 중 운전실 이동을 차단한다. 캐빈 센서2대는 실제 캐리지에 부착하고 이전 CPU/GPU acquisition pose를 보존한다. 명시적 중간 하역 흘수14m, 레일+25m 붐 하면 모델 가정으로 코밍 간격15.8m·캐빈 지붕 간격0.9m를 사용한다. 양정24/25m를 붐 높이로 오해하지 않으며 현장 GA 실측을 주장하지 않는다. [측면/조감 전후와ref4/ref5](Saved/Reports/FOLLOWUP-26-28/corners-32-gtsu-check.png), 근거·검증·제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 기존 운영 홀드05를 사용하며 다른8개 홀드는 문맥 형상이다.
 
 FOLLOWUP-29b(사용자 검수 보정2026-10-22): 코밍은 중간 밝기 적색 도장, 갑판·커버는 중성 회색으로 맞췄다. 해치 카메라 bias+0.25EV, 소유 조명/환경광과 기존 작업등을 보정하고 높이 기반 정점 셰이딩·노멀 세기를 조절한다. 측정 높이장·95% 체적·광학 반응은 바꾸지 않는다. [코너2곳·조감·측면 비교](Saved/Reports/FOLLOWUP-26-28/corners-29b-check.png), 검증/중간 시도/제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.

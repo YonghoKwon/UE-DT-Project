@@ -69,7 +69,7 @@ public:
             if(Service->HasItems())return false;
             if(Widget&&Now-At<.4)return false;
             if(Widget){const auto Text=SendFeedbackText(Widget);Test->TestTrue(TEXT("reset restores send label"),Text.Contains(TEXT("전송")));Test->TestFalse(TEXT("reset clears toast and completion"),Text.Contains(TEXT("전송 완료 ✓")));}
-            FAgentTestSetSettings C;C.Target=FParse::Param(FCommandLine::Get(),TEXT("TestSet05Capture"))&&Mode==0?100:1;C.AutoFillExamples=Mode==0;C.LidarId=Lidar->GetSensorId();
+            FAgentTestSetSettings C;C.Target=FParse::Param(FCommandLine::Get(),TEXT("TestSet05Capture"))&&!FParse::Param(FCommandLine::Get(),TEXT("TestSet05CaptureSingle"))&&Mode==0?100:1;C.AutoFillExamples=Mode==0;C.LidarId=Lidar->GetSensorId();
             Test->TestTrue(TEXT("configure fresh window mode"),Service->ConfigureForTests(C));
             FSlabScenarioDataPtr Data;FString Error;
             Test->TestTrue(TEXT("strict fixture template"),AgentTestSetTrigger::LoadTemplate(FPaths::ProjectDir()/TEXT("Config/AgentTestSetScenario.json"),C.Trigger,Slab->DimensionUnit,Slab->PositionUnit,Data,Error));
@@ -208,7 +208,7 @@ public:
 private:
     void Capture(const TCHAR* Name)
     {
-        const FString Dir=FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-05/captures");IFileManager::Get().MakeDirectory(*Dir,true);
+        FString Dir=FPaths::ProjectSavedDir()/TEXT("Reports/TESTSET-05/captures");FParse::Value(FCommandLine::Get(),TEXT("TestSet05CaptureOutput="),Dir);IFileManager::Get().MakeDirectory(*Dir,true);
         TArray<FColor> Pixels;
         FIntVector ImageSize;
         Test->TestTrue(TEXT("capture actual client viewport"),FSlateApplication::Get().TakeScreenshot(World->GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,ImageSize));

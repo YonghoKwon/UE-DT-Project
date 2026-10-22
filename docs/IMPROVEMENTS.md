@@ -4,6 +4,10 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## FOLLOWUP-30 — 전체 기능 캡처
+
+실제 D3D12/RT on 1920×1080 자동 캡처26장과 별도 테스트셋 송신 완료 시연 UI1장을 PNG+JSON으로 제공한다. 전경/근접/분석/5종 LiDAR의4개 합본만 하단 제목·조건을 추가하고 원시 장면 픽셀은 수정하지 않는다. 실제181회 생산 디깅으로 바닥을 노출하고 열림/닫힘 메시CRC 차이·전체 bucket 투영·0 높이 바닥 target·원본 광선 수/HWRT backend를 검사한다. 하늘은 해치 소유 SkyAtmosphere로 표시하며 기존 태양 설정을 종료 복원한다. 점군 캡처의 외형 숨김은 플레이어의 HiddenPrimitiveComponents만 사용하고 측정 충돌은 유지한다. [합본 manifest](../Saved/Reports/FOLLOWUP-26-28/showcase/manifest.json), 제외한 QA 시도·최종 gate·직접 UI 미수행은 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 송신 완료 이미지는 실제 네트워크 송신 성공의 증거로 사용하지 않는다.
+
 ## FOLLOWUP-32 — GTSU 독립 운전실 / 상대 배치
 
 사용자 현장 운영 정정에 따라 운전실은 별도 캐리지로 붐을 따라25m/min 주행한다. 해치 중앙 정지 전 퍼내기를 대기하고 그랩 작업 중 이동을 차단한다. 최소1m 외피 간격·붐 양단2m 주행 제한, 중지/대기 취소/종료 수명을 검사한다. 캐빈 센서2대의 실제 pose와 측정 snapshot을 같이 이동한다. 새 작은 캐빈 메시를 독립 CPU tree/GPU instance로 두어 이동 시 정적 하역기 전체 BVH/BLAS를 다시 만들지 않는다. 내부 HWRT 입력은4메시를 지원하며 외부 계약은 동일하다.

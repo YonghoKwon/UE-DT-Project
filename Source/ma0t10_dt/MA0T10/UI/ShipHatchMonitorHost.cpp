@@ -21,8 +21,10 @@ class FShipHatchViewExtension final : public FWorldSceneViewExtension
 public:
     FShipHatchViewExtension(const FAutoRegister& Register,UWorld* World):FWorldSceneViewExtension(Register,World){}
     FVector4 Rect=FVector4(0,0,1,1);
+    bool bPointOnly=false;
     virtual void SetupViewFamily(FSceneViewFamily&) override {}
-    virtual void SetupView(FSceneViewFamily&,FSceneView&) override {}
+    virtual void SetupView(FSceneViewFamily& Family,FSceneView& View) override
+    {if(bPointOnly&&!View.bIsSceneCapture&&!View.bIsReflectionCapture)Family.EngineShowFlags.SetAtmosphere(false);}
     virtual void BeginRenderViewFamily(FSceneViewFamily&) override {}
     virtual void SetupViewProjectionMatrix(FSceneViewProjectionData& Data) override
     {
@@ -81,7 +83,7 @@ void AShipHatchMonitorHost::Refresh()
 void AShipHatchMonitorHost::SetSceneRect(const FSlateRect& Rect,FVector2D Full,bool Visible)
 {
     if(Full.X<=0||Full.Y<=0)return;
-    if(ViewExtension)ViewExtension->Rect=Visible?FVector4(Rect.Left/Full.X,Rect.Top/Full.Y,Rect.Right/Full.X,Rect.Bottom/Full.Y):FVector4(0,0,.001,.001);
+    if(ViewExtension){ViewExtension->Rect=Visible?FVector4(Rect.Left/Full.X,Rect.Top/Full.Y,Rect.Right/Full.X,Rect.Bottom/Full.Y):FVector4(0,0,.001,.001);ViewExtension->bPointOnly=Monitor&&Monitor->GetView()==1;}
 }
 void AShipHatchMonitorHost::ShowTools()
 {

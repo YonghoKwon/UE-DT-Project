@@ -13,6 +13,7 @@ class UTextRenderComponent;
 class ADirectionalLight;
 class UPointLightComponent;
 class USkyLightComponent;
+class USkyAtmosphereComponent;
 class IVirtualSensorRayQuery;
 struct FShipHatchRayCache;
 
@@ -198,12 +199,14 @@ private:
     UPROPERTY(Transient) TObjectPtr<ADirectionalLight> KeyLight;
     UPROPERTY(Transient) TObjectPtr<UPointLightComponent> FillLight;
     UPROPERTY(Transient) TObjectPtr<USkyLightComponent> OutdoorAmbient;
+    UPROPERTY(Transient) TObjectPtr<USkyAtmosphereComponent> OutdoorSky;
     UPROPERTY(Transient) TObjectPtr<USkyLightComponent> FixtureSky;
     bool bFixtureSkyVisible=false;
     FRotator OriginalLightRotation;
     float OriginalLightIntensity=0;
     uint8 OriginalLightMobility=0;
     bool bOriginalLightShadows=true;
+    bool bOriginalAtmosphereSun=false;
     UPROPERTY(Transient) TArray<TObjectPtr<AShipHatchPart>> Structure;
     ShipHatch::FSurface Current;
     struct FGenerationBuffers { ShipHatch::FSurface Surface; TArray<double> Shape; };
