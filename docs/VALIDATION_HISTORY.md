@@ -537,3 +537,15 @@ FOLLOWUP-32 커버 회귀 보정: #30b의 기존 HATCH06 전체 외형 회귀에
 ## 2026-10-22 FOLLOWUP-30b 탱크톱 / LiDAR 수치 비교
 
 중성 탱크톱 albedo(.072,.075,.078), roughness.84, 완만한 녹/분진/마모·용접선. 실제 TankTop 첫충돌과7×7표본을 유지해 기존>=30 조건을49/49로 강화했고 철광석/석탄 모두49/49다. 단면0m 빗금/문구는 모의형상 표시로 실측과 구분한다. 첫 전체 외형 회귀는 커버 돌출2건으로FAIL(픽셀은통과), #32 기하 보정 뒤 HATCH06.AcceptanceRhi 외형 회귀1 Success/0Fail(FastCaptures, 성능gate아님). 최종 Showcase1 Success/0Fail, 실제27장면+별도시연1장, 181회 디깅/잔량4.99%. LiDAR는65%와잔량4.99%의 별도full immutable HWRT frame으로 광선/hit/전체홀드1m격자관측률/Hz/설정거리/FOV·pose를기록하고 합본에만 투영참고윤곽을 추가한다. [수치표](../Saved/Reports/FOLLOWUP-26-28/showcase/lidar-compare-table.png), 4합본·원시JSON·SHA256·최종 release/RT on ABAB·하네스 결과는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md)와 result.json을 따른다. 개인 설정 종료 복원, 직접 마우스는 Windows 잠금으로 미수행, #28/#26 사용자 범위 제외다.
+
+## 2026-10-23 HATCH-07 / COIL-02
+
+기준338aa88, 시작9f7b6cf/PRES-01, feat/hatch07-coil02, DTCore b2504d1. 초기 SensorTestMap 사용자 변경과 미추적 보호 파일을 보존했다. 항목별 구현·보정 커밋과 최종 SHA는 Saved/Reports/HATCH07-COIL02/result.json에 순서대로 기록한다.
+
+- HATCH: 배출 완료를 호퍼 위 대기로 분리하고 다음 클릭에서 해치 복귀→퍼내기→배출을 시작한다. 반환 이동 전에는 원료를 편집하지 않고 클릭 당시 반경/깊이를 고정한다. 사진에서 확인한 하부 횡격자만 보강하고 독립 운전실 캐리지·±1.3m 장착을 유지한다. Ouster OS1-64 Rev7×3/1024×64/20Hz와 os_lidar_boom/cabin_01/cabin_02 ID, 기본 꺼짐 현장 표시·3개 근접 프리셋·Grab/Trolley TF·대기/작업 상자·고정 RGB/원료 보라 옵션·회색 배경·자유 이동을 구현한다. 원시 측정/출력과 표시 복제를 분리한다.
+- COIL: 최대5단과6단 거절/사유, 직접 지지를 받는 위 코일 제거 우선, 인덱스 재정렬과 Undo 복원, 선수→선미 기본/반대 방향·실치수 간격·길이 끝 거절, 전체 홀드/개구/받침목 비율과3D/단면/상면 선택을 반영한다. 센서 도구의 Slab lazy factory뿐 아니라 사행 요약 카드·시나리오 메뉴/상태 칩을 코일 월드에서 숨긴다. 기본 상태/다음 코일/판정 우선, 상세/파일 묶음과150% 버튼/콤보 글자·헤더 사유 영역을 보정한다.
+- 기능 사전 검증: 최초 그랩/코일 정책2 Success, Ouster 사양/앵커/그랩3 Success, 통합4 Success/0Fail/0Skip, 검수 프리셋/색·Slab 카드 보정2 Success/0Fail/0Skip. 마지막 증거 경로와 통합 release/RT on ABAB 결과는 최종 result.json/RESULT.md를 따른다.
+- Ouster 절대 계측:1920×1080·오프스크린D3D12·RT on·3대·PCD송신 없음·준비10초/측정30초,59.740FPS·frame p95 16.704ms·GT10.537ms·각19.928/19.894/19.894Hz·150ms 초과0. 60FPS 정규화값과 벽시계Hz를 구분한다. 기존10Hz 기준을 유지하고 새20Hz 모드는 엔진3프레임당1회 cadence를 검사한다. 처음 추가한 정확한 벽시계20Hz 가정은 제한기의59.69FPS에서 실패했으므로 원시 실패를 남기고 측정 도메인을 정정했다. 정확한20.000Hz 벽시계 보장을 주장하지 않는다.
+- 직접 UI:1280×720·창DPI/UMG배율/owned font를 manual/*.metrics.json에 기록한다. 3D·단면·상면 클릭 선택, 제거/Undo,6단 거절,150% UI/파일 버튼, 센서 도구의 Slab 표시 제거, RViz/배경/그랩 상자·W/수직 이동·드래그 회전/휠 근접·프리셋 복귀를 확인했다. 호퍼 대기는 약27초 무클릭으로 유지했고 다음 클릭의 복귀·새 디깅을 확인했다. 체크리스트와 수행 한계는 manual/checklist.json을 따른다. 우드래그 팬은 native event 회귀와 직접 마우스 수행을 구분한다.
+- 원시 실패/보정: 그랩 시험의5Hz 갱신 간격 미반영, C++ API/변수/포인터 타입 오류, 문서CRLF 경고를 보정했다. 직접 UI에서150% 헤더가 거절 사유를 가리는 문제·버튼 줄바꿈/상태 문구와 공통 Slab 상태 카드 잔존을 발견해 수정했다. 실패 로그와 수정 전 캡처를 지우지 않았다.
+- [부재/공식 사양 근거](research/HATCH-07-basis.md), [현장 대 구현 비교](../Saved/Reports/HATCH07-COIL02/progress/hatch-rviz-compare.png), [최종 결과](../Saved/Reports/HATCH07-COIL02/result.json). 실제 스캔 파일·현장 TF 수치·하드웨어 revision은 미제공이다.90m는1024×10Hz 조건부 사양이고20Hz에서 같은 검출확률의 실장비 보장이 아니다. PCD 예산/송신 성능#28·현장 실장비 수용은 이번 검증이 아니다. 보호 경로·개인 설정 복원·secrets 상태와 release/RT on ABAB/merge_check 판정은 최종 결과에 명시한다.
