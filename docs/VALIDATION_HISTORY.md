@@ -549,3 +549,11 @@ FOLLOWUP-32 커버 회귀 보정: #30b의 기존 HATCH06 전체 외형 회귀에
 - 직접 UI:1280×720·창DPI/UMG배율/owned font를 manual/*.metrics.json에 기록한다. 3D·단면·상면 클릭 선택, 제거/Undo,6단 거절,150% UI/파일 버튼, 센서 도구의 Slab 표시 제거, RViz/배경/그랩 상자·W/수직 이동·드래그 회전/휠 근접·프리셋 복귀를 확인했다. 호퍼 대기는 약27초 무클릭으로 유지했고 다음 클릭의 복귀·새 디깅을 확인했다. 체크리스트와 수행 한계는 manual/checklist.json을 따른다. 우드래그 팬은 native event 회귀와 직접 마우스 수행을 구분한다.
 - 원시 실패/보정: 그랩 시험의5Hz 갱신 간격 미반영, C++ API/변수/포인터 타입 오류, 문서CRLF 경고를 보정했다. 직접 UI에서150% 헤더가 거절 사유를 가리는 문제·버튼 줄바꿈/상태 문구와 공통 Slab 상태 카드 잔존을 발견해 수정했다. 실패 로그와 수정 전 캡처를 지우지 않았다.
 - [부재/공식 사양 근거](research/HATCH-07-basis.md), [현장 대 구현 비교](../Saved/Reports/HATCH07-COIL02/progress/hatch-rviz-compare.png), [최종 결과](../Saved/Reports/HATCH07-COIL02/result.json). 실제 스캔 파일·현장 TF 수치·하드웨어 revision은 미제공이다.90m는1024×10Hz 조건부 사양이고20Hz에서 같은 검출확률의 실장비 보장이 아니다. PCD 예산/송신 성능#28·현장 실장비 수용은 이번 검증이 아니다. 보호 경로·개인 설정 복원·secrets 상태와 release/RT on ABAB/merge_check 판정은 최종 결과에 명시한다.
+
+## 2026-10-23 — FOLLOWUP-28 기본 Rev7×3 재측정
+
+기준be29ab4,후보b224edc+프로필명 계측(717bbdd 구현),DTCore b2504d1. 기본Ouster OS1-64 Rev7×3/1024×64/20Hz 요청,ShipHatchTestMap 메모리fixture,1920×1080 오프스크린 D3D12/RT on·HWRT,준비10초/측정90초,PCD33-byte/FIFO/64MiB/s,자격증명 없는localhost STOMP receipt+echo/체크섬검증. 다른Editor0. 기준선은90초·프로필명만 test overlay했다.
+
+외부수신19.799/13.255/19.221→16.788/16.788/16.788Hz,편차6.544→0Hz. 실제body×요청Hz 필요75.946/실제63.731MiB/s. 각10Hz 이상·오류0. 기준선의 기존 엔진3프레임당 획득 assertion2건 FAIL은 보존하고 후보는 같은 assertion까지Success다. 획득/직렬화/제출/receipt/내부·외부수신·생략/gap은 [원시표](../Saved/Reports/FOLLOWUP-28-26/r2/PCD-28.md)에 구분한다. 최악가정65,536점×33B×20Hz×3=123.75MiB/s+헤더이며128MiB/s는 제안만,기본값 변경0이다.
+
+직접UI는 별도 SlabScenarioValidationMap/MLX 단일센서 진단fixture에서1920×1080·DPI1·글자100%로64→8→64,필요경고·최근7.6Hz·복원19.3Hz,패널숨김 수신2008→3408을 확인했다. 기본Rev7×3 성능과 직접UI fixture를 혼동하지 않는다. [체크리스트](../Saved/Reports/FOLLOWUP-28-26/r2/manual/CHECKLIST.md). 이번 실행 직전 새 개인43파일을 복원하며 이전 백업을 사용하지 않는다. 보호569파일 불변. 최종release/perf/RSS는 후속 기록을 따른다.

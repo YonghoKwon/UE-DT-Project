@@ -18,6 +18,12 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### FOLLOWUP-28 PCD 송신 예산·공정성
+
+기본 Ouster OS1-64 Rev7 3대(1024×64·20Hz 요청)에 센서별 토큰 버킷과 프레임 크기를 반영한 균등 Hz 상한을 적용한다. 기본64MiB/s·PCD33-byte·승인FIFO·기본출력은 유지한다. `데이터 → 전송 → 고급 → PCD 예산`에서 현재 세션 예산을 바꾸며, 필요/예산 MiB/s와 최근 약1초의 실제 송신Hz를 표시한다. 저장 형식은 바꾸지 않는다.
+
+be29ab4 대비 기본Rev7×3/1920×1080/실제D3D12·RT on/90초 localhost 외부수신은19.799/13.255/19.221→16.788/16.788/16.788Hz,편차6.544→0Hz다. 필요75.946/실제63.731MiB/s. 기준선의 기존 획득20Hz assertion2건 실패는 보존하고 후보는 동일 assertion까지 통과했다. [측정·제한](Saved/Reports/FOLLOWUP-28-26/r2/PCD-28.md)·[직접UI](Saved/Reports/FOLLOWUP-28-26/r2/manual/CHECKLIST.md). #26 RSS와 최종release/RT on ABAB는 별도 후속 검증이다.
+
 ### HATCH-07 / COIL-02 현장 보기·배치 흐름
 
 원료 하역 기본은 Ouster OS1-64 Rev7 3대(1024×64·20Hz)이며 ID는 `os_lidar_boom`, `os_lidar_cabin_01/02`다. Rev05의 조건부 45m 프로필과 XT32·Mid-360S 등 기존 선택은 유지한다. 공식 자료의 거리/모드 조건과 사진 부재별 근거는 [HATCH-07 근거](docs/research/HATCH-07-basis.md)를 따른다. 현장 시각화는 기본 꺼짐이며 TF RGB 축·장비 라벨·그랩 상자·노랑/빨강/파랑 점군·회색 배경을 표시한다. 녹색 반투명 모델은 기존 형상 표시용이며 실제 스캔 파일이 아니다. 획득 메시·스냅샷·측정 재질을 바꾸지 않는다.
@@ -685,6 +691,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+FOLLOWUP-28은 기존 L1 송신기/상태와 L3 소유 데이터 패널·상태바만 확장한다. 새 모듈·플러그인·자산·DTCore·wire·SaveGame 형식 변경 없이 layer/allowlist0→0이다.
 
 HATCH-07/COIL-02는 L2 장면/배치와 L3 소유 표시·입력을 확장한다. Rev7 사양은 기존 L1 프로필 표에 추가하며 L1의 UI/업무 참조를 만들지 않는다. 녹색/TF/근접 clipping은 플레이어 뷰만 변경하고 기존 DTCore Widget 등록·입력 차단을 유지한다. layer/allowlist0→0, 새 모듈·플러그인·저장 자산·DTCore 변경0이다.
 

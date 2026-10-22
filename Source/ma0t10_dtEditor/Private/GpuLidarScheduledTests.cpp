@@ -113,6 +113,7 @@ public:
             auto* Scan=Sensors[I]->ScanComponent.Get();const auto& Status=Scan->GetRuntimeStatus();const double Hz=(Status.FrameId-Baselines[I])/(Now-Measured);
             auto Row=MakeShared<FJsonObject>();Row->SetStringField(TEXT("sensor"),Scan->SensorId);Row->SetStringField(TEXT("backend"),Status.ActiveAcquisitionBackend);Row->SetStringField(TEXT("backend_message"),Status.AcquisitionBackendMessage);Row->SetNumberField(TEXT("hz"),Hz);
             Row->SetNumberField(TEXT("horizontal_samples"),Scan->HorizontalSamples);Row->SetNumberField(TEXT("vertical_channels"),Scan->VerticalChannels);Row->SetNumberField(TEXT("frame_count"),Status.FrameId-Baselines[I]);
+            Row->SetStringField(TEXT("device_profile"),StaticEnum<EVirtualLidarDeviceProfile>()->GetNameStringByValue(int64(Scan->DeviceProfile)));
             Row->SetNumberField(TEXT("baseline_frame_id"),Baselines[I]);Row->SetNumberField(TEXT("last_frame_id"),Status.FrameId);
             Row->SetNumberField(TEXT("acquisition_ms"),Status.LastAcquisitionDurationMs);Rows.Add(MakeShared<FJsonValueObject>(Row));
             if(!Operating)Test->TestEqual(TEXT("active acquisition uses hardware collision tracing"),Scan->GetActiveAcquisitionBackend(),EVirtualLidarAcquisitionBackend::HardwareRayTracing);

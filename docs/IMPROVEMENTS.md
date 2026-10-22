@@ -4,6 +4,10 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## FOLLOWUP-28 — Rev7×3 PCD 송신 공정성
+
+2026-10-23 재개,기준be29ab4/DTCore b2504d1. 센서별 토큰·균등Hz 배분,필요/예산 경고·최근송신Hz·세션 예산 입력을 구현했다. 기본64MiB/s·33-byte·승인FIFO·기본출력은 유지한다. 기본Rev7×3/90초 localhost는 각16.788Hz,편차6.544→0Hz로 각10Hz·공정성 기준을 통과했다. 필요75.946/실제63.731MiB/s이며20Hz 무생략 송신으로 표시하지 않는다. 기준선 획득20Hz assertion2건 실패와 후보 동일 assertion 통과를 구분한다. [상세](../Saved/Reports/FOLLOWUP-28-26/r2/PCD-28.md)·[직접UI](../Saved/Reports/FOLLOWUP-28-26/r2/manual/CHECKLIST.md). #26과 최종release/RT on ABAB는 이어서 검증한다.
+
 ## HATCH-07 / COIL-02 — 현장 보기·카메라·배치 개선
 
 사용자2026-10-22 승인(기준338aa88, 시작9f7b6cf). HATCH는 사진의 하부 횡격자, 독립 운전실 장착, OS1-64 Rev7×3/20Hz·정확한 TF ID, 기본 꺼짐 RViz 표시/회색 배경·자유 이동과 호퍼 위 클릭 대기를 구현한다. [부재·공식 사양 근거](research/HATCH-07-basis.md)의 90m/10Hz 검출 조건과 20Hz 모드 지원을 구분한다. COIL은 최대5단/6단 거절, 지지 관계를 지키는 선택 제거/Undo, 양방향 다음 열·길이 끝 거절, 전체 홀드 실비율·150% UI와 Slab 도구 혼입 차단을 구현한다. 이전 ‘무고정 단수’ 설명은 이 사용자 결정으로 대체한다.
