@@ -6,6 +6,16 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-22 PR69 — FOLLOWUP 독립 코드 검수6건
+
+- 운전실 LiDAR signed 좌우 장착은 ±1.30m+사용자X보정, 절대오차<=1cm다. 캐빈폭2.4m의 반폭1.20m+외측브래킷0.10m로 산출하며 원래 단방향 하한 검사를 상·하한 검사로 대체했다.
+- StopCab/도착은 SurfaceRevision을 변경하지 않는다. CabPoseRevision으로 UI coverage/비동기 분석을 무효화하고 오래된 cab pose 결과를 거절한다. 이동·정지·도착 전후 화물 CPU tree/GPU geometry의 revision/배열 동일성과 실제 BLAS build count 불변을 검사했다.
+- 디깅 위치 선택 trace는 CabPresentation을 항상 무시한다. 같은 ray의 native 첫 충돌은 여전히 운전실이고 PickCargo는 성공하는 회귀로 실제 광학/측정 차폐와 선택 정책을 구분했다.
+- BeginGrabWork/UI 대기 디깅/센터 명령은 TargetHatchCenterY 접근자를 공유한다. 현재 작업 홀드의 local Y=0을 뜻한다. 구 fixture10/8m만 이관하고 Display 로그를 남기며 유효 사용자24/16m 설정을 보존하는 회귀를 추가했다.
+- 화물/센서 적용 후 bGenerating을 해제하고 센터링 명령의 반환값을 확인한다. 거절 시 상태 문구와 Warning을 표시한다. 오프셋 위치에서 재생성 후 중앙으로 이동·정지 및 완료 알림 순서를 검사했다.
+- Editor/Game Win64 Development build exit0. D3D12/RT on 집중 자동화6 Success/0Fail/0Skip: HATCH06.SceneQueriesRhi, MA0T10.Hatch.IndependentCabRhi, SensorLabelAnchorsRhi, UserFeedbackRhi, MA0T10.GpuLidar.RigidInstanceRhi, ScheduledThree. 원본은 Saved/Reports/FOLLOWUP-26-28/progress/pr69-review/에 있다. 최종 같은HEAD release/quick/layer/schema/merge_check 결과는 RESULT.md/result.json을 따른다.
+- 새 ABAB는 검수 요청의 생략 허용을 적용한다. 변경은 해치 전용 cab 상태/선택/UI 무효화/초기화이며 공용 센서 kernel·wire·광학 설정·높이장·재질은 불변이다. 이동 시 기존 화물 BVH/BLAS 재생성을 제거하고 재사용 회귀를 통과했다. 기존49ee7a6의 RT on ABAB PASS는 과거 증거로만 남기고 새HEAD perf는 SKIPPED로 기록한다. 직접 마우스 검증은 Windows 잠금으로 미수행이며 잠금 화면은 조작하지 않는다.
+
 ## 2026-10-20 HATCH-04 — 그랩식 현장 3대 및 사용자 피드백
 
 - 출처 사용자2026-10-20의8건+현장3대/그랩식/모델미확인·개별변경/해측·육측 답변. feat/ship-hatch-v4/기준23133f6/DTCore b2504d1. cc96d63·7f5d8c4·58b333b에22코드/도구/기존머티리얼 파일을 구현·보정했다(신규소스4). 새자산/맵/모듈/플러그인0,layer/allowlist0→0(309파일/1035include). 계약/PCD/wire/SaveGame/Blueprint API 불변.

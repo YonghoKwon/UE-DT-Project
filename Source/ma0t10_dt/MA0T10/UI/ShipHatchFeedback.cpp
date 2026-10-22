@@ -165,5 +165,5 @@ void UShipHatchMonitorWidget::OnGrabDisplayToggle()
  if(!Simulation.IsValid())return;FeedbackUntil=DischargeUntil=0;RestoreFeedbackGrab();Simulation->SetGrabVisible(!Simulation->IsGrabVisible());bOverlayDirty=true;LastOverlayUpdate=0;UpdateOverlay();Refresh();
 }
 
-void UShipHatchMonitorWidget::OnCabCenter(){if(Simulation.IsValid()&&!Simulation->IsGrabWorkActive()){RestoreFeedbackGrab();Simulation->RequestCabPosition(0);}}
+void UShipHatchMonitorWidget::OnCabCenter(){if(Simulation.IsValid()&&!Simulation->IsGrabWorkActive()){RestoreFeedbackGrab();Simulation->RequestCabPosition(Simulation->TargetHatchCenterY());}}
 void UShipHatchMonitorWidget::OnCabStop(){if(Simulation.IsValid()){bPendingCabDig=false;Simulation->StopCab();}}

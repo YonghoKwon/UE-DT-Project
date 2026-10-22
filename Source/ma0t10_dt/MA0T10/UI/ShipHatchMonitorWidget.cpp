@@ -49,7 +49,7 @@ struct FShipHatchMonitorWork
         ShipHatch::FAnalysis ComparisonAnalysis;
         ShipHatch::FSettings Settings;
         FTransform HoldPose=FTransform::Identity;
-        uint64 Revision=0;
+        uint64 Revision=0,CabRevision=0;
         double Cell=1;
         FString Comparison;
         int64 MLX=-1,Livox=-1,CabRight=-1;
@@ -288,7 +288,11 @@ void UShipHatchMonitorWidget::Refresh()
     UpdateDigControls();UpdateSensorBadges();UpdateOverlay();for(int32 I=0;I<3;++I)if(auto* Sensor=S->SensorAt(I))Sensor->VisualizationComponent->RefreshPointView();
     if(LastRevision!=S->Revision()&&CoverageText)CoverageText->SetText(FText::FromString(TEXT("센서 비교 · 새 측정 대기")));
     if(LastRevision!=S->Revision())
-    {LastRevision=S->Revision();LastMLX=-1;LastLivox=-1;LastCabRight=-1;SeedInput->SetText(FText::FromString(LexToString(S->Seed)));{TGuardValue<bool> Sync(bSync,true);CargoChoice->SetSelectedIndex(S->bCoal?1:0);SensorChoice->SetSelectedIndex(S->bFieldLayout?5:!S->bMLX?2:!S->bLivox?(S->bNativeMLX?4:1):(S->bNativeMLX?3:0));}{TGuardValue<bool> Sync(bSync,true);const TCHAR* Roles[]={TEXT("붐 끝"),TEXT("운전실 좌"),TEXT("운전실 우")};for(int32 I=0;I<3;++I){const int32 Profile=S->bFieldLayout?S->FieldProfiles[I]:I==0?(S->bNativeMLX?2:0):1;if(FieldChoices.IsValidIndex(I))FieldChoices[I]->SetSelectedIndex(!S->SensorEnabled(I)?0:Profile+1);if(SensorBadges.IsValidIndex(I))CastChecked<UTextBlock>(SensorBadges[I]->GetContent())->SetText(FText::FromString(S->bFieldLayout?Roles[I]:I==0?TEXT("ML-X80"):TEXT("Mid-360S")));}}RefreshEditPreview();UpdateSection();S->Coverage(Work->OpeningCoverage,Work->FloorCoverage,Work->VisibleFloorArea);ApplyPreview();}
+    {LastRevision=S->Revision();LastCabRevision=S->CabRevision();LastMLX=-1;LastLivox=-1;LastCabRight=-1;SeedInput->SetText(FText::FromString(LexToString(S->Seed)));{TGuardValue<bool> Sync(bSync,true);CargoChoice->SetSelectedIndex(S->bCoal?1:0);SensorChoice->SetSelectedIndex(S->bFieldLayout?5:!S->bMLX?2:!S->bLivox?(S->bNativeMLX?4:1):(S->bNativeMLX?3:0));}{TGuardValue<bool> Sync(bSync,true);const TCHAR* Roles[]={TEXT("붐 끝"),TEXT("운전실 좌"),TEXT("운전실 우")};for(int32 I=0;I<3;++I){const int32 Profile=S->bFieldLayout?S->FieldProfiles[I]:I==0?(S->bNativeMLX?2:0):1;if(FieldChoices.IsValidIndex(I))FieldChoices[I]->SetSelectedIndex(!S->SensorEnabled(I)?0:Profile+1);if(SensorBadges.IsValidIndex(I))CastChecked<UTextBlock>(SensorBadges[I]->GetContent())->SetText(FText::FromString(S->bFieldLayout?Roles[I]:I==0?TEXT("ML-X80"):TEXT("Mid-360S")));}}RefreshEditPreview();UpdateSection();S->Coverage(Work->OpeningCoverage,Work->FloorCoverage,Work->VisibleFloorArea);ApplyPreview();}
+    // Cab motion invalidates sensor analysis/coverage without changing the
+    // cargo surface revision or rebuilding its CPU tree/GPU geometry.
+    if(LastCabRevision!=S->CabRevision()&&!S->IsCabMoving())
+    {LastCabRevision=S->CabRevision();LastMLX=LastLivox=LastCabRight=-1;if(CoverageText)CoverageText->SetText(FText::FromString(TEXT("센서 비교 · 새 측정 대기")));S->Coverage(Work->OpeningCoverage,Work->FloorCoverage,Work->VisibleFloorArea);UpdateSection();InvalidatePlots();}
     const bool MLXRunning=S->bMLX&&S->MLX&&S->MLX->IsSensorRunning(),LivoxRunning=S->bLivox&&S->Livox&&S->Livox->IsSensorRunning(),RightRunning=S->SensorEnabled(2)&&S->CabRight&&S->CabRight->IsSensorRunning();
     const float Rate=S->bMLX?(MLXRunning?S->MLX->ScanComponent->GetRuntimeStatus().MeasuredAcquisitionRateHz:0):(LivoxRunning?S->Livox->ScanComponent->GetRuntimeStatus().MeasuredAcquisitionRateHz:0);
     CachedStatus=S->HasFreshMeasurement()?FString::Printf(TEXT("● 로컬 측정 중 · %.1f Hz"),Rate):TEXT("● 새 측정 준비 중");
@@ -314,9 +318,9 @@ void UShipHatchMonitorWidget::Refresh()
     }
     if(!S->HasFreshMeasurement())return;RefreshAnalysis();if(Work&&!Work->ExportRequest.IsEmpty()){const auto R=GetWorld()->GetSubsystem<UVirtualSensorFileSaveSubsystem>()->GetRequestStatus(Work->ExportRequest);if(R.IsTerminal()){S->Status=R.Message;Work->ExportRequest.Reset();}}
 }
-const ShipHatch::FAnalysis* UShipHatchMonitorWidget::GetAnalysis() const{return Work&&Simulation.IsValid()&&Simulation->HasFreshMeasurement()&&Work->Current.Revision==Simulation->Revision()&&Work->Current.Cell==CellSize?&Work->Current.Analysis:nullptr;}
+const ShipHatch::FAnalysis* UShipHatchMonitorWidget::GetAnalysis() const{return Work&&Simulation.IsValid()&&Simulation->HasFreshMeasurement()&&Work->Current.Revision==Simulation->Revision()&&Work->Current.CabRevision==Simulation->CabRevision()&&Work->Current.Cell==CellSize?&Work->Current.Analysis:nullptr;}
 const ShipHatch::FSettings* UShipHatchMonitorWidget::GetAnalysisSettings() const{return Work&&Work->Current.Analysis.Cells.Num()?&Work->Current.Settings:nullptr;}
-bool UShipHatchMonitorWidget::IsAnalysisPreview() const{return Work&&Simulation.IsValid()&&Work->Current.Revision!=Simulation->Revision();}
+bool UShipHatchMonitorWidget::IsAnalysisPreview() const{return Work&&Simulation.IsValid()&&(Work->Current.Revision!=Simulation->Revision()||Work->Current.CabRevision!=Simulation->CabRevision());}
 const ShipHatch::FAnalysis* UShipHatchMonitorWidget::GetDisplayAnalysis() const
 {if(!Work)return nullptr;if(IsAnalysisPreview()&&Work->PreviewRevision==Simulation->Revision())return &Work->Preview;return Work->Current.Analysis.Cells.Num()?&Work->Current.Analysis:nullptr;}
 const TArray<ShipHatch::FSectionSample>& UShipHatchMonitorWidget::GetSectionSamples() const{return Work->SectionSamples;}
@@ -429,16 +433,16 @@ void UShipHatchMonitorWidget::RefreshAnalysis()
 {
     auto* S=Simulation.Get();if(!S||!Work)return;
     if(Work->Pending.IsValid())
-    {if(!Work->Pending.IsReady())return;auto R=Work->Pending.Get();Work->ObservationScratch=MoveTemp(R.Observations);Work->ComparisonScratch=MoveTemp(R.ComparisonScratch);Work->ComparisonAnalysis=MoveTemp(R.ComparisonAnalysis);if(R.Revision==S->Revision()&&R.Cell==CellSize)
+    {if(!Work->Pending.IsReady())return;auto R=Work->Pending.Get();Work->ObservationScratch=MoveTemp(R.Observations);Work->ComparisonScratch=MoveTemp(R.ComparisonScratch);Work->ComparisonAnalysis=MoveTemp(R.ComparisonAnalysis);if(R.Revision==S->Revision()&&R.CabRevision==S->CabRevision()&&R.Cell==CellSize)
      {Work->AnalysisScratch=MoveTemp(Work->Current.Analysis);Work->Current=MoveTemp(R);if(CoverageText)CoverageText->SetText(FText::FromString(Work->Current.Comparison));const auto& A=Work->Current.Analysis;++AnalysisBuilds;const FString Values[]={FString::Printf(TEXT("%.1f %%"),S->Surface().Fill),FString::Printf(TEXT("%.0f m³"),S->Surface().Volume),FString::Printf(TEXT("%.2f m"),A.Max),FString::Printf(TEXT("%.2f m"),A.Mean),FString::Printf(TEXT("%.2f m"),A.Min),FString::Printf(TEXT("%.1f %%"),(1-A.Coverage)*100)};for(int32 I=0;I<MetricValues.Num();++I)MetricValues[I]->SetText(FText::FromString(Values[I]));FillBadge->SetText(FText::FromString(Values[0]));UpdatedText->SetText(FText::FromString(TEXT("마지막 갱신  ")+FDateTime::Now().ToString(TEXT("%H:%M:%S"))));InvalidatePlots();}else Work->AnalysisScratch=MoveTemp(R.Analysis);}
     const int64 M=S->bMLX&&S->MLX?S->MLX->ScanComponent->GetRuntimeStatus().FrameId:-1,L=S->bLivox&&S->Livox?S->Livox->ScanComponent->GetRuntimeStatus().FrameId:-1;const int64 C=S->SensorEnabled(2)&&S->CabRight?S->CabRight->ScanComponent->GetRuntimeStatus().FrameId:-1;if(M==LastMLX&&L==LastLivox&&C==LastCabRight)return;LastMLX=M;LastLivox=L;LastCabRight=C;
-    auto Points=MoveTemp(Work->ObservationScratch);S->CollectObservations(Points);const auto Settings=S->Surface().Settings;const auto Pose=S->GetActorTransform();const double Cell=CellSize;const uint64 Revision=S->Revision();
+    auto Points=MoveTemp(Work->ObservationScratch);S->CollectObservations(Points);const auto Settings=S->Surface().Settings;const auto Pose=S->GetActorTransform();const double Cell=CellSize;const uint64 Revision=S->Revision(),CabRevision=S->CabRevision();
     TArray<TSharedPtr<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe>> Frames;
     for(int32 I=0;I<3;++I){auto* A=S->SensorEnabled(I)?S->SensorAt(I):nullptr;Frames.Add(A?A->ScanComponent->GetLastFrameSnapshot():nullptr);}
     // Move the bounded analysis allocations with the task; thread-pool workers
     // do not each build their own short-lived per-sensor cell/point arrays.
-    Work->Pending=Async(EAsyncExecution::ThreadPool,[Points=MoveTemp(Points),Frames=MoveTemp(Frames),Analysis=MoveTemp(Work->AnalysisScratch),One=MoveTemp(Work->ComparisonScratch),Comparison=MoveTemp(Work->ComparisonAnalysis),Settings,Pose,Cell,Revision,M,L,C]() mutable{
-        FShipHatchMonitorWork::FResult R;R.Revision=Revision;R.Cell=Cell;R.MLX=M;R.Livox=L;R.CabRight=C;R.Settings=Settings;R.HoldPose=Pose;
+    Work->Pending=Async(EAsyncExecution::ThreadPool,[Points=MoveTemp(Points),Frames=MoveTemp(Frames),Analysis=MoveTemp(Work->AnalysisScratch),One=MoveTemp(Work->ComparisonScratch),Comparison=MoveTemp(Work->ComparisonAnalysis),Settings,Pose,Cell,Revision,CabRevision,M,L,C]() mutable{
+        FShipHatchMonitorWork::FResult R;R.Revision=Revision;R.CabRevision=CabRevision;R.Cell=Cell;R.MLX=M;R.Livox=L;R.CabRight=C;R.Settings=Settings;R.HoldPose=Pose;
         ShipHatch::AnalyzeInto(Settings,Cell,Points,Analysis);R.Analysis=MoveTemp(Analysis);R.Observations=MoveTemp(Points);
         const TCHAR* Roles[]={TEXT("붐"),TEXT("좌"),TEXT("우")};
         for(int32 I=0;I<3;++I){One.Reset();if(Frames[I]&&Frames[I]->Points)for(const auto& P:*Frames[I]->Points)if(P.bHit&&P.SemanticLabel==TEXT("HatchCargo"))One.Add({Pose.InverseTransformPosition(P.WorldLocation)*.01,P.SemanticLabel});
@@ -521,9 +525,9 @@ bool UShipHatchMonitorWidget::QueueOrExecuteDigRay(FVector O,FVector D)
 {
     if(!Simulation.IsValid())return false;
     FVector Hit;if(!Simulation->PickCargo(O,D,Hit)||Simulation->IsGrabWorkActive()||bPendingCabDig)return false;
-    if(Simulation->bFieldLayout&&(!Simulation->IsCabReady()||!FMath::IsNearlyZero(Simulation->CabY,.001)))
+    if(Simulation->bFieldLayout&&(!Simulation->IsCabReady()||!FMath::IsNearlyEqual(Simulation->CabY,Simulation->TargetHatchCenterY(),.001)))
     {
-        if(!Simulation->RequestCabPosition(0))return false;
+        if(!Simulation->RequestCabPosition(Simulation->TargetHatchCenterY()))return false;
         PendingDigOrigin=O;PendingDigDirection=D;PendingDigRadius=RadiusMeters;PendingDigDepth=DepthMeters;PendingDigCargoHash=Simulation->Surface().Hash();PendingDigCabCommand=Simulation->CabCommand();bPendingCabDig=true;return true;
     }
     return ExecuteDigRay(O,D);

@@ -52,7 +52,10 @@ struct FHatchLabelProbe
         {
             auto* A=S.SensorAt(I);T.TestNotNull(TEXT("actual detector"),A);if(!A)continue;const auto Local=S.GetActorTransform().InverseTransformPosition(A->GetActorLocation())*.01;P[I]=Screen(A->GetActorLocation());Boxes[I]=ScreenRect(M.SensorBadges[I]);
             T.TestTrue(TEXT("actual acquisition origin equals established installation, without UI relocation"),Local.Equals(S.SensorOrigin(I),1.e-6));
-            if(I)T.TestTrue(TEXT("cab pair lies on opposite physical X sides of actual cab mesh center"),(Local.X-CabLocal.X)*(I==1?-1:1)>1.29);
+            // Body half-width1.20m +0.10m mounting bracket =1.30m.
+            // Compare signed positions on both sides, allowing at most1cm;
+            // a sensor farther out is a failure, not a looser lower bound.
+            if(I){const double Expected=(I==1?-1.:1.)*1.30+S.SensorOffsets[I].X;T.TestTrue(TEXT("cab LiDAR signed mount is1.30m from mesh center within1cm"),FMath::Abs((Local.X-CabLocal.X)-Expected)<=.01);}
             const TCHAR* Names[]={TEXT("붐 끝"),TEXT("운전실 좌"),TEXT("운전실 우")};T.TestEqual(TEXT("physical sensor identity never follows camera screen order"),CastChecked<UTextBlock>(M.SensorBadges[I]->GetContent())->GetText().ToString(),FString(Names[I]));
             auto Row=MakeShared<FJsonObject>();Row->SetNumberField(TEXT("index"),I);Row->SetStringField(TEXT("physical_role"),Names[I]);Row->SetArrayField(TEXT("actor_world_cm"),Vector(A->GetActorLocation()));Row->SetArrayField(TEXT("origin_hold_m"),Vector(Local));Row->SetArrayField(TEXT("projected_root_xy"),Vector(FVector(P[I],0)));
             TArray<TSharedPtr<FJsonValue>> Rect;for(double V:{double(Boxes[I].Left),double(Boxes[I].Top),double(Boxes[I].Right),double(Boxes[I].Bottom)})Rect.Add(MakeShared<FJsonValueNumber>(V));Row->SetArrayField(TEXT("badge_root_ltrb"),Rect);Rows.Add(MakeShared<FJsonValueObject>(Row));

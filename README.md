@@ -18,6 +18,8 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+PR69 검수 보정: 운전실 이동은 별도 pose revision으로 센서 분석을 갱신하며 화물 BVH/BLAS를 재생성하지 않는다. 디깅 위치 선택은 보이는 운전실도 통과하고 실제 측정 차폐는 유지한다. 센터링은 생성 종료 후 실행·실패 표시하며 구10/8m 기본값만 로그와 함께 이관한다. 좌우 센서는 캐빈 중심 기준 ±1.30m(1cm 허용)로 검사한다. [검증 이력](docs/VALIDATION_HISTORY.md)과 [최종 보고](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
+
 FOLLOWUP-30b: 탱크톱은 중성 회색 강판·녹/분진/마모로 표시하고 단면의0m 빗금·문구로 노출을 식별한다(모의 형상/실측 구분). 최종27장 장면+별도 송신 시연1장과4합본, [LiDAR 수치 표](Saved/Reports/FOLLOWUP-26-28/showcase/lidar-compare-table.png)를 제공한다. 5종 패널의 광선/hit/Hz/거리/FOV는 실제 immutable HWRT frame이며 원료65%·바닥잔량4.99%를 별도 측정한다. 커버리지는 전체 홀드1m목표격자 실제 관측 비율이다. 합본 참고 윤곽은 동일 카메라 투영이며 측정점이 아니다. 두 원료의 실제Z0 첫충돌·49/49 중성 강판 픽셀을 검사했다. 기존 45m선폭의 커버 돌출 회귀는22.2m 개구로 보정했고 기존 커버/정확도/체적/성능 기준을 유지한다. 최종 검증/제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
 
 FOLLOWUP-30: `Scripts/run_hatch_validation.ps1 -Mode Showcase -Sensors 3`는 기존 테스트 맵을 저장하지 않고 실제 D3D12/RT on 1920×1080 PNG+JSON을 생성한다. 전경·GTSU/커버/호퍼·그랩 열림/닫힘·두 원료·GPU3센서/히트맵/단면/상면/설정·5종 붐 LiDAR·실제 디깅 전후/바닥/만재 코너를 포함한다. `Scripts/assemble_hatch_showcase.py Saved/Reports/FOLLOWUP-26-28/showcase`로 [4개 주제 합본](Saved/Reports/FOLLOWUP-26-28/showcase/manifest.json)을 만든다. 송신 완료 화면은 기존 시연 UI이며 실제 네트워크 송신의 증거가 아니다. 해치 소유 SkyAtmosphere와 기존 태양 설정을 종료 시 복원하고, 점군 플레이어 뷰에만 대기 show flag를 숨긴다. 직접 UI 수용과 공통gate는 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.

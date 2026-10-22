@@ -55,7 +55,6 @@ bool AShipHatchSimulation::RequestCabPosition(double TargetY)
 void AShipHatchSimulation::StopCab()
 {
     if(!bCabMoving)return;CabTargetY=CabY;bCabMoving=false;++CabCommandRevision;GetWorldTimerManager().ClearTimer(CabTravelTimer);
-    ++SurfaceRevision;OnSurfaceChanged.Broadcast();
 }
 void AShipHatchSimulation::UpdateCabTravel()
 {
@@ -63,10 +62,10 @@ void AShipHatchSimulation::UpdateCabTravel()
     const double Now=GetWorld()->GetTimeSeconds(),Step=FMath::Max(0.,Now-CabLastUpdate)*CabTravelMetersPerSecond;CabLastUpdate=Now;
     CabY=FMath::FInterpConstantTo(CabY,CabTargetY,1.,Step);CabPresentation->SetRelativeLocation(FVector(CabX,CabY,HoldDepth+CabHeight)*100);++CabPoseRevision;
     LastGeometryEdit=FPlatformTime::Seconds();
-    if(FMath::IsNearlyEqual(CabY,CabTargetY,.001)){CabY=CabTargetY;bCabMoving=false;GetWorldTimerManager().ClearTimer(CabTravelTimer);++SurfaceRevision;OnSurfaceChanged.Broadcast();}
+    if(FMath::IsNearlyEqual(CabY,CabTargetY,.001)){CabY=CabTargetY;bCabMoving=false;GetWorldTimerManager().ClearTimer(CabTravelTimer);}
 }
 bool AShipHatchSimulation::BeginGrabWork()
 {
-    if(bEnding||bGenerating||bGrabWorkActive||!IsCabReady()||!FMath::IsNearlyZero(CabY,.001))return false;
+    if(bEnding||bGenerating||bGrabWorkActive||!IsCabReady()||!FMath::IsNearlyEqual(CabY,TargetHatchCenterY(),.001))return false;
     bGrabWorkActive=true;return true;
 }

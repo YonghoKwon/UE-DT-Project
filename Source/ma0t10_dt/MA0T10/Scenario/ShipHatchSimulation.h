@@ -58,6 +58,7 @@ class MA0T10_DT_API AShipHatchSimulation : public AInteractableActor
     GENERATED_BODY()
     friend struct FHatchFeedbackProbe;
     friend struct FHatchOrientationProbe;
+    friend struct FHatchCabProbe;
 public:
     AShipHatchSimulation();
     FShipHatchSight DiagnoseSight(int32 SensorIndex,FVector HoldTargetMeters) const;
@@ -121,6 +122,9 @@ public:
     double CabRoofZ() const { return HoldDepth+CabHeight+2.75; }
     double CabTravelMinY() const { return SeaRailY()+2; }
     double CabTravelMaxY() const { return BoomTipY()-2; }
+    /** The active hold's local origin; all cab work/centering uses this target. */
+    double TargetHatchCenterY() const { return 0.; }
+    uint64 CabRevision() const { return CabPoseRevision; }
     static constexpr double CabTravelMetersPerSecond=25./60.;
     bool RequestCabPosition(double TargetY);
     void StopCab();
@@ -268,6 +272,8 @@ private:
     void FinishCargoEdit();
     void StartGeneration();
     void PollGeneration();
+    void MigrateLegacyCabDimensions();
+    bool FinishGeneration();
     void BuildStructure();
     void ApplySurface(ShipHatch::FSurface&& Surface);
     void ConfigureSensors();

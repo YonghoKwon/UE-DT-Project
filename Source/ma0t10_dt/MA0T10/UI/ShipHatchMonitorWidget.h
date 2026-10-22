@@ -210,7 +210,7 @@ private:
     FString CachedStatus;
     int32 ActiveView=0,ActiveColor=0;
     int32 LastSceneView=0;
-    uint64 LastRevision=MAX_uint64;
+    uint64 LastRevision=MAX_uint64,LastCabRevision=MAX_uint64;
     int64 LastMLX=-1,LastLivox=-1;
     int64 LastCabRight=-1;
     bool bSync=false;

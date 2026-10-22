@@ -79,8 +79,7 @@ void AShipHatchSimulation::BeginPlay()
         // Two flat side-rolling half panels need one full aperture width on
         // each side. Keep the aperture clear and15cm inside a45m hull.
         if(FMath::IsNearlyEqual(OpeningWidth,23.))OpeningWidth=FMath::Min(OpeningWidth,VesselBeam*.5-.3);
-        if(FMath::IsNearlyEqual(BoomHeight,10.)||FMath::IsNearlyEqual(BoomHeight,24.))BoomHeight=QuayZ()+25-HoldDepth-1.05;
-        if(FMath::IsNearlyEqual(CabHeight,8.)||FMath::IsNearlyEqual(CabHeight,16.))CabHeight=BoomHeight-2.6;
+        MigrateLegacyCabDimensions();
         if(FMath::IsNearlyZero(CabX))CabX=4.5;
         if(FMath::IsNearlyEqual(CabY,-2.))CabY=0;
         CabTargetY=CabY;
@@ -146,8 +145,32 @@ void AShipHatchSimulation::PollGeneration()
     auto Result=Generation.Get();
     GenerationShape=MoveTemp(Result.Shape);
     if(bPending){RecycledHeights=MoveTemp(Result.Surface.Heights);StartGeneration();return;}
-    GetWorldTimerManager().ClearTimer(PollTimer);bGenerating=false;
+    GetWorldTimerManager().ClearTimer(PollTimer);
     ApplySurface(MoveTemp(Result.Surface));
+    FinishGeneration();
+}
+void AShipHatchSimulation::MigrateLegacyCabDimensions()
+{
+    // Only the original fixture10/8 defaults are migrated.24/16 and all
+    // other explicitly configured dimensions remain subject to validation.
+    if(FMath::IsNearlyEqual(BoomHeight,10.))
+    {BoomHeight=QuayZ()+25-HoldDepth-1.05;UE_LOG(LogTemp,Display,TEXT("[HatchFixtureMigration] BoomHeight10 -> %.3fm"),BoomHeight);}
+    if(FMath::IsNearlyEqual(CabHeight,8.))
+    {CabHeight=BoomHeight-2.6;UE_LOG(LogTemp,Display,TEXT("[HatchFixtureMigration] CabHeight8 -> %.3fm"),CabHeight);}
+}
+bool AShipHatchSimulation::FinishGeneration()
+{
+    // Geometry/sensor setup must finish before admitting the cab command.
+    // RequestCabPosition rejects a still-generating actor by design.
+    bGenerating=false;
+    const bool Centered=!bFieldLayout||RequestCabPosition(TargetHatchCenterY());
+    if(!Centered)
+    {
+        Status=TEXT("적재 준비 완료 · 운전실 중앙 이동 실패 · 붐 범위/작업 상태 확인");
+        UE_LOG(LogTemp,Warning,TEXT("[HatchCabCentering] generation%llu targetY=%.3fm rejected (ending=%d work=%d)"),CompletedGenerations,TargetHatchCenterY(),bEnding,bGrabWorkActive);
+    }
+    else Status=IsCabMoving()?TEXT("적재 준비 완료 · 운전실 중앙 이동 중 · 그랩 대기"):TEXT("측정 중 · 가려진 영역은 측정 불가");
+    OnSurfaceChanged.Broadcast();return Centered;
 }
 void AShipHatchSimulation::BuildStructure()
 {
@@ -209,9 +232,8 @@ void AShipHatchSimulation::ApplySurface(ShipHatch::FSurface&& Result)
     Original.Heights=Current.Heights;Original.Volume=Current.Volume;Original.Fill=Current.Fill;
     HistoryHead=HistoryCount=0;LastRemoved=TotalRemoved=0;
     UpdateCargoMesh();
-    ++SurfaceRevision;++CompletedGenerations;ConfigureSensors();if(bFieldLayout)RequestCabPosition(0);
+    ++SurfaceRevision;++CompletedGenerations;ConfigureSensors();
     LastMeshApplyMs=(FPlatformTime::Seconds()-Start)*1000;
-    Status=TEXT("측정 중 · 가려진 영역은 측정 불가");OnSurfaceChanged.Broadcast();
 }
 void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
 {
@@ -292,7 +314,9 @@ bool AShipHatchSimulation::PickCargo(FVector Origin,FVector Direction,FVector& H
     // the height field in BOTH render modes, including the deck above hidden cargo.
     FHitResult First;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchGrab),true);
     if(!bShowUnloader&&UnloaderPresentation)Query.AddIgnoredComponent(UnloaderPresentation->Mesh);
-    if(!bShowUnloader&&CabPresentation)Query.AddIgnoredComponent(CabPresentation);
+    // Picking chooses the cargo location, not the cab/optical sightline.
+    // The independent cab still occludes normal world and LiDAR queries.
+    if(CabPresentation)Query.AddIgnoredComponent(CabPresentation);
     if(!GetWorld()->LineTraceSingleByChannel(First,Origin,WorldHit+Direction*2,ECC_Visibility,Query))return false;
     if(First.GetActor()==Cargo)return true;
     // Chaos may resolve a sub-centimeter sheet as its adjacent tank top first.

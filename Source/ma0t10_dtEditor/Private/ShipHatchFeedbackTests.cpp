@@ -66,8 +66,10 @@ struct FHatchFeedbackProbe
             M.SetSection(Along,N);const auto& Samples=M.GetSectionSamples();T.TestTrue(TEXT("section has exact grid and diagonal intersections"),Samples.Num()>2);
             for(int32 I=0;I<Samples.Num();++I){const auto& P=Samples[I];const double H=Along?S.Surface().Height(P.Position,M.SectionOffset()):S.Surface().Height(M.SectionOffset(),P.Position);T.TestTrue(TEXT("section vertex equals rendered triangle height"),FMath::Abs(P.Height-H)<1.e-9);if(I){const auto& Q=Samples[I-1];const double X=(P.Position+Q.Position)*.5,Mid=Along?S.Surface().Height(X,M.SectionOffset()):S.Surface().Height(M.SectionOffset(),X);T.TestTrue(TEXT("section linear segment matches same triangle interior"),FMath::Abs(Mid-(Q.Height+P.Height)*.5)<1.e-5);}}
         }
-        const auto HoldPose=S.GetActorTransform();const FVector CabRay=HoldPose.TransformPosition(FVector(S.CabX,S.CabY,S.HoldDepth+S.CabHeight+10)*100),Down=HoldPose.TransformVector(FVector(0,0,-1));FVector CargoHit;
-        T.TestFalse(TEXT("visible grab cab blocks UI picking"),S.PickCargo(CabRay,Down,CargoHit));S.ShowUnloader(false);T.TestTrue(TEXT("hidden cab leaves the same measured cargo pickable"),S.PickCargo(CabRay,Down,CargoHit));S.ShowUnloader(true);
+        const auto HoldPose=S.GetActorTransform();const FVector CabRay=HoldPose.TransformPosition(FVector(S.CabX+.4,S.CabY+.5,S.CabRoofZ()+.2)*100),Down=HoldPose.TransformVector(FVector(0,0,-1));FVector CargoHit;
+        FHitResult Physical;FCollisionQueryParams CabQuery(SCENE_QUERY_STAT(HatchCabPickPolicy),true);
+        T.TestTrue(TEXT("visible cab still occludes ordinary physics/measurement rays"),S.GetWorld()->LineTraceSingleByChannel(Physical,CabRay,CabRay+Down*10000,ECC_Visibility,CabQuery)&&Physical.GetComponent()==S.CabPrimitive());
+        T.TestTrue(TEXT("independent visible cab does not block cargo location selection"),S.PickCargo(CabRay,Down,CargoHit));S.ShowUnloader(false);T.TestTrue(TEXT("hidden cab leaves the same measured cargo pickable"),S.PickCargo(CabRay,Down,CargoHit));S.ShowUnloader(true);
         M.SetSection(true,.5);M.SetMapHeat(false);T.TestEqual(TEXT("map top shares one area"),M.MapSwitcher->GetActiveWidgetIndex(),0);M.SetMapHeat(true);T.TestEqual(TEXT("map heat shares same area"),M.MapSwitcher->GetActiveWidgetIndex(),1);
         M.OnCoverage();T.TestEqual(TEXT("contribution overlay has fixed 40x40 cells"),M.GetCoverageMask().Num(),1600);
         for(uint8 Mask:M.GetCoverageMask())T.TestTrue(TEXT("coverage masks contain only three sensor bits"),Mask<=7);M.OnCoverage();
