@@ -1,6 +1,79 @@
 #include "VirtualSensorStreamPublisherComponent.h"
 #include "VirtualSensorHighThroughputTransportSubsystem.h"
 
+void UVirtualSensorStreamPublisherComponent::UpdatePointCloudFairBudgets(double Now)
+{
+    // Max-min frame-rate fairness, weighted by each measured body size. Slow
+    // producers get their entire demand first; peers get the same Hz ceiling.
+    // Wildcard routes retain
+    // separate sensor buckets, so changing the route cannot multiply its share.
+    if(Now>=NextFairBudgetUpdateSeconds)
+    {
+        NextFairBudgetUpdateSeconds=Now+.2;
+        TArray<FStreamRuntime::FSensorSequence*> Active;
+        double Required=0,Weight=0;
+        for(auto& Pair:StreamRuntimes)
+        {
+            auto& R=Pair.Value;
+            if(R.Config.StreamKind!=EVirtualSensorStreamKind::PointCloud)continue;
+            for(auto& Item:R.SensorSequences)
+            {
+                auto& S=Item.Value;S.FairBytesPerSecond=0;
+                const bool Pending=[&]()
+                {
+                    if(R.bSerializationInFlight&&R.SerializationSensorId==Item.Key)return true;
+                    for(const auto& F:R.PendingFrameQueue)if(F.SensorId==Item.Key)return true;
+                    for(const auto& M:R.PreparedMessageQueue)if(M.SensorId==Item.Key)return true;
+                    return false;
+                }();
+                if(!R.Config.bEnabled||IsLocalCaptureSuspended(Item.Key)||S.FrameBytes<=0||S.InputPeriod<=0||
+                    (!Pending&&Now-S.LastInputSeconds>FMath::Max(1.0,3*S.InputPeriod)))continue;
+                const auto* Exact=StreamRuntimes.Find(MakeStreamKey(R.Config.StreamKind,Item.Key));
+                if(!Pending&&R.Config.SensorId.IsEmpty()&&Exact&&Exact!=&R&&(Exact->Config.bEnabled||Exact->Status.bOverloadSuspended))continue;
+                Required+=S.FrameBytes/S.InputPeriod;Weight+=S.FrameBytes;Active.Add(&S);
+            }
+        }
+        Active.Sort([](const auto& A,const auto& B){return A.InputPeriod>B.InputPeriod;});
+        double Remaining=FMath::Max(1.0f,PointCloudBandwidthLimitMegabytesPerSecond)*1048576.0;
+        for(int32 I=0;I<Active.Num();++I)
+        {
+            auto& S=*Active[I];S.FairBytesPerSecond=S.FrameBytes*FMath::Min(1.0/S.InputPeriod,Remaining/FMath::Max(1.0,Weight));
+            Remaining=FMath::Max(0.0,Remaining-S.FairBytesPerSecond);
+            Weight-=S.FrameBytes;
+        }
+        for(auto& Pair:StreamRuntimes)
+        {
+            auto& R=Pair.Value;if(R.Config.StreamKind!=EVirtualSensorStreamKind::PointCloud)continue;
+            if(R.RecentSubmitSampleSeconds<=0||R.Status.SubmittedFrameCount<R.RecentSubmitSampleCount)
+            {
+                R.RecentSubmitSampleSeconds=Now;R.RecentSubmitSampleCount=R.Status.SubmittedFrameCount;R.Status.RecentSubmittedHz=0;
+            }
+            else if(Now-R.RecentSubmitSampleSeconds>=1)
+            {
+                R.Status.RecentSubmittedHz=(R.Status.SubmittedFrameCount-R.RecentSubmitSampleCount)/(Now-R.RecentSubmitSampleSeconds);
+                R.RecentSubmitSampleSeconds=Now;R.RecentSubmitSampleCount=R.Status.SubmittedFrameCount;
+            }
+            R.Status.PcdRequiredMiBPerSecond=Required/1048576.0;
+            R.Status.PcdBudgetMiBPerSecond=FMath::Max(1.0f,PointCloudBandwidthLimitMegabytesPerSecond);
+            double Share=0;for(const auto& Item:R.SensorSequences)Share+=Item.Value.FairBytesPerSecond;
+            R.Status.PcdFairShareMiBPerSecond=Share/1048576.0;
+        }
+    }
+    for(auto& Pair:StreamRuntimes)for(auto& Item:Pair.Value.SensorSequences)
+    {
+        auto& S=Item.Value;
+        // A newer small serialization must not strand an older large FIFO head.
+        // Only the eligible head raises its sensor cap; refill shares and the
+        // global byte bucket remain unchanged, with no token debt or bypass.
+        const auto* Head=Pair.Value.PreparedMessageQueue.IsEmpty()?nullptr:&Pair.Value.PreparedMessageQueue[0];
+        const double HeadBytes=Head&&Head->bBinaryPcd&&Head->SensorId==Item.Key?Head->ByteCount:0;
+        const double Capacity=FMath::Max(HeadBytes,FMath::Max(S.FrameBytes*2,S.FairBytesPerSecond*.1));
+        const double Elapsed=S.BandwidthUpdated>0?FMath::Max(0.0,Now-S.BandwidthUpdated):0;
+        S.BandwidthTokens=FMath::Min(Capacity,S.BandwidthTokens+Elapsed*S.FairBytesPerSecond);
+        S.BandwidthUpdated=Now;
+    }
+}
+
 void UVirtualSensorStreamPublisherComponent::LogPointCloudTransition(const FString& Key,FStreamRuntime& R,const FString& Message,double Now)
 {
     if(Now<R.NextPcdConsoleLogSeconds){++R.PendingPcdConsoleLogs;++R.Status.SuppressedConsoleLogCount;return;}
@@ -32,8 +105,6 @@ void UVirtualSensorStreamPublisherComponent::UpdatePointCloudRateControl(FStream
 
 bool UVirtualSensorStreamPublisherComponent::OmitPointCloudForRateControl(const FString& Key,FStreamRuntime& R,const FVirtualSensorFrameEnvelope& Frame,double Now)
 {
-    if(!bAutoAdjustPointCloudSendRate||R.Config.TransportBackend!=EVirtualSensorStreamTransportBackend::TcpStompHighThroughput||!CanUseHighThroughputTransport())
-    {R.AdmissionRatio=1;R.Status.bRateControlActive=false;return false;}
     auto& Sequence=R.SensorSequences.FindChecked(Frame.SensorId);
     if(Frame.RequestedAcquisitionIntervalSeconds>0)
     {
@@ -52,11 +123,16 @@ bool UVirtualSensorStreamPublisherComponent::OmitPointCloudForRateControl(const 
         if(Period>0&&Period<1)Sequence.InputPeriod=Sequence.InputPeriod>0?.9*Sequence.InputPeriod+.1*Period:Period;
     }
     Sequence.LastInputSeconds=Now;
-    R.Status.bRateControlActive=R.AdmissionRatio<.9999;
-    if(Sequence.InputPeriod>0)R.Status.RateControlHz=R.AdmissionRatio/Sequence.InputPeriod;
+    if(!bAutoAdjustPointCloudSendRate||R.Config.TransportBackend!=EVirtualSensorStreamTransportBackend::TcpStompHighThroughput||!CanUseHighThroughputTransport())
+    {R.AdmissionRatio=1;R.Status.bRateControlActive=false;return false;}
+    const double BudgetRatio=Sequence.FrameBytes>0&&Sequence.FairBytesPerSecond>0
+        ?FMath::Min(1.0,Sequence.FairBytesPerSecond*Sequence.InputPeriod/Sequence.FrameBytes):1.0;
+    const double Ratio=FMath::Min(R.AdmissionRatio,BudgetRatio);
+    R.Status.bRateControlActive=Ratio<.9999;
+    if(Sequence.InputPeriod>0)R.Status.RateControlHz=Ratio/Sequence.InputPeriod;
     // Fractional credit distributes omissions evenly in acquisition order;
     // there is no timer to duplicate or stale wall-clock deadline to restore.
-    Sequence.AdmissionCredit+=R.AdmissionRatio;
+    Sequence.AdmissionCredit+=Ratio;
     if(Sequence.AdmissionCredit>=1-1e-8){Sequence.AdmissionCredit=FMath::Max(0.0,Sequence.AdmissionCredit-1);return false;}
     ++R.Status.RateControlSkippedFrameCount;
     RecordSlabFailure(Frame.SlabContext.RunId,Frame.SensorId,R.Config.StreamKind,Frame.FrameId,TEXT("송신율 조절로 생략"));

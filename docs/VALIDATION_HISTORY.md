@@ -549,3 +549,88 @@ FOLLOWUP-32 커버 회귀 보정: #30b의 기존 HATCH06 전체 외형 회귀에
 - 직접 UI:1280×720·창DPI/UMG배율/owned font를 manual/*.metrics.json에 기록한다. 3D·단면·상면 클릭 선택, 제거/Undo,6단 거절,150% UI/파일 버튼, 센서 도구의 Slab 표시 제거, RViz/배경/그랩 상자·W/수직 이동·드래그 회전/휠 근접·프리셋 복귀를 확인했다. 호퍼 대기는 약27초 무클릭으로 유지했고 다음 클릭의 복귀·새 디깅을 확인했다. 체크리스트와 수행 한계는 manual/checklist.json을 따른다. 우드래그 팬은 native event 회귀와 직접 마우스 수행을 구분한다.
 - 원시 실패/보정: 그랩 시험의5Hz 갱신 간격 미반영, C++ API/변수/포인터 타입 오류, 문서CRLF 경고를 보정했다. 직접 UI에서150% 헤더가 거절 사유를 가리는 문제·버튼 줄바꿈/상태 문구와 공통 Slab 상태 카드 잔존을 발견해 수정했다. 실패 로그와 수정 전 캡처를 지우지 않았다.
 - [부재/공식 사양 근거](research/HATCH-07-basis.md), [현장 대 구현 비교](../Saved/Reports/HATCH07-COIL02/progress/hatch-rviz-compare.png), [최종 결과](../Saved/Reports/HATCH07-COIL02/result.json). 실제 스캔 파일·현장 TF 수치·하드웨어 revision은 미제공이다.90m는1024×10Hz 조건부 사양이고20Hz에서 같은 검출확률의 실장비 보장이 아니다. PCD 예산/송신 성능#28·현장 실장비 수용은 이번 검증이 아니다. 보호 경로·개인 설정 복원·secrets 상태와 release/RT on ABAB/merge_check 판정은 최종 결과에 명시한다.
+
+## 2026-10-23 — FOLLOWUP-28 기본 Rev7×3 재측정
+
+기준be29ab4,후보b224edc+프로필명 계측(717bbdd 구현),DTCore b2504d1. 기본Ouster OS1-64 Rev7×3/1024×64/20Hz 요청,ShipHatchTestMap 메모리fixture,1920×1080 오프스크린 D3D12/RT on·HWRT,준비10초/측정90초,PCD33-byte/FIFO/64MiB/s,자격증명 없는localhost STOMP receipt+echo/체크섬검증. 다른Editor0. 기준선은90초·프로필명만 test overlay했다.
+
+외부수신19.799/13.255/19.221→16.788/16.788/16.788Hz,편차6.544→0Hz. 실제body×요청Hz 필요75.946/실제63.731MiB/s. 각10Hz 이상·오류0. 기준선의 기존 엔진3프레임당 획득 assertion2건 FAIL은 보존하고 후보는 같은 assertion까지Success다. 획득/직렬화/제출/receipt/내부·외부수신·생략/gap은 [원시표](../Saved/Reports/FOLLOWUP-28-26/r2/PCD-28.md)에 구분한다. 최악가정65,536점×33B×20Hz×3=123.75MiB/s+헤더이며128MiB/s는 제안만,기본값 변경0이다.
+
+직접UI는 별도 SlabScenarioValidationMap/MLX 단일센서 진단fixture에서1920×1080·DPI1·글자100%로64→8→64,필요경고·최근7.6Hz·복원19.3Hz,패널숨김 수신2008→3408을 확인했다. 기본Rev7×3 성능과 직접UI fixture를 혼동하지 않는다. [체크리스트](../Saved/Reports/FOLLOWUP-28-26/r2/manual/CHECKLIST.md). 이번 실행 직전 새 개인43파일을 복원하며 이전 백업을 사용하지 않는다. 보호569파일 불변. 최종release/perf/RSS는 후속 기록을 따른다.
+
+## 2026-10-23 — FOLLOWUP-26 기본 GPU RSS 5쌍 실패 및 원인 조사
+
+cd59793/DTCore b2504d1,기본Rev7×3/1024×64/GPU HWRT/프로젝트RT on/D3D12 오프스크린1920×1080/미리보기12000점·35초준비/90초동일구간/0회·50회 순서교차5쌍. 기본실행은 LLM off,추가계측은 별도. 원래raw/retainedRSS·commit 절대8MiB 및 별도(50회−0회)8MiB를 각각 유지했다. 절대3쌍/차이2쌍 실패·기능오류0,디깅RSS중앙값+10.429688MiB/최대raw차이+17.671875MiB/retained차이+18.257813MiB다.
+
+CPU1쌍의디깅RSS+9.710938MiB/차이−9.507813MiB도 별도 기록한다. LLM·memreport·allocator진단에서 소유버퍼/RHI/UObject 수량은 유지되었으나 Untracked·allocator-unused 등의 증가가 남았다. Mimalloc 상세dump는 UE5.3 미구현이다. Binned2 진단도rawRSS+13.457031MiB로 실패했으며 기본 allocator를 바꾸지 않았다. 태그배열 재사용과16MiB CPU scratch 후보는 각각집중22 Success였으나 RSS+17.308594/+20.718750MiB로 개선을 입증하지 못해 모두원복했다. 기본값·데이터·기준·횟수·OSworking-set·대조차감 변경0. 약90분 조사에서 완전귀속/검증된수정안 없음으로 미해결 인계한다. [전체표·원시경로](../Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md). 최종코드는editor-only fallback/allocator계측과계수회귀만 남긴다. release/perf는 이 RSS실패를 대체하지 않는다.
+
+## 2026-10-23 — FOLLOWUP-28-26 코일 보고 경로 정리
+
+CoilLoadingAcceptanceTests/VariantsTests/PresentationTests의 기본 작업ID 경로를 공통CoilTestReportPaths의 `Reports/COIL` 및 `-CoilReport`로 통합했다. Acceptance는루트/acceptance,Variants는루트/variants,공통progress와presentation.json은루트직하를 쓴다. 이전 `CoilPhotoReport`는 `CoilReport`로 대체한다. 지정루트 실제D3D12에서 RhiWorkflow/HRCRVisualRhi/Presentation.MixedAndQuayRhi3개 Success·프로세스exit0·산출물53개를 확인했다. 후처리Where-Object 문법 오류는 원본3Success/exit0를 별도검사해 보정했고 테스트 결과를 변경/재실행하지 않았다. [원본](../Saved/Reports/FOLLOWUP-28-26/r2/coil-path-override/automation/index.json)·[경로목록](../Saved/Reports/FOLLOWUP-28-26/r2/coil-path-override/paths-verified.json). 제품코드/자산/저장계약 변경0이며 최종release의 기본루트도 별도확인한다.
+
+## 2026-10-23 — FOLLOWUP-28-26 최종 통합 gate 및 한계
+
+코드67f1a91/DTCore b2504d1,기준be29ab4. GameDevelopment exit0,EditorDevelopment exit0,WBP7메모리컴파일·asset저장0·현재렌더어휘 PASS. 1280×720 집중release는2회 동일ThreeTierAddingCapturesRhi 근흑색30%assertion 실패. 실패원본30.300347%,단독29.961806%Success,전체결합에서도동일실패. 카메라/밝기/threshold/해상도변경0이며단독성공을release통과로표시하지않는다. 독립전체D3D12:391Success/40조건부skip/1Fail. [전체원문](../Saved/Reports/FOLLOWUP-28-26/r2/full-d3d12/MA0T10/index.json)·[정규집계](../Saved/Reports/FOLLOWUP-28-26/r2/full-d3d12/normalized-summary.json). 초기후처리검사스크립트의문법/인자오류는실제exit0·저장원문검사로보정했으며테스트결과를변경하지않았다.
+
+기본Rev7×3·1024×64·20Hz요청·준비10초/90초·1920×1080실제오프스크린D3D12/RT on·PCD33-byte/FIFO/기본64MiB/s·localhost무자격STOMP receipt+echo의커밋상태재검증:외부16.741/16.730/16.730Hz,편차0.011Hz,실제63.520/필요75.885MiB/s,오류0. 기준선편차6.544Hz 대비축소했다. [대조](../Saved/Reports/FOLLOWUP-28-26/r2/pcd-comparison.json).
+
+정식 `verify.ps1 -Level perf -BaseCommit be29ab4 -PerfRayTracing ProjectDefault`:SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3=12회(A6/B6)/동일instrument·map·의존성. 모두유효. 중앙값FPS59.9870279→59.9737925(저하0.0220638%),enginep95 16.6669004→동일,GT7.0020733→7.1051102ms(+1.4715195%)로2%PASS. [manifest](../Saved/Reports/verify/20261022T195001322Z/manifest.json)·[원시 프레임·판정](../Saved/Reports/verify/20261022T195001322Z/perf/manifest.json). 원래RSS8MiB·release실패는별도로유지하며성능PASS로대체하지않는다.
+
+
+## 2026-10-23 — FOLLOWUP-28-26 코일 밝기 fixture 원인 분리·수정
+
+`be29ab4` 전체 Source를 메인 폴더에서 임시 대입·빌드해 검사했다. 단독은 near-black 30.0711806%로 FAIL, COIL 묶음은41 Success/1 Fail·30.3038194%로 같은 assertion만 실패했다. 기준·후보의 캡처 테스트 blob은 동일하고 이번 브랜치의 보고 루트 변경은 원인이 아니다. 원인은 `3bf72a7`에서 추가한 `bRowsForeToAft=true`와 `PreviewPlacement()`의 방향 계산이다. 방향을 지정하지 않던 PRES-01 row5 fixture는 target X −5.35→+5.35m, 대상 상대 카메라는 −22.35→−11.65m로 이동했고 홀드 바깥 검은 영역 비율이 기존30% 경계에 걸렸다.
+
+테스트 PIE 인스턴스에 원래 aft-to-fore 방향을 명시하고 target X=−5.35m assertion 및 방향 JSON 필드를 추가했다. `be29ab4` Source에서 이 테스트 파일만 수정한 대조는23.3472222%·1 Success다. 현재 소스 재빌드 후 D3D12/프로젝트RT on/오프스크린1280×720 단독1 Success·23.3871528%, COIL 묶음42 Success/0 Fail·23.9010417%를 확인했다. 17개 코일·후크·녹색 목표·동일 계획 검사를 유지했다. 제품 기본 방향/조명/노출/FOV/카메라 공식/샘플링/30% 임계값 변경0이다. [원인 분리](../Saved/Reports/FOLLOWUP-28-26/r3/CAUSE.md)·[집중 회귀](../Saved/Reports/FOLLOWUP-28-26/r3/repair-manifest.json).
+
+기준 소스에서 후보로 돌아온 첫 빌드는 이전 UHT 생성 헤더로 C4430이 발생했으며, 소스 hash 일치를 확인한 뒤 `-ForceHeaderGeneration`으로 정상 빌드했다. 실패 원문을 보존했다. 테스트 전용 변경이므로 사용자 지시대로 집중 회귀+quick으로 검증하고 전체 release/Game/perf는 재실행하지 않았다. 이전 전체432개 결과와 RT on ABAB PASS 증거는 보존한다. 개인 설정은 이번 실행 직전 새43파일 백업만 복원한다. #26 RSS 실패·기준·횟수·수치는 변경하지 않는다.
+
+
+## 2026-10-23 — FOLLOWUP-28-26 사용자 결정: PCD80·RSS #26b
+
+구현 f2b9526/DTCore b2504d1. 사용자 승인으로 PCD 기본 송신 예산64→80MiB/s를 공통 L0 상수에 두고 publisher/preflight/status/UI 기본 표시를 맞췄다. 실측 필요량 약75.9MiB/s가 근거다. migration·PostLoad 강제대입·ini/SaveGame 형식 변경·자산 저장은 없다. FObjectWriter/Reader로 직렬화된 사용자64MiB/s 지정값을80 기본 인스턴스에 복원한 뒤 stream 재구성 후에도64를 유지하는 회귀를 추가했다. 기존64MiB/s 공정성/최악점수 검사는 명시적 저예산 fixture로 유지한다.
+
+기본 Rev7×3/1024×64/요청20Hz/실제HWRT/프로젝트RT on/1920×1080 표시형 D3D12/준비10초+90초/localhost 무자격 STOMP receipt+echo: 외부19.695/19.684/19.672Hz, 편차0.022216Hz, 필요75.941849/실제74.718458MiB/s. 경고5Hz 표본0·송신 생략0·외부 gap/invalid/duplicate0·encode/overload/delivery0·engine/callback150ms 초과0이다. 평균59.096662FPS, framep95 18.253002ms, GT 12.068335ms. 첫 오프스크린은19.820/19.809/19.786Hz·경고/생략/150ms0이지만 기존3프레임 획득assertion3건 FAIL이다. 표시형에서는 기준을 바꾸지 않고 동일assertion까지 Success다. 두 조건의 전체 원문은 [비교표](../Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md)로 보존한다.
+
+집중 SensorStream·SensorReceiver·PCD pose·preflight·COIL은84 Success/6조건부skip/0Fail(코일42포함)이다. 표시형/오프스크린 판별 보고 필드만 마지막에 수정했으며 집중 그룹이 실행하는 제품/테스트 코드는 동일하다. 직접 UI는 별도 단일MLX fixture/1920×1080/DPI1/font100%에서 기본80 입력·툴팁·진단,64 지정 유지,80 복원을 확인했다. 신규84Success와 조건부skip6·로컬/현장 범위를 구분한다. 사용자 지시대로 전체 release 대신 관련 그룹을 재실행했다. [UI](../Saved/Reports/FOLLOWUP-28-26/r4/manual/CHECKLIST.md).
+
+RSS는 **user accepted unresolved RSS (2026-10-23)**로 #26b에 이관하고 머지 진행을 수용했다. 원래 절대·차이8MiB,50회−0회/5쌍·실패 수치와 원문을 유지한다. memory PASS로 바꾸지 않는다. result의 현재 feature gate는80MiB/s 변경 범위를 판정하며 RSS는 수용한 미해결 이력/INFO로 분리하고 원래 FAIL/threshold를 별도 원문에 보존한다. 이번 r4의 새43파일 백업을 복원했고 보호297해시는 불변이다. [결과](../Saved/Reports/FOLLOWUP-28-26/result.json).
+
+
+현재80MiB/s 구현 f2b9526의 표준 RT on ABAB도 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.991854→59.989020(저하0.004725%), engine p9516.666900→16.666900ms(+0.000000%), GT6.863771→6.873585ms(+0.142974%)로 각각2% 이내다. 이 표준1+1 workload와 기본3대 PCD90초 절대수치는 구분한다. [실행 manifest](../Saved/Reports/verify/20261022T210412625Z/manifest.json)·[ABAB 원시표](../Saved/Reports/verify/20261022T210412625Z/perf/manifest.json). 모든12회 valid, 동일 instrument/map/의존성, 다른Editor0이다. 이후 결과 문서만 커밋하며 구현 소스는 f2b9526과 동일하다.
+
+
+## 2026-10-23 — FOLLOWUP-28-26 리뷰 수정: FIFO head·CoilPhotoReport
+
+`f5d5a4e`: 최근 직렬화 바디가 작아져도 이전 큰 FIFO head가 충분한 센서 토큰을 모으도록 현재 head 바디 크기를 센서 상한에 포함했다. 부채/송신 bypass 없이 기존 실제바이트 차감·refill 분배·전역80MiB/s·128/64MiB 예약·20프레임 상한·33-byte 계약을 유지한다. 현재 송신 가능한 FIFO head의 소유 센서만 상한을 올려 다른 센서의 burst를 확대하지 않는다. `PumpPreparedMessages`의 실제 바이트 gate는 유지한다.
+
+새 Exact/Wildcard 회귀에 수정 전 RateControl 소스만 대입한 대조는 각각 FIFO3초 내 송신접수 및 Raw접수2 assertion이 실패했다. 수정본은 큰바디1,320,436/1,320,439B·최신66,434/66,437B에서 둘 다1.05초 버킷 시간에 FIFO가 비었고 Raw socket2/receipt2 및 외부수신2·33-byte/schema/checksum 검증을 통과했다. overload/교체0, 기존 공정성 및 기본80/기존64 복원 검사 PASS다. 최초 fixture의 CSV 기본값 상속은 PCD로 명시했고, Editor world의 GameInstance 소비자 dispatch 부재를 내부수신으로 오인한 assertion은 socket/receipt+외부 검증으로 바로잡았다. 초기 실패 원문도 보존했다. 실제 PIE 내부검증 수신은 별도90초 결과를 따른다.
+
+`4c24907`: 공통 보고 Root는 `-CoilPhotoReport`를 별칭으로 복원하고 `-CoilReport`에 우선순위를 준다. 기본/새옵션/구옵션/공백 포함 quoted경로/양쪽 순서의 우선순위 회귀를 통과했다. 핵심5 Success, SensorStream+별칭38 Success/6조건부skip/0Fail. [리뷰 증거](../Saved/Reports/FOLLOWUP-28-26/r5/REVIEW-FIX.md).
+
+요청된 단1회 Rev7×3/1024×64/20Hz요청/기본80MiB/s/준비10초+90초/1920×1080표시형D3D12·HWRT·프로젝트RT on/무자격 localhost receipt+echo: 외부19.321789/19.277345/19.244013Hz, 편차0.077776Hz, 필요75.955696/최대76.003471MiB/s, 경고/생략/외부gap·중복·invalid/150ms 초과0. 평균58.132591FPS·framep95 20.108599ms·GT12.760332ms다. 새≥19Hz/경고0 목표는 충족했으나 기존≥59FPS 및 엔진3프레임당 획득 assertion이 각센서에서 실패(6assertion/1test FAIL)했다. 추가90초 재실행/기준 완화/실패 삭제 없이 결과에 유지한다. 다른Editor0이다. RSS는 user accepted unresolved RSS (2026-10-23), #26b 후속 수용 상태와 원래8MiB/5쌍 FAIL을 유지한다.
+
+
+리뷰 구현4c24907의 새 표준 RT on ABAB 판정은 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.977644→59.990261(개선0.021035%), enginep9516.666900→16.666900ms(+0.000000%), GT7.009674→6.964796ms(-0.640233%)다. 이1+1 표준 상대비교는 별도3-PCD90초의≥59FPS/cadence FAIL을 대체하지 않는다. [manifest](../Saved/Reports/verify/20261022T215939434Z/manifest.json)·[12회 원시표](../Saved/Reports/verify/20261022T215939434Z/perf/manifest.json). 모든12회 valid, 동일instrument/map/의존성, 다른Editor0. 이후 문서만 커밋하며 구현 소스는4c24907과 동일하다.
+
+## 2026-10-23 — FOLLOWUP-28-26 90초 실패 교차 판별: 환경 요인 분기로 종료
+
+실행 HEADaaa2284→수정 전3229bee 전체Source snapshot→HEADaaa2284, 동일조건1920×1080표시형/D3D12·HWRT·프로젝트RT on/기본Rev7×3·1024×64·20Hz요청/기본80MiB/s/준비10초+90초/무자격localhost receipt+echo를 수행했다. Source 대입마다 Development 재빌드exit0, 전체 Source 해시는 각ref git blob과 일치(개행만 정규화), HEAD A/B·최종Source 바이트동일. gitHEAD/index/브랜치는바꾸지않았고 사용자 dirty 자산/config는고정했다.
+
+| 순서 | FPS(≥59) | p95 ms | GT ms | 외부 Hz(boom/cabin01/cabin02) | 편차 Hz |
+|---|---:|---:|---:|---|---:|
+| HEAD A | 58.623682 | 19.410800 | 12.358084 | 19.474855/19.463745/19.452636 | 0.022219 |
+| 3229bee Source | 57.603361 | 20.863999 | 13.092464 | 19.128461/19.117352/19.072919 | 0.055541 |
+| HEAD B | 57.359583 | 21.450099 | 12.993610 | 19.054291/19.043181/19.020960 | 0.033331 |
+
+세 실행 모두 기존≥59FPS 미달이며 각1test에 FPS3건+3frame 획득cadence3건의 assertion FAIL(합계3test/18assertion)이다. 각 스트림≥19Hz, 예산 경고/송신생략/overload/교체/외부오류/engine·callback150ms 초과0. 최초r5 58.132591FPS 실패와 이전r4 통과는원문그대로보존했다. 사용자지시의 “둘다<59면환경요인,기록하고멈춤” 분기로종료한다. HEAD만의회귀패턴은확인되지않았으며 특정프로세스인과관계·작은회귀부재까지증명하지않는다. 소스수정/임계값변경/추가측정/프로파일은수행하지않았다.
+
+실행전후총6회프로세스/GPU읽기전용기록: INNORIX·OneDrive CPU활동반복, Rider/브라우저/Claude 순간활동관찰, NVIDIA스냅샷GPU1~3%/43~46°C/다른Editor0. 측정구간밖순간값이며특정원인으로단정하지않는다. 이번r6새개인43파일복원·보호297해시불변. 기존1+1 RTonABAB PASS·quick/layer0→0/guard 이력유지, feature/release통합FAIL유지, 전체release추가실행없음. RSS는user accepted unresolved RSS (2026-10-23),#26b 및원래8MiB/5쌍FAIL유지. [교차판별·호스트표](../Saved/Reports/FOLLOWUP-28-26/r6/CROSS-90.md)·[manifest](../Saved/Reports/FOLLOWUP-28-26/r6/cross-manifest.json)·[Source감사](../Saved/Reports/FOLLOWUP-28-26/r6/source-audit.json). 문서만커밋하고종료한다.
+
+## 2026-10-23 — FOLLOWUP-28-26 사용자 환경 정리 후90초1회: FPS PASS·cadence FAIL
+
+사용자가Rider·브라우저를닫은뒤 HEADbb56c5a/DTCoreb2504d1을 Development재빌드exit0하고 동일1920×1080표시형/D3D12·HWRT·프로젝트RT on/기본Rev7×3·1024×64·요청20Hz/기본80MiB/s/준비10초+90초/무자격localhost receipt+echo1회를실행했다. 평균59.105048FPS로기존≥59는PASS,enginep9517.802101ms/GT11.846284ms/GPU5.133120ms. 외부19.620040/19.620040/19.575600Hz·편차0.044440Hz, 필요75.877647/최대75.990944MiB/s, 예산경고·송신생략·overload·교체·외부오류·150ms초과0이다.
+
+원시 MA0T10.GpuLidar.ScheduledThree는1Fail/3assertions이며 전부기존획득cadence다. 실제엔진5320프레임에서 floor(5320/3)-2=1771획득기준에1767/1766/1761회(각4/5/10회부족)로FAIL이다. FPS assertion실패0이나두기준모두통과한것이아니므로 feature/release(관련그룹)FAIL을유지하고 지시대로추가측정없이종료한다. 기준·소스·샘플링변경0, 이전실패원문모두보존. 원래≥19Hz송신목표와획득cadence를구분한다.
+
+전후읽기전용프로세스/GPU기록: Rider/브라우저본체없음(BraveCrashHandler잔존), OneDrive·INNORIX CPU활동기록만수행, 조작0. NVIDIA스냅샷GPU0%/37→40°C,다른Editor0. 측정구간밖순간값으로특정인과관계를단정하지않는다. 이번새개인43파일복원·보호297해시불변·전체Source동일. 기존38Success/6조건부skip집중검증·표준RTonABAB PASS·layer0→0이력을유지하고이번90초외전체release/집중그룹/ABAB는재실행하지않았다. RSS:user accepted unresolved RSS (2026-10-23),#26b 및원래8MiB/5쌍FAIL유지. [전체표·원시경로](../Saved/Reports/FOLLOWUP-28-26/r7/CLEANUP-90.md)·[manifest](../Saved/Reports/FOLLOWUP-28-26/r7/cleanup-manifest.json). 문서만커밋하고종료한다.

@@ -107,7 +107,8 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 			continue;
 		}
 		double& ActiveTokenBucket = Message.bBinaryPcd ? PointCloudTokenBucketBytes : TokenBucketBytes;
-		if (Message.ByteCount > ActiveTokenBucket)
+		auto* Sequence = Message.bBinaryPcd ? Runtime->SensorSequences.Find(Message.SensorId) : nullptr;
+		if (Message.ByteCount > ActiveTokenBucket || (Sequence && Message.ByteCount > Sequence->BandwidthTokens))
 		{
 			++Runtime->Status.BandwidthDeferredFrameCount;
 			continue;
@@ -133,6 +134,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 
 			Runtime->NextSubmitAttemptSeconds = 0.0;
 			ActiveTokenBucket -= Message.ByteCount;
+			if (Sequence) Sequence->BandwidthTokens -= Message.ByteCount;
 			Runtime->Status.ActiveTransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
 			Runtime->Status.LastSubmittedFrameId = Message.FrameId;
 			Runtime->Status.LastFrameBytes = Message.ByteCount;
@@ -156,6 +158,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 		{
 			Runtime->NextSubmitAttemptSeconds = 0.0;
 			ActiveTokenBucket -= Message.ByteCount;
+			if (Sequence) Sequence->BandwidthTokens -= Message.ByteCount;
 			if (Message.RetryAttempt == 0) ++Runtime->Status.SubmittedFrameCount;
 			Runtime->Status.LastSubmittedFrameId = Message.FrameId;
 			if (Message.RetryAttempt == 0) Runtime->Status.TotalSubmittedBytes += Message.ByteCount;

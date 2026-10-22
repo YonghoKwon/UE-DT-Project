@@ -534,6 +534,12 @@ void UVirtualSensorStreamPublisherComponent::CompletePointCloudSerialization(con
 	}
 	else
 	{
+		if (Message.bBinaryPcd)
+		{
+			auto& Sequence = Runtime->SensorSequences.FindOrAdd(Message.SensorId);
+			if (Sequence.FrameBytes <= 0) Sequence.BandwidthTokens = Message.ByteCount;
+			Sequence.FrameBytes = Message.ByteCount;
+		}
 		if (bNoLoss)
 		{
 			if (Runtime->PreparedMessageQueue.Num() >= Runtime->Config.MaxBufferedFrames)
@@ -582,6 +588,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPublisherOnce(double Now)
 	TokenBucketBytes = FMath::Min(RateBytes, TokenBucketBytes + (Now - LastTokenUpdateSeconds) * RateBytes);
 	PointCloudTokenBucketBytes = FMath::Min(PointCloudRateBytes, PointCloudTokenBucketBytes + (Now - LastTokenUpdateSeconds) * PointCloudRateBytes);
 	LastTokenUpdateSeconds = Now;
+	UpdatePointCloudFairBudgets(Now);
 	PumpPreparedMessages(Now);
 	CheckReceiptTimeouts(Now);
 	MergeHighThroughputTelemetry();
@@ -704,6 +711,7 @@ void UVirtualSensorStreamPublisherComponent::MergeHighThroughputTelemetry(const 
 		if (!Runtime || Runtime->Config.TransportBackend != EVirtualSensorStreamTransportBackend::TcpStompHighThroughput) continue;
 		Runtime->Status.ActiveTransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;
 		Runtime->Status.SubmittedFrameCount = Item.SubmittedCount;
+		Runtime->Status.TotalSubmittedBytes = Item.SubmittedBytes;
 		Runtime->Status.SubmittedHz = Item.SubmittedHz;
 		Runtime->Status.SubmittedMegabytesPerSecond = Item.SubmittedMegabytesPerSecond;
 		Runtime->Status.ReceiptReceivedCount = Item.ReceiptCount;

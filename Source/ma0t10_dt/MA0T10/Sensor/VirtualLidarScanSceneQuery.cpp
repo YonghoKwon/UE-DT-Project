@@ -254,6 +254,9 @@ void UVirtualLidarScanComponent::AcquireScenePointStorage(int32 Capacity)
  // A transport/export consumer may legally retain every lease. Never mutate
  // its immutable payload or block acquisition; ordinary bounded output policy
  // continues to own that consumer's memory reservation.
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+ ++ScenePointPoolFallbacksForTesting;
+#endif
  ScheduledPoints.Reserve(Capacity);
 }
 void UVirtualLidarScanComponent::RecycleScenePointStorage()

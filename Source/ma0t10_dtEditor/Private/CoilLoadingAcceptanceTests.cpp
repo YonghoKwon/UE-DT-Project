@@ -1,5 +1,6 @@
 #include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+#include "CoilTestReportPaths.h"
 #include "ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
@@ -25,7 +26,7 @@
 
 namespace
 {
-FString CoilRoot(){FString P;FParse::Value(FCommandLine::Get(),TEXT("CoilReport="),P);return P.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/COIL-01d/acceptance"):P;}
+FString CoilRoot(){return CoilTestReportPaths::Root()/TEXT("acceptance");}
 void CoilJson(const FString& Name,TSharedRef<FJsonObject> O){FString Text;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&Text));IFileManager::Get().MakeDirectory(*CoilRoot(),true);FFileHelper::SaveStringToFile(Text,*(CoilRoot()/Name));}
 class FCoilRun final:public IAutomationLatentCommand
 {
@@ -34,7 +35,7 @@ class FCoilRun final:public IAutomationLatentCommand
     {
         TArray<FColor> Pixels;FIntVector Size;if(!Test->TestTrue(TEXT("actual RHI viewport screenshot"),FSlateApplication::Get().TakeScreenshot(W.GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,Size)))return;
         TArray64<uint8> Png;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,Png);const FString Dir=CoilRoot()/TEXT("captures");IFileManager::Get().MakeDirectory(*Dir,true);FFileHelper::SaveArrayToFile(Png,*(Dir/(Name+TEXT(".png"))));
-        const FString Progress=FPaths::ProjectSavedDir()/TEXT("Reports/COIL-01d/progress");IFileManager::Get().MakeDirectory(*Progress,true);FFileHelper::SaveArrayToFile(Png,*(Progress/(Name+TEXT(".png"))));
+        const FString Progress=CoilTestReportPaths::Progress();IFileManager::Get().MakeDirectory(*Progress,true);FFileHelper::SaveArrayToFile(Png,*(Progress/(Name+TEXT(".png"))));
         auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("scope"),TEXT("actual D3D12 automated capture, separate from direct mouse acceptance"));O->SetNumberField(TEXT("width"),Size.X);O->SetNumberField(TEXT("height"),Size.Y);if(auto Window=W.GetGameViewport()->GetWindow())O->SetNumberField(TEXT("window_dpi_scale"),Window->GetDPIScaleFactor());O->SetStringField(TEXT("font_scope"),TEXT("owned native sizes11-18pt; default scale; personal appearance save not changed"));CoilJson(TEXT("captures/")+Name+TEXT(".json"),O);
     }
 public:

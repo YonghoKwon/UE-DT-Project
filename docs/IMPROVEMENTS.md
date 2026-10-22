@@ -4,6 +4,34 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## FOLLOWUP-28-26 — 환경 정리 후 FPS 통과, 획득cadence로 통합 gate 차단
+
+독립 리뷰 수정: `f5d5a4e`는 최신 작은 PCD가 이전 큰 FIFO head를 영구 대기시키는 센서 토큰 상한을 수정한다. 해당 센서의 현재 FIFO head 바디까지 상한에 포함하고, 기존 refill 공정성·실제 바이트 차감·전역 버킷·예약 상한은 유지한다. Exact/Wildcard 1.32MB→66KB 회귀는 수정 전2 Fail, 수정 후 모두1.05초 버킷 시간 내 FIFO 송신접수·socket·receipt·외부33-byte/schema/checksum 검증 PASS, overload/교체0이다. `4c24907`은 `-CoilPhotoReport` 별칭을 복원하며 `-CoilReport`가 우선한다. 핵심5 Success, SensorStream/별칭38 Success·6조건부skip·0Fail이다. [증거](../Saved/Reports/FOLLOWUP-28-26/r5/REVIEW-FIX.md).
+
+리뷰 구현4c24907의 새 표준 RT on ABAB 판정은 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.977644→59.990261(개선0.021035%), enginep9516.666900→16.666900ms(+0.000000%), GT7.009674→6.964796ms(-0.640233%)다. 이1+1 표준 상대비교는 별도3-PCD90초의 절대FPS·획득cadence 판정을 대체하지 않는다. [manifest](../Saved/Reports/verify/20261022T215939434Z/manifest.json).
+
+사용자가 Rider·브라우저를 닫은 뒤 현재HEAD bb56c5a로 같은조건 표시형90초를1회 실행했다. 평균59.105FPS는≥59를 통과했으나 기존획득cadence3assertion/1test FAIL이다. 엔진5320프레임에서 센서별최소1771회 기준에 실제1767/1766/1761회로 미달했다. 각 외부19.620/19.620/19.576Hz·편차0.044Hz, 예산경고/송신생략/오류/150ms초과0이다. 사용자지시대로 추가측정 없이 feature/release 통합FAIL을 유지한다. OneDrive·INNORIX는 읽기전용으로만 기록했다. [환경정리 후 결과](../Saved/Reports/FOLLOWUP-28-26/r7/CLEANUP-90.md). 이전58.133FPS 및 교차58.624→57.603→57.360FPS 실패 원문은 [이전교차판별](../Saved/Reports/FOLLOWUP-28-26/r6/CROSS-90.md)에 보존했고 기준·제품·테스트코드 변경0이다.
+
+기본 Ouster OS1-64 Rev7×3의 PCD 송신 예산을 사용자 승인(2026-10-23)으로64→80 MiB/s로 올렸다. 실측 필요량 약75.9 MiB/s가 근거이며 기존 지정값을 덮어쓰는 migration/Load/ini/SaveGame 변경은 없다. 기본값·UI·진단은 공통 상수를 사용하고, 직렬화된64 MiB/s 지정값 보존 회귀를 통과했다. 90초 localhost 외부수신은19.695/19.684/19.672Hz, 편차0.022Hz로 각19Hz 목표를 만족했다. 필요75.942/예산80 MiB/s, 필요>예산 경고·송신 생략·외부 오류·150ms 초과0, 표시형 D3D12/RT on 59.097FPS다. 관련 그룹84 Success/6조건부skip/0Fail 및 직접UI4항목을 확인했다. [측정·한계](../Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md).
+
+이전80MiB/s 구현 f2b9526의 표준 RT on ABAB도 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.991854→59.989020(저하0.004725%), engine p9516.666900→16.666900ms(+0.000000%), GT6.863771→6.873585ms(+0.142974%)로 각각2% 이내다. 이 표준1+1 workload와 기본3대 PCD90초 절대수치는 구분한다. [manifest](../Saved/Reports/verify/20261022T210412625Z/manifest.json).
+
+**#26b: user accepted unresolved RSS (2026-10-23).** 기존 RSS5쌍8MiB FAIL은 원문·수치·기준을 보존한 미해결 후속으로 이관하며 현재 머지에서 수용한다. decisions_needed로 재질문하지 않는다. [result](../Saved/Reports/FOLLOWUP-28-26/result.json)·[merge-check](../Saved/Reports/FOLLOWUP-28-26/merge-check.json).
+
+## FOLLOWUP-28-26 — 코일 테스트 보고 루트 정리
+
+세 테스트 계열은 공통상수 `Reports/COIL`과 `-CoilReport`를 사용한다. `-CoilPhotoReport`도 호환 별칭이며 `-CoilReport`가 우선한다. acceptance/variants/progress/presentation.json이 같은 루트를 따르며 작업ID 하드코딩을 제거했다. 빌드 및 세 계열 RHI3 Success·지정루트 산출물53개를 확인했다. 제품 로직·자산·저장 슬롯 변경0. [검증](../Saved/Reports/FOLLOWUP-28-26/r2/coil-path-override/paths-verified.json).
+
+## FOLLOWUP-26b — 사용자 수용한 RSS 8MiB 미해결 후속
+
+사용자 결정2026-10-23: **user accepted unresolved RSS (2026-10-23)**. 아래 원래 FAIL을 보존한 채 현재 머지에서 수용하고 #26b로 추적한다. 후속은 동일 기준·횟수의 재현과 증가원 귀속·검증된 수정을 목표로 한다.
+
+기본Rev7×3/GPU/RT on/35초+90초/50회−0회 교차5쌍: 절대3쌍·차이2쌍 실패,기능오류0. 디깅RSS 중앙값+10.43MiB/최대raw차이+17.67MiB. CPU/LLM/Binned2 진단과 두 미채택 후보는 [원문](../Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md)에 구분한다. 기본Mimalloc 상세dump미구현,소유버퍼·RHI수량 불변만으로 무누수를 입증하지 않는다. 두 후보는 원복하고 editor-only계측만 남겼다. 약90분 조사 후 검증된 수정안 없음으로 인계하며 기준·횟수·기본정책을 완화하지 않는다.
+
+## FOLLOWUP-28 — Rev7×3 PCD 송신 공정성
+
+2026-10-23 사용자 승인으로 기본PCD 예산64→80MiB/s를 적용했다. 새 기본값은 공통상수로 관리하며 지정된 기존값·저장형식·PCD33-byte·승인FIFO·기본출력·예약상한을 보존한다. 기본 Rev7×3·90초 표시형 localhost의 각19.695/19.684/19.672Hz/편차0.022Hz로 각19Hz 목표를 충족했다. 필요75.942MiB/s이며 필요>예산 경고0, 송신 생략0,150ms 초과0이다. 최초 오프스크린의 기존 획득cadence3FAIL은 보존하고 표시형에서 같은 assertion까지통과했다. [측정·한계](../Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md)·[UI](../Saved/Reports/FOLLOWUP-28-26/r4/manual/CHECKLIST.md).
+
 ## HATCH-07 / COIL-02 — 현장 보기·카메라·배치 개선
 
 사용자2026-10-22 승인(기준338aa88, 시작9f7b6cf). HATCH는 사진의 하부 횡격자, 독립 운전실 장착, OS1-64 Rev7×3/20Hz·정확한 TF ID, 기본 꺼짐 RViz 표시/회색 배경·자유 이동과 호퍼 위 클릭 대기를 구현한다. [부재·공식 사양 근거](research/HATCH-07-basis.md)의 90m/10Hz 검출 조건과 20Hz 모드 지원을 구분한다. COIL은 최대5단/6단 거절, 지지 관계를 지키는 선택 제거/Undo, 양방향 다음 열·길이 끝 거절, 전체 홀드 실비율·150% UI와 Slab 도구 혼입 차단을 구현한다. 이전 ‘무고정 단수’ 설명은 이 사용자 결정으로 대체한다.

@@ -1,5 +1,6 @@
 #include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+#include "CoilTestReportPaths.h"
 #include "ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
@@ -29,7 +30,7 @@
 
 namespace
 {
-FString VariantRoot(){FString P;FParse::Value(FCommandLine::Get(),TEXT("CoilReport="),P);return P.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/COIL-01d/variants"):P/TEXT("variants");}
+FString VariantRoot(){return CoilTestReportPaths::Root()/TEXT("variants");}
 void VariantJson(const FString& Name,TSharedRef<FJsonObject> O){FString Text;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&Text));IFileManager::Get().MakeDirectory(*VariantRoot(),true);FFileHelper::SaveStringToFile(Text,*(VariantRoot()/Name));}
 class FCoilVariantRun final:public IAutomationLatentCommand
 {
@@ -39,7 +40,7 @@ class FCoilVariantRun final:public IAutomationLatentCommand
     {
         TArray<FColor> Pixels;FIntVector Size;if(!Test->TestTrue(TEXT("actual HR/CR or stress RHI pixels"),FSlateApplication::Get().TakeScreenshot(W.GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,Size)))return;
         TArray64<uint8> Bytes;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,Bytes);const FString Dir=VariantRoot()/TEXT("captures");IFileManager::Get().MakeDirectory(*Dir,true);FFileHelper::SaveArrayToFile(Bytes,*(Dir/(Name+TEXT(".png"))));
-        const FString Progress=FPaths::ProjectSavedDir()/TEXT("Reports/COIL-01d/progress")/(Name+TEXT(".png"));FFileHelper::SaveArrayToFile(Bytes,*Progress);
+        const FString Progress=CoilTestReportPaths::Progress();IFileManager::Get().MakeDirectory(*Progress,true);FFileHelper::SaveArrayToFile(Bytes,*(Progress/(Name+TEXT(".png"))));
         Report->SetNumberField(TEXT("client_width"),Size.X);Report->SetNumberField(TEXT("client_height"),Size.Y);
     }
     void Camera(ACoilLoadingMonitorHost& H,FVector Position,FVector Target)

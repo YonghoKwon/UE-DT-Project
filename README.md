@@ -18,6 +18,34 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### FOLLOWUP-28-26 — 환경 정리 후 FPS 통과, 획득cadence로 통합 gate 차단
+
+독립 리뷰 수정: `f5d5a4e`는 최신 작은 PCD가 이전 큰 FIFO head를 영구 대기시키는 센서 토큰 상한을 수정한다. 해당 센서의 현재 FIFO head 바디까지 상한에 포함하고, 기존 refill 공정성·실제 바이트 차감·전역 버킷·예약 상한은 유지한다. Exact/Wildcard 1.32MB→66KB 회귀는 수정 전2 Fail, 수정 후 모두1.05초 버킷 시간 내 FIFO 송신접수·socket·receipt·외부33-byte/schema/checksum 검증 PASS, overload/교체0이다. `4c24907`은 `-CoilPhotoReport` 별칭을 복원하며 `-CoilReport`가 우선한다. 핵심5 Success, SensorStream/별칭38 Success·6조건부skip·0Fail이다. [증거](Saved/Reports/FOLLOWUP-28-26/r5/REVIEW-FIX.md).
+
+리뷰 구현4c24907의 새 표준 RT on ABAB 판정은 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.977644→59.990261(개선0.021035%), enginep9516.666900→16.666900ms(+0.000000%), GT7.009674→6.964796ms(-0.640233%)다. 이1+1 표준 상대비교는 별도3-PCD90초의 절대FPS·획득cadence 판정을 대체하지 않는다. [manifest](Saved/Reports/verify/20261022T215939434Z/manifest.json).
+
+사용자가 Rider·브라우저를 닫은 뒤 현재HEAD bb56c5a로 같은조건 표시형90초를1회 실행했다. 평균59.105FPS는≥59를 통과했으나 기존획득cadence3assertion/1test FAIL이다. 엔진5320프레임에서 센서별최소1771회 기준에 실제1767/1766/1761회로 미달했다. 각 외부19.620/19.620/19.576Hz·편차0.044Hz, 예산경고/송신생략/오류/150ms초과0이다. 사용자지시대로 추가측정 없이 feature/release 통합FAIL을 유지한다. OneDrive·INNORIX는 읽기전용으로만 기록했다. [환경정리 후 결과](Saved/Reports/FOLLOWUP-28-26/r7/CLEANUP-90.md). 이전58.133FPS 및 교차58.624→57.603→57.360FPS 실패 원문은 [이전교차판별](Saved/Reports/FOLLOWUP-28-26/r6/CROSS-90.md)에 보존했고 기준·제품·테스트코드 변경0이다.
+
+기본 Ouster OS1-64 Rev7×3의 PCD 송신 예산을 사용자 승인(2026-10-23)으로64→80 MiB/s로 올렸다. 실측 필요량 약75.9 MiB/s가 근거이며 기존 지정값을 덮어쓰는 migration/Load/ini/SaveGame 변경은 없다. 기본값·UI·진단은 공통 상수를 사용하고, 직렬화된64 MiB/s 지정값 보존 회귀를 통과했다. 90초 localhost 외부수신은19.695/19.684/19.672Hz, 편차0.022Hz로 각19Hz 목표를 만족했다. 필요75.942/예산80 MiB/s, 필요>예산 경고·송신 생략·외부 오류·150ms 초과0, 표시형 D3D12/RT on 59.097FPS다. 관련 그룹84 Success/6조건부skip/0Fail 및 직접UI4항목을 확인했다. [측정·한계](Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md).
+
+이전80MiB/s 구현 f2b9526의 표준 RT on ABAB도 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.991854→59.989020(저하0.004725%), engine p9516.666900→16.666900ms(+0.000000%), GT6.863771→6.873585ms(+0.142974%)로 각각2% 이내다. 이 표준1+1 workload와 기본3대 PCD90초 절대수치는 구분한다. [manifest](Saved/Reports/verify/20261022T210412625Z/manifest.json).
+
+RSS는 **user accepted unresolved RSS (2026-10-23)** 결정에 따라 미해결 후속 **#26b**로 이관한다. 원래 GPU5쌍의 절대·차이8MiB FAIL과 조사 한계는 보존하며 측정 통과로 바꾸지 않는다. 현재 머지 범위에서 수용한 미해결 사항으로 기록하고 Claude의 독립 검수로 진행한다. 코일 밝기 fixture 수정은 유지했다. [결과](Saved/Reports/FOLLOWUP-28-26/result.json)·[머지검사](Saved/Reports/FOLLOWUP-28-26/merge-check.json)·[RSS 원문](Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md). 회사/실장비 수용과 구분한다.
+
+### FOLLOWUP-28-26 코일 자동화 보고 경로
+
+Acceptance/Variants/Presentation 테스트의 공통 루트는 `Saved/Reports/COIL`이며 `-CoilReport=<루트>`로 한 번에 지정한다. acceptance·variants 하위 폴더와 공통 progress·presentation.json을 같은 루트에 둔다. 기존 `-CoilPhotoReport`는 별칭으로 계속 받고, 둘 다 있으면 `-CoilReport`를 우선한다. 제품 저장 슬롯과 데이터 형식은 바꾸지 않는다. 세 계열 실제 RHI 테스트와 지정루트53개 산출물을 확인했다. [경로 검증](Saved/Reports/FOLLOWUP-28-26/r2/coil-path-override/paths-verified.json).
+
+### FOLLOWUP-26b 해치 RSS — 사용자 수용한 미해결 후속
+
+사용자는2026-10-23에 미해결 RSS를 수용하고 머지 진행을 승인했다. 기본 Rev7×3·GPU/RT on·35초 준비/90초·50회−0회 교차5쌍의 원래 절대8MiB 및 별도차이8MiB는 FAIL이다. 절대3쌍/차이2쌍 실패, 디깅RSS 중앙값+10.43MiB/최대raw차이+17.67MiB다. 약90분 조사에서 두 할당 재사용 후보는 개선을 입증하지 못해 원복했으며 완전 귀속·검증된 수정안은 미확보다. #26b는 같은 기준·횟수·기본 allocator로 원인을 추적하는 후속이며 완료로 표시하지 않는다. [증거·한계](Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md).
+
+### FOLLOWUP-28 PCD 송신 예산·공정성
+
+기본 Ouster OS1-64 Rev7 3대(1024×64·20Hz 요청)에 센서별 토큰 버킷과 프레임 크기를 반영한 균등 Hz 상한을 적용한다. 기본 송신 예산은80MiB/s(사용자 승인2026-10-23)이며 PCD33-byte·승인FIFO·기본출력과 전역128MiB/스트림64MiB 예약 상한은 유지한다. `데이터 → 전송 → 고급 → PCD 예산`에서 현재 세션 예산을 바꾸며, 필요/예산 MiB/s와 최근 약1초의 실제 송신Hz를 표시한다. 저장 형식은 바꾸지 않는다.
+
+기본80MiB/s/90초/1920×1080 표시형 실제D3D12·RT on·자격증명 없는localhost 수신은19.695/19.684/19.672Hz(편차0.022), 필요75.942MiB/s, 실제74.718MiB/s다. 정확한 벽시계20.000Hz 보장과 구분한다. 최초 오프스크린 실행도 각19Hz 송신 목표를 만족했으나 기존 엔진3프레임당 획득 assertion3건이 실패했고, 표시형은 같은 assertion까지통과했다. 두 원본과 환경을 [측정표](Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md)에 남긴다. 과거64MiB/s 비교는 [이전 기록](Saved/Reports/FOLLOWUP-28-26/r2/PCD-28.md)이다. 전체 반환점65,536×33B×20Hz×3의 최악가정123.75MiB/s+헤더는80MiB/s를 넘으므로 이번 기본맵의 실측 필요량과 구분한다.
+
 ### HATCH-07 / COIL-02 현장 보기·배치 흐름
 
 원료 하역 기본은 Ouster OS1-64 Rev7 3대(1024×64·20Hz)이며 ID는 `os_lidar_boom`, `os_lidar_cabin_01/02`다. Rev05의 조건부 45m 프로필과 XT32·Mid-360S 등 기존 선택은 유지한다. 공식 자료의 거리/모드 조건과 사진 부재별 근거는 [HATCH-07 근거](docs/research/HATCH-07-basis.md)를 따른다. 현장 시각화는 기본 꺼짐이며 TF RGB 축·장비 라벨·그랩 상자·노랑/빨강/파랑 점군·회색 배경을 표시한다. 녹색 반투명 모델은 기존 형상 표시용이며 실제 스캔 파일이 아니다. 획득 메시·스냅샷·측정 재질을 바꾸지 않는다.
@@ -685,6 +713,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+FOLLOWUP-28은 기존 L1 송신기/상태와 L3 소유 데이터 패널·상태바만 확장한다. 새 모듈·플러그인·자산·DTCore·wire·SaveGame 형식 변경 없이 layer/allowlist0→0이다.
 
 HATCH-07/COIL-02는 L2 장면/배치와 L3 소유 표시·입력을 확장한다. Rev7 사양은 기존 L1 프로필 표에 추가하며 L1의 UI/업무 참조를 만들지 않는다. 녹색/TF/근접 clipping은 플레이어 뷰만 변경하고 기존 DTCore Widget 등록·입력 차단을 유지한다. layer/allowlist0→0, 새 모듈·플러그인·저장 자산·DTCore 변경0이다.
 
