@@ -133,7 +133,7 @@ bool ACoilLoadingSimulation::PlaceNext(bool Animate)
     for(const auto& P:Placements)if(P.Spec.CoilId.Equals(NextSpec.CoilId,ESearchCase::IgnoreCase)){Status=TEXT("코일 ID 중복: 다른 ID를 입력하세요.");return false;}
     RefreshPreview();PushUndo();PhysicsResult=FCoilPhysicsObservation();
     if(!Animate)
-    {auto* B=SpawnCoil(NextSpec,Pending.Center);if(!B)return false;CommitPlacement(B);PhysicsResult.State=TEXT("계획만 배치 · 물리 미실행");return true;}
+    {auto* B=SpawnCoil(NextSpec,Pending.Center);if(!B)return false;CommitPlacement(B);PhysicsResult.State=TEXT("계획만 배치 · 물리 미실행");Status=TEXT("계획 배치 완료 · 다음 코일 위치를 확인하세요.");return true;}
     Suspended=WaitingCoil;WaitingCoil=nullptr;if(Suspended)Suspended->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);if(!Suspended)Suspended=SpawnCoil(NextSpec,PickupPosition());if(!Suspended)return false;
     Suspended->Configure(CoilMesh(NextSpec),Materials[4],NextSpec);ApplyCoilAppearance(Suspended,NextSpec);
     Suspended->Body->SetCollisionEnabled(ECollisionEnabled::QueryOnly);++GeometryRevision;CurrentHook=PickupPosition()+FVector(0,0,Settings.GearHeadroom);
@@ -243,7 +243,7 @@ bool ACoilLoadingSimulation::Undo()
     const auto Saved=History.Last();const auto& Removed=Saved.Next;const bool Rebuild=!SameScene(Settings,S);
     History.Pop();Settings=S;Placements=MoveTemp(P);if(Rebuild)RestoreSceneGeometry();RebuildPlanBodies();
     NextSpec=Removed.Spec;NextTier=Removed.Tier;NextRow=Removed.Row;NextColumn=Removed.Column;bNextDunnage=Removed.bDunnage;bNextChocks=Removed.bChocks;bNextLashing=Removed.bLashing;bNextForeAft=Removed.bEyeForeAft;NextChockKN=Removed.ChockCapacityKN;NextLashingKN=Removed.LashingCapacityKN;NextStiffness=Removed.DiametralStiffnessKNPerM;NextOvalityLimit=Removed.OvalityLimit;NextRollingResistanceM=Removed.RollingResistanceM;ManifestIndex=Saved.ManifestIndex;bRowsForeToAft=Saved.ForeToAft;Highlighted.Reset();
-    RefreshPreview();PhysicsResult=FCoilPhysicsObservation();return true;
+    RefreshPreview();PhysicsResult=FCoilPhysicsObservation();Status=TEXT("되돌리기 완료 · 계획과 다음 코일 위치를 복원했습니다.");return true;
 }
 bool ACoilLoadingSimulation::RemoveCoil(int32 Index)
 {

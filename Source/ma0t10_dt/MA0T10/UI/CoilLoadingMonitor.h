@@ -89,6 +89,8 @@ private:
     UPROPERTY(Transient) TObjectPtr<UCanvasPanelSlot> SceneInputSlot;
     UPROPERTY(Transient) TObjectPtr<UButton> RemoveButton;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> SelectionText;
+    UPROPERTY(Transient) TArray<TObjectPtr<UTextBlock>> ComboLabels;
+    UFUNCTION() UWidget* ComboEntry(FString Value);
     float TextScale=1;
     UPROPERTY(Transient) TObjectPtr<UCoilLoadingPlanView> PlanView;
     UPROPERTY(Transient) TArray<TObjectPtr<UCanvasPanelSlot>> Slots;

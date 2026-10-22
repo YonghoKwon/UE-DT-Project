@@ -36,7 +36,7 @@ void UCoilLoadingMonitor::NativeOnInitialized()
     for(int I=0;I<4;++I){auto* B=WidgetTree->ConstructWidget<UBorder>();B->SetBrush(*Style::PanelBrush());B->SetBrushColor(FLinearColor(.012,.018,.022,1));B->SetVisibility(ESlateVisibility::HitTestInvisible);auto* MaskSlot=Root->AddChildToCanvas(B);MaskSlot->SetZOrder(-1);SceneMasks.Add(MaskSlot);}
     auto* SceneInput=WidgetTree->ConstructWidget<UBorder>();SceneInput->SetBrushColor(FLinearColor::Transparent);SceneInputSlot=Root->AddChildToCanvas(SceneInput);
     const auto Label=[&](const FString& Text,int32 Size=13,bool Bold=false){auto* W=WidgetTree->ConstructWidget<UTextBlock>();W->SetText(FText::FromString(Text));W->SetFont(Style::Font(Size,1,Bold));W->SetColorAndOpacity(Style::Text());W->SetAutoWrapText(true);return W;};
-    const auto Button=[&](const TCHAR* Text,FName Fn,bool Primary=false){auto* W=WidgetTree->ConstructWidget<UButton>();W->SetStyle(Primary?Style::PrimaryButton():Style::Button());W->SetContent(Label(Text));FScriptDelegate D;D.BindUFunction(this,Fn);W->OnClicked.Add(D);return W;};
+    const auto Button=[&](const TCHAR* Text,FName Fn,bool Primary=false){auto* W=WidgetTree->ConstructWidget<UButton>();W->SetStyle(Primary?Style::PrimaryButton():Style::Button());auto* Caption=Label(Text);Caption->SetAutoWrapText(false);W->SetContent(Caption);FScriptDelegate D;D.BindUFunction(this,Fn);W->OnClicked.Add(D);return W;};
     const auto Card=[&](const TCHAR* Name){auto* B=WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(),Name);B->SetBrush(*Style::PanelBrush());B->SetBrushColor(Style::Panel());B->SetPadding(FMargin(14));Slots.Add(Root->AddChildToCanvas(B));return B;};
     const auto Row=[&](UVerticalBox* Parent){auto* R=WidgetTree->ConstructWidget<UHorizontalBox>();Parent->AddChildToVerticalBox(R)->SetPadding(FMargin(0,4));return R;};
     const auto AddButton=[&](UHorizontalBox* R,const TCHAR* Text,FName Fn,bool Primary=false){auto* S=R->AddChildToHorizontalBox(Button(Text,Fn,Primary));S->SetSize(FSlateChildSize(ESlateSizeRule::Fill));S->SetPadding(FMargin(2));};
@@ -45,9 +45,9 @@ void UCoilLoadingMonitor::NativeOnInitialized()
     Body->AddChildToVerticalBox(Label(TEXT("최대 5단 · 하중 경고는 별도 확인\n코일 클릭 → 선택 제거 · 위 코일부터"),12));
     Heading=Label(TEXT("1단 · 1열 · 1번"),16,true);Body->AddChildToVerticalBox(Heading)->SetPadding(FMargin(0,12));
     Badge=Label(TEXT("주의 · 해석 준비"),15,true);Body->AddChildToVerticalBox(Badge)->SetPadding(FMargin(0,8));
-    auto* R=Row(Body);AddButton(R,TEXT("인양·놓기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnPlace),true);AddButton(R,TEXT("취소"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnCancel));
-    R=Row(Body);AddButton(R,TEXT("계획 배치"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnPlanOnly));AddButton(R,TEXT("현재 단 채우기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnTier));AddButton(R,TEXT("되돌리기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnUndo));
-    R=Row(Body);RemoveButton=Button(TEXT("선택 제거"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnRemove));R->AddChildToHorizontalBox(RemoveButton)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));AddButton(R,TEXT("글자 100/150%"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnFontSize));
+    auto* R=Row(Body);AddButton(R,TEXT("인양"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnPlace),true);AddButton(R,TEXT("취소"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnCancel));
+    R=Row(Body);AddButton(R,TEXT("1개 배치"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnPlanOnly));AddButton(R,TEXT("단 채우기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnTier));
+    R=Row(Body);AddButton(R,TEXT("되돌리기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnUndo));RemoveButton=Button(TEXT("선택 제거"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnRemove));R->AddChildToHorizontalBox(RemoveButton)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     SelectionText=Label(TEXT("선택 없음 · 3D/단면/상면에서 클릭"),12);Body->AddChildToVerticalBox(SelectionText);
     Body->AddChildToVerticalBox(Label(TEXT("다음 배치 · 고스트\n코일 ID / OD·ID·폭 m / 질량 t"),12));
     TypeChoice=WidgetTree->ConstructWidget<UComboBoxString>();TypeChoice->ForegroundColor=Style::Text();TypeChoice->SetWidgetStyle(Style::ComboBox());TypeChoice->AddOption(TEXT("열연 HR · 무포장"));TypeChoice->AddOption(TEXT("냉연 CR · 포장"));TypeChoice->OnSelectionChanged.AddDynamic(this,&UCoilLoadingMonitor::OnTypeChanged);Body->AddChildToVerticalBox(TypeChoice);
@@ -82,12 +82,14 @@ void UCoilLoadingMonitor::NativeOnInitialized()
     R=Row(Details);AddButton(R,TEXT("혼적 예시 불러오기 · 경고 포함"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnMixedExample));
     auto* Header=Card(TEXT("CoilViewHeader"));auto* HB=WidgetTree->ConstructWidget<UVerticalBox>();Header->SetContent(HB);HB->AddChildToVerticalBox(Label(TEXT("제품 부두 코일 선적 · 사전 해석 / 실제 놓기 비교"),17,true));
     R=Row(HB);AddButton(R,TEXT("전경"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnOverview));AddButton(R,TEXT("홀드 내부"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnInterior));AddButton(R,TEXT("단면"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnSection));AddButton(R,TEXT("2D 상면"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnTop));AddButton(R,TEXT("점군"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnPoints));
+    AddButton(R,TEXT("글자 100/150%"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnFontSize));
     Operation=Label(TEXT("매단 하중 아래 출입 금지 · 빨간 원은 표시용 작업구역"),12);HB->AddChildToVerticalBox(Operation);
     PlotCard=Card(TEXT("CoilPlanCard"));PlanView=WidgetTree->ConstructWidget<UCoilLoadingPlanView>();PlanView->Monitor=this;PlotCard->SetContent(PlanView);PlotCard->SetVisibility(ESlateVisibility::Collapsed);
     auto* Footer=Card(TEXT("CoilAnalysis"));auto* FB=WidgetTree->ConstructWidget<UVerticalBox>();Footer->SetContent(FB);Metrics=Label(TEXT("질량·하중·KG·횡경사"),13,true);FB->AddChildToVerticalBox(Metrics);
     Comparison=Label(TEXT("해석 / Chaos / LiDAR 대기"),12);FB->AddChildToVerticalBox(Comparison)->SetPadding(FMargin(0,6));auto* WS=WidgetTree->ConstructWidget<UScrollBox>();FB->AddChildToVerticalBox(WS)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     auto* List=WidgetTree->ConstructWidget<UVerticalBox>();WS->AddChild(List);WarningRows=WidgetTree->ConstructWidget<UVerticalBox>();List->AddChildToVerticalBox(WarningRows);
     auto* DataButton=Button(TEXT("자료 필요 · 펼치기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnDataNeeded));DataNeededLabel=Cast<UTextBlock>(DataButton->GetContent());List->AddChildToVerticalBox(DataButton)->SetPadding(FMargin(0,8));DataRows=WidgetTree->ConstructWidget<UVerticalBox>();List->AddChildToVerticalBox(DataRows);DataRows->SetVisibility(ESlateVisibility::Collapsed);
+    for(auto* C:{TypeChoice.Get(),InnerChoice.Get(),GearChoice.Get(),MotionChoice.Get(),RowDirection.Get()})C->OnGenerateWidgetEvent.BindDynamic(this,&UCoilLoadingMonitor::ComboEntry);
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 void UCoilLoadingMonitor::Bind(ACoilLoadingMonitorHost* H,ACoilLoadingSimulation* S){Host=H;Sim=S;SyncInputs();Refresh();}
@@ -113,7 +115,7 @@ bool UCoilLoadingMonitor::ApplyInputs()
 void UCoilLoadingMonitor::Refresh()
 {
     auto* S=Sim.Get();if(!S||!IsVisible())return;if(LastPlanCount!=S->Plan().Num()){LastPlanCount=S->Plan().Num();SyncInputs();}const FVector2D Size=UWidgetLayoutLibrary::GetViewportSize(this)/UWidgetLayoutLibrary::GetViewportScale(this);if(Size.X<=0||Size.Y<=0)return;
-    const double Left=FMath::Min(360.*TextScale,Size.X*.34),X=Left+24,Width=FMath::Max(100.,Size.X-X-12),FooterH=FMath::Clamp(Size.Y*.27,170.,260.),Top=130+40*(TextScale-1);
+    const double Left=FMath::Min(360.*TextScale,Size.X*.34),X=Left+24,Width=FMath::Max(100.,Size.X-X-12),FooterH=FMath::Clamp(Size.Y*.27,170.,260.),Top=160*TextScale;
     const FVector2D Positions[]={{12,12},{X,12},{X,Top},{X,Size.Y-FooterH-12}},Sizes[]={{Left,Size.Y-24},{Width,Top-24},{Width,Size.Y-FooterH-Top-24},{Width,FooterH}};
     for(int32 I=0;I<Slots.Num();++I){Slots[I]->SetPosition(Positions[I]);Slots[I]->SetSize(Sizes[I]);}
     const FVector2D MaskPositions[]={{0,0},{0,Size.Y-FooterH-24},{0,Top},{Size.X-12,Top}},MaskSizes[]={{Size.X,Top},{Size.X,FooterH+24},{X,Size.Y-FooterH-Top-24},{12,Size.Y-FooterH-Top-24}};
@@ -199,9 +201,14 @@ void UCoilLoadingMonitor::SetFontPercent(int32 Percent)
         if(auto* T=Cast<UTextBlock>(W)){auto Font=T->GetFont();Font.Size=FMath::RoundToInt(Font.Size*Ratio);T->SetFont(Font);}
         if(auto* Spin=Cast<USpinBox>(W))Spin->SetFont(Style::Font(13,Scale));
         if(auto* Edit=Cast<UEditableTextBox>(W)){Edit->WidgetStyle.TextStyle.SetFont(Style::Font(13,Scale));Edit->SynchronizeProperties();}
-        if(auto* Combo=Cast<UComboBoxString>(W)){Combo->Font=Style::Font(13,Scale);Combo->SynchronizeProperties();}
+        if(auto* Combo=Cast<UComboBoxString>(W)){TGuardValue<bool> Sync(bSync,true);const auto Selected=Combo->GetSelectedOption();Combo->ClearSelection();Combo->SetSelectedOption(Selected);Combo->RefreshOptions();}
     }
     LastRevision=MAX_uint64;Refresh();
+}
+UWidget* UCoilLoadingMonitor::ComboEntry(FString Value)
+{
+    ComboLabels.RemoveAll([](const auto& W){if(!W)return true;const auto Native=W->GetCachedWidget();return !Native.IsValid()||Native.GetSharedReferenceCount()<=2;});
+    auto* Label=WidgetTree->ConstructWidget<UTextBlock>();Label->SetText(FText::FromString(Value));Label->SetFont(Style::Font(13,TextScale));Label->SetColorAndOpacity(Style::Text());ComboLabels.Add(Label);return Label;
 }
 FReply UCoilLoadingMonitor::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
 {

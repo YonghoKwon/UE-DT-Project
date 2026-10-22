@@ -42,7 +42,7 @@ FProjection Build(const CoilLoading::FSettings& S,const TArray<CoilLoading::FPla
     // A single coil must never be magnified to look like it fills the hold.
     R.Min=Section?FVector2D(-S.HoldWidth*.5-.5,-.2):FVector2D(-S.HoldLength*.5-.5,-S.HoldWidth*.5-.5);
     R.Max=Section?FVector2D(S.HoldWidth*.5+.5,S.HoldHeight+S.Coaming+.5):FVector2D(S.HoldLength*.5+.5,S.HoldWidth*.5+.5);
-    const auto Span=R.Max-R.Min;const FVector2D Available(FMath::Max(1.,Size.X-60),FMath::Max(1.,Size.Y-164));R.Scale=FMath::Min(Available.X/Span.X,Available.Y/Span.Y);R.Origin={30+(Available.X-Span.X*R.Scale)*.5,70+(Available.Y-Span.Y*R.Scale)*.5};
+    const auto Span=R.Max-R.Min;const FVector2D Available(FMath::Max(1.,Size.X-60),FMath::Max(1.,Size.Y-230));R.Scale=FMath::Min(Available.X/Span.X,Available.Y/Span.Y);R.Origin={30+(Available.X-Span.X*R.Scale)*.5,70+(Available.Y-Span.Y*R.Scale)*.5};
     Order.StableSort([&](int32 A,int32 B){return (A==Plan.Num()?Next.Tier:Plan[A].Tier)<(B==Plan.Num()?Next.Tier:Plan[B].Tier);});
     for(int32 I:Order)
     {

@@ -47,7 +47,7 @@ public:
         FString Info=TEXT("호버 또는 클릭: 코일 ID·종류·OD·ID·폭·질량·단/열/번 · 시안색은 모든 뷰의 공통 선택");
         int32 Selected=Hovered;if(Selected==INDEX_NONE&&S->HighlightedCoils().Num())Selected=S->HighlightedCoils()[0];
         if(const auto* X=Projection.Glyphs.FindByPredicate([&](const CoilPlan::FGlyph& P){return P.Index==Selected;}))Info=X->Information;
-        Text({8,Size.Y-82},Info,FSensorOwnedPresentationStyle::Text(),11);Text({8,Size.Y-22},FString::Printf(TEXT("계획 위치 · 1m 격자 · 포장선 좌표는 실치수 / 선 굵기만 가독성 표시 · 홀드 %.2f×%.2fm"),S->Settings.HoldLength,S->Settings.HoldWidth),FSensorOwnedPresentationStyle::Muted(),10);return L+4;
+        Text({8,Size.Y-150},Info,FSensorOwnedPresentationStyle::Text(),11);Text({8,Size.Y-22},FString::Printf(TEXT("계획 위치 · 1m 격자 · 포장선 좌표는 실치수 / 선 굵기만 가독성 표시 · 홀드 %.2f×%.2fm"),S->Settings.HoldLength,S->Settings.HoldWidth),FSensorOwnedPresentationStyle::Muted(),10);return L+4;
     }
 private:
     TWeakObjectPtr<UCoilLoadingPlanView> Owner;int32 Hovered=INDEX_NONE;
