@@ -144,6 +144,7 @@ private:
     friend class FArchitectureWireGoldenTest;
     friend struct FPointCloudOverloadTestAccess;
     friend struct FPcdRateControlTestAccess;
+    friend struct FPcdFairBudgetTestAccess;
     friend class FUxr15OptionBindingsTest;
 #endif
 	friend class FSensorPlacementGateTest;
@@ -181,6 +182,8 @@ private:
 		double FirstInputSeconds = 0.0;
 		double FirstSerializationSeconds = 0.0;
 		double FirstSubmitSeconds = 0.0;
+		double RecentSubmitSampleSeconds = 0.0;
+		int64 RecentSubmitSampleCount = 0;
 		double LastLazSubmitSeconds = -DBL_MAX;
 		double NextSubmitAttemptSeconds = 0.0;
 		double OverloadResumeAtSeconds = 0.0;
@@ -204,7 +207,13 @@ private:
 		TArray<float> SerializationLatencySamples;
 		FString LastSlabSegment;
 		bool bHasInputFrameInSegment=false;
-		struct FSensorSequence { FString Segment;int64 Frame=0;bool bHave=false;double LastInputSeconds=0,InputPeriod=0,AdmissionCredit=0; };
+		struct FSensorSequence
+		{
+			FString Segment;int64 Frame=0;bool bHave=false;
+			double LastInputSeconds=0,InputPeriod=0,AdmissionCredit=0;
+			// Measured encoded body, including the header; no second point scan.
+			double FrameBytes=0,FairBytesPerSecond=0,BandwidthTokens=0,BandwidthUpdated=0;
+		};
 		TMap<FString,FSensorSequence> SensorSequences;
 		int32 ConfigRevision = 0;
 	};
@@ -232,6 +241,7 @@ private:
 	void StopForBodyLimit(const FString& StreamKey, FStreamRuntime& Runtime, const FString& Reason, int64 FrameId);
 	void RefreshQueueTelemetry(FStreamRuntime& Runtime);
 	void UpdatePointCloudRateControl(FStreamRuntime& Runtime,double Now,const FVirtualSensorHighThroughputProfile& Profile);
+	void UpdatePointCloudFairBudgets(double Now);
 	bool OmitPointCloudForRateControl(const FString& Key,FStreamRuntime& Runtime,const FVirtualSensorFrameEnvelope& Frame,double Now);
 	void LogPointCloudTransition(const FString& Key,FStreamRuntime& Runtime,const FString& Message,double Now);
 	bool RequeueReceiptForRetry(const FReceiptWait& Wait, const FString& Error);
@@ -262,6 +272,7 @@ private:
 	double TokenBucketBytes = 0.0;
 	double PointCloudTokenBucketBytes = 0.0;
 	double LastTokenUpdateSeconds = 0.0;
+	double NextFairBudgetUpdateSeconds = 0.0;
 	bool bEndingPlay = false;
 	bool bHasPointCloudRecoveryWork = false;
 	TOptional<bool> LastRawTransportAvailable;

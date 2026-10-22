@@ -74,6 +74,7 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     const auto* SessionService=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
     const auto Session=SessionService?SessionService->GetSlabSensorSessionStatus():FVirtualSlabSessionStatus();
     bool TransferFailure=false, PcdOverloadSuspended=false, PcdRateControlled=false;float PcdControlledHz=0;
+    float PcdRequired=0,PcdBudget=0,PcdActualHz=0;
     if(C&&C->StreamPublisherComponent)for(const auto& Stream:C->StreamPublisherComponent->GetStreamStatuses())
     {
         if(Stream.StreamKind!=EVirtualSensorStreamKind::PointCloud)continue;
@@ -83,6 +84,7 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
         PcdOverloadSuspended|=Stream.bOverloadSuspended;
         PcdRateControlled|=Stream.bEnabled&&Stream.bRateControlActive;
         if(Stream.bEnabled&&Stream.bRateControlActive)PcdControlledHz+=Stream.RateControlHz;
+        if(Stream.bEnabled){PcdRequired=FMath::Max(PcdRequired,Stream.PcdRequiredMiBPerSecond);PcdBudget=Stream.PcdBudgetMiBPerSecond;PcdActualHz+=Stream.RecentSubmittedHz;}
     }
     if(C&&C->StreamPublisherComponent)for(auto* A:C->GetSensorActors())if(IsValid(A)&&A->GetSensorKind()==EVirtualSensorKind::Lidar)
     {
@@ -155,6 +157,8 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
         GlobalStatus.Warning=SensorToolUiText::ConnectionWarning(HasServerSettings,Now-ServerDisconnectedSince,ConnectionExpected);
         GlobalStatus.bConnectionWarning=!GlobalStatus.Warning.IsEmpty();
     }
+    else if(!PcdOverloadSuspended&&PcdRequired>PcdBudget)
+        GlobalStatus.Warning=FText::FromString(FString::Printf(TEXT("PCD 필요 %.2f MiB/s > 예산 %.2f MiB/s · 실제 송신 합계 %.1f Hz (최근 약 1초)"),PcdRequired,PcdBudget,PcdActualHz));
     else GlobalStatus.Warning=SensorToolUiText::PcdWarning(PcdOverloadSuspended,PcdRateControlled,PcdControlledHz,SendDelayed,!Session.RequiredDataError.IsEmpty());
     if(const auto* T=GetWorld()->GetSubsystem<UAgentTestSetSubsystem>())if(T->HasItems())
         GlobalStatus.TestSet=FText::FromString(FString::Printf(TEXT("테스트셋 %s %d/%d"),T->IsComplete()?TEXT("완료"):T->IsPaused()?TEXT("일시정지"):T->HasBusyWork()?TEXT("대기"):TEXT("진행"),T->Completed(),T->Settings().Target));

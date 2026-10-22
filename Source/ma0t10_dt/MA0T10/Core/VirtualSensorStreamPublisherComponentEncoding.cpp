@@ -497,7 +497,12 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 	}
 	const FString SegmentKey=Frame.SlabContext.RunId+TEXT("|")+LexToString(Frame.SlabContext.Segment);
 	auto& Sequence=Runtime.SensorSequences.FindOrAdd(Frame.SensorId);
-	if(Sequence.Segment!=SegmentKey){Sequence=FStreamRuntime::FSensorSequence();Sequence.Segment=SegmentKey;}
+	if(Sequence.Segment!=SegmentKey)
+	{
+		// A segment restarts frame numbering, not the sender's byte reservation.
+		// Previously accepted FIFO bodies must keep draining across row changes.
+		Sequence.Segment=SegmentKey;Sequence.Frame=0;Sequence.bHave=false;Sequence.AdmissionCredit=0;
+	}
 	if (Sequence.bHave && Sequence.Frame == Frame.FrameId)
 	{
 		return;

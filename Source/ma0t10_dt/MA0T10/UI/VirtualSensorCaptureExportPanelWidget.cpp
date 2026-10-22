@@ -973,6 +973,7 @@ FString UVirtualSensorCaptureExportPanelWidget::GetLiveStreamSummaryText() const
 					SensorToolUiText::PcdResumeDetails(FMath::Max(0.0, (Status.EarliestOverloadResumeUtc - FDateTime::UtcNow()).GetTotalSeconds()), Status.ResumeCount).ToString();
 			Text += FString::Printf(TEXT("\n자동 재개 %lld회 · 과부하 폐기 %lld프레임"), Status.ResumeCount, Status.OverloadDiscardedFrameCount);
 			Text += FString::Printf(TEXT("\n송신율 조절로 생략 %lld프레임 · 조절 %s · 목표 %.1fHz"),Status.RateControlSkippedFrameCount,Status.bRateControlActive?TEXT("중"):TEXT("없음"),Status.RateControlHz);
+			Text += FString::Printf(TEXT("\nPCD 필요 %.2f MiB/s %s 예산 %.2f MiB/s · 배분 %.2f MiB/s · 실제 송신 %.1f Hz (최근 약 1초)"),Status.PcdRequiredMiBPerSecond,Status.PcdRequiredMiBPerSecond>Status.PcdBudgetMiBPerSecond?TEXT(">"):TEXT("≤"),Status.PcdBudgetMiBPerSecond,Status.PcdFairShareMiBPerSecond,Status.RecentSubmittedHz);
 			Text += FString::Printf(TEXT("\n[PCD Binary 무손실] 직렬화 %.1fHz(%lld개) · 최근/p95 %.2f/%.2fms · 전송 %.2fMiB/s · 점 %d/%d · %d bytes/frame · queue 입력/준비/receipt=%d/%d/%d · gap=%lld retry=%lld overload=%lld"),
 				Status.SerializationHz, Status.SerializedFrameCount, Status.LastSerializationLatencyMs, Status.SerializationP95LatencyMs, Status.SubmittedMegabytesPerSecond,
 				Status.LastPointCount, Status.LastSourcePointCount, Status.LastFrameBytes,

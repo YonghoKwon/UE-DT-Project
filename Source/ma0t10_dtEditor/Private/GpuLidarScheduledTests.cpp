@@ -95,7 +95,8 @@ public:
         }
         Wall.Add((Now-Last)*1000);Last=Now;Engine.Add(FApp::GetDeltaTime()*1000);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));Gpu.Add(FPlatformTime::ToMilliseconds(GGPUFrameTime));
         Slow+=FApp::GetDeltaTime()>.15;
-        if(Now-Measured<30)return false;
+        double MeasurementSeconds=30;FParse::Value(FCommandLine::Get(),TEXT("GpuLidarMeasurementSeconds="),MeasurementSeconds);
+        if(Now-Measured<FMath::Clamp(MeasurementSeconds,30.0,120.0))return false;
         auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("measurement_started_utc"),MeasurementUtc.ToIso8601());R->SetStringField(TEXT("measurement_ended_utc"),FDateTime::UtcNow().ToIso8601());R->SetNumberField(TEXT("seconds"),Now-Measured);R->SetNumberField(TEXT("engine_fps"),1000/FMath::Max(.001,Average(Engine)));
         R->SetNumberField(TEXT("callback_wall_fps"),1000/FMath::Max(.001,Average(Wall)));R->SetNumberField(TEXT("engine_counter_fps"),(GFrameCounter-FirstFrame)/(Now-Measured));
         R->SetNumberField(TEXT("engine_frame_p95_ms"),GpuScheduledP95(Engine));R->SetNumberField(TEXT("game_thread_mean_ms"),Average(Game));R->SetNumberField(TEXT("gpu_frame_mean_ms"),Average(Gpu));R->SetNumberField(TEXT("frames_over_150ms"),Slow);int WallSlow=0;for(double Ms:Wall)WallSlow+=Ms>150;R->SetNumberField(TEXT("callback_frames_over_150ms"),WallSlow);
@@ -145,6 +146,9 @@ public:
                 Output->SetNumberField(TEXT("input_queue"),S.InputQueueDepth);Output->SetNumberField(TEXT("prepared_queue"),S.PreparedQueueDepth);
                 Output->SetNumberField(TEXT("raw_outstanding_frames"),S.RawOutstandingFrameCount);Output->SetNumberField(TEXT("raw_outstanding_bytes"),S.RawOutstandingBytes);
                 Output->SetNumberField(TEXT("last_frame_bytes"),S.LastFrameBytes);Output->SetNumberField(TEXT("last_points"),S.LastPointCount);
+                Output->SetNumberField(TEXT("required_mib_s"),S.PcdRequiredMiBPerSecond);
+                Output->SetNumberField(TEXT("fair_share_mib_s"),S.PcdFairShareMiBPerSecond);
+                Output->SetNumberField(TEXT("points_times_33_times_requested_hz_mib_s"),S.LastPointCount*33.0*20/1048576.0);
                 Output->SetStringField(TEXT("message"),S.Message);Row->SetObjectField(TEXT("pcd"),Output);
                 Test->TestTrue(TEXT("PCD serialization >=10Hz"),(S.SerializedFrameCount-B.SerializedFrameCount)/Seconds>=10);
                 Test->TestTrue(TEXT("PCD socket submission >=10Hz"),(S.SubmittedFrameCount-B.SubmittedFrameCount)/Seconds>=10);

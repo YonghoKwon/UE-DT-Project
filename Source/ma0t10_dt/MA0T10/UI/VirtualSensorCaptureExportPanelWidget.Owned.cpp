@@ -278,6 +278,8 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
                 const int64 Errors=(State.bOverloaded?1:0)+State.EncodeFailureCount+State.BodyLimitRejectedCount+State.DeliveryFailureCount+State.RawDeliveryFailureCount+State.ConsumerValidationFailureCount;
                 const FString StateText=State.bOverloadSuspended?SensorToolUiText::PcdOverloadSuspended().ToString():State.bEnabled?TEXT("전송 중"):TEXT("중지");
                 WorkspaceStreamCards.Add(State.StreamKind,FString::Printf(TEXT("대상: %s · %s · 전송 %.1f건/s%s"),*GetSelectedSensorIdForStream(State.StreamKind),*StateText,State.SubmittedHz,Errors?TEXT(" · 오류: 진단에서 확인하세요"):TEXT("")));
+                if(State.StreamKind==EVirtualSensorStreamKind::PointCloud&&State.bEnabled&&State.PcdRequiredMiBPerSecond>State.PcdBudgetMiBPerSecond)
+                    WorkspaceStreamCards[State.StreamKind]+=FString::Printf(TEXT("\n필요 %.2f MiB/s > 예산 %.2f MiB/s · 실제 송신 %.1f Hz (최근 약 1초)"),State.PcdRequiredMiBPerSecond,State.PcdBudgetMiBPerSecond,State.RecentSubmittedHz);
             }
         }
         if(bWorkspaceLiveDetails)CachedLiveStreamSummary=GetLiveStreamSummaryText();
@@ -423,6 +425,12 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
 	    .OnCheckStateChanged_Lambda([this](ECheckBoxState Value){if(auto* P=SensorManager?SensorManager->StreamPublisherComponent.Get():nullptr)P->bAutoAdjustPointCloudSendRate=Value==ECheckBoxState::Checked;})
 	    .ToolTipText(LOCTEXT("RateControlHelp","측정 주기는 유지하고 서버 처리량에 맞춰 송신 프레임을 균등하게 생략합니다. 생략은 진단에 기록하며 데이터 필수 실행에서는 전송 실패로 판정합니다."))
 	    [SNewSensorTool(STextBlock).Text(LOCTEXT("RateControlOption","PCD 전송률 자동 조절"))]]
+	   +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SHorizontalBox)
+	    +SHorizontalBox::Slot().FillWidth(1)[SNewSensorTool(STextBlock).Text(LOCTEXT("PcdBudget","PCD 예산 (MiB/s)"))]
+	    +SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(SEditableTextBox).MinDesiredWidth(80)
+	     .ToolTipText(LOCTEXT("PcdBudgetHelp","현재 세션의 전체 PCD 송신 예산입니다. 기본 64 MiB/s. 측정 주기와 저장값은 유지합니다."))
+	     .Text_Lambda([this,Last=64.f,Cached=FText::AsNumber(64.f)]() mutable {auto* P=SensorManager?SensorManager->StreamPublisherComponent.Get():nullptr;const float Value=P?P->PointCloudBandwidthLimitMegabytesPerSecond:64.f;if(Value!=Last){Last=Value;Cached=FText::AsNumber(Value);}return Cached;})
+	     .OnTextCommitted_Lambda([this](const FText& T,ETextCommit::Type){float Value=0;if(LexTryParseString(Value,*T.ToString())&&FMath::IsFinite(Value))if(auto* P=SensorManager?SensorManager->StreamPublisherComponent.Get():nullptr)P->PointCloudBandwidthLimitMegabytesPerSecond=FMath::Clamp(Value,1.f,1024.f);})]]
 	   +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualPointCloudStreamFilterPreset>>).ComboBoxStyle(&FSensorOwnedPresentationStyle::ComboBox()).OptionsSource(&NativeStreamFilterOptions)
 	    .OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualPointCloudStreamFilterPreset> P){const TCHAR* N=P&&*P==EVirtualPointCloudStreamFilterPreset::TargetActorTag?TEXT("대상 물체만"):P&&*P==EVirtualPointCloudStreamFilterPreset::TagOrSemantic?TEXT("Tag·Semantic 조건"):P&&*P==EVirtualPointCloudStreamFilterPreset::SensorLocalRoi?TEXT("센서 로컬 ROI"):TEXT("전체 검출점");return SNewSensorTool(STextBlock).Text(FText::FromString(N));})
 	    .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualPointCloudStreamFilterPreset> P,ESelectInfo::Type){if(P)SetPointCloudStreamFilterPreset(*P);})
