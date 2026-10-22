@@ -18,17 +18,23 @@
 
 ## 1. 현재 상태 한눈에 보기
 
-### FOLLOWUP-28-26 — 기본80 MiB/s·RSS 후속 #26b 수용
+### FOLLOWUP-28-26 — FIFO·별칭 수정, 90초 통합 gate 차단
+
+독립 리뷰 수정: `f5d5a4e`는 최신 작은 PCD가 이전 큰 FIFO head를 영구 대기시키는 센서 토큰 상한을 수정한다. 해당 센서의 현재 FIFO head 바디까지 상한에 포함하고, 기존 refill 공정성·실제 바이트 차감·전역 버킷·예약 상한은 유지한다. Exact/Wildcard 1.32MB→66KB 회귀는 수정 전2 Fail, 수정 후 모두1.05초 버킷 시간 내 FIFO 송신접수·socket·receipt·외부33-byte/schema/checksum 검증 PASS, overload/교체0이다. `4c24907`은 `-CoilPhotoReport` 별칭을 복원하며 `-CoilReport`가 우선한다. 핵심5 Success, SensorStream/별칭38 Success·6조건부skip·0Fail이다. [증거](Saved/Reports/FOLLOWUP-28-26/r5/REVIEW-FIX.md).
+
+리뷰 구현4c24907의 새 표준 RT on ABAB 판정은 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.977644→59.990261(개선0.021035%), enginep9516.666900→16.666900ms(+0.000000%), GT7.009674→6.964796ms(-0.640233%)다. 이1+1 표준 상대비교는 별도3-PCD90초의≥59FPS/cadence FAIL을 대체하지 않는다. [manifest](Saved/Reports/verify/20261022T215939434Z/manifest.json).
+
+수정 후90초 표시형은 각19.322/19.277/19.244Hz·필요>예산 경고/송신생략/오류/150ms 초과0으로 요청 송신 목표를 충족했다. 다만58.133FPS에서 기존≥59FPS 및3프레임 획득cadence assertion6건이 FAIL이며 기준은 유지한다. 아래 f2b9526의 이전90초 통과와 구분한다. 현재 송신 통합 판정에는 이 실패가 남는다.
 
 기본 Ouster OS1-64 Rev7×3의 PCD 송신 예산을 사용자 승인(2026-10-23)으로64→80 MiB/s로 올렸다. 실측 필요량 약75.9 MiB/s가 근거이며 기존 지정값을 덮어쓰는 migration/Load/ini/SaveGame 변경은 없다. 기본값·UI·진단은 공통 상수를 사용하고, 직렬화된64 MiB/s 지정값 보존 회귀를 통과했다. 90초 localhost 외부수신은19.695/19.684/19.672Hz, 편차0.022Hz로 각19Hz 목표를 만족했다. 필요75.942/예산80 MiB/s, 필요>예산 경고·송신 생략·외부 오류·150ms 초과0, 표시형 D3D12/RT on 59.097FPS다. 관련 그룹84 Success/6조건부skip/0Fail 및 직접UI4항목을 확인했다. [측정·한계](Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md).
 
-현재80MiB/s 구현 f2b9526의 표준 RT on ABAB도 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.991854→59.989020(저하0.004725%), engine p9516.666900→16.666900ms(+0.000000%), GT6.863771→6.873585ms(+0.142974%)로 각각2% 이내다. 이 표준1+1 workload와 기본3대 PCD90초 절대수치는 구분한다. [manifest](Saved/Reports/verify/20261022T210412625Z/manifest.json).
+이전80MiB/s 구현 f2b9526의 표준 RT on ABAB도 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.991854→59.989020(저하0.004725%), engine p9516.666900→16.666900ms(+0.000000%), GT6.863771→6.873585ms(+0.142974%)로 각각2% 이내다. 이 표준1+1 workload와 기본3대 PCD90초 절대수치는 구분한다. [manifest](Saved/Reports/verify/20261022T210412625Z/manifest.json).
 
 RSS는 **user accepted unresolved RSS (2026-10-23)** 결정에 따라 미해결 후속 **#26b**로 이관한다. 원래 GPU5쌍의 절대·차이8MiB FAIL과 조사 한계는 보존하며 측정 통과로 바꾸지 않는다. 현재 머지 범위에서 수용한 미해결 사항으로 기록하고 Claude의 독립 검수로 진행한다. 코일 밝기 fixture 수정은 유지했다. [결과](Saved/Reports/FOLLOWUP-28-26/result.json)·[머지검사](Saved/Reports/FOLLOWUP-28-26/merge-check.json)·[RSS 원문](Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md). 회사/실장비 수용과 구분한다.
 
 ### FOLLOWUP-28-26 코일 자동화 보고 경로
 
-Acceptance/Variants/Presentation 테스트의 공통 루트는 `Saved/Reports/COIL`이며 `-CoilReport=<루트>`로 한 번에 지정한다. acceptance·variants 하위 폴더와 공통 progress·presentation.json을 같은 루트에 둔다. Presentation의 이전 `-CoilPhotoReport`도 이 옵션으로 통합했다. 제품 저장 슬롯과 데이터 형식은 바꾸지 않는다. 세 계열 실제 RHI 테스트와 지정루트53개 산출물을 확인했다. [경로 검증](Saved/Reports/FOLLOWUP-28-26/r2/coil-path-override/paths-verified.json).
+Acceptance/Variants/Presentation 테스트의 공통 루트는 `Saved/Reports/COIL`이며 `-CoilReport=<루트>`로 한 번에 지정한다. acceptance·variants 하위 폴더와 공통 progress·presentation.json을 같은 루트에 둔다. 기존 `-CoilPhotoReport`는 별칭으로 계속 받고, 둘 다 있으면 `-CoilReport`를 우선한다. 제품 저장 슬롯과 데이터 형식은 바꾸지 않는다. 세 계열 실제 RHI 테스트와 지정루트53개 산출물을 확인했다. [경로 검증](Saved/Reports/FOLLOWUP-28-26/r2/coil-path-override/paths-verified.json).
 
 ### FOLLOWUP-26b 해치 RSS — 사용자 수용한 미해결 후속
 

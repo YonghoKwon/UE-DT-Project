@@ -598,3 +598,17 @@ RSS는 **user accepted unresolved RSS (2026-10-23)**로 #26b에 이관하고 머
 
 
 현재80MiB/s 구현 f2b9526의 표준 RT on ABAB도 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.991854→59.989020(저하0.004725%), engine p9516.666900→16.666900ms(+0.000000%), GT6.863771→6.873585ms(+0.142974%)로 각각2% 이내다. 이 표준1+1 workload와 기본3대 PCD90초 절대수치는 구분한다. [실행 manifest](../Saved/Reports/verify/20261022T210412625Z/manifest.json)·[ABAB 원시표](../Saved/Reports/verify/20261022T210412625Z/perf/manifest.json). 모든12회 valid, 동일 instrument/map/의존성, 다른Editor0이다. 이후 결과 문서만 커밋하며 구현 소스는 f2b9526과 동일하다.
+
+
+## 2026-10-23 — FOLLOWUP-28-26 리뷰 수정: FIFO head·CoilPhotoReport
+
+`f5d5a4e`: 최근 직렬화 바디가 작아져도 이전 큰 FIFO head가 충분한 센서 토큰을 모으도록 현재 head 바디 크기를 센서 상한에 포함했다. 부채/송신 bypass 없이 기존 실제바이트 차감·refill 분배·전역80MiB/s·128/64MiB 예약·20프레임 상한·33-byte 계약을 유지한다. 현재 송신 가능한 FIFO head의 소유 센서만 상한을 올려 다른 센서의 burst를 확대하지 않는다. `PumpPreparedMessages`의 실제 바이트 gate는 유지한다.
+
+새 Exact/Wildcard 회귀에 수정 전 RateControl 소스만 대입한 대조는 각각 FIFO3초 내 송신접수 및 Raw접수2 assertion이 실패했다. 수정본은 큰바디1,320,436/1,320,439B·최신66,434/66,437B에서 둘 다1.05초 버킷 시간에 FIFO가 비었고 Raw socket2/receipt2 및 외부수신2·33-byte/schema/checksum 검증을 통과했다. overload/교체0, 기존 공정성 및 기본80/기존64 복원 검사 PASS다. 최초 fixture의 CSV 기본값 상속은 PCD로 명시했고, Editor world의 GameInstance 소비자 dispatch 부재를 내부수신으로 오인한 assertion은 socket/receipt+외부 검증으로 바로잡았다. 초기 실패 원문도 보존했다. 실제 PIE 내부검증 수신은 별도90초 결과를 따른다.
+
+`4c24907`: 공통 보고 Root는 `-CoilPhotoReport`를 별칭으로 복원하고 `-CoilReport`에 우선순위를 준다. 기본/새옵션/구옵션/공백 포함 quoted경로/양쪽 순서의 우선순위 회귀를 통과했다. 핵심5 Success, SensorStream+별칭38 Success/6조건부skip/0Fail. [리뷰 증거](../Saved/Reports/FOLLOWUP-28-26/r5/REVIEW-FIX.md).
+
+요청된 단1회 Rev7×3/1024×64/20Hz요청/기본80MiB/s/준비10초+90초/1920×1080표시형D3D12·HWRT·프로젝트RT on/무자격 localhost receipt+echo: 외부19.321789/19.277345/19.244013Hz, 편차0.077776Hz, 필요75.955696/최대76.003471MiB/s, 경고/생략/외부gap·중복·invalid/150ms 초과0. 평균58.132591FPS·framep95 20.108599ms·GT12.760332ms다. 새≥19Hz/경고0 목표는 충족했으나 기존≥59FPS 및 엔진3프레임당 획득 assertion이 각센서에서 실패(6assertion/1test FAIL)했다. 추가90초 재실행/기준 완화/실패 삭제 없이 결과에 유지한다. 다른Editor0이다. RSS는 user accepted unresolved RSS (2026-10-23), #26b 후속 수용 상태와 원래8MiB/5쌍 FAIL을 유지한다.
+
+
+리뷰 구현4c24907의 새 표준 RT on ABAB 판정은 PASS다. be29ab4 대비 SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3(A6/B6) 중앙값 FPS59.977644→59.990261(개선0.021035%), enginep9516.666900→16.666900ms(+0.000000%), GT7.009674→6.964796ms(-0.640233%)다. 이1+1 표준 상대비교는 별도3-PCD90초의≥59FPS/cadence FAIL을 대체하지 않는다. [manifest](../Saved/Reports/verify/20261022T215939434Z/manifest.json)·[12회 원시표](../Saved/Reports/verify/20261022T215939434Z/perf/manifest.json). 모든12회 valid, 동일instrument/map/의존성, 다른Editor0. 이후 문서만 커밋하며 구현 소스는4c24907과 동일하다.
