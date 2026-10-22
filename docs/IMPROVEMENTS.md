@@ -4,6 +4,10 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## FOLLOWUP-28-26 최종 gate — 차단
+
+#28기본Rev7×3/90초 각16.730~16.741Hz·편차0.011Hz,코일보고루트3계열,Game/WBP7/어휘/layer0/guard와RT on ABAB12회2%는통과했다. 그러나 #26기본5쌍8MiB 실패와release의미변경ThreeTierAddingCapturesRhi30%근흑색assertion실패가남아종합차단이다. 전체D3D12 391Success/40조건부skip/1Fail. 단독재현성공으로결합실패를덮지않는다. [result](../Saved/Reports/FOLLOWUP-28-26/result.json)·[merge-check](../Saved/Reports/FOLLOWUP-28-26/merge-check.json). 검증된RSS수정안/캡처실패 후속범위결정이필요하며기준완화·머지승인은아니다.
+
 ## FOLLOWUP-28-26 — 코일 테스트 보고 루트 정리
 
 세 테스트 계열은 공통상수 `Reports/COIL`과 `-CoilReport`를 사용한다. acceptance/variants/progress/presentation.json이 같은 루트를 따르며 작업ID 하드코딩을 제거했다. 빌드 및 세 계열 RHI3 Success·지정루트 산출물53개를 확인했다. 제품 로직·자산·저장 슬롯 변경0. [검증](../Saved/Reports/FOLLOWUP-28-26/r2/coil-path-override/paths-verified.json).

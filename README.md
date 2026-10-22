@@ -18,6 +18,12 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### FOLLOWUP-28-26 최종 검증 — RSS·release 차단
+
+현재 코드67f1a91의 기본Rev7×3/90초 localhost 재검증은16.741/16.730/16.730Hz·편차0.011Hz로 각10Hz·공정성 기준을 통과했다. Game Development·WBP7 메모리컴파일/저장0·현재어휘·layer0→0·DTCore guard를 확인했다. be29ab4 대비 RT on 표준ABAB12회는FPS59.9870→59.9738(저하0.0221%),engine p95 동일16.6669ms,GT7.0021→7.1051ms(+1.4715%)로2% PASS다.
+
+**종합 머지 gate는 차단이다.** #26 기본5쌍의 절대·차이8MiB 실패가 남았고,release 집중/전체에서 미변경 `ThreeTierAddingCapturesRhi`의 근흑색30% assertion이 반복실패했다. 단독1280실행은29.9618%로통과했으나 결합실패를 덮지 않는다. 독립 전체D3D12는391 Success/40조건부skip/1Fail이다. 기준·카메라·해상도를바꾸지않았다. [결과](Saved/Reports/FOLLOWUP-28-26/result.json)·[머지검사](Saved/Reports/FOLLOWUP-28-26/merge-check.json)·[RSS](Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md)를 따른다. 회사/실장비 수용과 구분한다.
+
 ### FOLLOWUP-28-26 코일 자동화 보고 경로
 
 Acceptance/Variants/Presentation 테스트의 공통 루트는 `Saved/Reports/COIL`이며 `-CoilReport=<루트>`로 한 번에 지정한다. acceptance·variants 하위 폴더와 공통 progress·presentation.json을 같은 루트에 둔다. Presentation의 이전 `-CoilPhotoReport`도 이 옵션으로 통합했다. 제품 저장 슬롯과 데이터 형식은 바꾸지 않는다. 세 계열 실제 RHI 테스트와 지정루트53개 산출물을 확인했다. [경로 검증](Saved/Reports/FOLLOWUP-28-26/r2/coil-path-override/paths-verified.json).

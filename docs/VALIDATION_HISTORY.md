@@ -567,3 +567,11 @@ CPU1쌍의디깅RSS+9.710938MiB/차이−9.507813MiB도 별도 기록한다. LLM
 ## 2026-10-23 — FOLLOWUP-28-26 코일 보고 경로 정리
 
 CoilLoadingAcceptanceTests/VariantsTests/PresentationTests의 기본 작업ID 경로를 공통CoilTestReportPaths의 `Reports/COIL` 및 `-CoilReport`로 통합했다. Acceptance는루트/acceptance,Variants는루트/variants,공통progress와presentation.json은루트직하를 쓴다. 이전 `CoilPhotoReport`는 `CoilReport`로 대체한다. 지정루트 실제D3D12에서 RhiWorkflow/HRCRVisualRhi/Presentation.MixedAndQuayRhi3개 Success·프로세스exit0·산출물53개를 확인했다. 후처리Where-Object 문법 오류는 원본3Success/exit0를 별도검사해 보정했고 테스트 결과를 변경/재실행하지 않았다. [원본](../Saved/Reports/FOLLOWUP-28-26/r2/coil-path-override/automation/index.json)·[경로목록](../Saved/Reports/FOLLOWUP-28-26/r2/coil-path-override/paths-verified.json). 제품코드/자산/저장계약 변경0이며 최종release의 기본루트도 별도확인한다.
+
+## 2026-10-23 — FOLLOWUP-28-26 최종 통합 gate 및 한계
+
+코드67f1a91/DTCore b2504d1,기준be29ab4. GameDevelopment exit0,EditorDevelopment exit0,WBP7메모리컴파일·asset저장0·현재렌더어휘 PASS. 1280×720 집중release는2회 동일ThreeTierAddingCapturesRhi 근흑색30%assertion 실패. 실패원본30.300347%,단독29.961806%Success,전체결합에서도동일실패. 카메라/밝기/threshold/해상도변경0이며단독성공을release통과로표시하지않는다. 독립전체D3D12:391Success/40조건부skip/1Fail. [전체원문](../Saved/Reports/FOLLOWUP-28-26/r2/full-d3d12/MA0T10/index.json)·[정규집계](../Saved/Reports/FOLLOWUP-28-26/r2/full-d3d12/normalized-summary.json). 초기후처리검사스크립트의문법/인자오류는실제exit0·저장원문검사로보정했으며테스트결과를변경하지않았다.
+
+기본Rev7×3·1024×64·20Hz요청·준비10초/90초·1920×1080실제오프스크린D3D12/RT on·PCD33-byte/FIFO/기본64MiB/s·localhost무자격STOMP receipt+echo의커밋상태재검증:외부16.741/16.730/16.730Hz,편차0.011Hz,실제63.520/필요75.885MiB/s,오류0. 기준선편차6.544Hz 대비축소했다. [대조](../Saved/Reports/FOLLOWUP-28-26/r2/pcd-comparison.json).
+
+정식 `verify.ps1 -Level perf -BaseCommit be29ab4 -PerfRayTracing ProjectDefault`:SlabScenarioValidationMap/1Camera+1LiDAR/1920×1080표시형/준비10초+60초/ABAB×3=12회(A6/B6)/동일instrument·map·의존성. 모두유효. 중앙값FPS59.9870279→59.9737925(저하0.0220638%),enginep95 16.6669004→동일,GT7.0020733→7.1051102ms(+1.4715195%)로2%PASS. [manifest](../Saved/Reports/verify/20261022T195001322Z/manifest.json)·[원시 프레임·판정](../Saved/Reports/verify/20261022T195001322Z/perf/manifest.json). 원래RSS8MiB·release실패는별도로유지하며성능PASS로대체하지않는다.
