@@ -39,9 +39,10 @@ class FHatchShowcaseRun final:public IAutomationLatentCommand
 {
  FAutomationTestBase* T;TWeakObjectPtr<AShipHatchMonitorHost> Host;
  double Started=FPlatformTime::Seconds(),Changed=0;int Shot=0,Digs=0,CapturedImages=0,FloorProbe=-1;bool Initialized=false,Ui=false,SettingsOpen=false,Digging=false,Polish=false;
+ const bool Presentation=FParse::Param(FCommandLine::Get(),TEXT("HatchPresentationOnly"));
  TArray<TWeakObjectPtr<UPrimitiveComponent>> OwnedPlayerHides;
  FVector CameraLocal,AimLocal;double BeforeVolume=0;uint32 BeforeHash=0,OpenGrabHash=0;
- const TCHAR* Names[27]={TEXT("00-quay-vessel-overview"),TEXT("01-vessel-gtsu-side"),TEXT("02-ref4-composition"),TEXT("03-portal-boom-machine"),TEXT("04-covers-seaward"),TEXT("05-covers-landward"),TEXT("06-hopper-inside-seaward-leg"),TEXT("07-clamshell-open"),TEXT("08-clamshell-closed"),TEXT("09-iron-surface"),TEXT("10-coal-surface"),TEXT("11-three-sensor-colors"),TEXT("12-coverage-heatmap"),TEXT("13-measured-section"),TEXT("14-top-plan"),TEXT("15-settings-three-panels"),TEXT("16-lidar-mid360"),TEXT("17-lidar-avia"),TEXT("18-lidar-os1-64"),TEXT("19-lidar-xt32"),TEXT("20-lidar-vlp16"),TEXT("21-dig-before"),TEXT("22-dig-after"),TEXT("23-exposed-floor-close"),TEXT("24-exposed-floor-gpu-points"),TEXT("25-full-load-corner"),TEXT("27-exposed-floor-section")};
+ const TCHAR* Names[29]={TEXT("00-quay-vessel-overview"),TEXT("01-vessel-gtsu-side"),TEXT("02-ref4-composition"),TEXT("03-portal-boom-machine"),TEXT("04-covers-seaward"),TEXT("05-covers-landward"),TEXT("06-hopper-inside-seaward-leg"),TEXT("07-clamshell-open"),TEXT("08-clamshell-closed"),TEXT("09-iron-surface"),TEXT("10-coal-surface"),TEXT("11-three-sensor-colors"),TEXT("12-coverage-heatmap"),TEXT("13-measured-section"),TEXT("14-top-plan"),TEXT("15-settings-three-panels"),TEXT("16-lidar-mid360"),TEXT("17-lidar-avia"),TEXT("18-lidar-os1-64"),TEXT("19-lidar-xt32"),TEXT("20-lidar-vlp16"),TEXT("21-dig-before"),TEXT("22-dig-after"),TEXT("23-exposed-floor-close"),TEXT("24-exposed-floor-gpu-points"),TEXT("25-full-load-corner"),TEXT("27-exposed-floor-section"),TEXT("pres-01-gtsu-ship-normal"),TEXT("pres-02-gtsu-ship-points")};
  TSharedRef<FJsonObject> LidarMetrics(AShipHatchSimulation& S,int Index)
  {
   auto R=MakeShared<FJsonObject>();const auto* C=S.SensorAt(Index)->ScanComponent.Get();const auto F=C->GetLastFrameSnapshot();
@@ -66,6 +67,8 @@ class FHatchShowcaseRun final:public IAutomationLatentCommand
   if(F){R->SetArrayField(TEXT("acquisition_origin_hold_m"),ShowcaseVector(S.GetActorTransform().InverseTransformPosition(F->AcquisitionTransform.GetLocation())*.01));const auto Rot=F->AcquisitionTransform.Rotator();R->SetArrayField(TEXT("acquisition_pitch_yaw_roll"),ShowcaseVector(FVector(Rot.Pitch,Rot.Yaw,Rot.Roll)));}
   return R;
  }
+ FString ShotName() const
+ {const auto Size=FinalAcceptanceViewportSize();return FString(Names[Shot])+(Presentation?FString::Printf(TEXT("-%dx%d"),Size.X,Size.Y):TEXT(""));}
  void Regenerate(AShipHatchSimulation& S,bool Coal)
  {S.Seed=19019;S.FillMin=S.FillMax=65;S.bCoal=Coal;T->TestTrue(TEXT("showcase regenerates through production heightfield"),S.Regenerate(false));}
  void Colors(UShipHatchMonitorWidget& M)
@@ -101,9 +104,17 @@ class FHatchShowcaseRun final:public IAutomationLatentCommand
   if(Shot==24){M.SelectView(1);Colors(M);CameraLocal=FVector(25,-5,65);AimLocal=FVector(0,2,2);}
   if(Shot==26){M.SelectView(4);M.SetSection(true,.5);}
   if(Shot==25){S.Seed=19019;S.bCoal=false;S.FillMin=S.FillMax=95;S.Regenerate(false);S.ShowUnloader(false);CameraLocal=FVector(3.1,3.8,28);AimLocal=FVector(9.4,10.9,21.8851357283);Camera->SetFieldOfView(55);}
+  if(Shot==27||Shot==28)
+  {
+   // Identical lens and pose for the normal / actual three-sensor HWRT pair.
+   S.SetGrabVisible(true);
+   T->TestTrue(TEXT("presentation grab clears the independent cab"),S.TrySetGrabPose(FVector(0,4,S.Surface().Height(0,4)+2),.65));
+   CameraLocal=FVector(65,-80,92);AimLocal=FVector(0,-19,28);Camera->SetFieldOfView(58);
+   if(Shot==28){M.SelectView(1);Colors(M);}
+  }
   if(!Ui||Shot==11)M.SetModelPresentation(true);
   M.SetRenderOpacity(Ui?1:0);
-  if(Shot==11||(Shot>=16&&Shot<=20)||Shot==24)if(auto* PC=M.GetOwningPlayer())if(auto* Cab=S.CabPrimitive())
+  if(Shot==11||(Shot>=16&&Shot<=20)||Shot==24||Shot==28)if(auto* PC=M.GetOwningPlayer())if(auto* Cab=S.CabPrimitive())
   {
    TInlineComponentArray<UPrimitiveComponent*> Parts(Cab->GetOwner());for(auto* C:Parts)if(!PC->HiddenPrimitiveComponents.Contains(C)){PC->HiddenPrimitiveComponents.Add(C);OwnedPlayerHides.Add(C);}
    T->TestTrue(TEXT("pure point view keeps actual rig collision unchanged"),Cab->IsQueryCollisionEnabled());
@@ -128,7 +139,8 @@ class FHatchShowcaseRun final:public IAutomationLatentCommand
   bool Ok=false;
   if(Ui)Ok=FSlateApplication::Get().TakeScreenshot(W.GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,Size);
   else{auto* V=W.GetGameViewport()->Viewport;const auto N=V->GetSizeXY();Size=FIntVector(N.X,N.Y,0);Ok=V->ReadPixels(Pixels);}
-  if(!T->TestTrue(TEXT("showcase reads actual1920x1080 RHI pixels"),Ok&&Size.X==1920&&Size.Y==1080))return false;
+  const auto Expected=FinalAcceptanceViewportSize();
+  if(!T->TestTrue(TEXT("showcase reads actual requested-resolution RHI pixels"),Ok&&Size.X==Expected.X&&Size.Y==Expected.Y))return false;
   int Visible=0;for(int I=0;I<Pixels.Num();I+=16)Visible+=Pixels[I].R>20||Pixels[I].G>20||Pixels[I].B>20;
   // A single sensor's sparse returns cover fewer pixels than a solid scene.
   // Keep a nonblank test for those frames and inspect their native PNGs too.
@@ -136,7 +148,7 @@ class FHatchShowcaseRun final:public IAutomationLatentCommand
   if(!T->TestTrue(TEXT("showcase frame is populated"),Visible>MinimumVisible))return false;
   TArray64<uint8> Png;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,Png);
   IFileManager::Get().MakeDirectory(*ShowcaseRoot(),true);
-  if(!T->TestTrue(TEXT("showcase PNG written"),FFileHelper::SaveArrayToFile(Png,*(ShowcaseRoot()/(FString(Names[Shot])+TEXT(".png"))))))return false;
+  if(!T->TestTrue(TEXT("showcase PNG written"),FFileHelper::SaveArrayToFile(Png,*(ShowcaseRoot()/(ShotName()+TEXT(".png"))))))return false;
   auto R=MakeShared<FJsonObject>();FString Commit;FParse::Value(FCommandLine::Get(),TEXT("HatchSourceCommit="),Commit);
   R->SetStringField(TEXT("source_commit"),Commit);R->SetStringField(TEXT("utc"),FDateTime::UtcNow().ToIso8601());R->SetStringField(TEXT("name"),Names[Shot]);
   R->SetStringField(TEXT("kind"),TEXT("automated offscreen D3D12; no Windows input; native RHI pixels"));R->SetStringField(TEXT("rhi"),GDynamicRHI?GDynamicRHI->GetName():TEXT("none"));
@@ -165,7 +177,7 @@ class FHatchShowcaseRun final:public IAutomationLatentCommand
    };
    Outline(S.OpeningLength,S.OpeningWidth,S.HoldDepth+S.CoamingHeight);R->SetArrayField(TEXT("coaming_outline_screen_px"),Lines);Lines.Reset();Outline(S.HoldLength,S.HoldWidth,0);R->SetArrayField(TEXT("hold_floor_outline_screen_px"),Lines);
   }
-  ++CapturedImages;ShowcaseJson(FString(Names[Shot])+TEXT(".json"),R);return true;
+  ++CapturedImages;ShowcaseJson(ShotName()+TEXT(".json"),R);return true;
  }
 public:
  explicit FHatchShowcaseRun(FAutomationTestBase* Test):T(Test){}
@@ -179,6 +191,7 @@ public:
   if(!Initialized)
   {
    if(!T->TestTrue(TEXT("showcase requires actual D3D12 HWRT"),GDynamicRHI&&FString(GDynamicRHI->GetName())==TEXT("D3D12")&&SensorOwnedRayTracing::IsAvailable()))return true;
+   if(Presentation){Shot=27;for(int I=0;I<3;++I)S.SetFieldSensor(I,true,I==0?6:1);}
    Regenerate(S,false);M.SetFontPercent(100);Initialized=true;Frame(*Host,S,M);return false;
   }
   if(FloorProbe>=0)
@@ -201,15 +214,22 @@ public:
   }
   if(Shot>=16&&Shot<=20)for(int I=0;I<3;++I)
   {auto* V=S.SensorAt(I)->VisualizationComponent.Get();auto Settings=V->GetVisualizationSettings();if(Settings.bShowWorldPointCloud!=(I==0)||Settings.PointSize!=6){Settings.bShowWorldPointCloud=I==0;Settings.PointSize=6;V->SetVisualizationSettings(Settings);}}
-  if(!Ui)Host->SetSceneRect(FSlateRect(0,0,1920,1080),FVector2D(1920,1080),true);
+  if(Presentation&&Shot==28)for(int I=0;I<3;++I)
+  {
+   auto* V=S.SensorAt(I)->VisualizationComponent.Get();auto Settings=V->GetVisualizationSettings();
+   const float PointSize=4.f*FinalAcceptanceViewportSize().X/1920.f;
+   if(!Settings.bShowWorldPointCloud||Settings.PointSize!=PointSize){Settings.bShowWorldPointCloud=true;Settings.PointSize=PointSize;V->SetVisualizationSettings(Settings);}
+  }
+  if(!Ui){const auto Size=FinalAcceptanceViewportSize();Host->SetSceneRect(FSlateRect(0,0,Size.X,Size.Y),FVector2D(Size.X,Size.Y),true);}
   if(Now-Changed<2.5||!S.HasFreshMeasurement())return false;
   if(!Capture(*W,*Host,S,M))return true;
+  if(Presentation&&Shot==27){++Shot;Frame(*Host,S,M);return false;}
   if(Shot==21){BeforeHash=S.Surface().Hash();BeforeVolume=S.Surface().Volume;Digging=true;++Shot;return false;}
   if(Shot==22){FloorProbe=0;S.SetFieldSensor(0,true,3);Changed=Now;return false;}
   if(Shot==24){Shot=26;Frame(*Host,S,M);return false;}
   if(Shot==26){Shot=25;Frame(*Host,S,M);return false;}
   if(Shot<25){++Shot;Frame(*Host,S,M);return false;}
-  if(auto* PC=M.GetOwningPlayer())for(const auto& C:OwnedPlayerHides)PC->HiddenPrimitiveComponents.RemoveSingle(C);OwnedPlayerHides.Reset();M.SetRenderOpacity(1);auto R=MakeShared<FJsonObject>();R->SetBoolField(TEXT("valid"),!T->HasAnyErrors());R->SetNumberField(TEXT("images"),CapturedImages);R->SetNumberField(TEXT("production_digs"),Digs);ShowcaseJson(TEXT("capture-result.json"),R);return true;
+  if(auto* PC=M.GetOwningPlayer())for(const auto& C:OwnedPlayerHides)PC->HiddenPrimitiveComponents.RemoveSingle(C);OwnedPlayerHides.Reset();M.SetRenderOpacity(1);auto R=MakeShared<FJsonObject>();R->SetBoolField(TEXT("valid"),!T->HasAnyErrors());R->SetNumberField(TEXT("images"),CapturedImages);R->SetNumberField(TEXT("production_digs"),Digs);const auto Size=FinalAcceptanceViewportSize();ShowcaseJson(Presentation?FString::Printf(TEXT("capture-result-%dx%d.json"),Size.X,Size.Y):TEXT("capture-result.json"),R);return true;
  }
 };
 }
