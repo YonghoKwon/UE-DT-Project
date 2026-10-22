@@ -1,0 +1,257 @@
+{
+  "task_id": "GPU-LIDAR-01",
+  "branch": "feat/gpu-lidar-rt",
+  "commits": [
+    "82bdfff851b58b3749a6b4b45b9c36d254fb7116",
+    "9ac3d49a217fc693d9e639b87fc153e7c0a5e088"
+  ],
+  "base_commit": "0db8246bc573eaee88a2462da077d893fb1ada16",
+  "gates": {
+    "quick": {
+      "status": "PASS",
+      "manifest": "",
+      "note": "9ac3d49 RESULT.md reports quick PASS; original quick manifest not specified."
+    },
+    "feature": {
+      "status": "PASS",
+      "manifest": "",
+      "note": "Latest release focused suite: 20 Success / 0 Fail / 0 Skip."
+    },
+    "release": {
+      "status": "PASS",
+      "manifest": "C:/Unreal Projects/ma0t10_dt/Saved/Reports/verify/20261021T220617660Z/manifest.json",
+      "note": "9ac3d49 focused20 + full345 Success / 40 conditional Skip / 0 Fail; WBP7 memory compile, no save."
+    },
+    "perf": {
+      "status": "FAIL",
+      "manifest": "C:/Unreal Projects/ma0t10_dt/Saved/Reports/verify/20261021T212651740Z/manifest.json",
+      "note": "Formal ProjectDefault ABAB baseline 0db8246 vs product82bdfff: GT +2.536561% exceeds 2%; 12 valid visible runs, warmup10s/measure60s.",
+      "rt_mode": "ProjectDefault"
+    },
+    "layer": {
+      "status": "PASS",
+      "manifest": "",
+      "note": "Latest report violations0 / allowlist0 -> 0."
+    },
+    "dtcore_guard": {
+      "status": "PASS",
+      "manifest": "",
+      "note": "Latest report b2504d1 clean; example does not validate current worktree."
+    },
+    "protected_paths": {
+      "status": "PASS",
+      "manifest": "",
+      "note": "RESULT/DONE final audit: protected paths unchanged in task, original personal43 files restored."
+    }
+  },
+  "measurements": [
+    {
+      "name": "FPS degradation (59.982648 -> 59.965920)",
+      "condition": {
+        "map": "SlabScenarioValidationMap",
+        "resolution": "1920x1080 visible",
+        "rhi": "D3D12",
+        "rt": "baseline ProjectDefault off -> candidate ProjectDefault on",
+        "transport": "Original standard ABAB profile; PCD throughput is measured separately",
+        "sensors": "1 Camera + 1 LiDAR; 12 runs A6/B6; warmup10s/measure60s"
+      },
+      "value": 0.027888,
+      "unit": "%",
+      "threshold": {
+        "operator": "<=",
+        "value": 2
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "Engine frame p95 increase (16.666900 -> 16.666900 ms)",
+      "condition": {
+        "map": "SlabScenarioValidationMap",
+        "resolution": "1920x1080 visible",
+        "rhi": "D3D12",
+        "rt": "baseline ProjectDefault off -> candidate ProjectDefault on",
+        "transport": "Original standard ABAB profile; PCD throughput is measured separately",
+        "sensors": "1 Camera + 1 LiDAR; 12 runs A6/B6; warmup10s/measure60s"
+      },
+      "value": 0,
+      "unit": "%",
+      "threshold": {
+        "operator": "<=",
+        "value": 2
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "Game thread increase (6.563057 -> 6.729533 ms)",
+      "condition": {
+        "map": "SlabScenarioValidationMap",
+        "resolution": "1920x1080 visible",
+        "rhi": "D3D12",
+        "rt": "baseline ProjectDefault off -> candidate ProjectDefault on",
+        "transport": "Original standard ABAB profile; PCD throughput is measured separately",
+        "sensors": "1 Camera + 1 LiDAR; 12 runs A6/B6; warmup10s/measure60s"
+      },
+      "value": 2.536561,
+      "unit": "%",
+      "threshold": {
+        "operator": "<=",
+        "value": 2
+      },
+      "status": "FAIL"
+    },
+    {
+      "name": "native boom validated receive",
+      "condition": {
+        "map": "ShipHatchTestMap runtime fixture (RESULT inherited PCD profile)",
+        "resolution": "1920x1080 offscreen",
+        "rhi": "D3D12",
+        "rt": "ProjectDefault on / Auto -> actual HWRT",
+        "transport": "credential-free localhost STOMP receipt+echo; binary PCD33/stride1/FIFO/64MiB/s; file off",
+        "sensors": "native x3, full density, requested20Hz each; boom; warmup10s/measure30s; commit9ac3d49"
+      },
+      "value": 19.924,
+      "unit": "Hz",
+      "threshold": {
+        "operator": ">=",
+        "value": 10
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "native cab-left validated receive",
+      "condition": {
+        "map": "ShipHatchTestMap runtime fixture (RESULT inherited PCD profile)",
+        "resolution": "1920x1080 offscreen",
+        "rhi": "D3D12",
+        "rt": "ProjectDefault on / Auto -> actual HWRT",
+        "transport": "credential-free localhost STOMP receipt+echo; binary PCD33/stride1/FIFO/64MiB/s; file off",
+        "sensors": "native x3, full density, requested20Hz each; cab-left; warmup10s/measure30s; commit9ac3d49"
+      },
+      "value": 19.991,
+      "unit": "Hz",
+      "threshold": {
+        "operator": ">=",
+        "value": 10
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "native cab-right validated receive",
+      "condition": {
+        "map": "ShipHatchTestMap runtime fixture (RESULT inherited PCD profile)",
+        "resolution": "1920x1080 offscreen",
+        "rhi": "D3D12",
+        "rt": "ProjectDefault on / Auto -> actual HWRT",
+        "transport": "credential-free localhost STOMP receipt+echo; binary PCD33/stride1/FIFO/64MiB/s; file off",
+        "sensors": "native x3, full density, requested20Hz each; cab-right; warmup10s/measure30s; commit9ac3d49"
+      },
+      "value": 19.958,
+      "unit": "Hz",
+      "threshold": {
+        "operator": ">=",
+        "value": 10
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "OS1-64 boom validated receive",
+      "condition": {
+        "map": "ShipHatchTestMap runtime fixture (RESULT inherited PCD profile)",
+        "resolution": "1920x1080 offscreen",
+        "rhi": "D3D12",
+        "rt": "ProjectDefault on / Auto -> actual HWRT",
+        "transport": "credential-free localhost STOMP receipt+echo; binary PCD33/stride1/FIFO/64MiB/s; file off",
+        "sensors": "OS1-64 x3, full density, requested20Hz each; boom; warmup10s/measure30s; commit9ac3d49"
+      },
+      "value": 19.662,
+      "unit": "Hz",
+      "threshold": {
+        "operator": ">=",
+        "value": 10
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "OS1-64 cab-left validated receive",
+      "condition": {
+        "map": "ShipHatchTestMap runtime fixture (RESULT inherited PCD profile)",
+        "resolution": "1920x1080 offscreen",
+        "rhi": "D3D12",
+        "rt": "ProjectDefault on / Auto -> actual HWRT",
+        "transport": "credential-free localhost STOMP receipt+echo; binary PCD33/stride1/FIFO/64MiB/s; file off",
+        "sensors": "OS1-64 x3, full density, requested20Hz each; cab-left; warmup10s/measure30s; commit9ac3d49"
+      },
+      "value": 13.73,
+      "unit": "Hz",
+      "threshold": {
+        "operator": ">=",
+        "value": 10
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "OS1-64 cab-right validated receive",
+      "condition": {
+        "map": "ShipHatchTestMap runtime fixture (RESULT inherited PCD profile)",
+        "resolution": "1920x1080 offscreen",
+        "rhi": "D3D12",
+        "rt": "ProjectDefault on / Auto -> actual HWRT",
+        "transport": "credential-free localhost STOMP receipt+echo; binary PCD33/stride1/FIFO/64MiB/s; file off",
+        "sensors": "OS1-64 x3, full density, requested20Hz each; cab-right; warmup10s/measure30s; commit9ac3d49"
+      },
+      "value": 19.662,
+      "unit": "Hz",
+      "threshold": {
+        "operator": ">=",
+        "value": 10
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "RT on total GPU memory median (single pair; desktop/apps included, not exclusive VRAM)",
+      "condition": {
+        "map": "SensorTestMap existing user worktree; opened only, never saved",
+        "resolution": "1920x1080 offscreen",
+        "rhi": "D3D12",
+        "rt": "ProjectDefault on",
+        "transport": "Not specified in the source single-pair report; no PCD throughput claim",
+        "sensors": "1 Camera + 1 LiDAR CPU fallback; warmup10s/measure30s; commit82bdfff"
+      },
+      "value": 6193.0,
+      "unit": "MiB",
+      "status": "INFO"
+    },
+    {
+      "name": "Company real-device throughput acceptance (not performed)",
+      "condition": {
+        "map": "Field environment not specified",
+        "resolution": "Not measured",
+        "rhi": "Not measured",
+        "rt": "Not measured",
+        "transport": "Field server not tested",
+        "sensors": "Real devices not tested"
+      },
+      "unit": "Hz",
+      "status": "NOT_RUN"
+    }
+  ],
+  "not_done": [
+    "RT on formal 2% performance gate remains FAIL.",
+    "Company/server/real-device/Shipping acceptance not performed.",
+    "HATCH-06 RSS gate follow-up #26 remains separate."
+  ],
+  "known_limits": [
+    "Historical snapshot read from RESULT.md and DONE.md on 2026-10-22; no new measurements.",
+    "PCD on committed OS1 left stream: 179 rate-control omissions / 178 receiver gaps; no lossless20Hz claim.",
+    "Release PASS does not override perf FAIL. RT-off and diagnostic measurements are separate."
+  ],
+  "decisions_needed": [],
+  "artifacts": [
+    "C:/Unreal Projects/ma0t10_dt/Saved/Reports/GPU-LIDAR-01/RESULT.md",
+    "C:/Unreal Projects/ma0t10_dt/Saved/Reports/GPU-LIDAR-01/DONE.md",
+    "C:/Unreal Projects/ma0t10_dt/Saved/Reports/GPU-LIDAR-01/progress/review-rt-pcd/final-audit.json"
+  ],
+  "personal_settings_restored": true,
+  "secrets_exposed": true,
+  "secrets_note": "RESULT.md preserves a prior AndroidFileServer token exposure in tool output during initial investigation. Value is not reproduced here. Later review used only required config keys/hashes/diff; no new exposure claimed."
+}
