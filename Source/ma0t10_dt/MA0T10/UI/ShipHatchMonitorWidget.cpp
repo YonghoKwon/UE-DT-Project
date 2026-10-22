@@ -182,8 +182,10 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     {Box->AddChildToVerticalBox(Label(Name,Style::LabelSize,false,Style::Muted()))->SetPadding(FMargin(0,Style::Gap,0,4));auto* W=WidgetTree->ConstructWidget<USpinBox>();W->SetWidgetStyle(Style::SpinBox());W->SetMinValue(Min);W->SetMaxValue(Max);W->SetMinSliderValue(Min);W->SetMaxSliderValue(Max);W->SetDelta(Delta);W->SetValue(Value);Box->AddChildToVerticalBox(W);return W;};
     const auto* S=Simulation.Get();
     Group(TEXT("GTSU · 구조 / 설치"));
-    UnloaderInputs={Spin(TEXT("붐 길이 (m)"),S?S->BoomLength:42,35,45,1),Spin(TEXT("붐 높이 · 갑판 위 (m)"),S?S->BoomHeight:24,18,35,.5),Spin(TEXT("운전실 높이 · 갑판 위 (m)"),S?S->CabHeight:16,12,24,.5),Spin(TEXT("운전실 X (m)"),S?S->CabX:0,-8,8,.5),Spin(TEXT("운전실 Y (m)"),S?S->CabY:-2,-8,8,.5)};
+    UnloaderInputs={Spin(TEXT("붐 길이 (m)"),S?S->BoomLength:42,35,45,1),Spin(TEXT("붐 높이 · 갑판 위 (m)"),S?S->BoomHeight:16.75,8,35,.25),Spin(TEXT("운전실 높이 · 갑판 위 (m)"),S?S->CabHeight:14.15,6,30,.25),Spin(TEXT("운전실 X (m)"),S?S->CabX:4.5,4.5,8,.5),Spin(TEXT("운전실 목표 Y (m)"),S?S->CabY:0,S?S->CabTravelMinY():-25,S?S->CabTravelMaxY():12,.5)};
     Box->AddChildToVerticalBox(Button(TEXT("하역기 배치 적용"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnUnloaderApply)));
+    Box->AddChildToVerticalBox(Button(TEXT("운전실 → 대상 해치 중앙"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnCabCenter)));
+    Box->AddChildToVerticalBox(Button(TEXT("운전실 이동 정지"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnCabStop)));
     for(int32 I=0;I<3;++I){Group(SensorNames[I]);SensorPoseInputs.Add(Spin(TEXT("X 위치 보정 (m)"),0,-10,10,.5));SensorPoseInputs.Add(Spin(TEXT("Y 위치 보정 (m)"),0,-10,10,.5));SensorPoseInputs.Add(Spin(TEXT("설치 높이 · 갑판 위 (m)"),I==0?24:16,3,40,.5));SensorPoseInputs.Add(Spin(TEXT("하향 틸트 보정 (°) · 0=기본"),0,-45,45,1));SensorPoseInputs.Add(Spin(TEXT("요 (°)"),0,-180,180,1));}
     Box=SettingsRoot; // Shared apply/view actions stay outside the last sensor accordion.
     Box->AddChildToVerticalBox(Button(TEXT("센서 3대 위치·방향 적용"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSensorPose)));
@@ -294,6 +296,7 @@ void UShipHatchMonitorWidget::Refresh()
     else if(S->HasFreshMeasurement()&&S->bMLX&&S->bLivox)CachedStatus+=FString::Printf(TEXT(" / %.1f Hz"),LivoxRunning?S->Livox->ScanComponent->GetRuntimeStatus().MeasuredAcquisitionRateHz:0);
     if(S->bFieldLayout&&S->HasFreshMeasurement())
     {double Goals[3]={},Actual[3]={};for(int I=0;I<3;++I)if(auto* A=S->SensorAt(I)){Goals[I]=1./FMath::Max(.001f,A->ScanComponent->ScanInterval);Actual[I]=S->SensorEnabled(I)?A->ScanComponent->GetRuntimeStatus().MeasuredAcquisitionRateHz:0;}CachedStatus=FString::Printf(TEXT("● 목표 %.0f·%.0f·%.0f Hz / 실제 %.1f·%.1f·%.1f Hz"),Goals[0],Goals[1],Goals[2],Actual[0],Actual[1],Actual[2]);}
+    if(S->bFieldLayout)CachedStatus+=FString::Printf(TEXT(" · 운전실 %s %.1f→%.1f m%s"),S->IsCabMoving()?TEXT("이동"):TEXT("정지"),S->CabY,S->CabDestinationY(),S->IsGrabWorkActive()?TEXT(" · 그랩 작업"):bPendingCabDig?TEXT(" · 그랩 대기"):TEXT(""));
     StatusChip->SetBrushColor(S->HasFreshMeasurement()?Style::Selection():Style::WarningSurface());StatusText->SetColorAndOpacity(!MLXRunning&&!LivoxRunning&&!RightRunning&&!S->IsGenerating()?Style::Muted():S->HasFreshMeasurement()?Style::Success():Style::Warning());StatusText->SetText(FText::FromString(CachedStatus));ContextText->SetText(FText::FromString(FString::Printf(TEXT("홀드 01   /   %s   /   %s"),S->bCoal?TEXT("석탄"):TEXT("철광석"),S->bMLX&&S->bLivox?(S->bFieldLayout?TEXT("현장 3대 · 모델 미확인"):TEXT("ML-X + Livox")):S->bMLX?TEXT("ML-X"):TEXT("Livox"))));
     if(bSettings&&StatsText->GetParent()->IsVisible()&&!S->bFieldLayout)StatsText->SetText(FText::FromString(FString::Printf(TEXT("%s\n시드 %d · 경사 상한 %.1f°\n밀도 가정 %.0f kg/m³ · 홀드 %.1f × %.1f × %.1f m\n중앙 배치 · ML-X80 높이 %.1f m / Mid-360S %.1f m\n시야 범위: 개구부 %.1f%% · 빈 홀드 바닥 %.1f%% (%.0f m²)\n실측 영역 %.0f m³ · 가림·미관측 추정 %.0f m³\n전체 부피·적재율은 모의 원료 / 홀드 전체 기준\n%s\nPCD 기본 선택 · 분석 저장은 실제 측정값만"),*S->Status,S->Seed,S->Surface().Repose,S->Surface().Density,S->HoldWidth,S->HoldLength,S->HoldDepth,S->EffectiveMLXHeight(),S->SensorLocalOrigin(false).Z-S->HoldDepth,Work->OpeningCoverage,Work->FloorCoverage,Work->VisibleFloorArea,Work->Current.Analysis.Volume,FMath::Max(0.,S->Surface().Volume-Work->Current.Analysis.Volume),IsAnalysisPreview()?TEXT("변경 미리보기 · 실제 측정 대기"):TEXT("실제 측정 표시"))));
     if(S->bFieldLayout)
@@ -512,7 +515,28 @@ bool UShipHatchMonitorWidget::DigAt(const FGeometry& G,FVector2D P)
     const auto Size=G.GetLocalSize(),Local=G.AbsoluteToLocal(P);if(Size.X<=0||Size.Y<=0)return false;
     FVector O,D;if(!PC->DeprojectScreenPositionToWorld(Local.X*W/Size.X,Local.Y*H/Size.Y,O,D))return false;
     if(!bDigEnabled){Simulation->SelectSensorAt(O,D);return false;}
-    FVector Hit;if(!Simulation->PickCargo(O,D,Hit)||!Simulation->Dig(O,D,RadiusMeters,DepthMeters))return false;FeedbackCenter=Hit;FeedbackRevision=Simulation->Revision();const double Now=FPlatformTime::Seconds();const bool Animate=bGrabAnimation&&Simulation->IsGrabVisible();FeedbackUntil=Animate?Now+1.2:0;DischargeUntil=Animate?Now+5.2:0;bOverlayDirty=true;Refresh();return true;
+    return QueueOrExecuteDigRay(O,D);
+}
+bool UShipHatchMonitorWidget::QueueOrExecuteDigRay(FVector O,FVector D)
+{
+    if(!Simulation.IsValid())return false;
+    FVector Hit;if(!Simulation->PickCargo(O,D,Hit)||Simulation->IsGrabWorkActive()||bPendingCabDig)return false;
+    if(Simulation->bFieldLayout&&(!Simulation->IsCabReady()||!FMath::IsNearlyZero(Simulation->CabY,.001)))
+    {
+        if(!Simulation->RequestCabPosition(0))return false;
+        PendingDigOrigin=O;PendingDigDirection=D;PendingDigRadius=RadiusMeters;PendingDigDepth=DepthMeters;PendingDigCargoHash=Simulation->Surface().Hash();PendingDigCabCommand=Simulation->CabCommand();bPendingCabDig=true;return true;
+    }
+    return ExecuteDigRay(O,D);
+}
+bool UShipHatchMonitorWidget::ExecuteDigRay(FVector O,FVector D)
+{
+    if(!Simulation.IsValid()||Simulation->IsGenerating())return false;
+    const bool Animate=bGrabAnimation&&Simulation->IsGrabVisible();FVector Hit;
+    if(!Simulation->PickCargo(O,D,Hit))return false;
+    if(Animate&&(!Simulation->IsGrabPoseSafe(Hit+FVector(0,0,4.1))||!Simulation->BeginGrabWork()))return false;
+    if(!Simulation->Dig(O,D,RadiusMeters,DepthMeters)){Simulation->EndGrabWork();return false;}
+    FeedbackCenter=Hit;FeedbackRevision=Simulation->Revision();const double Now=FPlatformTime::Seconds();
+    FeedbackUntil=Animate?Now+1.2:0;DischargeUntil=Animate?Now+5.2:0;bOverlayDirty=true;return true;
 }
 FReply UShipHatchMonitorWidget::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
 {if(SceneInputAt(G,E.GetScreenSpacePosition())&&(E.GetEffectingButton()==EKeys::LeftMouseButton||E.GetEffectingButton()==EKeys::RightMouseButton)){bRightOrbit=E.GetEffectingButton()==EKeys::RightMouseButton;bOrbit=true;bDragged=false;PointerDown=E.GetScreenSpacePosition();PointerDownTime=FPlatformTime::Seconds();PointerRevision=Simulation.IsValid()?Simulation->Revision():0;return FReply::Handled().CaptureMouse(TakeWidget());}return Super::NativeOnMouseButtonDown(G,E);}

@@ -72,7 +72,15 @@ void AShipHatchSimulation::BeginPlay()
 {
     Super::BeginPlay();
     // Upgrade only the old hatch fixture rig defaults in memory. No map save.
-    if(bRealScale&&bFieldLayout){if(FMath::IsNearlyEqual(BoomHeight,10.))BoomHeight=24;if(FMath::IsNearlyEqual(CabHeight,8.))CabHeight=16;}
+    if(bRealScale&&bFieldLayout)
+    {
+        if(FMath::IsNearlyEqual(BerthGap,3.5))BerthGap=2;
+        if(FMath::IsNearlyEqual(BoomHeight,10.)||FMath::IsNearlyEqual(BoomHeight,24.))BoomHeight=QuayZ()+25-HoldDepth-1.05;
+        if(FMath::IsNearlyEqual(CabHeight,8.)||FMath::IsNearlyEqual(CabHeight,16.))CabHeight=BoomHeight-2.6;
+        if(FMath::IsNearlyZero(CabX))CabX=4.5;
+        if(FMath::IsNearlyEqual(CabY,-2.))CabY=0;
+        CabTargetY=CabY;
+    }
     for(TActorIterator<ADirectionalLight> I(GetWorld());I;++I){KeyLight=*I;break;}
     if(KeyLight)
     {
@@ -107,6 +115,7 @@ void AShipHatchSimulation::SetLighting(double Azimuth,double Elevation,double In
 bool AShipHatchSimulation::Regenerate(bool Randomize)
 {
     if(bEnding)return false;
+    StopCab();bGrabWorkActive=false;
     if(Randomize){int32 Next=int32(FPlatformTime::Cycles64()&0x7fffffff);Seed=Next==Seed?Seed^0x41c64e6d:Next;}
     Pending=Settings();if(!Pending.Validate(Status))return false;
     if(bRealScale&&bFieldLayout&&!ValidateSceneScale(Status))return false;
@@ -187,12 +196,12 @@ void AShipHatchSimulation::ApplySurface(ShipHatch::FSurface&& Result)
     const bool Rebuild=!Current.Heights.Num()||Current.Settings.Length!=Result.Settings.Length||Current.Settings.Width!=Result.Settings.Width||
         Current.Settings.Depth!=Result.Settings.Depth||Current.Settings.OpeningLength!=Result.Settings.OpeningLength||
         Current.Settings.OpeningWidth!=Result.Settings.OpeningWidth||Current.Settings.Coaming!=Result.Settings.Coaming;
-    uint32 ScaleKey=GetTypeHash(bRealScale);for(double V:{VesselLength,VesselBeam,MouldedDepth,DesignDraft,BerthGap,QuayAboveWater,RailSpan})ScaleKey=HashCombineFast(ScaleKey,GetTypeHash(V));
+    uint32 ScaleKey=GetTypeHash(bRealScale);for(double V:{VesselLength,VesselBeam,MouldedDepth,DesignDraft,OperatingDraft,BerthGap,QuayAboveWater,RailSpan})ScaleKey=HashCombineFast(ScaleKey,GetTypeHash(V));
     RecycledHeights=MoveTemp(Current.Heights);Current=MoveTemp(Result);if(Rebuild||ScaleKey!=SceneScaleKey){BuildStructure();BuildVessel();SceneScaleKey=ScaleKey;}
     Original.Heights=Current.Heights;Original.Volume=Current.Volume;Original.Fill=Current.Fill;
     HistoryHead=HistoryCount=0;LastRemoved=TotalRemoved=0;
     UpdateCargoMesh();
-    ++SurfaceRevision;++CompletedGenerations;ConfigureSensors();
+    ++SurfaceRevision;++CompletedGenerations;ConfigureSensors();if(bFieldLayout)RequestCabPosition(0);
     LastMeshApplyMs=(FPlatformTime::Seconds()-Start)*1000;
     Status=TEXT("측정 중 · 가려진 영역은 측정 불가");OnSurfaceChanged.Broadcast();
 }
@@ -275,6 +284,7 @@ bool AShipHatchSimulation::PickCargo(FVector Origin,FVector Direction,FVector& H
     // the height field in BOTH render modes, including the deck above hidden cargo.
     FHitResult First;FCollisionQueryParams Query(SCENE_QUERY_STAT(HatchGrab),true);
     if(!bShowUnloader&&UnloaderPresentation)Query.AddIgnoredComponent(UnloaderPresentation->Mesh);
+    if(!bShowUnloader&&CabPresentation)Query.AddIgnoredComponent(CabPresentation);
     if(!GetWorld()->LineTraceSingleByChannel(First,Origin,WorldHit+Direction*2,ECC_Visibility,Query))return false;
     if(First.GetActor()==Cargo)return true;
     // Chaos may resolve a sub-centimeter sheet as its adjacent tank top first.
@@ -338,7 +348,7 @@ void AShipHatchSimulation::ConfigureSensors()
         if(!A)
         {A=GetWorld()->SpawnActorDeferred<AVirtualLidarSensorActor>(AVirtualLidarSensorActor::StaticClass(),GetActorTransform(),this);
          if(!A)return;A->SetFlags(RF_Transient);A->ScanComponent->bAutoStartScan=false;A->FinishSpawning(GetActorTransform());}
-        A->StopSensor();FVirtualSensorEditableState S,Applied;FString Error;A->ReadEditableState(S);
+        A->StopSensor();A->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);FVirtualSensorEditableState S,Applied;FString Error;A->ReadEditableState(S);
         const bool ProfileChanged=S.LidarProfile!=Profile||S.SimulationQuality!=EVirtualSensorSimulationQuality::FullSpec;
         S.LidarProfile=Profile;S.SimulationQuality=EVirtualSensorSimulationQuality::FullSpec;
         if(ProfileChanged&&!A->ApplyProfileAndSimulationQuality(S,Applied,Error)){Status=Error;return;}
@@ -406,7 +416,7 @@ void AShipHatchSimulation::VisitGeometryBounds(bool IncludeUnloader,TFunctionRef
 }
 void AShipHatchSimulation::EndPlay(const EEndPlayReason::Type Reason)
 {
-    bEnding=true;GetWorldTimerManager().ClearTimer(PollTimer);OnSurfaceChanged.Clear();
+    bEnding=true;GetWorldTimerManager().ClearTimer(CabTravelTimer);bCabMoving=false;bGrabWorkActive=false;GetWorldTimerManager().ClearTimer(PollTimer);OnSurfaceChanged.Clear();
     if(OutdoorAmbient)OutdoorAmbient->DestroyComponent();if(IsValid(FixtureSky))FixtureSky->SetVisibility(bFixtureSkyVisible);
     if(KeyLight){KeyLight->SetActorRotation(OriginalLightRotation);KeyLight->GetLightComponent()->SetIntensity(OriginalLightIntensity);KeyLight->GetLightComponent()->SetCastShadows(bOriginalLightShadows);KeyLight->GetLightComponent()->SetMobility(EComponentMobility::Type(OriginalLightMobility));}
     GetWorldTimerManager().ClearTimer(ScanDisplayTimer);for(auto A:SensorPresentation)if(IsValid(A))A->Destroy();SensorPresentation.Reset();

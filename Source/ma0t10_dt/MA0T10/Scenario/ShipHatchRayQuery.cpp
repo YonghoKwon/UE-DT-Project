@@ -142,7 +142,7 @@ struct FExternalBox{FBox Box;TWeakObjectPtr<UPrimitiveComponent> Component;};
 class FSnapshot final:public IVirtualSensorRayQuery
 {
 public:
- TSharedPtr<const FTree,ESPMode::ThreadSafe> Static,Cargo,Grab;
+ TSharedPtr<const FTree,ESPMode::ThreadSafe> Static,Cargo,Grab,Cab;
  TArray<FExternalBox> External;
  TWeakObjectPtr<UWorld> World;
  TWeakObjectPtr<AActor> Ignore;
@@ -153,7 +153,7 @@ public:
  {
   // Owned triangles run on GPU; Resolve retains the exact existing unmanaged
   // collision fallback, clipped by the nearest owned GPU hit.
-  Out.Reset();for(const auto& Tree:{Static,Cargo,Grab}){if(Tree)Out.Add(Tree->ExportGpuMesh());else Out.Add(FVirtualSensorCollisionMesh());}
+  Out.Reset();for(const auto& Tree:{Static,Cargo,Grab,Cab}){if(Tree)Out.Add(Tree->ExportGpuMesh());else Out.Add(FVirtualSensorCollisionMesh());}
   if(!Out.IsEmpty())for(const auto& B:External)Out[0].Surfaces.AddUnique(B.Component);
   return true;
  }
@@ -167,7 +167,7 @@ public:
  void TraceGeometry(FVector Start,FVector End,FVirtualSensorRayHit& Raw) const override
  {
   const FVector3f S(Start),D(End-Start),Inv(FMath::Abs(D.X)>1.e-8?1.f/D.X:0,FMath::Abs(D.Y)>1.e-8?1.f/D.Y:0,FMath::Abs(D.Z)>1.e-8?1.f/D.Z:0);float Best=1;FVector3f Normal=FVector3f::ZeroVector;TWeakObjectPtr<UPrimitiveComponent> Component;
-  const FTree* Trees[]={Static.Get(),Cargo.Get(),Grab.Get()};for(const auto* Tree:Trees)if(Tree)Tree->Trace(S,D,Inv,Best,Normal,Component);
+  const FTree* Trees[]={Static.Get(),Cargo.Get(),Grab.Get(),Cab.Get()};for(const auto* Tree:Trees)if(Tree)Tree->Trace(S,D,Inv,Best,Normal,Component);
   Raw.Component=Component;Raw.Normal=Normal;Raw.Time=Best;
  }
  bool Resolve(FVector Start,FVector End,const FVirtualSensorRayHit& Raw,FHitResult& Hit) const override
@@ -188,8 +188,10 @@ public:
 struct FShipHatchRayCache
 {
  uint32 StaticKey=0;
- uint64 CargoRevision=MAX_uint64,GrabRevision=MAX_uint64;
- TSharedPtr<FTree,ESPMode::ThreadSafe> Static,Cargo,Grab;
+ uint64 CargoRevision=MAX_uint64,GrabRevision=MAX_uint64,CabRevision=MAX_uint64;
+ uint32 CabShape=MAX_uint32;
+ FVirtualSensorCollisionMesh CabGeometry;
+ TSharedPtr<FTree,ESPMode::ThreadSafe> Static,Cargo,Grab,Cab;
  bool LoggedExternal=false;
 };
 TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe> AShipHatchSimulation::CaptureRayQuery(AActor* IgnoreOwner,ECollisionChannel Channel)
@@ -197,14 +199,22 @@ TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe> AShipHatchSimulatio
   LLM_SCOPE_BYNAME(TEXT("Hatch/RayTree"));
  if(!bUseSnapshotRayQueries||bGenerating||bEnding||Channel!=ECC_Visibility)return {};
  if(!RayCache)RayCache=MakeShared<FShipHatchRayCache,ESPMode::ThreadSafe>();auto& C=*RayCache;
- uint32 Key=GetTypeHash(SceneScaleKey);for(double V:{HoldLength,HoldWidth,HoldDepth,OpeningLength,OpeningWidth,CoamingHeight,BoomLength,BoomHeight,CabHeight,CabX,CabY})Key=HashCombineFast(Key,GetTypeHash(V));
+ uint32 Key=GetTypeHash(SceneScaleKey);for(double V:{HoldLength,HoldWidth,HoldDepth,OpeningLength,OpeningWidth,CoamingHeight,BoomLength,BoomHeight,CabX})Key=HashCombineFast(Key,GetTypeHash(V));
  if(!C.Static||C.StaticKey!=Key)
  {C.StaticKey=Key;C.Static=MakeShared<FTree,ESPMode::ThreadSafe>();for(auto A:Structure)if(A)C.Static->Add(A->Mesh);if(Vessel)C.Static->Add(Vessel->Mesh);if(UnloaderPresentation)C.Static->Add(UnloaderPresentation->Mesh);C.Static->Finish();}
  if(!C.Cargo||C.CargoRevision!=SurfaceRevision){C.CargoRevision=SurfaceRevision;C.Cargo=MakeShared<FTree,ESPMode::ThreadSafe>();if(Cargo)C.Cargo->Add(Cargo->Mesh);C.Cargo->Finish();}
  const uint64 GripKey=bShowGrab?GrabMeshCommits+1:0;
  if(!C.Grab||C.GrabRevision!=GripKey){C.GrabRevision=GripKey;C.Grab=MakeShared<FTree,ESPMode::ThreadSafe>();if(bShowGrab)C.Grab->Add(GrabPresentation);C.Grab->Finish();}
- auto R=MakeShared<FSnapshot,ESPMode::ThreadSafe>();R->Static=C.Static;R->Cargo=C.Cargo;R->Grab=C.Grab;R->World=GetWorld();R->Ignore=IgnoreOwner;R->Channel=Channel;
- TSet<const UPrimitiveComponent*> Owned;for(const auto& T:{C.Static,C.Cargo,C.Grab})for(const auto& P:T->Surfaces)Owned.Add(P.Get());
+ if(!C.Cab||C.CabRevision!=CabPoseRevision)
+ {
+  C.CabRevision=CabPoseRevision;C.Cab=MakeShared<FTree,ESPMode::ThreadSafe>();C.Cab->Add(CabPresentation);C.Cab->Finish();
+  // CPU snapshots own their world triangles. GPU local vertices/BLAS stay
+  // shared across travel; only the immutable per-acquisition instance moves.
+  if(C.CabShape!=CabShapeKey||!C.CabGeometry.Vertices){C.CabShape=CabShapeKey;C.CabGeometry=C.Cab->ExportGpuMesh();}
+  C.Cab->GpuMesh=C.CabGeometry;if(CabPresentation)C.Cab->GpuMesh.LocalToWorld=CabPresentation->GetComponentTransform();
+ }
+ auto R=MakeShared<FSnapshot,ESPMode::ThreadSafe>();R->Static=C.Static;R->Cargo=C.Cargo;R->Grab=C.Grab;R->Cab=C.Cab;R->World=GetWorld();R->Ignore=IgnoreOwner;R->Channel=Channel;
+ TSet<const UPrimitiveComponent*> Owned;for(const auto& T:{C.Static,C.Cargo,C.Grab,C.Cab})for(const auto& P:T->Surfaces)Owned.Add(P.Get());
  for(TActorIterator<AActor>I(GetWorld());I;++I)if(*I!=IgnoreOwner)
  // Debug draw delegates have no trace geometry. Their inherited physics-state
  // flag alone is insufficient: GameplayDebugger advertises a20km render box.

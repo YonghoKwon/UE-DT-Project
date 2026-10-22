@@ -18,6 +18,8 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+FOLLOWUP-32(사용자 현장 정정2026-10-22): 운전실은 그랩과 분리된 붐 독립 주행 캐리지다. 해치 중앙으로25m/min 이동·정지한 뒤 그랩 작업을 허용하며 작업 중 운전실 이동을 차단한다. 캐빈 센서2대는 실제 캐리지에 부착하고 이전 CPU/GPU acquisition pose를 보존한다. 명시적 중간 하역 흘수14m, 레일+25m 붐 하면 모델 가정으로 코밍 간격15.8m·캐빈 지붕 간격0.9m를 사용한다. 양정24/25m를 붐 높이로 오해하지 않으며 현장 GA 실측을 주장하지 않는다. [측면/조감 전후와ref4/ref5](Saved/Reports/FOLLOWUP-26-28/corners-32-gtsu-check.png), 근거·검증·제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 기존 운영 홀드05를 사용하며 다른8개 홀드는 문맥 형상이다.
+
 FOLLOWUP-29b(사용자 검수 보정2026-10-22): 코밍은 중간 밝기 적색 도장, 갑판·커버는 중성 회색으로 맞췄다. 해치 카메라 bias+0.25EV, 소유 조명/환경광과 기존 작업등을 보정하고 높이 기반 정점 셰이딩·노멀 세기를 조절한다. 측정 높이장·95% 체적·광학 반응은 바꾸지 않는다. [코너2곳·조감·측면 비교](Saved/Reports/FOLLOWUP-26-28/corners-29b-check.png), 검증/중간 시도/제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다.
 
 FOLLOWUP-29(사용자2026-10-22): 해치 보기 카메라의 노출을 고정하고 종료 시 복원한다. 원료 표시 albedo/roughness, 기존 코밍 재질의 절차적 마모·녹·분진/접촉 AO를 조정했다. 만재 높이장은 같은95% 체적을 유지하며 높이 여유에 둔덕을 맞춰 상한 평탄화를 방지한다. 새 표면도 측정·디깅·체적의 단일 원본이다. 같은6개 카메라의 [전후 합본](Saved/Reports/FOLLOWUP-26-28/corners-before-after.png), 회귀·GPU3×20Hz/60FPS·원거리·제한은 [RESULT](Saved/Reports/FOLLOWUP-26-28/RESULT.md)를 따른다. 광학 반응·wire·SaveGame·DTCore·맵은 변경하지 않는다.

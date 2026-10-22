@@ -60,10 +60,16 @@ void UShipHatchMonitorWidget::FocusAt(FVector2D XY)
     Focus=FVector2D(FMath::Clamp(XY.X,-Simulation->HoldLength*.5,Simulation->HoldLength*.5),FMath::Clamp(XY.Y,-Simulation->HoldWidth*.5,Simulation->HoldWidth*.5));UpdateCamera();
 }
 void UShipHatchMonitorWidget::RestoreFeedbackGrab()
-{if(auto* PC=GetOwningPlayer())if(bFeedbackOwnsGrabHide)PC->HiddenPrimitiveComponents.RemoveSingle(FeedbackGrabHidden);FeedbackGrabHidden.Reset();bFeedbackOwnsGrabHide=false;if(Simulation.IsValid())Simulation->ResetGrabPose();}
+{bPendingCabDig=false;if(Simulation.IsValid())Simulation->EndGrabWork();if(auto* PC=GetOwningPlayer())if(bFeedbackOwnsGrabHide)PC->HiddenPrimitiveComponents.RemoveSingle(FeedbackGrabHidden);FeedbackGrabHidden.Reset();bFeedbackOwnsGrabHide=false;if(Simulation.IsValid())Simulation->ResetGrabPose();}
 void UShipHatchMonitorWidget::UpdateOverlay()
 {
     const auto* S=GetSurface();if(!S||S->Heights.IsEmpty()||!Host.IsValid())return;
+    if(bPendingCabDig)
+    {
+        if(!IsVisible()||Simulation->IsGenerating()||Simulation->Surface().Hash()!=PendingDigCargoHash||Simulation->CabCommand()!=PendingDigCabCommand){bPendingCabDig=false;}
+        else if(Simulation->IsCabMoving())return;
+        else {bPendingCabDig=false;TGuardValue<double> Radius(RadiusMeters,PendingDigRadius),Depth(DepthMeters,PendingDigDepth);ExecuteDigRay(PendingDigOrigin,PendingDigDirection);}
+    }
     const double Clock=FPlatformTime::Seconds();
     if(!Simulation->IsGrabVisible()){FeedbackUntil=DischargeUntil=0;}
     if(Simulation->Revision()!=FeedbackRevision){FeedbackUntil=DischargeUntil=0;}
@@ -138,7 +144,11 @@ void UShipHatchMonitorWidget::OnUnloaderToggle(){if(Simulation.IsValid())Simulat
 void UShipHatchMonitorWidget::OnUnloaderApply()
 {
     if(!Simulation.IsValid()||Simulation->IsGenerating())return;
-    auto* S=Simulation.Get();S->BoomLength=UnloaderInputs[0]->GetValue();S->BoomHeight=UnloaderInputs[1]->GetValue();S->CabHeight=UnloaderInputs[2]->GetValue();S->CabX=UnloaderInputs[3]->GetValue();S->CabY=UnloaderInputs[4]->GetValue();S->bFieldLayout=true;S->RefreshFieldLayout();UpdateCamera();
+    auto* S=Simulation.Get();if(S->IsGrabWorkActive()||S->IsCabMoving())return;
+    const double Old[]={S->BoomLength,S->BoomHeight,S->CabHeight,S->CabX};
+    S->BoomLength=UnloaderInputs[0]->GetValue();S->BoomHeight=UnloaderInputs[1]->GetValue();S->CabHeight=UnloaderInputs[2]->GetValue();S->CabX=UnloaderInputs[3]->GetValue();
+    FString Error;if(!S->ValidateSceneScale(Error)){S->BoomLength=Old[0];S->BoomHeight=Old[1];S->CabHeight=Old[2];S->CabX=Old[3];S->Status=Error;return;}
+    S->bFieldLayout=true;S->RefreshFieldLayout();S->RequestCabPosition(UnloaderInputs[4]->GetValue());UpdateCamera();
 }
 void UShipHatchMonitorWidget::OnSensorColors(){bSensorColors=!bSensorColors;ApplyPreview();UpdateSegments();for(int32 I=0;I<3;++I)if(auto* S=Simulation->SensorAt(I))S->VisualizationComponent->RefreshPointPreview();}
 void UShipHatchMonitorWidget::OnCoverage(){bCoverageOverlay=!bCoverageOverlay;UpdateSection();InvalidatePlots();}
@@ -154,3 +164,6 @@ void UShipHatchMonitorWidget::OnGrabDisplayToggle()
 {
  if(!Simulation.IsValid())return;FeedbackUntil=DischargeUntil=0;RestoreFeedbackGrab();Simulation->SetGrabVisible(!Simulation->IsGrabVisible());bOverlayDirty=true;LastOverlayUpdate=0;UpdateOverlay();Refresh();
 }
+
+void UShipHatchMonitorWidget::OnCabCenter(){if(Simulation.IsValid()&&!Simulation->IsGrabWorkActive()){RestoreFeedbackGrab();Simulation->RequestCabPosition(0);}}
+void UShipHatchMonitorWidget::OnCabStop(){if(Simulation.IsValid()){bPendingCabDig=false;Simulation->StopCab();}}

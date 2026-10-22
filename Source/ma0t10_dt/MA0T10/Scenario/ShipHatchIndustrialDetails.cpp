@@ -48,7 +48,7 @@ void AShipHatchSimulation::BuildIndustrialDetails()
  if(!bRealScale||!Vessel||!UnloaderPresentation)return;
  if(RigFineDetails&&RigFineDetails->GetOwner()!=UnloaderPresentation)RigFineDetails=nullptr;
  if(VesselFineDetails&&VesselFineDetails->GetOwner()!=Vessel)VesselFineDetails=nullptr;
- uint32 Key=SceneScaleKey;for(double D:{HoldLength,HoldWidth,HoldDepth,BoomLength,BoomHeight,CabHeight,CabX,CabY})Key=HashCombineFast(Key,GetTypeHash(D));
+ uint32 Key=SceneScaleKey;for(double D:{HoldLength,HoldWidth,HoldDepth,BoomLength,BoomHeight})Key=HashCombineFast(Key,GetTypeHash(D));
  if(RigFineDetails&&VesselFineDetails&&IndustrialDetailKey==Key)return;
  IndustrialDetailKey=Key;
  if(!RigFineDetails)RigFineDetails=DetailComponent(UnloaderPresentation,TEXT("HatchRigFineDetails"),180);

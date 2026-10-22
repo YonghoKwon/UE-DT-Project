@@ -36,10 +36,10 @@ AShipHatchVessel::AShipHatchVessel()
 }
 bool AShipHatchSimulation::ValidateSceneScale(FString& Error) const
 {
- for(double V:{VesselLength,VesselBeam,MouldedDepth,DesignDraft,RailSpan,BerthGap,QuayAboveWater,BoomLength,BoomHeight,CabHeight})if(!FMath::IsFinite(V)){Error=TEXT("선박/하역기 치수는 유한수여야 합니다.");return false;}
- if(VesselLength<290||VesselLength>300||VesselBeam<45||VesselBeam>47||MouldedDepth<24||MouldedDepth>25||DesignDraft<17||DesignDraft>19||
+ for(double V:{VesselLength,VesselBeam,MouldedDepth,DesignDraft,OperatingDraft,RailSpan,BerthGap,QuayAboveWater,BoomLength,BoomHeight,CabHeight,CabX,CabY})if(!FMath::IsFinite(V)){Error=TEXT("선박/하역기 치수는 유한수여야 합니다.");return false;}
+ if(VesselLength<290||VesselLength>300||VesselBeam<45||VesselBeam>47||MouldedDepth<24||MouldedDepth>25||DesignDraft<17||DesignDraft>19||OperatingDraft<8||OperatingDraft>DesignDraft||
     RailSpan<22||RailSpan>30||BerthGap<2||BerthGap>5||QuayAboveWater<2||QuayAboveWater>5||VesselHolds!=9||HoldWidth>VesselBeam-1||
-    MouldedDepth-HoldDepth<1||MouldedDepth-HoldDepth>3||BoomLength<35||BoomLength>45||BoomHeight<18||BoomHeight>35||CabHeight<12||CabHeight>24||
+    MouldedDepth-HoldDepth<1||MouldedDepth-HoldDepth>3||BoomLength<35||BoomLength>45||BoomSoffitZ()-QuayZ()<18||BoomSoffitZ()-QuayZ()>35||CabRoofZ()>BoomSoffitZ()-.5||CabRoofZ()<BoomSoffitZ()-3||FMath::Abs(CabX)<4.5||FMath::Abs(CabX)>8||CabY<CabTravelMinY()||CabY>CabTravelMaxY()||
     SeaRailY()>=QuayEdgeY()||BoomTipY()<=0||BoomTipY()>=VesselBeam*.5)
  {Error=TEXT("케이프사이즈/그랩 하역기 제원 범위를 확인하세요. 선박290–300×45–47×24–25m, 레일22–30m, 아웃리치35–45m.");return false;}
  Error.Reset();return true;

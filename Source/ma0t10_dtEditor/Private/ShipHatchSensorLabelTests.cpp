@@ -40,9 +40,10 @@ struct FHatchLabelProbe
         auto ScreenRect=[&](UWidget* B){const auto BG=B->GetCachedGeometry();const auto A=G.AbsoluteToLocal(BG.LocalToAbsolute(FVector2D::ZeroVector)),Z=G.AbsoluteToLocal(BG.LocalToAbsolute(BG.GetLocalSize()));return FSlateRect(A.X,A.Y,Z.X,Z.Y);};
         AShipHatchPart* Unloader=nullptr;for(TActorIterator<AShipHatchPart>I(S.GetWorld());I;++I)if(I->ActorHasTag(TEXT("ShipHatchUnloader")))Unloader=*I;
         T.TestNotNull(TEXT("existing unloader display exists"),Unloader);if(!Unloader)return R;
-        const auto* Mesh=Unloader->Mesh->GetProcMeshSection(0);if(!T.TestTrue(TEXT("existing five boom boxes plus cab/trolley"),Mesh&&Mesh->ProcVertexBuffer.Num()==56))return R;
-        FVector Cab=FVector::ZeroVector,Boom=FVector::ZeroVector;for(int I=40;I<48;++I)Cab+=Mesh->ProcVertexBuffer[I].Position/8;for(int I=0;I<16;++I)Boom+=Mesh->ProcVertexBuffer[I].Position/16;
-        const auto Pose=Unloader->Mesh->GetComponentTransform();const auto CabWorld=Pose.TransformPosition(Cab),BoomWorld=Pose.TransformPosition(Boom);const auto CabLocal=S.GetActorTransform().InverseTransformPosition(CabWorld)*.01;
+        const auto* Mesh=Unloader->Mesh->GetProcMeshSection(0);auto* CabMesh=Cast<UProceduralMeshComponent>(S.CabPrimitive());
+        if(!T.TestTrue(TEXT("separate boom rail and independently travelling physical cab"),Mesh&&Mesh->ProcVertexBuffer.Num()>=40&&CabMesh&&CabMesh->GetProcMeshSection(0)))return R;
+        FVector Cab=FVector::ZeroVector,Boom=FVector::ZeroVector;for(int I=0;I<8;++I)Cab+=CabMesh->GetProcMeshSection(0)->ProcVertexBuffer[I].Position/8;for(int I=0;I<16;++I)Boom+=Mesh->ProcVertexBuffer[I].Position/16;
+        const auto Pose=Unloader->Mesh->GetComponentTransform();const auto CabWorld=CabMesh->GetComponentTransform().TransformPosition(Cab),BoomWorld=Pose.TransformPosition(Boom);const auto CabLocal=S.GetActorTransform().InverseTransformPosition(CabWorld)*.01;
         R->SetArrayField(TEXT("cab_mesh_center_world_cm"),Vector(CabWorld));R->SetArrayField(TEXT("cab_mesh_center_hold_m"),Vector(CabLocal));R->SetArrayField(TEXT("boom_rails_center_world_cm"),Vector(BoomWorld));R->SetArrayField(TEXT("boom_at_cab_y_hold_m"),Vector(FVector(0,S.CabY,S.HoldDepth+S.BoomHeight+1.2)));
         R->SetArrayField(TEXT("camera_world_cm"),Vector(M.Host->ViewCamera->GetActorLocation()));R->SetArrayField(TEXT("camera_rotation_degrees"),Vector(FVector(M.Host->ViewCamera->GetActorRotation().Pitch,M.Host->ViewCamera->GetActorRotation().Yaw,M.Host->ViewCamera->GetActorRotation().Roll)));
         const auto CabPixel=Screen(CabWorld);R->SetArrayField(TEXT("cab_center_root_xy"),Vector(FVector(CabPixel,0)));
@@ -51,7 +52,7 @@ struct FHatchLabelProbe
         {
             auto* A=S.SensorAt(I);T.TestNotNull(TEXT("actual detector"),A);if(!A)continue;const auto Local=S.GetActorTransform().InverseTransformPosition(A->GetActorLocation())*.01;P[I]=Screen(A->GetActorLocation());Boxes[I]=ScreenRect(M.SensorBadges[I]);
             T.TestTrue(TEXT("actual acquisition origin equals established installation, without UI relocation"),Local.Equals(S.SensorOrigin(I),1.e-6));
-            if(I)T.TestTrue(TEXT("cab pair lies on opposite physical X sides of actual cab mesh center"),(Local.X-CabLocal.X)*(I==1?-1:1)>1.99);
+            if(I)T.TestTrue(TEXT("cab pair lies on opposite physical X sides of actual cab mesh center"),(Local.X-CabLocal.X)*(I==1?-1:1)>1.29);
             const TCHAR* Names[]={TEXT("붐 끝"),TEXT("운전실 좌"),TEXT("운전실 우")};T.TestEqual(TEXT("physical sensor identity never follows camera screen order"),CastChecked<UTextBlock>(M.SensorBadges[I]->GetContent())->GetText().ToString(),FString(Names[I]));
             auto Row=MakeShared<FJsonObject>();Row->SetNumberField(TEXT("index"),I);Row->SetStringField(TEXT("physical_role"),Names[I]);Row->SetArrayField(TEXT("actor_world_cm"),Vector(A->GetActorLocation()));Row->SetArrayField(TEXT("origin_hold_m"),Vector(Local));Row->SetArrayField(TEXT("projected_root_xy"),Vector(FVector(P[I],0)));
             TArray<TSharedPtr<FJsonValue>> Rect;for(double V:{double(Boxes[I].Left),double(Boxes[I].Top),double(Boxes[I].Right),double(Boxes[I].Bottom)})Rect.Add(MakeShared<FJsonValueNumber>(V));Row->SetArrayField(TEXT("badge_root_ltrb"),Rect);Rows.Add(MakeShared<FJsonValueObject>(Row));

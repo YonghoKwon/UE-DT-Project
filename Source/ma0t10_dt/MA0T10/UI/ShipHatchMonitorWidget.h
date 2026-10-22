@@ -73,6 +73,7 @@ class MA0T10_DT_API UShipHatchMonitorWidget : public UDxWidget
     friend struct FHatchOrientationProbe;
     friend struct FHatchLabelProbe;
     friend struct FHatch06Probe;
+    friend struct FHatchCabProbe;
 public:
     void Bind(AShipHatchMonitorHost* InHost,AShipHatchSimulation* InSimulation);
     void Refresh();
@@ -223,6 +224,11 @@ private:
     uint64 FeedbackRevision=0;
     TWeakObjectPtr<UPrimitiveComponent> FeedbackGrabHidden;
     bool bFeedbackOwnsGrabHide=false;
+    bool bPendingCabDig=false;
+    FVector PendingDigOrigin,PendingDigDirection;
+    uint32 PendingDigCargoHash=0;
+    uint64 PendingDigCabCommand=0;
+    double PendingDigRadius=0,PendingDigDepth=0;
     FVector FeedbackCenter=FVector::ZeroVector;
     FVector2D Focus=FVector2D::ZeroVector;
     bool bOverlayDirty=true,bHadFeedback=false;
@@ -254,6 +260,10 @@ private:
     void UpdateCamera();
     bool SceneInputAt(const FGeometry&,FVector2D Absolute) const;
     bool DigAt(const FGeometry&,FVector2D Absolute);
+    bool ExecuteDigRay(FVector Origin,FVector Direction);
+    bool QueueOrExecuteDigRay(FVector Origin,FVector Direction);
+    UFUNCTION() void OnCabCenter();
+    UFUNCTION() void OnCabStop();
     void SyncSettings();
     void UpdateDigControls();
     void UpdateSegments();

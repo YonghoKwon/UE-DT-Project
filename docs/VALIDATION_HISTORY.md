@@ -511,3 +511,7 @@ float Moller-Trumbore 내적 상쇄로 실제 공유 경계가 외부로 판정�
 ## 2026-10-22 FOLLOWUP-29b 검수 후 밝기 균형
 
 사용자 검수의 검은 코밍/분홍 갑판/읽기 어려운 만재 형상을 보정했다. 해치 카메라 bias+0.25EV, key(-35°,43°,4.5), 소유 ambient1.35, 기존 무그림자 작업등1000cd/갑판 위12m로 조정했다. 코밍(.42,.085,.055), 회색 갑판(.16,.17,.17)/커버(.22,.23,.23), iron(.11,.072,.051)/coal(.033,.031,.029), 낮은 AO 대비/노멀0.85/높이 기반 정점 셰이딩±22%다. 새 빛·capture·자산은 없고 기존 해치 자원만 사용한다. 코너 camera/aim/rotation/FOV·95% 높이장 CRC는 이전과 동일하다. 회귀15 Success/0Fail, CPU/native28672개0 mismatch/최대0.178mm, GPU3센서 각각19.9986Hz/59.9968FPS. [코너2곳·조감·측면 전후 비교](../Saved/Reports/FOLLOWUP-26-28/corners-29b-check.png), 원시 자료 progress/29b, 공통 최종 gate/제한은 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md). #30 미커밋 하네스는 보존하며 별도 커밋한다.
+
+## 2026-10-22 FOLLOWUP-32 독립 운전실과 GTSU 상대 배치
+
+운전실/그랩 분리, 실제 캐빈2센서 부착, 중앙 정지 후 UI 대기 퍼내기, 작업 중 이동 차단과1m 간섭 검사를 구현했다. 레일+25m 하면은 양정과 구분한 구조 가정이며 중간 흘수14m에서 코밍 간격15.8m·캐빈 지붕 간격0.9m다. 내부 HWRT는4개 충돌 메시를 처리하고 캐빈 GPU local geometry/BLAS는 이동 중 재사용한다. 초기3메시 한도로 CPU fallback이 발생한 시도와 새 레일 지지대의 X=0 경계116건 실패는 원시 보고서에 남긴다. 지지대를 양쪽 하현재에 연결한 뒤 기존28672개/1mm 기준을 그대로 적용해 불일치0·최대0.301mm다. 해치15개 및GPU9프로필 성공, 별도GPU3센서19.997Hz/59.999FPS. source별 근거·범위·개인 설정·최종gate는 [RESULT](../Saved/Reports/FOLLOWUP-26-28/RESULT.md), [배치 비교](../Saved/Reports/FOLLOWUP-26-28/corners-32-gtsu-check.png)를 따른다. Windows 잠금으로 직접 마우스 수용은 미수행이다. #28/#26은 사용자 결정으로 범위 제외한다.
