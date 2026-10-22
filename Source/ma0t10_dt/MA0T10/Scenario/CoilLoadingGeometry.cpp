@@ -1,4 +1,6 @@
 #include "CoilLoadingSimulation.h"
+#include "CoilLoadingQuayLayout.h"
+#include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -66,12 +68,13 @@ ACoilLoadingBody* ACoilLoadingSimulation::SpawnCoil(const CoilLoading::FSpec& S,
 }
 UStaticMeshComponent* ACoilLoadingSimulation::Box(FVector C,FVector Size,int32 Color,bool Collision,FRotator Rotation)
 {
-    auto* M=NewObject<UStaticMeshComponent>(this);M->SetupAttachment(GetRootComponent());M->SetMobility(EComponentMobility::Movable);
+    auto* M=NewObject<UStaticMeshComponent>(this);M->SetupAttachment(bBuildingShore?ShoreRoot.Get():GetRootComponent());M->SetMobility(EComponentMobility::Movable);
     M->SetStaticMesh(StructureCubeAsset?StructureCubeAsset.Get():LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));M->SetMaterial(0,Materials[Color]);
     M->SetCollisionProfileName(Collision?TEXT("BlockAll"):TEXT("NoCollision"));M->SetRelativeLocation(C*100);M->SetRelativeScale3D(Size);M->SetRelativeRotation(Rotation);M->RegisterComponent();Structure.Add(M);return M;
 }
 void ACoilLoadingSimulation::BuildScene()
 {
+    ApplyOwnedTransform(ShoreRoot,FVector::ZeroVector);ApplyOwnedTransform(PortalRoot,FVector::ZeroVector);bRigTransformsReady=false;bBuildingShore=false;
     Material(FLinearColor(.035,.045,.05));Material(FLinearColor(.18,.19,.185));Material(FLinearColor(.92,.58,.025));Material(FLinearColor(.2,.1,.04));Material(FLinearColor(.29,.34,.38));Material(FLinearColor(.07,.28,.12));Material(FLinearColor(.8,.12,.025));Material(FLinearColor(.29,.48,.53));Material(FLinearColor(.53,.57,.55));
     if(auto* Water=Cast<UMaterialInstanceDynamic>(Materials[7])){Water->SetScalarParameterValue(TEXT("Metallic"),0);Water->SetScalarParameterValue(TEXT("Roughness"),.82);}
     const auto& S=Settings;const double L=S.HoldLength,W=S.HoldWidth,H=S.WeatherDeckZ();
@@ -85,23 +88,26 @@ void ACoilLoadingSimulation::BuildScene()
         if(Hold>0){auto* Cover=Box({X,0,H+S.Coaming+.15},{HL,W,.3},8);Cover->ComponentTags.Add(TEXT("CoilClosedHatchCover"));}
     }
     const double VesselX=S.VesselCenterX();
-    Box({VesselX,0,-1.2},{S.LOA,S.Beam,2},0);
-    Box({VesselX,QuayOffset(180),QuayZ()-.6},{900,360,1.2},1);
+    Box({VesselX,0,-1.2},{S.LOA,S.Beam,2},0);bBuildingShore=true;
+    Box({VesselX,QuayOffset(180),BaseQuayZ()-.6},{900,360,1.2},1);
     // Water is display only, has no measurement/collision.
     for(const FVector C:{FVector(VesselX,-S.QuaySide*(S.Beam*.5+6000),S.Draft-S.KeelToTanktop-.1),FVector(VesselX-S.LOA*.5-6000,0,S.Draft-S.KeelToTanktop-.1),FVector(VesselX+S.LOA*.5+6000,0,S.Draft-S.KeelToTanktop-.1)})
         {auto* Water=Box(C,C.Y==0?FVector(12000,24000,.05):FVector(24000,12000,.05),7,false);Water->SetCastShadow(false);Water->ComponentTags.Add(TEXT("CoilDisplayOnly"));}
     Box({VesselX,QuayEdgeY()-S.QuaySide*S.BerthGap*.5,S.Draft-S.KeelToTanktop-.1},{S.LOA,S.BerthGap,.05},7,false)->ComponentTags.Add(TEXT("CoilDisplayOnly"));
-    const double RailY=QuayOffset(S.RailSetback),Q=QuayZ(),CraneX=-8,Side=S.QuaySide;
-    const auto CraneBox=[&](FVector C,FVector Size,int32 Color,bool Collision=true){auto* M=Box(C,Size,Color,Collision);CraneParts.Add(M);CraneStarts.Add(C*100);return M;};
-    for(double Y:{RailY,RailY+Side*S.RailGauge})
+    const double RailY=QuayOffset(S.RailSetback),Q=BaseQuayZ(),CraneX=-8,Side=S.QuaySide;
+    const auto CraneBox=[&](FVector C,FVector Size,int32 Color,FRotator Rotation=FRotator(0,0,0)){auto* M=Box(C,Size,Color,true,Rotation);M->AttachToComponent(PortalRoot,FAttachmentTransformRules::KeepRelativeTransform);return M;};
+    for(int RailIndex=0;RailIndex<2;++RailIndex)
     {
-        Box({VesselX,Y,Q+.08},{S.LOA,.16,.16},4);
-        for(double X:{CraneX-4,CraneX+4})
-        {CraneBox({X,Y,Q+14},{.85,.85,28},2);CraneBox({X,Y,Q+.6},{2,1.2,1.2},0);}
+        const double Y=RailY+Side*RailIndex*S.RailGauge;Box({VesselX,Y,Q+.08},{S.LOA,.16,.16},4);
+        for(double Sign:{-1.,1.})
+        {
+            const FVector A=CoilQuay::LegNode(S,Sign,RailIndex,CoilQuay::LegBaseZ)+FVector(0,0,Q),B=CoilQuay::LegNode(S,Sign,RailIndex,CoilQuay::LegTopZ)+FVector(0,0,Q),D=B-A;
+            CraneBox((A+B)*.5,{.85,.85,D.Size()},2,FRotationMatrix::MakeFromZ(D).Rotator());CraneBox({CraneX+Sign*4,Y,Q+.6},{2,1.2,1.2},0);
+        }
     }
-    for(double X:{CraneX-4,CraneX+4}){CraneBox({X,S.RailCenterY(),Q+20},{1,S.RailGauge+1,1},2);CraneBox({X,RailY-Side*(30-S.RailGauge)*.5,Q+28},{1,31+S.RailGauge,1.2},2);}
-    CraneBox({CraneX,RailY-Side*30,Q+28},{9,1,1.2},2);CraneBox({CraneX,RailY+Side*S.RailGauge,Q+28},{9,1,1.2},2);
-    for(double Offset=-S.RailGauge+2;Offset<30;Offset+=4)CraneBox({CraneX,RailY-Side*Offset,Q+28},{7,.2,.2},2,false);
+    const double Sea=CoilQuay::GirderSea(S),Land=CoilQuay::GirderLand(S);
+    for(double Sign:{-1.,1.})CraneBox({CraneX+Sign*CoilQuay::TopHalfX,(Sea+Land)*.5,Q+28},{1,FMath::Abs(Sea-Land),1.2},2);
+    for(double Y:{Sea,Land})CraneBox({CraneX,Y,Q+28},{2*CoilQuay::TopHalfX+1.3,1,1.2},2);
 
     Box({-8,QuayOffset(8),Q+.5},{2.5,2.3,1},2);for(double Y:{-.7,.7})Box({-8,QuayOffset(8)+Y,Q+1.05},{2,.25,.3},2,true,FRotator(0,0,Y<0?-35:35));
     // ref3: open-front coil shed, individual yellow cradles and visible coil eyes.
@@ -110,11 +116,11 @@ void ACoilLoadingSimulation::BuildScene()
     for(double X=-12;X<=16;X+=7)for(double Y:{ShedY-4.8,ShedY+4.8})Box({X,Y,Q+3},{.25,.25,6},2);
     for(int32 I=0;I<8;++I)
     {
-        const FVector C(-10+I*3.2,ShedY,Q+1.35);auto Spec=NextSpec;Spec.CoilId=FString::Printf(TEXT("STOCK-%03d"),I+1);auto* A=SpawnCoil(Spec,C);if(A){Stock.Add(A);A->AttachToActor(this,FAttachmentTransformRules::KeepWorldTransform);}
+        const FVector C(-10+I*3.2,ShedY,Q+1.35);auto Spec=NextSpec;Spec.CoilId=FString::Printf(TEXT("STOCK-%03d"),I+1);auto* A=SpawnCoil(Spec,C);if(A){Stock.Add(A);A->AttachToComponent(ShoreRoot,FAttachmentTransformRules::KeepWorldTransform);}
         for(double Y:{-.8,.8})Box(C+FVector(0,Y,-.85),{1.8,.35,.35},2);
     }
     BuildQuayPresentation();
-    BuiltSceneSettings=Settings;CurrentHook=PickupPosition()+FVector(0,0,3);++GeometryRevision;
+    bBuildingShore=false;UpdateHydrostaticPresentation();BuiltSceneSettings=Settings;CurrentHook=PickupPosition()+FVector(0,0,3);++GeometryRevision;
 }
 void ACoilLoadingSimulation::BuildSupports()
 {
@@ -146,7 +152,7 @@ void ACoilLoadingSimulation::RebuildBatches()
 }
 void ACoilLoadingSimulation::RestoreSceneGeometry()
 {
-    for(auto M:Structure)if(M)M->DestroyComponent();Structure.Reset();PlanSupports.Reset();CraneParts.Reset();CraneStarts.Reset();TrolleyDetails.Reset();HookDetails.Reset();PresentationBatches.Reset();PresentationMeshes.Reset();RailX=-8;SupportedPlacementCount=0;
+    for(auto M:Structure)if(M)M->DestroyComponent();Structure.Reset();PlanSupports.Reset();TrolleyDetails.Reset();HookDetails.Reset();HoistFalls=nullptr;PresentationBatches.Reset();PresentationMeshes.Reset();RailX=-8;SupportedPlacementCount=0;
     TInlineComponentArray<UTextRenderComponent*> Signs(this);for(auto* T:Signs)if(T->ComponentHasTag(TEXT("CoilQuayPresentation")))T->DestroyComponent();
     for(auto A:Stock)if(A)A->Destroy();Stock.Reset();Materials.Reset();BuildScene();
     BuildSupports();if(WaitingCoil)WaitingCoil->SetActorLocation(GetActorTransform().TransformPosition(PickupPosition()*100));

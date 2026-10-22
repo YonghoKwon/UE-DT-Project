@@ -1,5 +1,6 @@
 #include "CoilLoadingSimulation.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/SceneComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/LineBatchComponent.h"
 #include "Components/SkyLightComponent.h"
@@ -36,6 +37,8 @@ ACoilLoadingGameMode::ACoilLoadingGameMode(){DefaultPawnClass=nullptr;HUDClass=n
 ACoilLoadingSimulation::ACoilLoadingSimulation()
 {
     PrimaryActorTick.bCanEverTick=true;SetRootComponent(CreateDefaultSubobject<USceneComponent>(TEXT("CoilSceneRoot")));
+    ShoreRoot=CreateDefaultSubobject<USceneComponent>(TEXT("CoilShoreRoot"));ShoreRoot->SetupAttachment(GetRootComponent());ShoreRoot->ComponentTags.Add(TEXT("CoilShoreMotionRoot"));
+    PortalRoot=CreateDefaultSubobject<USceneComponent>(TEXT("CoilPortalRoot"));PortalRoot->SetupAttachment(ShoreRoot);PortalRoot->ComponentTags.Add(TEXT("CoilPortalMotionRoot"));
     RigLines=CreateDefaultSubobject<ULineBatchComponent>(TEXT("CoilRigDisplay"));RigLines->SetupAttachment(GetRootComponent());RigLines->SetCollisionEnabled(ECollisionEnabled::NoCollision);RigLines->SetCastShadow(false);
 }
 void ACoilLoadingSimulation::BeginPlay()
@@ -93,12 +96,13 @@ void ACoilLoadingSimulation::RefreshPreview()
 {
     if(bEnding||Materials.IsEmpty())return;FString E;if(!NextSpec.Validate(E)||!Settings.Validate(E)){Status=E;return;}
     if(!SameScene(Settings,BuiltSceneSettings))RestoreSceneGeometry();
+    UpdateHydrostaticPresentation();
     Pending=PreviewPlacement();auto Preview=Placements;Preview.Add(Pending);PreviewAnalysis=Analyze(Settings,Preview);
     if(!Ghost){Ghost=SpawnCoil(NextSpec,Pending.Center);if(Ghost){Ghost->Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);Ghost->Tags={TEXT("CoilGhostDisplayOnly")};Ghost->Body->SetRenderCustomDepth(true);}}
     if(Ghost){Ghost->Body->SetStaticMesh(CoilMesh(NextSpec));ApplyCoilAppearance(Ghost,NextSpec);Ghost->Body->SetMaterial(0,Materials[PreviewAnalysis.Severity==ESeverity::Warning?6:5]);Ghost->SetActorLocation(GetActorTransform().TransformPosition(Pending.Center*100));Ghost->SetActorRotation(GetActorRotation()+FRotator(0,bNextForeAft?0:90,0));}
     if(CurrentPhase==ECoilLoadingPhase::Idle)
     {
-        if(!WaitingCoil){WaitingCoil=SpawnCoil(NextSpec,PickupPosition());++GeometryRevision;}
+        if(!WaitingCoil){WaitingCoil=SpawnCoil(NextSpec,PickupPosition());if(WaitingCoil)WaitingCoil->AttachToComponent(ShoreRoot,FAttachmentTransformRules::KeepWorldTransform);++GeometryRevision;}
         else if(WaitingCoil->Body->GetStaticMesh()!=CoilMesh(NextSpec)||!WaitingCoil->ActorHasTag(FName(*(TEXT("CoilId=")+NextSpec.CoilId))))
         {WaitingCoil->Configure(CoilMesh(NextSpec),Materials[4],NextSpec);ApplyCoilAppearance(WaitingCoil,NextSpec);WaitingCoil->SetActorLocation(GetActorTransform().TransformPosition(PickupPosition()*100));++GeometryRevision;}
     }
@@ -117,7 +121,7 @@ bool ACoilLoadingSimulation::PlaceNext(bool Animate)
     RefreshPreview();PushUndo();PhysicsResult=FCoilPhysicsObservation();
     if(!Animate)
     {auto* B=SpawnCoil(NextSpec,Pending.Center);if(!B)return false;CommitPlacement(B);PhysicsResult.State=TEXT("계획만 배치 · 물리 미실행");return true;}
-    Suspended=WaitingCoil;WaitingCoil=nullptr;if(!Suspended)Suspended=SpawnCoil(NextSpec,PickupPosition());if(!Suspended)return false;
+    Suspended=WaitingCoil;WaitingCoil=nullptr;if(Suspended)Suspended->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);if(!Suspended)Suspended=SpawnCoil(NextSpec,PickupPosition());if(!Suspended)return false;
     Suspended->Configure(CoilMesh(NextSpec),Materials[4],NextSpec);ApplyCoilAppearance(Suspended,NextSpec);
     Suspended->Body->SetCollisionEnabled(ECollisionEnabled::QueryOnly);++GeometryRevision;CurrentHook=PickupPosition()+FVector(0,0,Settings.GearHeadroom);
     PhaseStart=PickupPosition();CurrentPhase=ECoilLoadingPhase::Lifting;PhaseTime=0;SimulationTime=0;SetActorTickEnabled(true);
@@ -147,7 +151,7 @@ void ACoilLoadingSimulation::Tick(float Delta)
         const double TransitZ=FMath::Max(QuayZ()+5,Settings.HoldHeight+(Settings.bFoldingCovers?Settings.OpeningLength*.25:0)+NextSpec.OuterDiameter()*.5+Settings.ClearanceMargin+1);
         const FVector Target=CurrentPhase==ECoilLoadingPhase::Lifting?FVector(PhaseStart.X,PhaseStart.Y,TransitZ):CurrentPhase==ECoilLoadingPhase::Traversing?FVector(Pending.Center.X,Pending.Center.Y,TransitZ):Pending.Center+FVector(0,0,.015);
         FVector Position=FMath::Lerp(PhaseStart,Target,Smooth);
-        if(CurrentPhase==ECoilLoadingPhase::Traversing){RailX=Position.X;for(int32 I=0;I<CraneParts.Num();++I)CraneParts[I]->SetRelativeLocation(CraneStarts[I]+FVector((RailX+8)*100,0,0));++GeometryRevision;}
+        if(CurrentPhase==ECoilLoadingPhase::Traversing&&RailX!=Position.X){RailX=Position.X;UpdatePortalPosition();++GeometryRevision;}
         const double Rope=FMath::Max(3.,CraneTop().Z-Position.Z-Settings.GearHeadroom),Omega=FMath::Sqrt(Gravity/Rope),WindAngle=Settings.WindMps*Settings.WindMps*.00003;
         Position.Y+=Rope*(.012+WindAngle)*FMath::Sin(Omega*SimulationTime)*FMath::Sin(PI*T);CurrentHook=Position+FVector(0,0,Settings.GearHeadroom);UpdateTrolley();
         if(Suspended){Suspended->SetActorLocationAndRotation(World(Position),GetActorRotation()+FRotator(0,Pending.bEyeForeAft?0:90,0));++GeometryRevision;}
@@ -295,12 +299,13 @@ bool ACoilLoadingSimulation::LoadSlot(const FString& Slot)
 }
 void ACoilLoadingSimulation::DrawRig()
 {
-    RigLines->Flush();if(CurrentPhase==ECoilLoadingPhase::Idle){if(RailX!=-8)++GeometryRevision;RailX=-8;for(int32 I=0;I<CraneParts.Num();++I)CraneParts[I]->SetRelativeLocation(CraneStarts[I]);CurrentHook=PickupPosition()+FVector(0,0,Settings.GearHeadroom);}UpdateTrolley();if(ActiveView==4)return;
+    ++RigRefreshes;RigLines->Flush();if(CurrentPhase==ECoilLoadingPhase::Idle){if(RailX!=-8){RailX=-8;UpdatePortalPosition();++GeometryRevision;}CurrentHook=PickupPosition()+FVector(0,0,Settings.GearHeadroom);}UpdateTrolley();if(ActiveView==4)return;
     const FVector Load=Suspended?GetActorTransform().InverseTransformPosition(Suspended->GetActorLocation())*.01:PickupPosition();
-    const FVector Hook=Suspended?CurrentHook:Load+FVector(0,0,Settings.GearHeadroom),Top(Hook.X,Hook.Y,CraneTop().Z);
+    const FVector Hook=Suspended?CurrentHook:Load+FVector(0,0,Settings.GearHeadroom);
     const auto W=[&](FVector P){return GetActorTransform().TransformPosition(P*100);};
     const auto Line=[&](FVector A,FVector B,FLinearColor C,float Thick){RigLines->DrawLine(W(A),W(B),C,0,Thick,.22);};
-    for(double DX:{-.30,0.,.30})for(double DY:{-.23,.23})Line(Top+FVector(DX,DY,0),Hook+FVector(DX,DY,.25),FLinearColor(.18,.19,.18),2);Line(Hook,Hook+FVector(0,0,-.35),FLinearColor::Yellow,8);
+    // Six cached cylinder instances connect actual top sheaves to the block.
+    Line(Hook,Hook+FVector(0,0,-.35),FLinearColor::Yellow,8);
     // The selected solid C-hook / sling is instanced with the hook block.
     for(int32 I=0;I<48;++I){const double A=2*PI*I/48,B=2*PI*(I+1)/48;const FVector C(Load.X,Load.Y,CurrentPhase==ECoilLoadingPhase::Idle?QuayZ()+.05:.08);Line(C+FVector(3*FMath::Cos(A),3*FMath::Sin(A),0),C+FVector(3*FMath::Cos(B),3*FMath::Sin(B),0),FLinearColor::Red,2);}
     for(int32 Index:Highlighted)

@@ -56,7 +56,12 @@
     "IntermediateHoldLength": 27.4,
     "HoldGap": 4,
     "bDeckCranes": true,
-    "bFoldingCovers": true
+    "bFoldingCovers": true,
+    "TPC": 0,
+    "bTPCConfirmed": false,
+    "WaterplaneCoefficient": 0.85,
+    "WaterDensity": 1.025,
+    "SummerDraftLimit": 9.38
   },
   "coils": [
     {

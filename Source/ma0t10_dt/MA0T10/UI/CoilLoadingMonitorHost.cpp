@@ -91,7 +91,7 @@ void ACoilLoadingMonitorHost::SetView(int32 View)
 void ACoilLoadingMonitorHost::Focus(int32 P)
 {
     if(!Simulation||!ViewCamera)return;SetView(P==1?1:0);FVector Position,Target;
-    if(P==0){Position={-52,Simulation->QuayOffset(55),Simulation->QuayZ()+17};Target={-8,Simulation->Settings.RailCenterY(),Simulation->QuayZ()+13};}
+    if(P==0){Position={70,Simulation->QuayOffset(38),Simulation->QuayZ()+2.5};Target={-8,Simulation->Settings.RailCenterY(),Simulation->QuayZ()+18};}
     else if(P==1)
     {
         Position={-Simulation->Settings.HoldLength*.5-4,-Simulation->Settings.HoldWidth*.5-2.5,6};Target={-Simulation->Settings.HoldLength*.5+1.45,-Simulation->Settings.HoldWidth*.5+2.9,1.5};

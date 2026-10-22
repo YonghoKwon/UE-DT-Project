@@ -5,8 +5,12 @@ namespace CoilPlan
 void FitPlayerProjection(FMatrix& P,const FIntRect& Full,const FVector4& R)
 {
     const double W=Full.Width(),H=Full.Height(),SX=R.Z-R.X,SY=R.W-R.Y;if(W<=0||H<=0||SX<=0||SY<=0)return;
-    const double Horizontal=P.M[0][0];P.M[0][0]=Horizontal*SX;P.M[1][1]=Horizontal*SX*W/H;
-    P.M[2][0]+=(R.X+R.Z)-1;P.M[2][1]+=1-(R.Y+R.W);
+    // Build the fixed-horizontal-FOV camera for the actual content rectangle,
+    // then remap both axes into the full render target. Pixel scale is isotropic
+    // even when a drawer/DPI change alters SX and SY independently.
+    const double ContentAspect=(W*SX)/(H*SY),Horizontal=P.M[0][0],Vertical=Horizontal*ContentAspect;
+    P.M[0][0]=Horizontal*SX;P.M[1][1]=Vertical*SY;
+    P.M[2][0]=P.M[2][0]*SX+(R.X+R.Z)-1;P.M[2][1]=P.M[2][1]*SY+1-(R.Y+R.W);
 }
 bool FGlyph::Contains(FVector2D P) const
 {

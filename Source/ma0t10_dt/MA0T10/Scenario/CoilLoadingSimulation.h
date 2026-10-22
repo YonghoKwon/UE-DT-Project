@@ -5,6 +5,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "CoilLoadingModel.h"
 #include "CoilLoadingSimulation.generated.h"
+class USceneComponent;
 class UStaticMeshComponent;
 class UInstancedStaticMeshComponent;
 class UStaticMesh;
@@ -108,7 +109,11 @@ public:
     void HighlightCoils(const TArray<int32>& Indices);
     bool IsHighlighted(int32 Index) const { return Highlighted.Contains(Index); }
     const TArray<int32>& HighlightedCoils() const { return Highlighted; }
-    double QuayZ() const { return Settings.Draft-Settings.KeelToTanktop+3.5; }
+    double BaseQuayZ() const { return Settings.Draft-Settings.KeelToTanktop+3.5; }
+    double QuayZ() const { return BaseQuayZ()+LoadedHydro.Sinkage; }
+    const CoilLoading::FDraftResponse& Hydrostatics() const { return LoadedHydro; }
+    uint64 RigTransformWriteCount() const { return RigTransformWrites; }
+    uint64 RigRefreshCount() const { return RigRefreshes; }
     double QuayEdgeY() const { return Settings.QuayEdgeY(); }
     double QuayOffset(double Setback) const { return QuayEdgeY()+Settings.QuaySide*Setback; }
     double ServiceLaneWidth() const { return 12; }
@@ -123,16 +128,23 @@ protected:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 private:
+    UPROPERTY(Transient) TObjectPtr<USceneComponent> ShoreRoot;
+    UPROPERTY(Transient) TObjectPtr<USceneComponent> PortalRoot;
+    CoilLoading::FDraftResponse LoadedHydro;
+    uint64 RigTransformWrites=0,RigRefreshes=0;
+    bool bBuildingShore=false,bRigTransformsReady=false;
+    FVector LastTrolley=FVector::ZeroVector,LastHook=FVector::ZeroVector;
+    bool bLastCHook=false,bLastForeAft=true;
     UPROPERTY(Transient) TArray<TObjectPtr<ACoilLoadingBody>> Bodies;
     UPROPERTY(Transient) TArray<TObjectPtr<ACoilLoadingBody>> Stock;
     UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> PlanSupports;
-    UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> CraneParts;
     UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> TrolleyDetails;
     UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> HookDetails;
     FVector HookVisualOrigin=FVector::ZeroVector;
+    UPROPERTY(Transient) TObjectPtr<UInstancedStaticMeshComponent> HoistFalls;
+    double LastFallTopZ=0;
     UPROPERTY(Transient) TArray<TObjectPtr<UInstancedStaticMeshComponent>> PresentationBatches;
     UPROPERTY(Transient) TArray<TObjectPtr<UStaticMesh>> PresentationMeshes;
-    TArray<FVector> CraneStarts;
     UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> Structure;
     UPROPERTY(Transient) TArray<TObjectPtr<UInstancedStaticMeshComponent>> Batches;
     UPROPERTY(Transient) TMap<FString,TObjectPtr<UStaticMesh>> SharedMeshes;
@@ -174,6 +186,9 @@ private:
     void BuildScene();
     void BuildQuayPresentation();
     void UpdateTrolley();
+    void UpdatePortalPosition();
+    void UpdateHydrostaticPresentation();
+    void ApplyOwnedTransform(USceneComponent* Component,FVector Location,FQuat Rotation=FQuat::Identity);
     void RestoreSceneGeometry();
     void ConfigureLidar();
     void RebuildBatches();
