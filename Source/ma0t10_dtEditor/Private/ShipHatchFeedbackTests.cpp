@@ -201,7 +201,7 @@ public:
         if(Phase==6)
         {
             Test->TestTrue(TEXT("per-sensor installation offset reaches actual sensor"),S.GetActorTransform().InverseTransformPosition(S.CabRight->GetActorLocation()).Equals(S.SensorOrigin(2)*100,.001));
-            const auto Expected=S.GetActorQuat()*FRotator(-107.5,7,0).Quaternion();Test->TestTrue(TEXT("per-sensor tilt and yaw reach actual acquisition pose"),S.CabRight->GetActorQuat().Equals(Expected,1.e-6));
+            const auto Expected=S.GetActorQuat()*FRotator(-85,7,0).Quaternion();Test->TestTrue(TEXT("Ouster cab base-90 plus5deg tilt and7deg yaw reach acquisition pose"),S.CabRight->GetActorQuat().Equals(Expected,1.e-6));
             S.SetFieldSensor(2,false,1);Test->TestFalse(TEXT("individual third-device off stops only its selection"),S.CabRight->IsSensorRunning());S.SensorOffsets[2]=FVector::ZeroVector;S.SensorTiltTrim[2]=S.SensorYaw[2]=0;S.SetFieldSensor(2,true,1);Phase=7;return false;
         }
         if(Phase==7){Test->TestTrue(TEXT("individual third-device on resumes acquisition"),S.CabRight->IsSensorRunning());FHatchFeedbackProbe::PrepareGrab(M);State=-1;Changed=Now;Phase=8;return false;}

@@ -1,6 +1,7 @@
 ﻿#include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/CoilLoadingPlanProjection.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
@@ -68,8 +69,18 @@ class FCoilThreeTierPresentation final:public IAutomationLatentCommand
         else{auto* V=W.GetGameViewport()->Viewport;const auto N=V->GetSizeXY();Size={N.X,N.Y,0};Ok=V->ReadPixels(Pixels);}
         const auto Expected=FinalAcceptanceViewportSize();
         if(!Test->TestTrue(TEXT("native requested-resolution coil presentation pixels"),Ok&&Size.X==Expected.X&&Size.Y==Expected.Y))return false;
-        int Bright=0,Dark=0,Green=0,Count=0;
-        for(int I=0;I<Pixels.Num();I+=16){const auto C=Pixels[I];++Count;Bright+=C.R+C.G+C.B>100;Dark+=C.R+C.G+C.B<18;Green+=C.G>80&&C.G>C.R*1.25&&C.G>C.B*1.15;}
+        int Bright=0,Dark=0,Green=0,Count=0;FIntRect Sample(0,0,Size.X,Size.Y);
+        if(Section)
+        {
+            // Preserve the12% populated-pixel criterion in the rendered subject
+            // envelope; full-hold SI framing intentionally adds empty context.
+            const auto G=M.PlanCanvas()->GetCachedGeometry(),VG=W.GetGameViewport()->GetGameViewportWidget()->GetCachedGeometry();const auto P=CoilPlan::Build(S.Settings,S.Plan(),S.PreviewPlacement(),S.Analysis(),{},G.GetLocalSize(),true,S.NextRow);FVector2D Min(DBL_MAX,DBL_MAX),Max(-DBL_MAX,-DBL_MAX);
+            for(const auto& Glyph:P.Glyphs){Min.X=FMath::Min(Min.X,Glyph.Center.X-Glyph.Half.X);Min.Y=FMath::Min(Min.Y,Glyph.Center.Y-Glyph.Half.Y);Max.X=FMath::Max(Max.X,Glyph.Center.X+Glyph.Half.X);Max.Y=FMath::Max(Max.Y,Glyph.Center.Y+Glyph.Half.Y);}
+            if(!Test->TestTrue(TEXT("full-hold section retains all coil glyphs"),P.Glyphs.Num()==S.Plan().Num()+1))return false;
+            const auto A=VG.AbsoluteToLocal(G.LocalToAbsolute(Min))*FVector2D(Size.X,Size.Y)/VG.GetLocalSize(),B=VG.AbsoluteToLocal(G.LocalToAbsolute(Max))*FVector2D(Size.X,Size.Y)/VG.GetLocalSize();Sample=FIntRect(FMath::Clamp(FMath::FloorToInt(A.X)-3,0,Size.X-1),FMath::Clamp(FMath::FloorToInt(A.Y)-3,0,Size.Y-1),FMath::Clamp(FMath::CeilToInt(B.X)+3,1,Size.X),FMath::Clamp(FMath::CeilToInt(B.Y)+3,1,Size.Y));
+        }
+        for(int Y=Sample.Min.Y;Y<Sample.Max.Y;Y+=4)for(int X=Sample.Min.X;X<Sample.Max.X;X+=4){const auto C=Pixels[Y*Size.X+X];++Count;Bright+=C.R+C.G+C.B>100;Dark+=C.R+C.G+C.B<18;Green+=C.G>80&&C.G>C.R*1.25&&C.G>C.B*1.15;}
+        Test->TestTrue(TEXT("presentation subject sample is nonempty"),Count>100);
         Test->TestTrue(TEXT("presentation contains populated scene or section"),Bright>Count*.12);
         if(!Section)
         {

@@ -124,7 +124,7 @@ public:
         {
             auto* S=A->ScanComponent.Get();const auto F=S->GetLastFrameSnapshot();
             Test->TestTrue(TEXT("selected sensor produces immutable frame"),F&&F->Points&&F->Points->Num()>0);if(!F||!F->Points)return;
-            const int32 Expected=S->DeviceProfile==EVirtualLidarDeviceProfile::HesaiXT32?1000*32:S->DeviceProfile==EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE?576*56:S->DeviceProfile==EVirtualLidarDeviceProfile::LivoxMid360S?360*60:200*56;
+            const int32 Expected=S->DeviceProfile==EVirtualLidarDeviceProfile::OusterOS1_64_Rev7||S->DeviceProfile==EVirtualLidarDeviceProfile::OusterOS1_64_Rev05?1024*64:S->DeviceProfile==EVirtualLidarDeviceProfile::HesaiXT32?1000*32:S->DeviceProfile==EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE?576*56:S->DeviceProfile==EVirtualLidarDeviceProfile::LivoxMid360S?360*60:200*56;
             Test->TestEqual(TEXT("existing FullSpec profile ray count is preserved"),F->Points->Num(),Expected);
             int32 Hit=0,Cargo=0,BadLabel=0;double MaxError=0,SumError=0,ReflectivityError=0,Intensity=0;
             for(const auto& P:*F->Points)if(P.bHit)
