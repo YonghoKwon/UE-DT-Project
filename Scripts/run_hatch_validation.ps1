@@ -21,7 +21,9 @@ param(
     [switch]$CpuReference,
     [ValidateRange(0,180)][double]$MatchedMemorySeconds=0,
     [ValidateRange(1800,3600)][double]$MemoryTrendSeconds=1800,
-    [ValidateRange(5,30)][double]$MemorySampleSeconds=5
+    [ValidateRange(5,30)][double]$MemorySampleSeconds=5,
+    [ValidateRange(0,65535)][int]$MemoryPcdLoopbackPort=0,
+    [string]$MemoryCancelFile=''
 )
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
@@ -66,6 +68,8 @@ try {
     if($MemoryDeepReport){if(!$MemoryAudit){throw 'MemoryDeepReport requires MemoryAudit'};$hatchArgs+='-HatchMemoryDeepReport'}
     if(($MemoryAudit -and $Mode -like 'Dig*') -or $trend){$hatchArgs+='-llm'}
     if($trend){$hatchArgs+=@('-HatchMemoryTrend',('-HatchMemoryTrendSeconds='+$MemoryTrendSeconds.ToString([Globalization.CultureInfo]::InvariantCulture)),('-HatchMemorySampleSeconds='+$MemorySampleSeconds.ToString([Globalization.CultureInfo]::InvariantCulture)))}
+    if($MemoryPcdLoopbackPort){$hatchArgs+="-HatchMemoryPcdLoopbackPort=$MemoryPcdLoopbackPort"}
+    if($MemoryCancelFile){$hatchArgs+="-HatchMemoryCancelFile=$([IO.Path]::GetFullPath($MemoryCancelFile))"}
     if($FullRhiDrain -and !$trend){$hatchArgs+='-HatchFullRhiDrain'}
     if($WorldTraceReference){$hatchArgs+='-HatchWorldTraceReference'}
     if($CpuReference){$hatchArgs+='-HatchCpuReference'}
