@@ -22,6 +22,8 @@
 
 private semantic scene은 Editor에서는 기존 EditorPreview, `-game`/패키지에서는 GamePreview로 구성한다. cooked 게임에서 PSO 준비 중 실제 proxy가 없는 첫 pass는 완료로 발행하지 않고, 동결한 geometry/identity를 유지해 기존 Poll에서 준비 완료 뒤 한 번 렌더한다. LiDAR main depth와 Camera RGB/depth는 원래 요청의 데이터를 보존하며 Tag·분류 규칙·1cm 대응 기준·PCD 33B/라벨 5B는 유지한다. 명시적 `-LidarSemanticDiagnostics`의 센서·backend별 1회 요약과 `Scripts/audit_lidar_semantics.py --expect-backend 2 --require-slab`로 실제 파일을 대조한다. [직렬 원인 분석·재현](docs/research/ANALYSIS-24-22-serial.md), [실행별 최종 결과·제한](Saved/Reports/ANALYSIS-24-22/RESULT.md)을 따른다.
 
+Runtime `5bf813a`에서 Editor/Development/Shipping 빌드, 관련 D3D12 13개·Python 감사 5개·quick9·layer/guard를 확인했다. 실제 Development/Shipping은 GT-off/on 각3장면 모두 backend2 named Slab1,800점이며 GT-on Camera class2 mask도 각19,257pixels다. Development backend3은 별도3장면 각1,792점으로 확인했다. package 12장면의 PCD body는 기준과 바이트 동일했다. 개인353/보호753파일을 복원·보존하고 package 바이너리는 정리했다. 표준 ABAB·Shipping backend3·#22 직접 UI·회사/소비자 수용은 이 통과에 포함하지 않는다.
+
 ### UXR-P1/P2a — 운전원 표시 개선·직렬 UI 검증
 
 T01/C01/H02/D01과 C03·D02~D05·T02~T03을 기존 L3 UI에서 구현했다. 코일 패널은 소유 센서 도구의 점유 영역을 피하고, 위험·주의 옆에 미확인 사유 수를 표시한다. 해치 지표의 모의/측정 출처, 한국어 운전원 용어·수치별 단위, 짧은 PCD 안내·프레임 전송 간격·추정/실측 대역폭 표시를 적용했다. Slab 기능이 꺼진 월드의 데이터 패널은 수동 송신 점검을 사용하며 신규/재생 카드와 시나리오 경고를 표시하지 않는다. Slab 월드의 기존 흐름, 일반 PCD·파일 저장·기본 정책·저장값·DTCore는 유지한다.

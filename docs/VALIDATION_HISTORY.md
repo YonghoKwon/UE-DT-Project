@@ -42,6 +42,17 @@
 - PowerShell 순수판정14+scheduled summarize cohort6=20 PASS/0FAIL, 기존cohort5 PASS, quick9 Success/0Failed/0Skip, layer 위반0/allowlist0→0, DTCore guard·PS parser3파일·diff check 통과. 합성 테스트와 실제 성능 증거를 구분한다.
 - 가상59/58/45/120FPS의20Hz·jitter/hitch/누락/몰아치기 차단·pause/재시작 C++2테스트는 작성만 했다. Editor/Game 컴파일·C++실행·feature/release·실제90초 CPU/HWRT/PCD·RT on ABAB는 병렬 지시의 금지에 따라 NOT_RUN. 메인 프로세스/화면/GPU/개인설정 조작0, 보호경로 변경0. 최종 커밋·증거·직렬 명령·미수행·merge_check는 [RESULT](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md) 및 result.json을 따른다.
 
+## 2026-10-24 ANALYSIS-24 — 패키지 Slab 의미 분류 직렬 재현
+
+- 사용자 직렬 지시로 메인 `chore/analysis-24-22`에서 origin/master d2ca1d1을 병합했다. `698a895`에서 헤더/Sampling/SceneQuery conflict를 양쪽 의도대로 해결했고 #28b ray packet 병렬화·readback worker·lease reset을 보존했다. 명시적 diagnostic의 pure metadata snapshot/worker 요약을 기존 GT FileSave로 연결했다.
+- 기준 Editor `-game` 및 실제 Development 패키지는 32,256점 모두 Other1/instance0이었다. snapshot named4/Slab1·ID buffer81,792가 있었지만 depth mismatch32,256이었다. Engine ShouldRender/game-hidden-flags 분기로 editor private world 구성 문제를 확인했다. `efa5848`의 `.SetEditor(GIsEditor)` A/B는 Editor-game을 Slab1,800/mismatch0으로 복구했으나 native package 첫 장면은 계속0이어서 실패를 보존했다.
+- 추가 native 진단은 registered/visible/render_state4이지만 scene_proxy0/PSOPrecaching4, semantic depth1e8cm vs main약1800cm임을 보였다. cooked PSO DelayUntilPSOPrecached가 첫 proxy 생성을 미루는 것이 두 번째 원인이었다. warm 3장면의 이전 코드가0/1800/1800인 사실도 보존했다. `5bf813a`는 동결 geometry/identity/pose를 유지해 기존 Poll에서 PSO 준비 뒤 semantic pass를 한 번 발행한다. 원래 LiDAR depth와 Camera RGB/depth를 보존하고 semantic readback만 보류하며 취소/revision·기존 초기화 deadline을 유지한다. 전역 PSO/CVar·1cm 기준·Tag/ID·wire는 바꾸지 않았다.
+- 최종 같은 Runtime5bf813a Editor Development/Development/Shipping build·cook exit0. D3D12 관련13 Success/실패·skip0(새 diagnostic3·HWRT4·legacy semantic1·CameraGT1·capture lifetime4), Python semantic 감사5, quick9/layer·allowlist0→0/guard가 통과했다. process exit0만으로 수용하지 않고 실제 JSON/backend/label·mask를 대조했다.
+- Development·Shipping 각각 GT-off/on×3장면, 총12개는 첫 장면을 포함해 named Slab각1,800점·instance0=0, GT-on6개 Camera raw class2 mask각19,257pixels였다. 기존 PCD body SHA ac492cd014eee9876035bd9f5b4026506579ce02ecedf175baf6f03ea0b8e16b와12개 모두 동일했다. Development public Actor API HWRT3 별도3장면은각1,792점·mapped Slab1,792·실제 backend3이었다. 두 backend의 샘플링 차이를 loss나 동등 정확도로 해석하지 않는다.
+- 최초 Shipping은 URL map 인자를 무시해 기본 SensorTestMap에서 ID 미발견으로 job실패(프로세스exit0)를 기록했다. 해당 실행의 UserDir/Saved/Config/Windows/Engine.ini만 검증맵으로 지정해 재실행했고 원본 config/맵은 변경하지 않았다. DT_DxLevel 간접 World ref인 TestMap도 cook했다. 초기 서명 정책과 읽기 전용 Python 보조 API 부재 오류는 각각 프로세스 한정 Bypass/지원 API로 바로잡아 별도 보존했다.
+- 개인 설정353파일의 원본 집합/hash·존재 여부를 복원하고 보호753파일 hash동일, 기존 SensorTestMap dirty/untracked 보호 상태를 유지했다. 패키지 root의 절대 경계를 검증하고 소유 archive/staging/user binary 약7.25GB를 정리해 문서/요약JSON만 남겼다. package exe/PCD/label hash·출구·실패·진단 수치는 요약에 보존했다. 소유 프로세스 정상 종료, 서비스/인증/DTCore/운영 자산 변경·push0이다.
+- 표준 ABAB·Shipping backend3·#22 직접 UI·회사/실장비/외부 ACK 수용은 미수행이다. #22 듀얼 표시 코드는 바꾸지 않았다. 로컬 package 의미 분류 gate와 전체 성능/출시 수용을 구분한다. [RESULT](../Saved/Reports/ANALYSIS-24-22/RESULT.md)·[직렬 원인/재현](research/ANALYSIS-24-22-serial.md), 최종 result.json/merge_check 판정을 따른다.
+
 ## 2026-10-22 PR69 — FOLLOWUP 독립 코드 검수6건
 
 - 운전실 LiDAR signed 좌우 장착은 ±1.30m+사용자X보정, 절대오차<=1cm다. 캐빈폭2.4m의 반폭1.20m+외측브래킷0.10m로 산출하며 원래 단방향 하한 검사를 상·하한 검사로 대체했다.

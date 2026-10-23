@@ -67,8 +67,31 @@ $destination = "$root/Saved/Reports/ANALYSIS-24-22/package/<실행>"
 & "$engine/Build/BatchFiles/RunUAT.bat" BuildCookRun "-project=$root/ma0t10_dt.uproject" -noP4 -platform=Win64 -clientconfig=Development -build -skipbuildeditor -cook '-map=/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap+/Game/MA0T10/Maps/TestMap' -stage -pak -archive "-stagingdirectory=$destination/staging" "-archivedirectory=$destination/archive" -unattended -utf8output
 ```
 
-Shipping은 clientconfig만 Shipping으로 바꾸고 별도 destination을 사용한다. `-LidarSemanticDiagnostics -UserDir=<destination>/runtime/user`와 같은 map/job/1920×1080/D3D12 조건으로 실행한다. job result의 실제 dataset 경로와 새 diagnostic JSON을 대조한다. native 로그가 컴파일되지 않는 Shipping에서도 기존 async FileSave JSON이 증거가 된다. listener/실제 Broker가 필요 없는 AUTO-01 job이며 DTCore 연결 URL은 세션에서 인증 없는 loopback으로, login/passcode는 빈 값으로 지정한다. 공유 config/서비스/인증정보를 바꾸거나 사용하지 않는다.
+Shipping은 clientconfig를 Shipping으로 바꾸고 별도 destination을 사용한다. Shipping의 URL map 인자는 무시돼 최초 실행은 기본 SensorTestMap에서 ID를 찾지 못했고 이를 실패로 보존했다. 재현용 **해당 실행 UserDir만** `Saved/Config/Windows/Engine.ini`에 아래 설정을 만들면 같은 검증맵으로 실행된다. 프로젝트 원본 DefaultEngine.ini/SensorTestMap은 수정하지 않는다.
 
-HWRT3 추가 비교는 기존 UI/public Actor API로 backend를 명시적으로 선택할 수 있을 때 수행하고 실제 backend3 및 named Slab 양성을 대조한다. AUTO-01 sensor.set에 없는 backend 필드를 임의로 추가하지 않는다. fallback/화면 접근 실패는 backend3 수용으로 세지 않는다. #22는 현재 코드의 재현 절차만 유지하며 UI/Camera 제품 코드를 변경하지 않는다.
+```ini
+[/Script/EngineSettings.GameMapsSettings]
+GameDefaultMap=/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap.SlabScenarioValidationMap
+```
+
+`-LidarSemanticDiagnostics -UserDir=<destination>/runtime/user`와 같은 job/1920×1080/D3D12 조건으로 실행한다. job result의 실제 map/dataset 경로와 새 diagnostic JSON을 대조한다. native 로그가 컴파일되지 않는 Shipping에서도 기존 async FileSave JSON이 증거가 된다. listener/실제 Broker가 필요 없는 AUTO-01 job이며 DTCore 연결 URL은 세션에서 인증 없는 loopback으로, login/passcode는 빈 값으로 지정한다. 공유 config/서비스/인증정보를 바꾸거나 사용하지 않는다.
+
+HWRT3 추가 비교는 기존 UI/public Actor API로 backend를 명시적으로 선택할 수 있을 때 수행하고 실제 backend3 및 named Slab 양성을 대조한다. Development에서는 UE built-in `-ExecCmds="defer ke VirtualSensorCoordinator_0 SetLidarAcquisitionBackend 3"`가 기존 public UFUNCTION을 호출하는 것을 실제 결과 backend3으로 대조했다. KE는 UE5.3 Exec_Dev의 !UE_BUILD_SHIPPING 분기이므로 Shipping에는 이 방법을 통과로 적용하지 않는다. AUTO-01 sensor.set에 없는 backend 필드를 임의로 추가하지 않는다. fallback/화면 접근 실패는 backend3 수용으로 세지 않는다. #22 듀얼 표시 코드는 바꾸지 않았다. Camera GT 변경은 #24의 같은 semantic PSO/readback 문제에 한정된다.
+
+## 최종 local 검증 범위
+
+실행 Runtime SHA는 `5bf813a17cbbb436d58ef90cd9fa7ea867ee850f`이며 이후 문서는 runtime source를 변경하지 않는다. 같은 SHA의 Editor Development/Development package/Shipping package 빌드가 exit0, 관련 D3D12 13개가 Success/실패·skip0, Python 감사5개와 quick9/layer/guard가 통과했다.
+
+| 구성·backend | GT | 장면 | 각 장면 named Slab | Camera class2 pixels |
+|---|---|---:|---:|---:|
+| Development / Depth2 | off | 3 | 1,800 | 미요청 |
+| Development / Depth2 | on | 3 | 1,800 | 각19,257 |
+| Shipping / Depth2 | off | 3 | 1,800 | 미요청 |
+| Shipping / Depth2 | on | 3 | 1,800 | 각19,257 |
+| Development / HWRT3 | off | 3 | 1,792 | 미요청 |
+
+모든 첫 장면을 포함했다. backend2의 12개 PCD body SHA256은 위 기준과 같았다. Camera dataset `seg.png`는 preview palette가 아닌 **8-bit raw class ID**다(`VirtualDatasetSubsystem.cpp:444`); class2를 세었다. package cold failures·world-kind-only 실패·Shipping 맵 선택 실패도 요약에 보존했다. 최종 근거는 `package/FINAL_PACKAGE_SUMMARY.json`, 각 acceptance/semantic/diagnostic 요약, `serial/editor-regression-final-summary.json`, `serial/restoration-and-protection-final.json`이다. package binary/raw scene은 사용자 정리 규칙에 따라 삭제했고 hash·수치는 요약으로 남겼다.
+
+표준 RT ProjectDefault ABAB, Shipping HWRT3, #22 직접 마우스 수용, 실제 장비/회사/소비자 ACK는 미수행이다. job tick wall 수치는 표준 perf gate를 대신하지 않는다.
 
 최종 정리 시 package 실행 프로세스가 모두 정상 종료했는지 확인한다. root가 `Saved/Reports/ANALYSIS-24-22/package/` 안인지 절대 경로로 검증하고, 소유 staging/archive/user binary를 정리한다. 삭제 전 build/runtime exit·binary hash·label/diagnostic counts·실패/skip을 요약 JSON에 남기며 결과 문서와 요약 JSON을 보존한다. 개인 설정의 원본 집합/해시와 보호 경로를 마지막에 복원·대조한다.
