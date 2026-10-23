@@ -47,6 +47,7 @@ UCLASS()
 class MA0T10_DT_API UCoilLoadingMonitor : public UDxWidget
 {
     GENERATED_BODY()
+    friend struct FUxrP2bCoilProbe;
 public:
     void Bind(ACoilLoadingMonitorHost* H,ACoilLoadingSimulation* S);
     void Refresh();
@@ -66,6 +67,7 @@ protected:
     virtual void NativeOnInitialized() override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry&,const FPointerEvent&) override;
 private:
+    UTextBlock* MakeIssueText(const FString& Text,FLinearColor Color);
     TWeakObjectPtr<ACoilLoadingMonitorHost> Host;
     TWeakObjectPtr<ACoilLoadingSimulation> Sim;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> Heading;

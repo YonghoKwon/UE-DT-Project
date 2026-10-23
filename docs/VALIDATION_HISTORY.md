@@ -716,3 +716,26 @@ RSS는 **user accepted unresolved RSS (2026-10-23)**로 #26b에 이관하고 머
 - Editor/PIE 정상 종료 뒤 개인 SaveGame/Editor 설정43개를 원본 집합·해시로 복원했고 보호 해시297개가 동일했다. 기존 SensorTestMap 사용자 변경·Config/Game.ini·PixelStreaming·Claude 전용 파일 및 DTCore source/gitlink는 보존했다. 운영맵/WBP 저장·재생성, push·master merge는 하지 않았다.
 - 별도 관찰: 데이터 패널이 닫힌 배치 화면에서는 장비가 표시돼도 툴바에 일반 `장비 선택 필요` 경고가 남는 경우가 있다. 기존 툴바 수동 점검의 대상 목록은 이번 범위에서 바꾸지 않았으며 후속 대상으로 보고한다. 직접 모든 조합·OS DPI150%·외부 수신/업무 ACK·현장 수용은 미수행이다.
 - 상세: [RESULT.md](../Saved/Reports/UXR-P1P2a/RESULT.md), [result.json](../Saved/Reports/UXR-P1P2a/result.json), [merge-check.json](../Saved/Reports/UXR-P1P2a/merge-check.json), `Saved/Reports/UXR-P1P2a/`의 원본 실패/성공·설정 복원 증거.
+
+
+## 2026-10-24 UXR-P2b — 병렬 구현·정적 검증, 직렬 검증 대기
+
+- 지정 worktree `C:\Unreal Projects\wt_uxp2b`, branch `feat/uxr-p2b-1024`, 기준 `d2ca1d1`, 구현 `fadf810`. 시작 index/worktree 변경0. Editor·UBT·GPU·측정·직접 UI·메인 프로세스 조작 없이 수행했다.
+- C02/H01/H03/H04의 L3 표시만 변경했다. C04는 빈도 근거가 없어 [제안](research/UXR-P2b/C04-proposal.md)만 작성했다. 센서/해석 계산·정책·TF/좌표·wire·저장값·DTCore와 코일 Slab capability 경계는 유지했다.
+- `Scripts/verify.ps1 -Level quick -BaseCommit d2ca1d1`: 구현 SHA에서9 Success/0 Fail. 합성 perf-cohort fixture는 측정 결과가 아니다. layer/allowlist0→0·새 위반0, DTCore guard PASS다. 소스 비교8건에서 기존 handler51개·버튼 연결·분석/사유 그룹·파일 동선·TF 원문·기존 reflected 선언을 대조했다.
+- 신규 `MA0T10.UXRP2b` 단위 테스트5개는 작성만 했다. 기존 `ProductPresentationRhi`는 세로 넘침/줄바꿈·실제 글자 높이·selector 인스턴스 유지 검사를 추가했고, `SensorLabelAnchorsRhi`는 한국어 역할과 원문 TF 툴팁을 함께 검사하도록 바꿨다. 기존 위치/좌표/겹침/수치 기준은 완화하지 않았다. 이 테스트들과 빌드·RHI·100/150% 캡처·직접 조작·성능은 **미수행**이다.
+- 개인 설정/SaveGame/창 배치는 미조작이므로 복원 불필요. 보호 대상 tracked185개를 시작/종료 SHA-256으로 대조하고 DTCore gitlink/worktree도 검사한다. 비밀값 사용·출력 없음, push/PR/merge/submodule update 없음.
+- 상세 상태·검사 이력·두 client×글자100/150%의 직렬 장면/테스트명은 [RESULT.md](../Saved/Reports/UXR-P2b/RESULT.md), [result.json](../Saved/Reports/UXR-P2b/result.json), [merge-check.json](../Saved/Reports/UXR-P2b/merge-check.json)을 따른다. 메인에는 허용한 RESULT.md 사본 하나만 남긴다. 이번 결과는 실행/현장 수용 PASS가 아니다.
+
+
+## 2026-10-24 UXR-P2b — 메인 직렬 빌드·캡처·직접 점검
+
+- 메인 `feat/uxr-p2b-1024@edfc473`에서 시작했다. SensorTestMap 사용자 수정과 미추적 CLAUDE/Config/Game.ini/PixelStreaming/IMPROVEMENTS_CLAUDE를 보존했다. 병렬 제한 해제·빌드/실제 UI 허용과 UI 전용 perf 생략은 이번 사용자 지시에 따른다.
+- 추가 코드0ba93a9(배지 높이·opt-in 캡처·HatchReport 출력)와4887653(정지/마지막 획득 표시·실제 running/backend metadata)을 검증했다. 최초 ProductPresentationRhi의 배지 높이6assertion 실패를 실제 desired height로 해결했다. 위치/겹침/1px/1cm 및 기존 계산·정책 기준은 완화하지 않았다.
+- 코드4887653의 UE5.3 Development 빌드 PASS. 관련22 Success/0 Fail/0 Skip(신규 단위5 포함), 두 client별 캡처2 Success/0 Fail/0 Skip와150% SensorLabelAnchorsRhi 각1 Success/0 Fail/0 Skip다. WBP7 메모리 compile(save0), quick9·layer/allowlist0→0·DTCore guard PASS다. 합성 cohort fixture를 실제 성능으로 세지 않았다.
+- 실제 D3D12/HWRT·client1280×720/1920×1080×글자100/150의 PNG64/메타데이터64와1600×900 공유 JPEG64를 남겼다. DPI1, UMG0.6660000086/1, 동일 코드·모니터 인스턴스·revision·cached Hz·실제 running 상태를 기록했다. 정지4장면은3대 running=false와 마지막 획득 표기를 assertion했다.
+- Computer Use 직접4세션35행: 코일100→150→100 및 배치/Undo 재생성·Slab 없는 전송/결과/진단/미리보기, 해치 분할/단일·시점·선택/세로 스크롤·TF tooltip·현장 보기·회색 격자 진단·독립 배율을 확인했다. 원본 WGC는 JPEG35이며 최초 확장자 오표기를 바이트 변경 없는 rename으로 정정했다. 자동 캡처·setup harness를 직접 마우스 통과로 바꾸지 않았다.
+- C04는 빈도 근거가 없어 제안만 유지했다. production 변경은 L3 표시2개 파일이며 DTCore·L0~L2·wire·저장/기본 정책 변경0이다. perf는 사용자 UI 전용 예외 및 브라우저 실행 조건으로 생략했다. 전체 release·OS DPI150%·현장/외부 수신/업무 ACK 수용은 미수행이다.
+- 초기 Hatch07Rhi의 고정 출력 경로를 사전 확인하지 못해 과거 hatch-rviz PNG5개가 갱신됐다. 초기 새 결과는 P2b/serial/hatch-rhi-initial에 보존했고 후속 실행은 -HatchReport로 P2b에 한정했다. 과거 원본5개 복원/동일 해시는 입증하지 못한다. Inspection 원본 및 보호 파일은 변경하지 않았다.
+- Editor/PIE 정상 종료 후 개인 SaveGame/WindowsEditor 설정43개 원본 집합·해시 복원(새 파일 제거0), 보호297개 해시 일치·DTCore b2504d1 gitlink/index/worktree 불변을 확인했다. 보호 경로 stage0, push/PR/merge/submodule update0이다.
+- 상세 [RESULT](../Saved/Reports/UXR-P2b/RESULT.md), [직접 점검표](../Saved/Reports/UXR-P2b/manual/CHECKLIST.md), [result.json](../Saved/Reports/UXR-P2b/result.json), [merge-check](../Saved/Reports/UXR-P2b/merge-check.json). merge_check의 REVIEW는 자동 머지 승인이 아니며 남은 gate와 변경된 테스트의 독립 검수가 필요하다.
