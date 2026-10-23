@@ -28,6 +28,8 @@ Runtime `5bf813a`에서 Editor/Development/Shipping 빌드, 관련 D3D12 13개·
 
 성능 재개 `7e6e04d`는 `fd5fac1`을 병합했고 README/검증 이력 양쪽 내용을 보존했다. RT on·1920×1080 visible 표준 ABAB12회에서 FPS 저하0.00498%·p95 증가0%·Game Thread 변화-0.03468%로2% gate PASS다. 기본 Rev7×3은90.0063초에 각1,800프레임/19.998605Hz, 요청 비율0.999930, 슬롯 하한1,799를 통과했다. Camera GT on의 동일 메인 off 대조 비용은 Game Thread +1.050ms(+20.61%,1회 관측)다. 현재 Editor 빌드·관련21개·Python5·quick9·layer/guard PASS, 개인 설정372개·보호753개를 복원·대조했다. 현재 SHA의 native 패키징·전체 release·직접 마우스/현장 수용은 별도다. [재개 결과](Saved/Reports/ANALYSIS-24-22/RESULT.md)를 따른다.
 
+GT-on 추가 독립 비교에서는 기존 GT-off ABAB 통과만으로 충분하지 않았다. `0bd709c`는 기존 Perf01/verify에 GT-on·Rev7/HWRT 조건과 GPU2% 판정을 추가했다. fd5fac1 대비 각6회 동일조건 ABAB는 최초 GPU+4.275530%로 실패했다. ready 경로 최소 수정 `9aed4ee` 뒤에도 GPU 7.372320→7.547837ms(+2.380760%)로 **2%FAIL**이며 FPS저하0.001464%·p95증가0%·GameThread변화-0.057428%는 통과했다. 지시에 따라 추가 수정/측정을 중단하고 성능 미달로 merge를 차단한다. 원본24valid·수정소스15RHI 통과·개인372/보호753복원은 [최신 RESULT](Saved/Reports/ANALYSIS-24-22/RESULT.md)를 따른다.
+
 ### UXR-H150 — 해치 150% 표시 공간 확보, 독립 검수 대기
 
 해치 모니터의 보조 시점·보기 설정·원료/센서 선택을 기존 인스턴스 그대로 `시점 · 더보기` 드로어로 옮겼다. 지표 카드 여백을 줄이고 숫자를 기본 제목 크기로 맞췄으며, 우측 `홀드 단면 펼치기`로 기존 단면을 열며 접으면 히트맵 공간을 복원한다. 계산·센서·저장값·DTCore·코일 월드는 유지한다.

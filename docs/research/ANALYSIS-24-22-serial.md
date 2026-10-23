@@ -133,3 +133,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level pe
 도구회귀는 기존5합성cohort에 GPU-only조건 성공/3%악화/측정값누락3개를 더해8개이며 실측으로 세지 않는다. WindowsPowerShell5의 단일문자열 native splat 문제는 명시적string[]로 수정했고 초기실패로그를 보존했다. 실측 판정과 커밋은 최신 RESULT/result.json을 따른다.
 
 GT-on/Rev7 최초 전후실측(`0bd709c`,12valid)은 GPU7.387185→7.703027ms(+4.275530%)로2%FAIL이었다. FPS저하.000444%,p95변화0%,GameThread변화-.086816%는 통과했다. 원본을 `gt-on-abab-20261024/initial-failed-summary.json`과verify/20261023T211208936Z에 보존했다. 원인으로 단정하지 않고 warm경로의 proxy체크를 단일순회로 합치고, 원래처럼 상태문자열 조립 전에 ready capture를 제출하며, readyCameraGT의 불필요한 InitialCopiesQueued release-store를 없앴다. 캡처/readback횟수·품질·타임아웃·동결snapshot·cancel/generation정책은 유지한다. Editorbuild/관련15RHI 성공 뒤 같은instrumenthash/조건으로1회재측정하고, 재실패하면 더 변경하지 않고 보고한다.
+
+## GT-on/Rev7 최종 판정 — GPU2% 미달로 중단
+
+GT-on 추가 독립 비교에서는 기존 GT-off ABAB 통과만으로 충분하지 않았다. `0bd709c`는 기존 Perf01/verify에 GT-on·Rev7/HWRT 조건과 GPU2% 판정을 추가했다. fd5fac1 대비 각6회 동일조건 ABAB는 최초 GPU+4.275530%로 실패했다. ready 경로 최소 수정 `9aed4ee` 뒤에도 GPU 7.372320→7.547837ms(+2.380760%)로 **2%FAIL**이며 FPS저하0.001464%·p95증가0%·GameThread변화-0.057428%는 통과했다. 지시에 따라 추가 수정/측정을 중단하고 성능 미달로 merge를 차단한다. 원본24valid·수정소스15RHI 통과·개인372/보호753복원은 [최신 RESULT](../../Saved/Reports/ANALYSIS-24-22/RESULT.md)를 따른다.
+
+두 코호트는 모두 valid12(6A/6B), 같은장면/GT-on/Rev7/실제HWRT/semanticson·RTProjectDefault·visible1920x1080·10초warmup+60초·동일instrument/sessionhash다. 측정실패는GPU2%미달이며 데이터누락/조건불일치가 아니다. 최소수정이GPU상승의원인을확정하거나해소했다는주장을하지않는다. 요청한1회재시도후더최적화/재측정하지않았다. 실제실행·정적gate·소스15RHI와복원근거는 `gt-on-abab-20261024/perf-final.json`/feature-final.json/RESULT와result.json을따른다.

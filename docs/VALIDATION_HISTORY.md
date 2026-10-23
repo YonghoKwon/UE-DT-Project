@@ -6,6 +6,14 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-24 ANALYSIS-24 — GT-on/Rev7 전후 ABAB GPU 재실패, 중단
+
+- 기준fd5fac1440d87a3a48c4aba71814486c1d56874d. 도구0bd709c: Perf01조건GT-on/Rev7/HWRT·의미분류on 및 GPU평균2%옵션 추가, 기존defaults/Scheduled GPU·RSS·Hz gate 유지. 기존5+GPU성공/단독3%악화/누락3개 합성8PASS. 최초nativePSsplat/EOF실패와수정이력 보존. 두revision동일instrument/sessionhash 검증.
+- 최초0bd709c 각6회ABAB12valid: GPU 7.387185→7.703027ms(+4.275530%) FAIL. FPS저하0.000444%·p95증가0%·GT변화-0.086816% PASS. verify/20261023T211208936Z 원본보존.
+- 최소수정9aed4ee: ready proxy검사단일순회, capture를상태문자열조립전제출, readyCameraGT중복InitialCopiesQueued store제거. 캡처/readback횟수·Hz·품질·1초grace/timeout·snapshot/cancel/generation유지. Editorbuild0, 수정소스15RHI Success/0Fail/0Skip 및 소스hash9aed일치, quick9/layer0/guardPASS.
+- 동일조건 재측정12valid: callbackFPS 59.999203→59.998325(저하0.001464%), enginep95 16.666900→16.666900ms(0%), GT 6.639424→6.635611ms(-0.057428%), GPU 7.372320→7.547837ms(+2.380760%) **FAIL2%**. verify/20261023T214539554Z. 두코호트각6A/6B·RTon/1920x1080visible·10초warmup+60초·CameraD455GTon+1Rev7/HWRT/semanticson 고정. 원인확정/인과개선효과를 주장하지 않는다.
+- 지시대로1회최소수정/재측정후추가작업중단. 영상decode재감지0, 환경수치판정미사용. 개인372/보호753복원, 원래SensorMapdirty/untracked4보존, 맵/DTCore수정/송신/외부ACK수용없음. 새SHA패키징/전체release/직접마우스미수행. RESULT/result.jsonperfFAIL·merge_checkBLOCK를 최종판정으로한다. nopush.
+
 ## 2026-10-24 ANALYSIS-24 — fd5fac1 병합과 성능 재개 완료
 
 - 기준 `fd5fac1440d87a3a48c4aba71814486c1d56874d`, Runtime merge `7e6e04d856a4dfaac8ad1db34d228ab41a2db60a`; README/history conflict 양쪽 보존, 추가 production/threshold 변경 없음. 최초5회 및 감시924회 영상 디코딩 재감지0; 환경값은 판정 미사용.
