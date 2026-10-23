@@ -656,3 +656,13 @@ RSS는 **user accepted unresolved RSS (2026-10-23)**로 #26b에 이관하고 머
 - f3b59c4 quick PASS `verify/20261023T024518462Z`; release PASS `verify/20261023T024528746Z`: 전체 고유448개 중407실제Success/41조건부skip, feature재실행포함425Success/44skip/0Fail. WBP7메모리컴파일·렌더문구PASS. Python ROS wire40/JS3/loopbackPython3 exit0.
 - e01a47c→f3b59c4 표준1Camera+1LiDAR/SlabScenarioValidationMap/1920×1080표시형/D3D12/RTProjectDefault/10+60초/ABAB×3 A6/B6: FPS59.998394→59.998771(+0.000627%), enginep9516.666900→동일(0%), GT6.031961→6.033172(+0.020075%). 12실행모두valid, 각2%기준PASS. `verify/20261023T030153968Z`.
 - 글자100% 생산UI RHI 캡처720×720을progress/에 갱신했다(client1920×1080/DPI1.0). 새 Computer Use 시도도CreateForMonitor0x80070057 두 번 실패하여 입력0, 직접마우스는deferred. 원래개인설정344개·보호297개·발표용결과985개 파일집합/해시복원·보존. 자기Editor정상종료·비밀노출0·DTCore/gitlink변경0·layer0→0. 새 발표회귀 출력은Saved/Reports/PCD-BANDWIDTH-01/review-01/release-unrelated-output/로 보존했다. 결과/schema/merge_check는같은항목폴더에갱신하고Saved는커밋하지않는다.
+
+
+## 2026-10-23 — PCD-BANDWIDTH-01 독립 리뷰: 의도된 분주·긴 META
+
+- 코드 a784f6b. QueueFrameForRuntime의 설정 분주 생략은 ConfiguredDivisorSkippedCount만 증가하며 RecordSlabFailure를 호출하지 않는다. 압력에 따른 비의도적 rate-control 생략/실제 전송 실패는 기존 실패 기준을 유지한다.
+- 데이터 필수 PCD는 기존 FrameStride=1·receipt 간격1 정책과 같은 전 프레임 계약을 근거로 분주≠1을 시작 전 차단한다. UI 사전 점검과 PrepareScenarioTransmission의 센서 준비/연결/소유권/RunUUID 등록 전 확인을 공유한다. 준비 완료 재확인·실행 중 필수 정책 검사도 유지한다. 관찰 허용/독립 전송·비대상 센서 분주는 차단하지 않고 명시 설정을 덮어쓰지 않는다.
+- Encode/Decode/EncodedPointBytes의 공통 UTF-8 헤더 상한1MiB(DATA 개행 포함). 정상 헤더 탐색은 DATA에서 조기 종료하며 점 데이터128MiB 상한은 유지한다. 생성기는 초과 헤더를 거부해 자체 생성물을 수신기가 못 읽는 불일치를 방지한다.
+- D3D12 관련 자동화37 Success/8조건부skip/0Fail: MA0T10.PcdBandwidth(긴200KB UTF-8 META·모든프로파일/두encoding roundtrip·1MiB포함/초과경계·SlabRun태그 분주 실패0·데이터필수1/2/4 사전차단·대상격리·준비부작용0), #28 PcdFairBudget/PcdFifoBodyShrink.Exact/Wildcard, 기존 RateControl.EvenAdmissionAndSlabFailure 및 Preflight/Slab 회귀 통과. verify/20261023T034318156Z. 테스트는 코드 커밋 직전 동일 소스590개 해시로 확인했다. quick는 a784f6b에서 verify/20261023T034605780Z PASS. layer/allowlist0→0, DTCore b2504d1 clean.
+- perf는 사용자 허용에 따라 생략: 의도적 생략의 실패 기록 제거, worker의 헤더 bound/길이 비교, 시작 전 정책 검사와 기존 필수 상태 검사 내 O(1) 분주 조회에 한정한다. 새 GT 직렬화·캡처·대기·압축 알고리즘/기본값 변경0. 이전 f3b59c4의 RT-on ABAB는 이력이며 이번 코드의 재측정 PASS로 세지 않는다. release/90초도 이번 검증 범위에서 재실행하지 않았다. 기준2%/150ms/Hz 완화0.
+- 개인설정344개 원본집합·해시복원, 보호297개·기존 발표용985개 해시보존. 자기Editor종료, 보호자산/맵 저장0·DTCore/gitlink수정0·비밀노출0. 직접입력은 기존deferred를 유지한다. Saved/Reports/PCD-BANDWIDTH-01/{RESULT.md,result.json,merge-check.json} 갱신; base_commit e01a47c 유지; Saved 미커밋, push/merge없음.

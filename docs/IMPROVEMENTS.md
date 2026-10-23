@@ -1392,4 +1392,6 @@ Full/Compact/Minimal/Custom·필드별 체크·LZF binary_compressed·LiDAR별 1
 
 리뷰 후 동일 송신 구현 `69d6626`의 3대 90초 native loopback에서 Full binary 73.61→기본 Full 압축 38.81 MiB/s(−47.28%), 인코딩·엔진·callback 150ms 초과 0회였다. 이후 상태 문구만 바꾼 `f3b59c4`의 quick·release 425 실제 Success/44 조건부 skip/0 Fail·RT on ABAB(FPS +0.0006%, p95 0%, GT +0.0201%; 각2% 이내)·layer0→0이 통과했다. 직접 마우스는 monitor capture 오류로 보류이며 이번 3-PCD 절대 검사의 Full binary 6개 실패 및 이전 실패를 #28b로 보존한다. Full 필드·1/1과 기존 사용자 명시 선택, v6 추가 map·파일 저장 Full 정책·헤더 기반 수신기/TestSet/도구 호환을 유지한다. 80 MiB/s 예산·#28 공평 배분·FIFO head 회귀 기준 완화는 없다.
 
+독립 리뷰 후속 `a784f6b`: 의도된 분주 생략의 Slab 실패 기록을 제거하고 별도 카운터만 유지한다. 데이터 필수 실행은 기존 FrameStride=1·receipt 간격1과 같은 전 프레임 계약을 적용하므로 PCD 대상 분주≠1을 시작 전 차단한다(UI 사전 점검·실제 준비 진입점·준비 완료 재확인). 관찰 허용/독립 전송은 분주를 유지한다. 헤더 생성/Decode/EncodedPointBytes는 공통 UTF-8 1 MiB 상한이며 64 KiB 초과 긴 META, 정확한 1 MiB 경계, 초과 생성/수신 거부를 검사했다. 관련 자동화37 Success/8조건부skip/0Fail, quick·layer0→0·DTCore guard PASS. 새 GT 직렬화/캡처/대기·압축 알고리즘·기본값 변경이 없고 정상 짧은 헤더의 탐색은 DATA에서 기존처럼 끝나므로 이번 perf는 사용자 허용에 따라 생략한다. release/90초도 이번 재요청 범위에서 재실행하지 않으며 앞 단락의 결과는 이전 SHA 이력이다.
+
 현재 결과와 압축 기본값의 조건별 판정·90초 네 조건 실측·수행/미수행은 `Saved/Reports/PCD-BANDWIDTH-01/RESULT.md`, 기계 판정은 같은 폴더 `result.json`을 따른다. 구현·로컬 실측을 외부 수신기/회사 수용으로 확대하지 않는다. DTCore 변경 후보 없음(기존 프로젝트 전용 대용량 worker/수신 adapter 범위).

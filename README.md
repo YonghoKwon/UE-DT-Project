@@ -22,7 +22,9 @@
 
 Full/Compact/Minimal/Custom·필드 체크·LZF·1/1·1/2·1/4를 LiDAR별/일괄 적용하고 기존 v6 설정을 보존한다. 사용자 결정대로 Full+LZF On+1/1을 유지하며 파일 저장은 Full+binary다. 압축 체크박스 옆과 툴팁에 PCL·프로젝트 수신기·ROS2 브리지 호환 및 자체 서버 압축 해제 지원 확인 안내를 표시한다. 전송 중에는 최근 1초 실제 PCD body 바이트·Hz·payload 압축 절감률과 실측 예산 %를 우선 표시하고, 미전송 상태에서만 **최대 추정**을 표시한다.
 
-리뷰 후 송신 구현 `69d6626`의 3대×90초 local loopback 합계는 Full binary 73.61 → 기본 38.81 MiB/s(−47.28%), Compact 31.54, Minimal 27.57였다. 모든 조건의 encode/engine/callback 150ms 초과·형식 오류 0이다. 이후 사용자용 상태 문구만 다듬은 `f3b59c4`에서 quick·release(425 실제 Success/44 조건부 skip/0 Fail, feature 중복 실행 포함)·표시형 RT on ABAB×3를 통과했다. ABAB 중앙값 FPS +0.0006%·engine p95 0%·GT +0.0201%, layer/allowlist 0→0, DTCore 고정이다. 자동 100% 글자 캡처와 직접 마우스 검증은 구분한다(Computer Use monitor capture 2회 실패로 직접 입력 보류). 이번 3-PCD90초의 기존 절대 ≥59FPS/cadence는 Full binary에서 6개 실패했고 기본·Compact·Minimal은 통과했다. 이전 실패도 #28b 증거로 보존하며 상대 gate로 덮어쓰지 않는다. [전체 조건·수치·커밋·제한](Saved/Reports/PCD-BANDWIDTH-01/RESULT.md).
+최신 독립 리뷰 수정 `a784f6b`는 설정 분주 생략을 `ConfiguredDivisorSkippedCount`에만 기록한다. 데이터 필수 실행은 모든 획득 PCD를 요구하므로 대상 분주가 1/1이 아니면 UI 사전 점검과 실제 준비 진입점에서 차단한다. 관찰 허용·독립 전송은 분주를 유지한다. PCD UTF-8 헤더는 생성·파싱·바이트 집계가 공통 1 MiB 상한을 사용하며 초과 헤더는 생성하지 않는다. 관련 자동화 37 Success/8 조건부 skip/0 Fail·quick·layer0→0·DTCore guard가 통과했다. 이번 작은 수정은 지정 검증 범위에 따라 release/perf/90초 측정을 재실행하지 않았다.
+
+이전 송신 구현 `69d6626`의 3대×90초 local loopback 합계는 Full binary 73.61 → 기본 38.81 MiB/s(−47.28%), Compact 31.54, Minimal 27.57이었다. encode/engine/callback 150ms 초과·형식 오류 0이다. 이전 `f3b59c4`의 release는425 Success/44 조건부 skip/0 Fail, 표시형 RT on ABAB×3는 FPS +0.0006%·engine p95 0%·GT +0.0201%로 통과했다. 이 수치를 최신 수정의 재측정 결과로 표시하지 않는다. 직접 마우스는 monitor capture 오류로 보류이며 기존 #28b 절대 검사 실패도 보존한다. [현재 검증·이전 수치·커밋·제한](Saved/Reports/PCD-BANDWIDTH-01/RESULT.md).
 
 ### FOLLOWUP-28-26 — 환경 정리 후 FPS 통과, 획득cadence로 통합 gate 차단
 
@@ -568,9 +570,11 @@ Raw TCP STOMP worker가 binary I/O·receipt·자체 수신 검증을 담당한�
 
 **압축 호환 안내:** 기본 On · PCD 표준 binary_compressed(LZF). PCL(loadPCDFile)·본 프로젝트 수신기·ROS2 브리지는 읽을 수 있음. 자체 파서를 쓰는 서버는 압축 해제 지원 확인 후 사용, 미지원이면 체크 해제.
 
+binary/binary_compressed PCD UTF-8 헤더는 `DATA` 줄의 개행까지 최대 1 MiB다. 생성기·수신 파서·실측 바이트 집계가 같은 상한을 사용하며 생성기는 초과 헤더를 거부한다(점 데이터의 기존 128 MiB 디코드 상한과 별개).
+
 PCD 헤더의 FIELDS/SIZE/TYPE/COUNT로 레코드를 해석해야 한다. `DATA binary_compressed`는 little-endian u32 압축 크기·원본 크기 뒤 단일 LZF 스트림이며 압축 전 데이터는 필드별 SoA다([PCL 규격](https://github.com/PointCloudLibrary/pcl/blob/master/doc/tutorials/content/pcd_file_format.rst)). 프로젝트 수신기·저장 점군 재생·TestSet 검증·PCD 검사 스크립트·JS STOMP probe·ROS2 wire reader는 두 형식을 읽고 누락 필드는 기본값으로 복원한다. ROS PointCloud2는 기존 33바이트 로컬 메시지 레이아웃을 유지하며, 누락 intensity/ring/index/time/validity는 0, return_count/confidence는 1로 채운다. 외부 수신기와 필드 축소 합의 후 선택한다. 압축 기본값의 실측 판정은 `Saved/Reports/PCD-BANDWIDTH-01/RESULT.md`에 기록한다.
 
-전송 분주 1/1·1/2·1/4는 20Hz 측정에서 전송만 20·10·5Hz로 바꾼다. acquisition·preview·Slab 분석·Export/Recorder의 Full 파일 저장은 유지한다. 분주 생략은 별도 `ConfiguredDivisorSkippedCount`이며 데이터 필수 실행의 누락 실패를 숨기지 않는다. 진행 중인 FIFO 작업을 폐기하지 않도록 옵션 변경 전 전송을 중지하고 준비 대기열 배수를 기다린다. 이미 송신기에 접수한 bytes와 receipt는 원래 snapshot으로 끝까지 처리한다.
+전송 분주 1/1·1/2·1/4는 20Hz 측정에서 전송만 20·10·5Hz로 바꾼다. acquisition·preview·Slab 분석·Export/Recorder의 Full 파일 저장은 유지한다. 의도된 분주 생략은 `ConfiguredDivisorSkippedCount`에만 기록하고 Slab 실패로 기록하지 않는다. 데이터 필수 실행의 PCD 대상은 전부 1/1이어야 하며 UI 사전 점검과 실제 준비 진입점에서 분주 1/2·1/4를 차단한다. 모든 획득 프레임을 요구하는 기존 FrameStride=1 정책과 맞춘 것이다. 관찰 허용·독립 전송의 분주 선택은 유지하며 자동으로 1/1로 덮어쓰지 않는다. 진행 중인 FIFO 작업을 폐기하지 않도록 옵션 변경 전 전송을 중지하고 준비 대기열 배수를 기다린다. 이미 송신기에 접수한 bytes와 receipt는 원래 snapshot으로 끝까지 처리한다.
 
 표시값은 점당 bytes·대당/전체 MiB/s·decimal Mbps·현재 예산 대비 %다. 송신 중 Raw TCP PCD는 최근 1초 소켓 쓰기 완료 body 바이트(PCD 헤더 포함)·대당 Hz·같은 프레임의 payload 압축 절감률을 우선 표시하고 예산 %도 실측으로 계산한다. 미송신 상태에서만 규격 최대 점 수 × 비압축 크기를 **최대 추정**으로 표시한다. 미지원 backend 또는 집계 손실은 실측 미완료로 표시하고 추정 예산으로 대체하지 않는다. 80 MiB/s 예산·기존 사용자 예산 override·공평 배분·FIFO head 정책은 유지한다. 숨긴 패널의 표시 문자열 조립은 멈추며 최대 5Hz로 갱신한다.
 
