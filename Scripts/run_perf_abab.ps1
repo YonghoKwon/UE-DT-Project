@@ -209,10 +209,24 @@ try {
                         if ($ScheduledPcdLoopbackPort) {
                             $receiver = Get-Content -LiteralPath "$runs/$name.receiver.json" -Raw -Encoding UTF8 | ConvertFrom-Json
                             if ($receiver.invalid -ne 0 -or @($receiver.errors).Count -ne 0) { throw "External PCD schema/checksum receiver failed: $name" }
+                            $windowStart = [DateTimeOffset]::Parse($data.measurement_started_utc).ToUnixTimeMilliseconds()/1000.0
+                            $windowEnd = [DateTimeOffset]::Parse($data.measurement_ended_utc).ToUnixTimeMilliseconds()/1000.0
+                            $windowRows = @()
                             foreach ($sensor in $data.sensors) {
                                 $external = $receiver.sensors.PSObject.Properties[$sensor.sensor]
-                                if ($null -eq $external -or $external.Value.frames -le 0 -or $external.Value.duplicates -ne 0 -or ($ScheduledDivisor -eq 1 -and $external.Value.gaps -ne 0)) { throw "External PCD receive/gap/duplicate check failed: $name" }
+                                if ($null -eq $external -or $external.Value.frames -le 0) { throw "External PCD receive check failed: $name" }
+                                # Same10s warmup exclusion as acquisition/output metrics. Keep
+                                # raw warmup-inclusive totals; never reinterpret their gaps as0.
+                                $samples = @($external.Value.samples | Where-Object { $_[0] -ge $windowStart -and $_[0] -le $windowEnd })
+                                $gaps=0; $duplicates=0
+                                for($i=1;$i -lt $samples.Count;$i++) {
+                                    $delta=[long]$samples[$i][1]-[long]$samples[$i-1][1]
+                                    if($delta -le 0){$duplicates++}elseif($delta -ne $ScheduledDivisor){$gaps++}
+                                }
+                                $windowRows += @{Sensor=$sensor.sensor;Frames=$samples.Count;Gaps=$gaps;Duplicates=$duplicates;ExpectedFrameIdStep=$ScheduledDivisor;WarmupInclusiveGaps=$external.Value.gaps;WarmupInclusiveDuplicates=$external.Value.duplicates}
+                                if (!$samples.Count -or $gaps -ne 0 -or $duplicates -ne 0) { throw "External measured-window PCD gap/duplicate check failed: $name" }
                             }
+                            $windowRows | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath "$runs/$name.receiver-window.json" -Encoding UTF8
                         }
                     }
                     $csv = "$json.frames.csv"
