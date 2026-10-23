@@ -765,6 +765,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
 
+DUAL-CAMERA-22는 기존 L3 Monitor에서 주 정답 영상 미준비 시 보조 RGB brush 갱신이 차단되는 조기 반환을 제거했다. 새 회귀는 Editor 모듈과 테스트 전용 friend만 사용하며 layer/allowlist **0→0**, 새 모듈·자산·DTCore·wire·저장 형식 변경은 없다. [기능 검증·직접 점검·성능 미수행](Saved/Reports/DUAL-CAMERA-22/RESULT.md)을 구분한다.
+
 UXR-P2b는 L3 코일/해치 표시와 순수 역할·라벨 배치 helper를 사용한다. 기존 UDxWidget/selector 인스턴스·계산·wire·저장 형식은 유지한다. 배지 높이와 정지 시 캐시 Hz 출처를 보완했고 layer/allowlist **0→0**이다. 코드4887653의 빌드·신규5/관련 UI/RHI·100/150% 캡처·직접 점검, UI 성능 생략 예외와 남은 수용 범위는 [직렬 결과](Saved/Reports/UXR-P2b/RESULT.md)를 따른다.
 
 UXR-P2a는 감사 C03·D02~D05·T02~T03의 문구·표시 밀도를 기존 L3 UI와 순수 표시 adapter에서 정리한다. 코덱의 영문 필드명·비트/순서/크기·대역폭 계산·전송 분주·저장값·DTCore·기존 열기 경로는 유지한다. layer/allowlist **0→0**이며 순수 로직/문구 자동화 5개를 추가했다. 병렬 구현 뒤 메인에서 직렬 빌드·관련 UI/RHI·100/150% 캡처를 검증했다. Slab capability에 따른 표시/수동 점검 경계와 남은 수용 범위는 [직렬 결과](Saved/Reports/UXR-P1P2a/RESULT.md)를 따른다.

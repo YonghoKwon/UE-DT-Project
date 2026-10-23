@@ -657,6 +657,7 @@ private:
 	friend class FSensorMonitorRateStateTest;
 	friend class FSensorPreviewPresentationTest;
     friend class FInspectionUiFeedbackCommand;
+    friend class FDualCamera22Command;
 	friend class FSensorVocabularyTest;
 	friend class FUxrPreviewRender;
     friend class FCameraTruthPresentationSession;
