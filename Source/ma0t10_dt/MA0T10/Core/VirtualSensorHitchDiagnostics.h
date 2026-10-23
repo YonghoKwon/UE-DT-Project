@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "HAL/CriticalSection.h"
+#define MA0T10_SENSOR_HITCH_FRAME_COSTS_AVAILABLE 1
 
 // Opt-in diagnostics shared by runtime layers. Never owns a sensor or transport.
 enum class EVirtualSensorHitchSection : uint8
@@ -23,6 +24,8 @@ public:
     static void Stop();
     static void Add(EVirtualSensorHitchSection Section,double Seconds);
     static FVirtualSensorHitchSnapshot Snapshot();
+    /** GT-only numeric observation; no formatting, allocation or ownership. */
+    static double CurrentFrameSeconds(EVirtualSensorHitchSection Section);
     static void SocketWrite();
 };
 class MA0T10_DT_API FVirtualSensorHitchScope

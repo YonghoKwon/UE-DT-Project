@@ -1,4 +1,4 @@
-# UE-DT-Project — 가상 센서와 Slab 시뮬레이션
+﻿# UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
 기준: **`feat/uxr-16` (통합 기준 `5dd9327`, UI `b6f2dc8`) / DTCore `b2504d1`, 2026-10-16**. 작업·빌드·검수·Editor 실행은 **`C:\Unreal Projects\ma0t10_dt`** 하나에서 한다(`m7at10_dt`는 무관한 다른 프로젝트). Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신,명시적 IMU 부착과 Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
 
@@ -17,6 +17,14 @@
 그 밖의 `docs/` 문서는 경로를 보존한 **고정 참고자료**다(맨 아래 목록). 오래된 UI/성능 설명보다 현재 코드와 이 README를 우선한다. 과거 기록을 현재 보장으로 읽지 않는다.
 
 ## 1. 현재 상태 한눈에 보기
+
+### LIDAR-WALLCLOCK-28b — wall-clock 획득·직렬 검증
+
+`9588c25`의 1920×1080 visible/D3D12·RT on·OS1-64 Rev7 3대·Full+LZF+1/1에서 센서별 최소 19.994257Hz(요청 대비 0.999712881)를 기록했다. 90초 ABAB×3(A6/B6)는 FPS +2.3469%·engine p95 -12.0994%·GT -29.0969%·GPU 시간 +1.3085%·RSS -0.0034%로 각2% 기준을 통과했다. 같은 SHA의 전체 release 415 Success/41 조건부 skip/0 Fail, 표준 RT on ABAB(FPS -0.0003%·p95 +0.0000%·GT -0.6244%)가 통과했다. skip을 실제 RHI 통과로 세지 않는다.
+
+기존95% 교체는 폐기했다. 새99%·90초19.9Hz/.995 목표에 `ceil(요청Hz×wall초)−2` 완료 하한을 추가해 경계2회 허용을 유지하며 강화했다. 후보18개 센서·실행에서 새 하한≥legacy 하한·실제 완료≥새 하한을 확인했고 legacy assertion은 참고값으로 보존했다. CPU FullSpec 3대의 20Hz 요청 실측 9.911/9.922/10.255Hz는 용량 한계로 기록하며20Hz PASS가 아니다. 기존 모니터는 요청 측정률 미달을5초 완료 횟수로 경고한다. 1/4 분주에서는 자동 송신 제어 생략1회를 획득 누락·설정 분주와 따로 기록했다. [설계·같은 실행 비교표·검증·제한](Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md).
+
+Independent review rework (`10aba1d`): start/stop/restart/rate changes now rebalance every affected equal-rate cohort by SensorId rank/count from the next slot. Original delayed-acquisition counters are preserved; `ExpiredCadenceSlotCount` reports expired slots separately. Sequential-start90s visible RHI: all3 completed1800 frames at19.997992Hz,0expired slots; minimum phase gap0.333333308; multi-admission frames5.851659% (peak2). Related7/0/0 and quick/layer/guard passed. New slot minimum1799 exceeds same-run legacy1786. ABAB was skipped under the explicit review exception: initial simultaneous deadlines/admissions are unchanged in the90s regression. Earlier9588c25 release/perf results above retain their original scope.
 
 ### PCD-BANDWIDTH-01 — 전송 용량 옵션·기본 LZF 적용
 
@@ -832,7 +840,7 @@ AUTO-01은 기존 모듈의 L2 `Scenario/Automation`에서 하위 센서/출력�
 |---|---|
 | VirtualSensorActorBase / Camera·LiDAR Actor | 실행·편집 상태·interaction·외부 프레임 API(`SubmitExternalFrame`) |
 | Capture / Scan / Analysis / Visualization / Export | 측정과 파생 처리 분담 |
-| VirtualSensorSchedulerSubsystem | 자동 작업 분배; 센서 수 기반 60/30 FPS 예산은 지원 보증이 아님 |
+| VirtualSensorSchedulerSubsystem | 자동 작업 분배; LiDAR admission은 pause 제외 wall-clock grid·동일 주기 균등 위상·최대1회/프레임, CPU/HWRT 공통. 센서 수 기반 60/30 FPS 예산은 지원 보증이 아님 |
 | IVirtualSensorAcquisitionBackend | 기존 GPU LiDAR 경계; 아직 Camera/SDK 전체의 범용 확장 계약은 아님 |
 | Output / StreamPublisher / Transport / Recorder / HighThroughputTransport | 프레임 라우팅·직렬화·송수신·기록, Raw TCP STOMP worker |
 | FileSave / PeriodicFileSave | Widget 수명과 독립적인 bounded 파일 작업 |

@@ -512,7 +512,7 @@ struct MA0T10_DT_API FVirtualSensorRuntimeStatus
     float MeasuredOutputRateHz = 0.0f;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
-    int32 DeadlineMissCount = 0;
+    int32 DeadlineMissCount = 0; // Once per active acquisition that blocks a due admission.
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
     FString RequestedAcquisitionBackend;
@@ -539,7 +539,11 @@ struct MA0T10_DT_API FVirtualSensorRuntimeStatus
     int32 FailedDerivedEncodingCount = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
-    int32 BudgetSkippedAcquisitionFrameCount = 0;
+    int32 BudgetSkippedAcquisitionFrameCount = 0; // Same per-acquisition event semantics.
+
+    /** Expired requested wall-clock slots, independent of delayed-acquisition events/output drops. */
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
+    int64 ExpiredCadenceSlotCount = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|VirtualSensor|Performance")
     int32 FailedAcquisitionFrameCount = 0;

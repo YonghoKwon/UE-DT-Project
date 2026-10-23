@@ -438,6 +438,7 @@ void UVirtualSensorMonitorPanelWidget::RefreshOwnedMonitorText()
     const auto SetText=[](FText& Cached,const FString& Value){if(Cached.ToString()!=Value)Cached=FText::FromString(Value);};
     auto* Actor=GetOwnedMonitoredActor();OwnedPreviewTarget=Actor;
     bOwnedHasEquipment=IsValid(Actor);bOwnedPreviewEmpty=!bOwnedHasEquipment||!Actor->IsSensorRunning();
+    UpdateOwnedAcquisitionRateWarning();
     const FString Warning=BuildOwnedMeasurementWarning();bOwnedHasWarning=!Warning.IsEmpty();
     FString Status=bOwnedHasEquipment?BuildCompactStatusText():TEXT("장비 없음 · 배치에서 장비를 추가하세요");
     SetText(OwnedMonitorWarning,bOwnedHasWarning?TEXT("⚠ ")+Warning:FString());

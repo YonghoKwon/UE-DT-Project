@@ -35,6 +35,9 @@ class FGpuLifetimeRun final:public IAutomationLatentCommand
  uint32 Hash(const FVirtualLidarFrameSnapshot& F) const{return FCrc::MemCrc32(F.Points->GetData(),F.Points->Num()*sizeof(FVirtualLidarPoint));}
  void RestoreIdentity()
  {if(Cargo)Cargo->Tags=OriginalTags;if(Optical)Optical->Reflectivity940Nm=OriginalReflectivity;if(Sensor){Sensor->StopSensor();Sensor->SetActorTransform(OriginalPose);Sensor->ScanComponent->InvalidateSurfaceResponseCache();}}
+ void MutateAfterAdmission()
+ {Cargo->Tags.Remove(TEXT("HatchCargo"));Cargo->Tags.Add(TEXT("GpuLidarChangedAfterAcquisition"));Optical->Reflectivity940Nm=.91f;
+  Sensor->SetActorLocation(OriginalPose.GetLocation()+FVector(321,123,0));Phase=1;}
  void Save()
  {
   auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("production_digs"),Edits);R->SetNumberField(TEXT("cancelled_acquisitions"),Cancels);
@@ -58,10 +61,15 @@ public:
    Cargo=Meshes[1].Surfaces[0]->GetOwner();Optical=Cargo->FindComponentByClass<UVirtualLidarSurfaceResponseComponent>();if(!Optical){Test->AddError(TEXT("cargo optical snapshot source missing"));return true;}
    OriginalTags=Cargo->Tags;OriginalReflectivity=Optical->Reflectivity940Nm;
    auto* Scan=Sensor->ScanComponent.Get();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::HardwareRayTracing;Scan->ScanInterval=.05f;Baseline=Scan->GetRuntimeStatus().FrameId;
-   Sensor->StartSensor();Scan->RequestImmediateScheduledScan();Scan->PrepareScheduledScan(Sensor->GetWorld()->GetTimeSeconds());Cargo->Tags.Remove(TEXT("HatchCargo"));Cargo->Tags.Add(TEXT("GpuLidarChangedAfterAcquisition"));Optical->Reflectivity940Nm=.91f;
-   Sensor->SetActorLocation(OriginalPose.GetLocation()+FVector(321,123,0));Phase=1;return false;
+   Sensor->StartSensor();Scan->RequestImmediateScheduledScan();Scan->PrepareScheduledScan(Sensor->GetWorld()->GetTimeSeconds());
+   // A restart retains the one-admission-per-engine-frame latch. Never mutate
+   // the fixture before a real acquisition has taken its immutable snapshot.
+   if(!Scan->GetRuntimeStatus().bAcquisitionInFlight){Test->AddInfo(TEXT("Identity fixture waits for actual admission after same-frame restart"));Phase=6;return false;}
+   MutateAfterAdmission();return false;
   }
   auto* Scan=Sensor->ScanComponent.Get();
+  if(Phase==6)
+  {Scan->PrepareScheduledScan(Sensor->GetWorld()->GetTimeSeconds());if(!Scan->GetRuntimeStatus().bAcquisitionInFlight)return false;MutateAfterAdmission();return false;}
   if(Now-LastLog>5){LastLog=Now;UE_LOG(LogTemp,Display,TEXT("[GpuLifetime] phase=%d digs=%d cancels=%d running=%d frame=%lld baseline=%lld"),Phase,Edits,Cancels,Scan->IsScanRunning()?1:0,Scan->GetRuntimeStatus().FrameId,Baseline);}
   if(Phase==1)
   {

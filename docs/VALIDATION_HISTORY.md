@@ -6,6 +6,42 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-23 LIDAR-WALLCLOCK-28b - independent review fixes
+
+- Code10aba1d: deterministic full-cohort rephase on membership/start-generation/period changes, future-slot application without debt/burst; unchanged simultaneous initial grid preserved. Original DeadlineMiss/BudgetSkipped event semantics restored, separate reflected ExpiredCadenceSlotCount added; all consumers inventoried.
+- Editor build and related D3D12 tests7Success/0Skip/0Fail. Regression covers3sequential orders, stop/restart, same-tick generation changes, mixed rates/period edits, >=1/count-epsilon spacing, unchanged90s simultaneous deadlines/admissions, and event-vs-slot counters. Initial implementation failure remains raw, corrected rerun passes unchanged expectations.
+- Sequential start frames613/634/655; real1920x1080visible RT-on Full+LZF PCD,90.009037s: all3x1800,19.997992Hz,0expired slots; due gaps>=0.333333308, same-frame314/5366=5.851659%, peak2. PCD3x1800 received,0skips/gaps/invalid/delivery errors. New slot minimum1799>=legacy1786; both legacy assertions and new gate pass in this same run.
+- ABAB skipped using explicit review exception, supported by identical simultaneous-start pure regression; no new2%measurement claimed. Prior9588c25 broad release/perf evidence remains historical. quick9/layer0->0/guard PASS. Fresh personal44/44exact restore; protected297unchanged; no maps/assets saved, no push/merge.
+- [RESULT](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md), `review-20261023T123501Z/manifest.json`, result.json and merge-check.json contain scope and limitations.
+
+## 2026-10-23 LIDAR-WALLCLOCK-28b — 직렬 재작업 최종 검증
+
+- 자동 획득은 pause 제외 wall-clock 누적 기한·프레임당 최대1회·센서당 in-flight1회를 유지한다. 같은 주기 센서는 공통 grid에 균등 위상을 배치하고, 준비된 readback의 worker 정규화·순수 광선 패킷 병렬 생성·반환 point lease의 worker 정리로 GT 꼬리 지연을 줄였다. 공개 BP·획득 snapshot·PCD33-byte/FIFO/예산은 유지한다.
+- `9588c25`의 1920×1080 visible/D3D12·RT on·OS1-64 Rev7 3대·Full+LZF+1/1에서 센서별 최소 19.994257Hz(요청 대비 0.999712881)를 기록했다. 90초 ABAB×3(A6/B6)는 FPS +2.3469%·engine p95 -12.0994%·GT -29.0969%·GPU 시간 +1.3085%·RSS -0.0034%로 각2% 기준을 통과했다.
+- 같은 SHA의 전체 release 415 Success/41 조건부 skip/0 Fail, 표준 RT on ABAB(FPS -0.0003%·p95 +0.0000%·GT -0.6244%)가 통과했다. skip을 실제 RHI 통과로 세지 않는다.
+- 기존95% 교체는 폐기했다. 새99%·90초19.9Hz/.995 목표에 `ceil(요청Hz×wall초)−2` 완료 하한을 추가해 경계2회 허용을 유지하며 강화했다. 후보18개 센서·실행에서 새 하한≥legacy 하한·실제 완료≥새 하한을 확인했고 legacy assertion은 참고값으로 보존했다.
+- CPU FullSpec 3대의 20Hz 요청 실측 9.911/9.922/10.255Hz는 용량 한계로 기록하며20Hz PASS가 아니다. 기존 모니터는 요청 측정률 미달을5초 완료 횟수로 경고한다.
+- 기존bfd46d0의 90초 ABAB는 p95+14.167537%로FAIL했고 보존했다. CSV profiler로 GT point storage1.220659→0.000827ms/frame, ray packet2.027379→0.252546ms/frame를 확인했다. 단일 진단을 ABAB PASS로 세지 않았다.
+- identity 테스트는 실제 admission 후 상태를 변경하고, 풀 테스트는 worker 정리 완료 후 동일 주소 재사용을 확인하도록 동기화했다. 기존 transform/label/반사율·weak pointer·보관값·fallback 횟수·정확도·150ms 기준은 유지했다.
+- 새 SHA의 1/2·1/4 실제 GPU RHI에서 획득은 약20Hz, 출력은 약10/5Hz였다. 1/4 운전실 우측의 자동 송신 제어 생략1회·선택 frame_id step8을 별도 기록했고 raw gap을 지우지 않았다. schema/CRC·송신 오류0이며 획득 누락·설정 분주 생략과 구분한다.
+- 개인 설정44개 원본 집합/해시 복원·보호297개 원본 hash 차이0·DTCore b2504d1 clean·layer0→0. SensorTestMap/자산 저장·보호 경로 stage·push/merge 없음. 중단된 release/11-of12 ABAB와 최초95% counterexample는 별도 이력으로 보존한다.
+- [RESULT](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md), result.json 및 merge-check.json을 독립 검수한다. Runtime9588c25 이후 gate 도구·문서 커밋은 Source 동일성으로 구분한다.
+
+## 2026-10-23 LIDAR-WALLCLOCK-28b — 직렬 비교 중단
+
+- 메인 feat/lidar-wallclock-28b에서 시작264d100, origin/master98e2131 병합b090ebe, 충돌은 README/GpuLidarScheduledTests의 양쪽 의도를 보존했다. 측정코드912928e는 기본Full+LZF On·1/1, native LZF 수신기, 분주 진단 선택·기존 대역폭 검사·새 획득비율/legacy 기록을 함께 사용한다. 송신/획득 런타임은 이번 직렬 단계에서 추가 수정하지 않았다.
+- Editor/Game Development build exit0. 새 C++ 가상시계2 Success, PCDBandwidth7 Success/UiRhi1 opt-in skip/0Fail(NullRHI는 순수 로직에만 적용). 합성 PS20 PASS 및 Python receiver3/native 적용3 PASS. UI skip을 실제 RHI 통과로 세지 않는다.
+- 1920×1080 visible/DPI1·실제D3D12/ProjectDefault RT on·3×OS1-64 Rev7 1024×64/20Hz·Full+LZF+1/1·80MiB/s·warmup10초/measure90.002607초. FPS59.098854/engine p9517.716698ms/GT11.675628ms, engine5320프레임,150ms 초과0. 센서 완료1771/1771/1770, Hz19.677208/19.677208/19.666097, 비율0.983860/0.983860/0.983305, 누락슬롯29/29/30이다.
+- legacy FPS3개PASS, cadence 최소floor(5320/3)−2=1771회 대비PASS/PASS/FAIL. 새 비율3개PASS로 기존실패를허용하므로 사용자 "기준 완화로 보이면 멈추고 보고" 지시를 적용했다. 자동화Success/JSON valid=true는 계측 실행 완료일 뿐, 비완화 수용 검사는FAIL이다. ABAB 미수행이므로 전체 새gate PASS를 주장하지 않는다.
+- 추가CPU 실제RHI/전송분주1/2·1/4실측/90초ABAB/표준RT on perf/release 중단·NOT_RUN. 2%악화 여부도 미측정이므로 fallback 적용 근거가 없고 기본 옵션을 임의로 바꾸지 않았다. 기존cadence gate 병행 또는95%교체 수용의 정책 결정이 필요하다. 개인설정44개 원본집합/해시 복원, 보호297개 차이0, 자체 Editor/PIE/loopback 정상종료. [RESULT](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md)와 새 result.json/merge_check를 따른다.
+
+## 2026-10-23 LIDAR-WALLCLOCK-28b — 병렬 구현·빌드 없는 검증
+
+- 기준b4e8327/지정worktree `wt_28b`, DTCore b2504d1 clean. 기존 게임 시간 deadline을 pause 제외 단조 wall-clock grid로 분리하고 CPU/HWRT 공통 최대1admission/엔진프레임·동시1획득·만료슬롯 집계를 구현했다. 같은프레임 재시작·데이터셋 단발 hold/retry를 보존했다.
+- 기존≥59FPS/엔진3프레임 assertion은 원문 수식·이름의 legacy JSON/로그로 보존한다. 새 후보별 획득/요청Hz≥0.95와 같은90초 workload ABAB×3 중앙값 각각2%(FPS/p95/GT)를 함께 판정한다. 배경CPU snapshot은 정보용이다.95% 허용은 사용자 지시의 기대값 교체이며 과거FAIL 재분류/실측PASS를 주장하지 않는다.
+- PowerShell 순수판정14+scheduled summarize cohort6=20 PASS/0FAIL, 기존cohort5 PASS, quick9 Success/0Failed/0Skip, layer 위반0/allowlist0→0, DTCore guard·PS parser3파일·diff check 통과. 합성 테스트와 실제 성능 증거를 구분한다.
+- 가상59/58/45/120FPS의20Hz·jitter/hitch/누락/몰아치기 차단·pause/재시작 C++2테스트는 작성만 했다. Editor/Game 컴파일·C++실행·feature/release·실제90초 CPU/HWRT/PCD·RT on ABAB는 병렬 지시의 금지에 따라 NOT_RUN. 메인 프로세스/화면/GPU/개인설정 조작0, 보호경로 변경0. 최종 커밋·증거·직렬 명령·미수행·merge_check는 [RESULT](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md) 및 result.json을 따른다.
+
 ## 2026-10-22 PR69 — FOLLOWUP 독립 코드 검수6건
 
 - 운전실 LiDAR signed 좌우 장착은 ±1.30m+사용자X보정, 절대오차<=1cm다. 캐빈폭2.4m의 반폭1.20m+외측브래킷0.10m로 산출하며 원래 단방향 하한 검사를 상·하한 검사로 대체했다.

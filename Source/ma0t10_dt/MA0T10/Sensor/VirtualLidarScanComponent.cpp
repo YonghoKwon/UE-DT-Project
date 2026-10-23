@@ -447,11 +447,11 @@ FVirtualLidarSlabAnalysisResult UVirtualLidarScanComponent::AnalyzeSlabPoints(co
     Result.ReferenceYawDegrees = ReferenceSlabYawDegrees;
 
     TArray<FVector> SlabPoints;
-    SlabPoints.Reserve(Points.Num());
     for (const FVirtualLidarPoint& Point : Points)
     {
         if (Point.bHit && Point.SemanticLabel == SlabSemanticLabel)
         {
+            if (SlabPoints.IsEmpty()) SlabPoints.Reserve(Points.Num());
             SlabPoints.Add(Point.WorldLocation);
         }
     }
