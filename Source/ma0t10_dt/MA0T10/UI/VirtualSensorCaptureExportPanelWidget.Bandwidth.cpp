@@ -67,7 +67,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildPcdBandwidthOpt
 	if(PcdDivisorChoices.IsEmpty())for(int32 V:{1,2,4})PcdDivisorChoices.Add(MakeShared<int32>(V));
 	auto Fields=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(12,6));
 	for(int32 I=0;I<11;++I)Fields->AddSlot()[SNew(SCheckBox)
-		.IsEnabled_Lambda([this,I](){return I>=3&&ReadPcdBandwidthOptions().Profile==EVirtualPcdFieldProfile::Custom;})
+		.IsEnabled(I<3?TAttribute<bool>(false):TAttribute<bool>::CreateLambda([this](){return ReadPcdBandwidthOptions().Profile==EVirtualPcdFieldProfile::Custom;}))
 		.IsChecked_Lambda([this,I](){return ReadPcdBandwidthOptions().FieldMask()&(1<<I)?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
 		.OnCheckStateChanged_Lambda([this,I](ECheckBoxState State){auto O=ReadPcdBandwidthOptions();if(State==ECheckBoxState::Checked)O.CustomFieldMask|=1<<I;else O.CustomFieldMask&=~(1<<I);ApplyPcdBandwidthOptions(O);})
 		[SNewSensorTool(STextBlock).Text(FText::FromString(FVirtualPcdCodec::FieldName(I)))]];

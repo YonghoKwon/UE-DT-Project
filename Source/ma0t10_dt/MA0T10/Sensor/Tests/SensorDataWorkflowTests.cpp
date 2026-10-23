@@ -21,6 +21,12 @@ int32 CheckCount(const TSharedRef<SWidget>& Widget)
     for(int32 I=0;I<Children->Num();++I)Count+=CheckCount(Children->GetChildAt(I));
     return Count;
 }
+void CollectBandwidthChecks(const TSharedRef<SWidget>& Widget,TArray<TSharedRef<SCheckBox>>& Out)
+{
+    if(Widget->GetType()==TEXT("SCheckBox"))Out.Add(StaticCastSharedRef<SCheckBox>(Widget));
+    auto* Children=Widget->GetChildren();
+    for(int32 I=0;I<Children->Num();++I)CollectBandwidthChecks(Children->GetChildAt(I),Out);
+}
 void VisibleTexts(const TSharedRef<SWidget>& Widget,TArray<FString>& Out)
 {
     if(!Widget->GetVisibility().IsVisible())return;
@@ -44,7 +50,19 @@ bool FSensorDataWorkflowTest::RunTest(const FString&)
     TestEqual(TEXT("new policy unchanged"),Data->GetLiveScenarioExecutionOptions().Policy,ESlabExecutionPolicy::ObservationAllowed);
     TestEqual(TEXT("replay policy unchanged"),Replay->ExecutionOptions.Policy,ESlabExecutionPolicy::ObservationAllowed);
     TestEqual(TEXT("owned replay has zero output editing checkboxes"),CheckCount(ReplaySlate),0);
-    TestEqual(TEXT("two columns retain eight output/policy toggles, three exclusive preflight target segments, and one PCD send-rate control toggle"),CheckCount(Data->BuildOwnedLiveTab()),12);
+    const auto LiveTab=Data->BuildOwnedLiveTab();
+    const auto Bandwidth=Data->BuildPcdBandwidthOptions();
+    const int32 BandwidthChecks=CheckCount(Bandwidth);
+    TestEqual(TEXT("bandwidth has exactly scope+eleven fields+compression controls"),BandwidthChecks,13);
+    // Retain the original twelve-control assertion; new transmission options
+    // are tested independently rather than weakening the legacy workflow gate.
+    TestEqual(TEXT("two columns retain eight output/policy toggles, three exclusive preflight target segments, and one PCD send-rate control toggle"),CheckCount(LiveTab)-BandwidthChecks,12);
+    TArray<TSharedRef<SCheckBox>> FieldChecks;CollectBandwidthChecks(Bandwidth,FieldChecks);
+    if(FieldChecks.Num()==13)for(int32 I=1;I<=3;++I)
+    {
+        TestTrue(TEXT("XYZ transmission fields are always checked"),FieldChecks[I]->IsChecked());
+        TestFalse(TEXT("XYZ transmission fields cannot be unchecked"),FieldChecks[I]->IsEnabled());
+    }
     if(TestTrue(TEXT("real replay PCD control constructed"),Data->OwnedReplayPcdControl.IsValid()))
     {
         Data->OwnedReplayPcdControl->ToggleCheckedState();
