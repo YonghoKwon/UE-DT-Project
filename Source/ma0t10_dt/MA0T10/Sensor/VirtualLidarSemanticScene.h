@@ -16,6 +16,13 @@ public:
     bool Capture(UVirtualLidarScanComponent& Scan, const FVirtualLidarDepthAcquisitionRequest& Request, int32 Width, int32 Height);
     bool Capture(UWorld* World, AActor* IgnoreOwner, const FTransform& Pose, float HorizontalFov, int32 Width, int32 Height, TFunctionRef<FName(const UPrimitiveComponent*)> Resolve, bool bRecordActorPaths=true, TFunction<bool(const UPrimitiveComponent*)> VisibilityFilter={}, bool bCaptureFidelity=false);
     UTextureRenderTarget2D* GetTarget() const;
+    /** Capture accepts/fixes a snapshot; an async PSO may defer its one render pass. */
+    bool IsCapturePending() const { return bCapturePending; }
+    bool PollPendingCapture(bool bUpdateStatus=true);
+    void CancelPendingCapture() { bCapturePending=false; }
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    bool bForcePsoPendingForTests = false;
+#endif
     TMap<int32, FString> ActorPaths;
     TMap<int32, TWeakObjectPtr<AActor>> Actors;
     TMap<int32, FVirtualLidarGpuSemanticIdentity> Identities;
@@ -28,4 +35,7 @@ private:
     double NextDiscoveryTime = 0;
     int32 NextId = 1;
     bool bShaderWarmupRequested = false;
+    bool bCapturePending = false;
+    TArray<UStaticMeshComponent*> PendingProxies;
+    bool bPendingProxyUpdateSent = false;
 };

@@ -18,6 +18,18 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### ANALYSIS-24 — 게임 실행의 Slab 의미 분류
+
+private semantic scene은 Editor에서는 기존 EditorPreview, `-game`/패키지에서는 GamePreview로 구성한다. cooked 게임에서 PSO 준비 중 실제 proxy가 없는 첫 pass는 완료로 발행하지 않고, 동결한 geometry/identity를 유지해 기존 Poll에서 준비 완료 뒤 한 번 렌더한다. LiDAR main depth와 Camera RGB/depth는 원래 요청의 데이터를 보존하며 Tag·분류 규칙·1cm 대응 기준·PCD 33B/라벨 5B는 유지한다. 명시적 `-LidarSemanticDiagnostics`의 센서·backend별 1회 요약과 `Scripts/audit_lidar_semantics.py --expect-backend 2 --require-slab`로 실제 파일을 대조한다. [직렬 원인 분석·재현](docs/research/ANALYSIS-24-22-serial.md), [실행별 최종 결과·제한](Saved/Reports/ANALYSIS-24-22/RESULT.md)을 따른다.
+
+Runtime `5bf813a`에서 Editor/Development/Shipping 빌드, 관련 D3D12 13개·Python 감사 5개·quick9·layer/guard를 확인했다. 실제 Development/Shipping은 GT-off/on 각3장면 모두 backend2 named Slab1,800점이며 GT-on Camera class2 mask도 각19,257pixels다. Development backend3은 별도3장면 각1,792점으로 확인했다. package 12장면의 PCD body는 기준과 바이트 동일했다. 개인353/보호753파일을 복원·보존하고 package 바이너리는 정리했다. 표준 ABAB·Shipping backend3·#22 직접 UI·회사/소비자 수용은 이 통과에 포함하지 않는다.
+
+독립 리뷰 R1 `cfa61f9`는 semantic PSO 유예1초 초과를 깊이 프레임 미분류 완료로 바꾸고 지속 pending의 프레임별 재대기를 없앴다. 준비 후 현재 snapshot 라벨은 자동 복구한다. pending poll의 world flush도 준비 후 필요한1회로 줄였다. Development/Shipping GT-off/on12장면이 다시 모두 Slab1,800점이며 Camera GT6장면도 각19,257pixels다. startup Error22줄은 수정 전에도 발생한 UE5.3 D3D12 SwapChain4 handled ensure1건의 헤더·스택·빈 줄로 분류했다. 이 R1 시점의 성능 미수행은 아래 재개 단계에서 해소했다.
+
+성능 재개 `7e6e04d`는 `fd5fac1`을 병합했고 README/검증 이력 양쪽 내용을 보존했다. RT on·1920×1080 visible 표준 ABAB12회에서 FPS 저하0.00498%·p95 증가0%·Game Thread 변화-0.03468%로2% gate PASS다. 기본 Rev7×3은90.0063초에 각1,800프레임/19.998605Hz, 요청 비율0.999930, 슬롯 하한1,799를 통과했다. Camera GT on의 동일 메인 off 대조 비용은 Game Thread +1.050ms(+20.61%,1회 관측)다. 현재 Editor 빌드·관련21개·Python5·quick9·layer/guard PASS, 개인 설정372개·보호753개를 복원·대조했다. 현재 SHA의 native 패키징·전체 release·직접 마우스/현장 수용은 별도다. [재개 결과](Saved/Reports/ANALYSIS-24-22/RESULT.md)를 따른다.
+
+GT-on 추가 독립 비교에서는 기존 GT-off ABAB 통과만으로 충분하지 않았다. `0bd709c`는 기존 Perf01/verify에 GT-on·Rev7/HWRT 조건과 GPU2% 판정을 추가했다. fd5fac1 대비 각6회 동일조건 ABAB는 최초 GPU+4.275530%로 실패했다. ready 경로 최소 수정 `9aed4ee` 뒤에도 GPU 7.372320→7.547837ms(+2.380760%)로 **2%FAIL**이며 FPS저하0.001464%·p95증가0%·GameThread변화-0.057428%는 통과했다. 지시에 따라 추가 수정/측정을 중단하고 성능 미달로 merge를 차단한다. 원본24valid·수정소스15RHI 통과·개인372/보호753복원은 [최신 RESULT](Saved/Reports/ANALYSIS-24-22/RESULT.md)를 따른다.
+
 ### UXR-H150 — 해치 150% 표시 공간 확보, 독립 검수 대기
 
 해치 모니터의 보조 시점·보기 설정·원료/센서 선택을 기존 인스턴스 그대로 `시점 · 더보기` 드로어로 옮겼다. 지표 카드 여백을 줄이고 숫자를 기본 제목 크기로 맞췄으며, 우측 `홀드 단면 펼치기`로 기존 단면을 열며 접으면 히트맵 공간을 복원한다. 계산·센서·저장값·DTCore·코일 월드는 유지한다.

@@ -1,10 +1,12 @@
 #include "VirtualLidarScanComponent.h"
 #include "IndustrialLidarProfiles.h"
+#include "VirtualLidarSemanticDiagnostics.h"
 #include "SensorOwnedRayTracing.h"
 #include "Components/PrimitiveComponent.h"
 #include "Async/Async.h"
 #include "Async/ParallelFor.h"
 #include "Misc/ScopeLock.h"
+#include "Dom/JsonObject.h"
 #include "HAL/IConsoleManager.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include <atomic>
@@ -54,6 +56,10 @@ struct FVirtualLidarSceneQueryJob
  double GpuSubmitted=0;
  VirtualLidarPointModel::FConfig Model;
  TArray<TArray<FHardwareNormalizedSurface>> FrozenSurfaces;
+ // Explicit diagnostics cross the #28b readback worker as immutable CPU data.
+ TArray<VirtualLidarSemanticDiagnostics::FMesh> DiagnosticMeshes;
+ TSharedPtr<FJsonObject> DiagnosticReport;
+ bool bCollectSemanticDiagnostics=false;
  TMap<TWeakObjectPtr<UPrimitiveComponent>,FHardwareNormalizedSurface> CpuSurfaces;
  TArray<FVirtualLidarPoint> WorkerPoints;
  TSharedPtr<TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe> PointLease;
@@ -77,6 +83,26 @@ struct FVirtualLidarSceneQueryJob
 };
 namespace
 {
+TArray<VirtualLidarSemanticDiagnostics::FMesh> CaptureDiagnosticMeshes(const FVirtualLidarSceneQueryJob& J)
+{
+ check(IsInGameThread());
+ TArray<VirtualLidarSemanticDiagnostics::FMesh> Meshes;
+ for(int32 MeshIndex=0;MeshIndex<J.GpuMeshes.Num();++MeshIndex)
+ {
+  const auto& Source=J.GpuMeshes[MeshIndex];auto& Mesh=Meshes.AddDefaulted_GetRef();
+  Mesh.TriangleCount=Source.Vertices?Source.Vertices->Num()/3:0;Mesh.Surfaces.SetNum(Source.Surfaces.Num());
+  for(int32 SurfaceIndex=0;SurfaceIndex<Source.Surfaces.Num();++SurfaceIndex)
+  {
+   auto& Surface=Mesh.Surfaces[SurfaceIndex];Surface.bComponentAlive=Source.Surfaces[SurfaceIndex].IsValid();
+   if(!J.FrozenSurfaces.IsValidIndex(MeshIndex)||!J.FrozenSurfaces[MeshIndex].IsValidIndex(SurfaceIndex))continue;
+   const auto& Frozen=J.FrozenSurfaces[MeshIndex][SurfaceIndex];
+   Surface.bSnapshotValid=Frozen.bValid;Surface.bIgnored=Frozen.bIgnore;
+   Surface.ActorName=Frozen.Metadata.HitActorName;Surface.Label=Frozen.Metadata.SemanticLabel;
+   Surface.bSlabTag=Frozen.Metadata.HitActorTags.Contains(TEXT("Slab"));
+  }
+ }
+ return Meshes;
+}
 TAutoConsoleVariable<int32> CVarLidarReadbackNormalize(TEXT("ma0t10.LidarReadbackNormalize"),1,
  TEXT("Start bounded CPU normalization directly after HWRT readback.0 retains legacy GT polling."));
 TAutoConsoleVariable<int32> CVarLidarCpuSnapshotNormalize(TEXT("ma0t10.LidarCpuSnapshotNormalize"),1,
@@ -99,6 +125,7 @@ void InitializeWorkerPoint(const FVirtualLidarSceneQueryJob& J,int I,FVirtualLid
 void NormalizeHardware(const TSharedPtr<FVirtualLidarSceneQueryJob,ESPMode::ThreadSafe>& J,TArray<FSensorRtHit>&& Hits)
 {
  if(J->Cancelled.load(std::memory_order_acquire)){J->Buffer->Busy.store(false,std::memory_order_release);J->WorkerReady.store(true,std::memory_order_release);return;}
+ if(J->bCollectSemanticDiagnostics)J->DiagnosticReport=VirtualLidarSemanticDiagnostics::BuildHardwareReport(J->DiagnosticMeshes,Hits);
  const int Count=Hits.Num();J->WorkerPoints.SetNum(Count);J->Buffer->Hits.SetNum(Count);J->RequiresResolve.SetNumZeroed(Count);
  ParallelFor(FMath::DivideAndRoundUp(Count,512),[J,&Hits,Count](int Chunk)
  {
@@ -159,10 +186,11 @@ void NormalizeCpuSnapshot(const TSharedPtr<FVirtualLidarSceneQueryJob,ESPMode::T
 }
 void UVirtualLidarScanComponent::BeginSceneQueryBatch()
 {
+ const bool bRequestedHardware=ActiveAcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing;
  HardwareSurfaceIdentities.Reset();
  if(!ScheduledRayQuery)
  {
-  if(ActiveAcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing){ActiveAcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;RuntimeStatus.AcquisitionBackendMessage=TEXT("이 장면의 충돌 형상은 GPU에서 지원하지 않아 CPU로 측정합니다.");}
+  if(ActiveAcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing){ActiveAcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;RuntimeStatus.AcquisitionBackendMessage=TEXT("이 장면의 충돌 형상은 GPU에서 지원하지 않아 CPU로 측정합니다.");ReportHardwareSemanticDiagnostics({},TEXT("snapshot_unavailable"));}
   return;
  }
  SceneQueryGameSeconds=0;
@@ -213,6 +241,8 @@ void UVirtualLidarScanComponent::BeginSceneQueryBatch()
    {
     // Reserve the same single job/point lease before publishing to the RT.
     J->bReadbackNormalize=true;J->PointLease=MoveTemp(ScenePointLease);J->WorkerPoints=MoveTemp(ScheduledPoints);
+     if(!bHardwareSemanticDiagnosticIssued&&VirtualLidarSemanticDiagnostics::IsEnabled())
+     {J->DiagnosticMeshes=CaptureDiagnosticMeshes(*J);J->bCollectSemanticDiagnostics=true;}
     Request.OnReadback=[J](TArray<FSensorRtHit>&& Hits,const FString& Error)
     {
      if(J->Cancelled.load(std::memory_order_acquire))return;
@@ -250,6 +280,7 @@ void UVirtualLidarScanComponent::BeginSceneQueryBatch()
   }
  }
  SceneQueryJob=J;
+ if(bRequestedHardware&&!J->GpuScan)ReportHardwareSemanticDiagnostics({},TEXT("not_admitted"));
 }
 bool UVirtualLidarScanComponent::PollSceneQueryBatch()
 {
@@ -260,13 +291,19 @@ bool UVirtualLidarScanComponent::PollSceneQueryBatch()
  {
   if(J->ReadbackFailed.load(std::memory_order_acquire))
   {
+    ReportHardwareSemanticDiagnostics({},TEXT("readback_failed"),J->ReadbackFailure);
    RuntimeStatus.AcquisitionBackendMessage=TEXT("GPU readback failed; CPU fallback: ")+J->ReadbackFailure;
    ActiveAcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;RuntimeStatus.ActiveAcquisitionBackend=TEXT("snapshot_cpu_bvh");
    ScenePointLease=MoveTemp(J->PointLease);ScheduledPoints=MoveTemp(J->WorkerPoints);J->GpuScan.Reset();J->bReadbackNormalize=false;
   }
   else
   {
-   if(J->WorkerReady.load(std::memory_order_acquire)){J->ReadyRays.store(J->Width*J->Height,std::memory_order_release);return true;}
+    if(J->WorkerReady.load(std::memory_order_acquire))
+    {
+     // WorkerReady publishes the pure summary before GT/FileSave observes it.
+     ReportHardwareSemanticDiagnostics({},TEXT("readback_complete"));
+     J->ReadyRays.store(J->Width*J->Height,std::memory_order_release);return true;
+    }
    // Drive the existing nonblocking RT poll until it has dispatched the worker.
    if(!J->WorkerStarted.load(std::memory_order_acquire)){TArray<FSensorRtHit> Unused;FString Error;J->GpuScan->Poll(Unused,Error);}
    return false;
@@ -283,12 +320,14 @@ bool UVirtualLidarScanComponent::PollSceneQueryBatch()
   TArray<FSensorRtHit> Hits;FString Error;if(!J->GpuScan->Poll(Hits,Error))return false;
   if(!Error.IsEmpty()||Hits.Num()!=J->Width*J->Height)
   {
+   ReportHardwareSemanticDiagnostics(Hits,TEXT("readback_failed"),Error);
    RuntimeStatus.AcquisitionBackendMessage=TEXT("GPU 측정 실패 · 같은 장면을 CPU로 다시 측정합니다. ")+Error;
    ActiveAcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;RuntimeStatus.ActiveAcquisitionBackend=TEXT("snapshot_cpu_bvh");J->GpuScan.Reset();
   }
   else
   {
    if(J->Buffer->Busy.load())return false;
+   ReportHardwareSemanticDiagnostics(Hits,TEXT("readback_complete"));
    if(J->bWorkerNormalize)
    {
 #if WITH_DEV_AUTOMATION_TESTS
@@ -339,6 +378,23 @@ bool UVirtualLidarScanComponent::PollSceneQueryBatch()
   J->Ready.store(!J->Cancelled.load(std::memory_order_acquire),std::memory_order_release);J->Buffer->Busy.store(false,std::memory_order_release);
  });
  return false;
+}
+void UVirtualLidarScanComponent::ReportHardwareSemanticDiagnostics(const TArray<FSensorRtHit>& Hits,const TCHAR* Stage,const FString& Failure)
+{
+ using namespace VirtualLidarSemanticDiagnostics;
+ if(bHardwareSemanticDiagnosticIssued||!IsEnabled())return;
+ bHardwareSemanticDiagnosticIssued=true;
+ const auto J=SceneQueryJob&&SceneQueryJob->Generation==ScheduledGeneration&&SceneQueryJob->Frame==FrameId+1?SceneQueryJob:nullptr;
+ auto Report=J&&J->DiagnosticReport?J->DiagnosticReport.ToSharedRef():BuildHardwareReport(J?CaptureDiagnosticMeshes(*J):TArray<FMesh>{},Hits);
+ Report->SetBoolField(TEXT("semantic_classification_enabled"),bEnableSemanticClassification);
+ Report->SetBoolField(TEXT("dataset_semantic_demand"),bDatasetSemanticDemand);
+ Report->SetNumberField(TEXT("requested_backend"),int32(AcquisitionBackend));
+ Report->SetNumberField(TEXT("active_backend"),int32(ActiveAcquisitionBackend));
+ Report->SetNumberField(TEXT("expected_rays"),J?J->Width*J->Height:0);
+ Report->SetBoolField(TEXT("hwrt_available"),SensorOwnedRayTracing::IsAvailable());
+ Report->SetStringField(TEXT("pipeline_failure"),Failure.Left(256));
+ Report->SetStringField(TEXT("query_backend"),J&&J->Scene?J->Scene->BackendName().ToString():TEXT("none"));
+ Persist(this,SensorId,J?J->Frame:FrameId+1,ScheduledGeneration,TEXT("hardware_ray_tracing"),Stage,Report);
 }
 bool UVirtualLidarScanComponent::ResolveSceneQueryRay(int32 Index,FVector Start,FVector End,FHitResult& Hit) const
 {return SceneQueryJob&&Index<SceneQueryJob->ReadyRays.load(std::memory_order_acquire)&&SceneQueryBuffer->Hits.IsValidIndex(Index)&&ScheduledRayQuery->Resolve(Start,End,SceneQueryBuffer->Hits[Index],Hit);}

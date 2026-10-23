@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$Baseline = 'HEAD^',
     [string]$Candidate = 'HEAD',
     [ValidatePattern('^[12](,[12])?$')][string]$Pairs = '1',
@@ -7,6 +7,9 @@
     [ValidateRange(1, 10)][int]$Blocks = 3,
     [ValidateRange(30, 120)][int]$MeasurementSeconds = 60,
     [ValidateSet('Perf01', 'ScheduledLidar')][string]$Workload = 'Perf01',
+    [switch]$CameraGroundTruth,
+    [ValidateSet('MLX80Native', 'Rev7')][string]$LidarProfile = 'MLX80Native',
+    [switch]$RequireGpu,
     [ValidateSet('Gpu', 'Cpu')][string]$ScheduledBackend = 'Gpu',
     [ValidateRange(0, 65535)][int]$ScheduledPcdLoopbackPort = 0,
     [ValidateSet(1,2,4)][int]$ScheduledDivisor = 1,
@@ -25,6 +28,7 @@
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot/PerfRelativeGate.ps1"
 if ($Workload -eq 'Perf01' -and $MeasurementSeconds -gt 60) { throw 'PERF01 measurement remains limited to30..60 seconds' }
+if ($Workload -ne 'Perf01' -and ($CameraGroundTruth -or $LidarProfile -ne 'MLX80Native')) { throw 'Camera/profile conditions require Perf01 workload' }
 if ($Workload -eq 'ScheduledLidar' -and ($Pairs -ne '1' -or $RayTracing -ne 'ProjectDefault')) { throw 'ScheduledLidar requires -Pairs 1 -RayTracing ProjectDefault; its workload is three LiDARs' }
 if ($ScheduledPcdLoopbackPort -gt 0 -and $ScheduledPcdLoopbackPort -lt 1024) { throw 'PCD requires an unprivileged credential-free loopback port' }
 
@@ -58,12 +62,13 @@ function Get-Verdict([string]$RunFolder, [double]$Threshold) {
             $ratios = @($data.sensors | ForEach-Object { if ($null -eq $_.acquisition_ratio) { [double]::NaN } else { [double]$_.acquisition_ratio } })
             $finitePositive = $finitePositive -and $ratios.Count -eq 3
         }
-        [PSCustomObject]@{ Condition = $condition; Revision = $revision; Valid = [bool]$data.valid -and $finitePositive -and $slotValid; Fps = $metrics[0]; P95 = $metrics[1]; GameThread = $metrics[2]; Gpu = [double]$data.gpu_frame_mean_ms; Rss = [double]$data.rss_bytes; File = $_.Name; AcquisitionRatios = $ratios }
+        $gpuMean = if ($Workload -eq 'ScheduledLidar') { [double]$data.gpu_frame_mean_ms } else { [double]$data.gpu_mean_ms }
+        [PSCustomObject]@{ Condition = $condition; Revision = $revision; Valid = [bool]$data.valid -and $finitePositive -and $slotValid; Fps = $metrics[0]; P95 = $metrics[1]; GameThread = $metrics[2]; Gpu = $gpuMean; Rss = [double]$data.rss_bytes; File = $_.Name; AcquisitionRatios = $ratios }
     })
     if ($rows.Count -eq 0) { throw "No ABAB run JSON in $RunFolder" }
     $conditions = foreach ($group in ($rows | Group-Object Condition)) {
         $a = @($group.Group | Where-Object Revision -eq 'A'); $b = @($group.Group | Where-Object Revision -eq 'B')
-        $comparison = Get-PerfRelativeComparison -A $a -B $b -Expected (2 * $Blocks) -Threshold $Threshold -RequireAcquisitionRatio:($Workload -eq 'ScheduledLidar')
+        $comparison = Get-PerfRelativeComparison -A $a -B $b -Expected (2 * $Blocks) -Threshold $Threshold -RequireAcquisitionRatio:($Workload -eq 'ScheduledLidar') -RequireGpu:$RequireGpu
         $comparison | Add-Member -NotePropertyName Condition -NotePropertyValue $group.Name -PassThru
     }
     return @($conditions)
@@ -97,6 +102,7 @@ $manifest = [ordered]@{
     DTCore = $dtcore; Instrument = [ordered]@{ Path = $instrument; Sha256 = (Get-Sha256 $instrumentSource) }
     SessionInstrument = [ordered]@{ Path = $sessionInstrument; Sha256 = (Get-Sha256 (Join-Path $root $sessionInstrument)) }
     Workload = $Workload; ScheduledBackend = $ScheduledBackend; ScheduledPcdLoopbackPort = $ScheduledPcdLoopbackPort; ScheduledDivisor = $ScheduledDivisor
+    CameraGroundTruth = [bool]$CameraGroundTruth; LidarProfile = $LidarProfile; RequireGpu = [bool]$RequireGpu
     RelativeGateSha256 = (Get-Sha256 "$PSScriptRoot/PerfRelativeGate.ps1")
     ReceiverSha256 = (Get-Sha256 "$root/Tools/Artemis/pcd_loopback_probe.py")
     NativeLzfValidatorSha256 = $(if ($NativeLzfValidatorPath) { Get-Sha256 $NativeLzfValidatorPath } else { '' })
@@ -140,6 +146,7 @@ try {
     foreach ($pairCount in $pairList) {
         foreach ($offscreen in $displays) {
             $condition = $(if ($Workload -eq 'ScheduledLidar') { "lidar3-$ScheduledBackend-div$ScheduledDivisor-pcd$ScheduledPcdLoopbackPort-" } else { "${pairCount}pair-" }) + $(if ($offscreen) { 'offscreen' } else { 'visible' })
+            if ($Workload -eq 'Perf01' -and ($CameraGroundTruth -or $LidarProfile -ne 'MLX80Native')) { $condition += "-gt$([int][bool]$CameraGroundTruth)-$LidarProfile" }
             for ($block = 1; $block -le $Blocks; $block++) {
                 $index = 0
                 foreach ($label in 'A', 'B', 'A', 'B') {
@@ -156,6 +163,10 @@ try {
                         if ($ScheduledPcdLoopbackPort) { $arguments += "-GpuLidarPcdLoopbackPort=$ScheduledPcdLoopbackPort" }
                     }
                     if ($offscreen) { $arguments += '-RenderOffscreen' }
+                    if ($Workload -eq 'Perf01') {
+                        $arguments += "-Perf01LidarProfile=$LidarProfile"
+                        if ($CameraGroundTruth) { $arguments += '-CameraTruthPerformance' }
+                    }
                     if ($RayTracing -eq 'Off') { $arguments += '-noraytracing' }
                     $arguments += @("-Perf01SourceCommit=$($refs[$label])", "-Perf01RunId=$name", "-Perf01InstrumentSha=$($manifest.Instrument.Sha256)", "-Perf01SessionSha=$($manifest.SessionInstrument.Sha256)", "`"-ReportExportPath=$runs/$name.automation`"")
                     $saved = @{}
@@ -204,6 +215,16 @@ try {
                     if ($data.Perf01SourceCommit -ne $refs[$label] -or $data.Perf01RunId -ne $name -or $data.Perf01InstrumentSha -ne $manifest.Instrument.Sha256 -or $data.Perf01SessionSha -ne $manifest.SessionInstrument.Sha256) { throw "Run provenance mismatch: $name" }
                     if ($data.measurement_seconds -ne $MeasurementSeconds -or $data.warmup_seconds -ne 10 -or $data.actual_client -ne '1920x1080' -or [bool]$data.render_offscreen -ne $offscreen) { throw "Run workload mismatch: $name" }
                     if ($Workload -eq 'Perf01' -and $data.pairs -ne $pairCount) { throw "Run pair count mismatch: $name" }
+                    if ($Workload -eq 'Perf01') {
+                        if ([bool]$data.camera_ground_truth_enabled -ne [bool]$CameraGroundTruth -or $data.lidar_profile -ne $LidarProfile) { throw "GT/profile condition mismatch: $name" }
+                        if ($LidarProfile -eq 'Rev7') {
+                            $lidars = @($data.sensors | Where-Object kind -eq 'Lidar')
+                            if ($lidars.Count -ne $pairCount) { throw "Missing Rev7 devices: $name" }
+                            foreach ($sensor in $lidars) {
+                                if ($sensor.device_profile -ne 'OusterOS1_64_Rev7' -or $sensor.backend -ne 'hardware_ray_tracing' -or !$sensor.semantic_classification_enabled) { throw "Rev7 backend/semantics mismatch: $name" }
+                            }
+                        }
+                    }
                     if ($Workload -eq 'ScheduledLidar') {
                         if ($data.sensor_count -ne 3 -or @($data.sensors).Count -ne 3 -or [bool]$data.reference_run -ne ($label -eq 'A')) { throw "Scheduled workload mismatch: $name" }
                         foreach ($sensor in $data.sensors) {

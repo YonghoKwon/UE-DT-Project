@@ -27,6 +27,7 @@ struct FVirtualLidarDerivedOutputJob;
 struct FVirtualLidarSceneQueryBuffer;
 struct FVirtualLidarSceneQueryJob;
 struct FVirtualLidarScenePointPool;
+struct FSensorRtHit;
 #if WITH_DEV_AUTOMATION_TESTS
 #define MA0T10_LIDAR_TIMING_TRACE_AVAILABLE 1
 struct FVirtualLidarTimingSample
@@ -120,6 +121,10 @@ private:
     TSharedPtr<FVirtualLidarSceneQueryJob,ESPMode::ThreadSafe> SceneQueryJob;
     TSharedPtr<const TArray<FVector3f>,ESPMode::ThreadSafe> SharedSceneQueryDirections;
     uint32 SharedSceneDirectionKey=0;
+    // At most one optional FileSave summary per backend for this component lifetime.
+    bool bHardwareSemanticDiagnosticIssued=false;
+    bool bDepthSemanticDiagnosticIssued=false;
+    void ReportHardwareSemanticDiagnostics(const TArray<FSensorRtHit>& Hits,const TCHAR* Stage,const FString& Failure=FString());
     void BeginSceneQueryBatch();
     bool PollSceneQueryBatch();
     int32 SceneQueryReadyRays() const;
