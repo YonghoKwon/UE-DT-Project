@@ -46,6 +46,9 @@ class FGpuScheduledRun final:public IAutomationLatentCommand
     struct FFrameCosts{double Render=0,Schedule=0,Complete=0,Publisher=0,Events=0,Telemetry=0,Gc=0;int64 Completed=0;};
     TArray<FFrameCosts> FrameCosts;TArray<int64> PreviousFrames;
     bool CaptureFrameCosts=false,OwnHitchDiagnostics=false;
+    bool SequentialStart=false; int32 NextSequentialSensor=0; double NextSequentialStart=0;
+    uint64 SequentialLastStartFrame=0;
+    TArray<uint64> SequentialStartFrames;
     static double Percentile(TArray<double> A,double P){A.Sort();return A.IsEmpty()?0:A[FMath::Clamp(FMath::CeilToInt(A.Num()*P)-1,0,A.Num()-1)];}
 
     double NextPcdBudgetSample=0,MaximumPcdRequiredMiB=0;int PcdBudgetWarningSamples=0;
@@ -107,6 +110,7 @@ public:
                     Config.StreamKind=EVirtualSensorStreamKind::PointCloud;Config.bEnabled=true;Publisher->ConfigureStream(Config);
                 }
             }
+            SequentialStart=FParse::Param(FCommandLine::Get(),TEXT("GpuLidarSequentialStart"));
             for(int I=0;I<3;++I)if(auto* A=Sim->SensorAt(I))
             {
                 A->StopSensor();if(I>=SensorCount)continue;
@@ -115,7 +119,7 @@ public:
 #if defined(MA0T10_LIDAR_TIMING_TRACE_AVAILABLE)
                 if(FParse::Param(FCommandLine::Get(),TEXT("GpuLidarTimingTrace")))Scan->StartTimingTraceForTests();
 #endif
-                A->StartSensor();Sensors.Add(A);
+                if(!SequentialStart)A->StartSensor();Sensors.Add(A);
             }
             if(!Test->TestEqual(TEXT("requested sensor count is present"),Sensors.Num(),SensorCount))return true;
             Baselines.Init(0,Sensors.Num());
@@ -123,9 +127,25 @@ public:
         }
         if(Phase==1)
         {
+            if(SequentialStart && NextSequentialSensor<Sensors.Num())
+            {
+                if(Now>=NextSequentialStart && GFrameCounter!=SequentialLastStartFrame)
+                {
+                    Sensors[NextSequentialSensor++]->StartSensor();
+                    SequentialLastStartFrame=GFrameCounter;SequentialStartFrames.Add(GFrameCounter);
+                    NextSequentialStart=Now+.35;
+                }
+                Last=Now;return false;
+            }
             if(Now-Started<10){Last=Now;return false;}
             MissedSlotBaselines.Reset();
-            for(int I=0;I<Sensors.Num();++I){Baselines[I]=Sensors[I]->ScanComponent->GetRuntimeStatus().FrameId;MissedSlotBaselines.Add(Sensors[I]->ScanComponent->GetRuntimeStatus().DeadlineMissCount);}
+            for(int I=0;I<Sensors.Num();++I){Baselines[I]=Sensors[I]->ScanComponent->GetRuntimeStatus().FrameId;
+#if defined(MA0T10_LIDAR_TIMING_TRACE_AVAILABLE)
+                MissedSlotBaselines.Add(Sensors[I]->ScanComponent->GetScheduledMissedSlotCount());
+#else
+                MissedSlotBaselines.Add(0);
+#endif
+            }
             MeasurementClient=Sensors[0]->GetWorld()->GetGameViewport()->Viewport->GetSizeXY();
             if(auto Window=FSlateApplication::Get().FindWidgetWindow(Sensors[0]->GetWorld()->GetGameViewport()->GetGameViewportWidget().ToSharedRef()))
             {MeasurementDpi=Window->GetDPIScaleFactor();VisibleWindowVerified=Window->IsVisible();}
@@ -168,6 +188,10 @@ public:
         auto R=MakeShared<FJsonObject>();
         R->SetStringField(TEXT("acquisition_gate"),TEXT("completed Hz / requested Hz >=0.99 for every sensor; ABAB relative gate evaluated by run_perf_abab.ps1"));
         R->SetBoolField(TEXT("reference_run"),ReferenceRun);
+        R->SetBoolField(TEXT("sequential_start"),SequentialStart);
+        TArray<TSharedPtr<FJsonValue>> StartFrames;
+        for(uint64 Frame:SequentialStartFrames)StartFrames.Add(MakeShared<FJsonValueNumber>(double(Frame)));
+        R->SetArrayField(TEXT("sequential_start_engine_frames"),StartFrames);
         R->SetNumberField(TEXT("average_fps"),1000/FMath::Max(.001,Average(Engine)));
         R->SetNumberField(TEXT("measurement_seconds"),FMath::Clamp(MeasurementSeconds,30.0,120.0));
         R->SetNumberField(TEXT("warmup_seconds"),10);R->SetNumberField(TEXT("samples"),Wall.Num());
@@ -202,7 +226,10 @@ public:
             const double RequestedHz=1.0/FMath::Max(.001,double(Scan->ScanInterval));
             const double Ratio=Hz/RequestedHz;
             Row->SetNumberField(TEXT("requested_hz"),RequestedHz);Row->SetNumberField(TEXT("acquisition_ratio"),Ratio);
-            Row->SetNumberField(TEXT("missed_requested_slots"),Status.DeadlineMissCount-MissedSlotBaselines[I]);
+#if defined(MA0T10_LIDAR_TIMING_TRACE_AVAILABLE)
+            Row->SetNumberField(TEXT("missed_requested_slots"),Scan->GetScheduledMissedSlotCount()-MissedSlotBaselines[I]);
+#endif
+            Row->SetNumberField(TEXT("delayed_acquisition_events_total"),Status.DeadlineMissCount);
             AcquisitionRatioPass&=Ratio>=.99;
             // Replace the original default Rev7 cadence gate in its original scope.
             // Operating-map and high-density Rev05 tests retain their existing contracts.

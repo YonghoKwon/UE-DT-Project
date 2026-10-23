@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarCadenceCohort.h"
 #include "VirtualSensorSchedulerSubsystem.generated.h"
 
 class UVirtualCameraCaptureComponent;
@@ -82,6 +83,9 @@ struct MA0T10_DT_API FVirtualSensorPerformanceTelemetry
     int32 BudgetSkippedAcquisitionFrameCount = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
+    int64 ExpiredCadenceSlotCount = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
     int32 FailedAcquisitionFrameCount = 0;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorPerformance")
@@ -121,7 +125,7 @@ public:
     void UnregisterCamera(UVirtualCameraCaptureComponent* Camera);
     void RegisterLidar(UVirtualLidarScanComponent* Lidar);
     void UnregisterLidar(UVirtualLidarScanComponent* Lidar);
-    double ResolveLidarCadencePhase(const UVirtualLidarScanComponent* Lidar) const;
+    void RefreshLidarCadencePhases(double WallSeconds);
 
     void RegisterTask(UActorComponent* TaskComponent);
     void UnregisterTask(UActorComponent* TaskComponent);
@@ -154,6 +158,9 @@ private:
 
     TArray<TWeakObjectPtr<UVirtualCameraCaptureComponent>> Cameras;
     TArray<TWeakObjectPtr<UVirtualLidarScanComponent>> Lidars;
+    TArray<UVirtualLidarScanComponent*> CadenceMembers;
+    FVirtualLidarCadenceCohort CadenceCohort;
+    std::vector<FVirtualLidarCadenceCohort::FMember> CadenceMembership;
     TMap<TWeakObjectPtr<UActorComponent>, double> RegistrationTimes;
     TWeakObjectPtr<UVirtualCameraCaptureComponent> PreferredCamera;
     TWeakObjectPtr<UVirtualLidarScanComponent> PreferredLidar;

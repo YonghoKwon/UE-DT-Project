@@ -10,6 +10,7 @@ public:
     struct FDecision
     {
         bool bAdmit = false;
+        bool bDelayedAcquisitionEvent = false;
         std::uint64_t SkippedSlots = 0;
     };
 
@@ -21,6 +22,7 @@ public:
         bRunning = true;
         bHeld = false;
         bSuspended = false;
+        bActiveAcquisitionMissRecorded = false;
         // Keep the frame latch and cumulative skipped count across restart.
     }
 
@@ -33,6 +35,16 @@ public:
         const double P = SafePeriod(Interval);
         Start(std::floor(Now / P) * P, Interval, Phase);
         if (GetNextDue() + P * 1.e-6 < Now) ++NextSlot;
+    }
+    // A changed cohort takes effect strictly after Now. Preserve ownership,
+    // the frame latch and cumulative expired slots; discarded old debt is not a miss.
+    void RephaseNextSlot(double Now, double Interval, double Phase)
+    {
+        if (!bRunning || bHeld || !std::isfinite(Now) || !std::isfinite(Interval)) return;
+        Period = SafePeriod(Interval);
+        Origin = std::floor(Now / Period) * Period + Phase * Period;
+        NextSlot = Origin <= Now + Period * 1.e-6 ? 1 : 0;
+        bSuspended = false;
     }
     bool IsRunning() const { return bRunning; }
     void HoldAdmissions() { bHeld = true; } // Dataset one-shot still needs completion polling.
@@ -79,6 +91,11 @@ public:
         const double SlotPosition = (Now - Origin) / Period;
         constexpr double BoundaryTolerance = 1.e-6; // <=1 ns at the minimum period.
         if (SlotPosition + BoundaryTolerance < static_cast<double>(NextSlot)) return Result;
+        if (bBusy && !bActiveAcquisitionMissRecorded)
+        {
+            Result.bDelayedAcquisitionEvent = true;
+            bActiveAcquisitionMissRecorded = true;
+        }
         const auto LatestSlot = static_cast<std::uint64_t>(std::floor(SlotPosition + BoundaryTolerance));
         Result.SkippedSlots = LatestSlot - NextSlot;
         TotalSkipped += Result.SkippedSlots;
@@ -86,6 +103,7 @@ public:
         if (!bBusy && (!bHasAdmitted || LastAdmissionFrame != EngineFrame))
         {
             Result.bAdmit = true;
+            bActiveAcquisitionMissRecorded = false;
             ++NextSlot;
             LastAdmissionFrame = EngineFrame;
             bHasAdmitted = true;
@@ -97,5 +115,6 @@ private:
     static double SafePeriod(double Interval) { return Interval > .001 ? Interval : .001; }
     double Origin = 0.0, Period = .05, SuspendedAt = 0.0;
     std::uint64_t NextSlot = 0, TotalSkipped = 0, LastAdmissionFrame = 0;
+    bool bActiveAcquisitionMissRecorded = false;
     bool bRunning = false, bHeld = false, bSuspended = false, bHasAdmitted = false;
 };

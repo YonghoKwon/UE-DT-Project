@@ -197,6 +197,9 @@ public:
     FVirtualLidarTimingSample ActiveTimingSampleForTests;
     TArray<FVirtualLidarTimingSample> TimingSamplesForTests;
 #endif
+    bool UsesAutomaticCadencePhase() const;
+    uint64 GetAutomaticCadenceGeneration() const { return AutomaticCadenceGeneration; }
+    void ApplyAutomaticCadencePhase(double WallSeconds, double Phase, bool bInitial);
     void SuspendScheduledScanCadence(double WallSeconds) { ScheduledCadence.Suspend(WallSeconds); }
     uint64 GetScheduledMissedSlotCount() const { return ScheduledCadence.GetSkippedSlots(); }
     int32 ProcessScheduledScanChunk(int32 MaxRays);
@@ -816,6 +819,8 @@ private:
 
     FVirtualLidarCadence ScheduledCadence;
     bool bAutomaticCadencePhasePending = false;
+    bool bAutomaticCadencePhaseEnabled = false;
+    uint64 AutomaticCadenceGeneration = 0;
     double AutomaticCadenceStartedAt = 0;
     bool bSingleScheduledScanRequested = false;
     double ScheduledScanStartTime = -1.0;

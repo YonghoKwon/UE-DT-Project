@@ -239,6 +239,8 @@ void UVirtualLidarScanComponent::StartScan()
     if (!GetWorld() || ScanInterval <= 0.0f) return;
     GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
     AutomaticCadenceStartedAt=FPlatformTime::Seconds();bAutomaticCadencePhasePending=true;
+    bAutomaticCadencePhaseEnabled=true;
+    ++AutomaticCadenceGeneration;
     ScheduledCadence.Start(AutomaticCadenceStartedAt, ScanInterval, (GetTypeHash(SensorId) % 1000) / 1000.0);
     bSingleScheduledScanRequested = false;
     if (!bRegisteredWithPerformanceSubsystem)
@@ -256,6 +258,7 @@ void UVirtualLidarScanComponent::RequestImmediateScheduledScan()
 	{
 		ScheduledCadence.RequestImmediate(FPlatformTime::Seconds());
 		bAutomaticCadencePhasePending=false; // Explicit immediate/one-shot keeps its own grid.
+        bAutomaticCadencePhaseEnabled=false;
 	}
 }
 
@@ -500,6 +503,20 @@ void UVirtualLidarScanComponent::EnsureGpuDepthBeamLookup(const FVirtualLidarDep
     GpuDepthLookupVerticalCalibrationCount = VerticalCalibrationAnglesDegrees.Num();
 }
 
+bool UVirtualLidarScanComponent::UsesAutomaticCadencePhase() const
+{
+    return IsScanRunning() && bAutomaticCadencePhaseEnabled && !bSingleScheduledScanRequested
+        && CVarLidarPhaseSpread.GetValueOnGameThread()!=0 && FMath::IsFinite(ScanInterval) && ScanInterval>0;
+}
+
+void UVirtualLidarScanComponent::ApplyAutomaticCadencePhase(double WallSeconds, double Phase, bool bInitial)
+{
+    const double Interval=FMath::Max(.001,double(ScanInterval));
+    if(bInitial) ScheduledCadence.StartAligned(AutomaticCadenceStartedAt,Interval,Phase);
+    else ScheduledCadence.RephaseNextSlot(WallSeconds,Interval,Phase);
+    bAutomaticCadencePhasePending=false;
+}
+
 void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
 {
     TryStartPendingPayloadBuild();
@@ -512,10 +529,9 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
     const double SafeInterval = FMath::Max(0.001, static_cast<double>(ScanInterval));
     if(bAutomaticCadencePhasePending)
     {
+        if(auto* Scheduler=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>():nullptr)
+            Scheduler->RefreshLidarCadencePhases(WallSeconds);
         bAutomaticCadencePhasePending=false;
-        if(CVarLidarPhaseSpread.GetValueOnGameThread()!=0&&!bSingleScheduledScanRequested&&FMath::IsFinite(SafeInterval))
-            if(const auto* Scheduler=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>():nullptr)
-                ScheduledCadence.StartAligned(AutomaticCadenceStartedAt,SafeInterval,Scheduler->ResolveLidarCadencePhase(this));
     }
     RuntimeStatus.RequestedAcquisitionRateHz = static_cast<float>(1.0 / SafeInterval);
     RuntimeStatus.RequestedAcquisitionBackend = AcquisitionBackend == EVirtualLidarAcquisitionBackend::Auto
@@ -532,11 +548,15 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
     {++ActiveTimingSampleForTests.DueBusyFrames;ActiveTimingSampleForTests.LastBusyFrame=GFrameCounter;}
 #endif
     const auto Decision = ScheduledCadence.Poll(WallSeconds, SafeInterval, GFrameCounter, bAcquisitionInProgress);
-    // Counts represent expired requested slots, not output drops or failed captures.
-    RuntimeStatus.BudgetSkippedAcquisitionFrameCount += static_cast<int32>(FMath::Min<uint64>(
-        Decision.SkippedSlots, MAX_int32 - RuntimeStatus.BudgetSkippedAcquisitionFrameCount));
-    RuntimeStatus.DeadlineMissCount += static_cast<int32>(FMath::Min<uint64>(
-        Decision.SkippedSlots, MAX_int32 - RuntimeStatus.DeadlineMissCount));
+    // Keep the original per-active-acquisition semantics, independently of how
+    // many slots expire (including repeated pre/post completion polls).
+    if (Decision.bDelayedAcquisitionEvent)
+    {
+        RuntimeStatus.BudgetSkippedAcquisitionFrameCount += RuntimeStatus.BudgetSkippedAcquisitionFrameCount < MAX_int32;
+        RuntimeStatus.DeadlineMissCount += RuntimeStatus.DeadlineMissCount < MAX_int32;
+    }
+    RuntimeStatus.ExpiredCadenceSlotCount += static_cast<int64>(FMath::Min<uint64>(
+        Decision.SkippedSlots, MAX_int64 - RuntimeStatus.ExpiredCadenceSlotCount));
     if (Decision.bAdmit)
     {
 #if WITH_DEV_AUTOMATION_TESTS

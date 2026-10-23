@@ -138,19 +138,25 @@ void UVirtualSensorSchedulerSubsystem::UnregisterLidar(UVirtualLidarScanComponen
     NextLidarIndex = Lidars.Num() > 0 ? NextLidarIndex % Lidars.Num() : 0;
 }
 
-double UVirtualSensorSchedulerSubsystem::ResolveLidarCadencePhase(const UVirtualLidarScanComponent* Lidar) const
+void UVirtualSensorSchedulerSubsystem::RefreshLidarCadencePhases(double WallSeconds)
 {
-    if(!Lidar)return 0;
-    int32 Count=0,Rank=0;
+    CadenceMembers.Reset();
     for(const auto& Entry:Lidars)
+        if(auto* Lidar=Entry.Get(); Lidar && Lidar->UsesAutomaticCadencePhase()) CadenceMembers.Add(Lidar);
+    CadenceMembers.Sort([](const UVirtualLidarScanComponent& A,const UVirtualLidarScanComponent& B)
     {
-        const auto* Other=Entry.Get();
-        if(!Other||!Other->IsScanRunning()||Other->ScanInterval!=Lidar->ScanInterval)continue;
-        ++Count;
-        const int32 Order=Other->SensorId.Compare(Lidar->SensorId,ESearchCase::CaseSensitive);
-        if(Order<0||(Order==0&&Other->GetUniqueID()<Lidar->GetUniqueID()))++Rank;
-    }
-    return Count>0?double(Rank)/Count:0;
+        const int32 Order=A.SensorId.Compare(B.SensorId,ESearchCase::CaseSensitive);
+        return Order<0 || (Order==0 && A.GetUniqueID()<B.GetUniqueID());
+    });
+    CadenceMembership.clear();
+    for(const auto* Lidar:CadenceMembers)
+        CadenceMembership.push_back({Lidar->GetUniqueID(),Lidar->GetAutomaticCadenceGeneration(),double(Lidar->ScanInterval)});
+    // One shared clock observation for the entire changed cohort; unaffected
+    // rates retain their deadlines. No scans, waits or metadata changes here.
+    for(const auto& Assignment:CadenceCohort.Update(CadenceMembership))
+        for(auto* Lidar:CadenceMembers)
+            if(Lidar->GetUniqueID()==Assignment.Key)
+                Lidar->ApplyAutomaticCadencePhase(WallSeconds,Assignment.Phase,Assignment.bInitial);
 }
 
 void UVirtualSensorSchedulerSubsystem::SetPreferredCamera(UVirtualCameraCaptureComponent* Camera)
@@ -280,6 +286,7 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
         }
     }
 
+    RefreshLidarCadencePhases(FPlatformTime::Seconds());
     for (const TWeakObjectPtr<UVirtualLidarScanComponent>& Lidar : Lidars)
     {
         if (Lidar.IsValid()) Lidar->PrepareScheduledScan(NowSeconds);
@@ -389,7 +396,7 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
             if (!Lidar.IsValid()) continue;
             const FVirtualSensorRuntimeStatus& Status = Lidar->GetRuntimeStatus();
             UE_LOG(LogTemp, Display,
-                TEXT("[VirtualSensorPerfSensor] kind=Lidar sensorId=%s horizontal=%d vertical=%d rays=%d requestedHz=%.2f acquisitionHz=%.2f outputHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d deadlineMiss=%d budgetSkipped=%d failedAcquisition=%d queueOverflow=%d backend=%s"),
+                TEXT("[VirtualSensorPerfSensor] kind=Lidar sensorId=%s horizontal=%d vertical=%d rays=%d requestedHz=%.2f acquisitionHz=%.2f outputHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d deadlineMiss=%d budgetSkipped=%d failedAcquisition=%d queueOverflow=%d expiredCadenceSlots=%lld backend=%s"),
                 *Lidar->SensorId,
                 Lidar->HorizontalSamples,
                 Lidar->VerticalChannels,
@@ -407,6 +414,7 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
                 Status.BudgetSkippedAcquisitionFrameCount,
                 Status.FailedAcquisitionFrameCount,
                 Status.QueueOverflowCount,
+                Status.ExpiredCadenceSlotCount,
                 *Status.ActiveAcquisitionBackend);
         }
     }
@@ -665,6 +673,7 @@ void UVirtualSensorSchedulerSubsystem::RefreshTelemetry(float WorkMs)
     Telemetry.DroppedAcquisitionFrameCount = 0;
     Telemetry.DroppedDerivedFrameCount = 0;
     Telemetry.BudgetSkippedAcquisitionFrameCount = 0;
+    Telemetry.ExpiredCadenceSlotCount = 0;
     Telemetry.FailedAcquisitionFrameCount = 0;
     Telemetry.QueueOverflowCount = 0;
     Telemetry.SensorRates.Reset();
@@ -688,6 +697,7 @@ void UVirtualSensorSchedulerSubsystem::RefreshTelemetry(float WorkMs)
         Telemetry.DroppedAcquisitionFrameCount += Status.DroppedAcquisitionFrameCount;
         Telemetry.DroppedDerivedFrameCount += Status.DroppedDerivedFrameCount;
         Telemetry.BudgetSkippedAcquisitionFrameCount += Status.BudgetSkippedAcquisitionFrameCount;
+        Telemetry.ExpiredCadenceSlotCount += Status.ExpiredCadenceSlotCount;
         Telemetry.FailedAcquisitionFrameCount += Status.FailedAcquisitionFrameCount;
         Telemetry.QueueOverflowCount += Status.QueueOverflowCount;
     };

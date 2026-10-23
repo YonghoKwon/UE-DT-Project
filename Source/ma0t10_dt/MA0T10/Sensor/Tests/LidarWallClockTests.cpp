@@ -1,7 +1,10 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarCadence.h"
 
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarCadenceCohort.h"
+
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
+#include <algorithm>
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarWallClockRatesTest, "MA0T10.LidarWallClock.Rates",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -105,6 +108,104 @@ bool FLidarWallClockPhaseSpreadTest::RunTest(const FString&)
     const auto D=Delayed.Poll(1.26,.05,99,false);
     TestTrue(TEXT("delayed first poll admits only one due scan"),D.bAdmit);
     TestEqual(TEXT("phase initialization preserves actual delayed-start missed slots"),int64(D.SkippedSlots),int64(4));
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarWallClockCohortChangesTest,"MA0T10.LidarWallClock.CohortChanges",
+    EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLidarWallClockCohortChangesTest::RunTest(const FString&)
+{
+    using M=FVirtualLidarCadenceCohort::FMember;
+    for(const auto& Order : {std::vector<int>{0,1,2},std::vector<int>{2,0,1},std::vector<int>{1,2,0}})
+    {
+        FVirtualLidarCadenceCohort Cohort;
+        FVirtualLidarCadence Clocks[4]; std::vector<M> Members;
+        auto Apply=[&](double Now)
+        {
+            std::sort(Members.begin(),Members.end(),[](const M& A,const M& B){return A.Key<B.Key;});
+            for(const auto& A:Cohort.Update(Members))
+            {
+                auto& C=Clocks[A.Key];
+                const double Interval=std::find_if(Members.begin(),Members.end(),[&](const M& N){return N.Key==A.Key;})->Interval;
+                if(A.bInitial)C.StartAligned(Now,Interval,A.Phase);
+                else C.RephaseNextSlot(Now,Interval,A.Phase);
+                TestTrue(TEXT("changed group begins at its next slot"),C.GetNextDue()>=Now-1.e-8);
+                TestFalse(TEXT("cohort has no catch-up admission at rephase time"),!A.bInitial&&C.Poll(Now,Interval,99,false).bAdmit);
+            }
+            std::vector<double> Phases;
+            for(const auto& N:Members)if(N.Interval==.05)
+                Phases.push_back(std::fmod(Clocks[N.Key].GetNextDue()/.05,1.0));
+            std::sort(Phases.begin(),Phases.end());
+            for(size_t I=0;I<Phases.size();++I)
+            {
+                double Gap=Phases[(I+1)%Phases.size()]-Phases[I];if(I+1==Phases.size())Gap+=1;
+                TestTrue(TEXT("all equal-rate circular gaps >=1/count-epsilon"),Gap>=1.0/Phases.size()-1.e-6);
+            }
+        };
+        double Now=1000.023;
+        for(int Id:Order){Clocks[Id].Start(Now,.05);Members.push_back({uint64(Id),1,.05});Apply(Now);Now+=.017;}
+        // An unrelated10Hz group neither changes20Hz phases nor resets their deadlines.
+        const double Due=Clocks[0].GetNextDue();
+        Clocks[3].Start(Now,.1);Members.push_back({3,1,.1});Apply(Now);
+        TestEqual(TEXT("mixed rate leaves existing20Hz deadline intact"),Clocks[0].GetNextDue(),Due);
+        Members.erase(std::remove_if(Members.begin(),Members.end(),[](const M& N){return N.Key==1;}),Members.end());
+        Clocks[1].Stop();Apply(Now+=.017);
+        Clocks[1].Start(Now+=.017,.05);Members.push_back({1,2,.05});Apply(Now);
+        // Stop/start between scheduler ticks still changes the generation.
+        for(auto& N:Members)if(N.Key==1)++N.Generation;
+        Apply(Now+=.017);
+        // Move a member to a different-rate group; both remaining/new groups change.
+        for(auto& N:Members)if(N.Key==2)N.Interval=.1;
+        auto Changes=Cohort.Update(Members);
+        TestEqual(TEXT("period change reassigns both affected groups"),int32(Changes.size()),4);
+        TestTrue(TEXT("every period-edit assignment uses future slots"),std::all_of(Changes.begin(),Changes.end(),[](const auto& A){return !A.bInitial;}));
+        for(const auto& A:Changes)
+        {
+            const double Interval=std::find_if(Members.begin(),Members.end(),[&](const M& N){return N.Key==A.Key;})->Interval;
+            Clocks[A.Key].RephaseNextSlot(Now,Interval,A.Phase);
+        }
+        for(double Interval:{.05,.1})
+        {
+            std::vector<double> Phases;
+            for(const auto& N:Members)if(N.Interval==Interval)Phases.push_back(std::fmod(Clocks[N.Key].GetNextDue()/Interval,1.));
+            std::sort(Phases.begin(),Phases.end());
+            for(size_t I=0;I<Phases.size();++I)
+            {
+                double Gap=Phases[(I+1)%Phases.size()]-Phases[I];if(I+1==Phases.size())Gap+=1;
+                TestTrue(TEXT("both mixed-rate groups retain uniform circular spacing"),Gap>=1./Phases.size()-1.e-6);
+            }
+        }
+    }
+    // Exact simultaneous-start compatibility: same inputs => same deadlines/admissions.
+    FVirtualLidarCadenceCohort Initial;std::vector<M> Members={{0,1,.05},{1,1,.05},{2,1,.05}};
+    FVirtualLidarCadence Before[3],After[3];
+    for(int I=0;I<3;++I){Before[I].StartAligned(1000.023+I*.001,.05,double(I)/3);After[I].Start(1000.023+I*.001,.05);}
+    for(const auto& A:Initial.Update(Members))
+    {TestTrue(TEXT("initial simultaneous cohort preserves old alignment"),A.bInitial);After[A.Key].StartAligned(1000.023+A.Key*.001,.05,A.Phase);}
+    for(int Frame=0;Frame<59*90;++Frame)for(int I=0;I<3;++I)
+    {
+        TestEqual(TEXT("simultaneous-start due time unchanged"),After[I].GetNextDue(),Before[I].GetNextDue());
+        TestEqual(TEXT("simultaneous-start90s admission sequence unchanged"),After[I].Poll(1000.023+Frame/59.,.05,Frame,false).bAdmit,Before[I].Poll(1000.023+Frame/59.,.05,Frame,false).bAdmit);
+    }
+    TestTrue(TEXT("unchanged cohort creates no assignments"),Initial.Update(Members).empty());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarWallClockCounterSemanticsTest,"MA0T10.LidarWallClock.CounterSemantics",
+    EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLidarWallClockCounterSemanticsTest::RunTest(const FString&)
+{
+    FVirtualLidarCadence C;C.Start(10,.05);C.Poll(10,.05,1,false);
+    const auto First=C.Poll(10.06,.05,2,true);
+    TestTrue(TEXT("first busy due poll is one delayed-acquisition event"),First.bDelayedAcquisitionEvent);
+    TestEqual(TEXT("a delayed acquisition need not expire a slot yet"),int64(First.SkippedSlots),int64(0));
+    const auto Long=C.Poll(10.26,.05,3,true);
+    TestFalse(TEXT("same acquisition is not counted again"),Long.bDelayedAcquisitionEvent);
+    TestEqual(TEXT("four expired slots have a separate count"),int64(Long.SkippedSlots),int64(4));
+    C.RephaseNextSlot(10.27,.05,.5);
+    TestFalse(TEXT("rephase preserves active acquisition event latch"),C.Poll(10.5,.05,4,true).bDelayedAcquisitionEvent);
+    C.Poll(10.5,.05,4,false);
+    TestFalse(TEXT("post-poll never bursts"),C.Poll(10.5,.05,4,false).bAdmit);
+    TestTrue(TEXT("next active acquisition can record its own delay"),C.Poll(10.6,.05,5,true).bDelayedAcquisitionEvent);
     return true;
 }
 #endif
