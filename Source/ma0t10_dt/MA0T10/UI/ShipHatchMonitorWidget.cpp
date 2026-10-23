@@ -389,7 +389,8 @@ void UShipHatchMonitorWidget::UpdateSensorBadges()
     if(Hide){for(auto B:SensorBadges)B->SetVisibility(ESlateVisibility::Collapsed);for(auto B:DirectionBadges)B->SetVisibility(ESlateVisibility::Collapsed);for(bool& V:SensorBadgeLinkVisible)V=false;return;}
     const double Now=FPlatformTime::Seconds();if(Now-LastSensorBadgeUpdate<.2)return;LastSensorBadgeUpdate=Now;
     int32 W,H;PC->GetViewportSize(W,H);if(W<=0||H<=0)return;const FVector2D Size=GetCachedGeometry().GetLocalSize();if(Size.X<1)return;
-    const double Scale=FontScale,Gap=24*Scale,Width=FMath::Min(192*Scale,double(SceneRect.Right-SceneRect.Left-16)),Height=32*Scale;
+    const double Scale=FontScale,Gap=24*Scale,Width=FMath::Min(192*Scale,double(SceneRect.Right-SceneRect.Left-16));
+    double Height=32*Scale;for(auto Badge:SensorBadges)Height=FMath::Max(Height,double(Badge->GetDesiredSize().Y));
     FVector2D P[3]={FVector2D::ZeroVector,FVector2D::ZeroVector,FVector2D::ZeroVector};bool Front[3]={false,false,false};
     for(int I=0;I<3;++I)
     {
