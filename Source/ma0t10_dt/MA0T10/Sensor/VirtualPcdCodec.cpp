@@ -103,7 +103,7 @@ bool FVirtualPcdCodec::DecompressLzf(const uint8* Input,int32 InSize,int32 OutSi
 int64 FVirtualPcdCodec::EncodedPointBytes(const TArray<uint8>& Bytes,bool bCompressed)
 {
  const ANSICHAR* Marker=bCompressed?"\nDATA binary_compressed\n":"\nDATA binary\n";
- const int32 Length=FCStringAnsi::Strlen(Marker),Limit=FMath::Min(Bytes.Num(),65536);
+ const int32 Length=FCStringAnsi::Strlen(Marker),Limit=FMath::Min(Bytes.Num(),MaxHeaderBytes);
  for(int32 I=0;I+Length<=Limit;++I)
   if(Bytes[I]=='\n'&&FMemory::Memcmp(Bytes.GetData()+I,Marker,Length)==0)
    return FMath::Max<int64>(0,Bytes.Num()-I-Length-(bCompressed?8:0));
@@ -118,7 +118,7 @@ bool FVirtualPcdCodec::Encode(const TArray<const FVirtualLidarPoint*>& Points,co
 	for(int32 I=0;I<11;++I)if(Mask&(1<<I)){Fields+=FString(TEXT(" "))+PcdFieldNames[I];Size+=TEXT(" ")+LexToString(PcdFieldSizes[I]);Type+=FString(TEXT(" "))+PcdFieldTypes[I];Count+=TEXT(" 1");}
 	const FString Comment=Meta.IsEmpty()?FString():TEXT("# MA0T10_META ")+Meta+TEXT("\n");
 	const FString Header=FString::Printf(TEXT("# .PCD v0.7\n%sVERSION 0.7\nFIELDS%s\nSIZE%s\nTYPE%s\nCOUNT%s\nWIDTH %d\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS %d\nDATA %s\n"),*Comment,*Fields,*Size,*Type,*Count,Points.Num(),Points.Num(),Options.bCompressed?TEXT("binary_compressed"):TEXT("binary"));
-	FTCHARToUTF8 Utf8(*Header);Out.Append(reinterpret_cast<const uint8*>(Utf8.Get()),Utf8.Length());
+	FTCHARToUTF8 Utf8(*Header);if(Utf8.Length()>MaxHeaderBytes)return false;Out.Append(reinterpret_cast<const uint8*>(Utf8.Get()),Utf8.Length());
 	if(!Options.bCompressed)
 	{
 		Out.Reserve(Out.Num()+Points.Num()*Step);
@@ -137,7 +137,7 @@ bool FVirtualPcdCodec::Decode(const TArray<uint8>& Bytes,FVirtualPcdDocument& Ou
 {
 	Out=FVirtualPcdDocument();Error=TEXT("Invalid PCD header/body");
 	TMap<FString,TArray<FString>> Header;int32 Start=0;
-	for(int32 I=0;I<FMath::Min(Bytes.Num(),65536);++I)
+	for(int32 I=0;I<FMath::Min(Bytes.Num(),MaxHeaderBytes);++I)
 	{
 		if(Bytes[I]!='\n')continue;
 		FUTF8ToTCHAR Utf8(reinterpret_cast<const ANSICHAR*>(Bytes.GetData()+Start),I-Start);

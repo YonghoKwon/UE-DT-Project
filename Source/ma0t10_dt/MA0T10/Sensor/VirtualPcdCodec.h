@@ -39,7 +39,11 @@ struct MA0T10_DT_API FVirtualPcdDocument
 class MA0T10_DT_API FVirtualPcdCodec
 {
 public:
-	static const TCHAR* FieldName(int32 Index);
+ /** UTF-8 header bytes, including the DATA newline. Shared by writer, reader and metrics.
+  * 1 MiB admits long run metadata while bounding scanning/allocation independently
+  * of the existing 128 MiB decoded point-data limit. */
+ static constexpr int32 MaxHeaderBytes = 1024 * 1024;
+ static const TCHAR* FieldName(int32 Index);
 	/** Header-bounded byte accounting only; never decompresses or copies the body. */
  static int64 EncodedPointBytes(const TArray<uint8>& Bytes, bool bCompressed);
  static int32 BytesPerPoint(const FVirtualPcdSendOptions& Options);

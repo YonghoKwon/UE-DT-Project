@@ -251,7 +251,7 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
             const auto* Publisher=SensorManager?SensorManager->StreamPublisherComponent.Get():nullptr;
             if(Publisher&&Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,Id))Outputs=FVirtualSlabSensorOutputSelection::ObservationOnly();
         }
-        const auto Check=UVirtualSensorOutputPreflight::InspectForPresentation(this,Outputs,Targets,bOwnedScenarioStreamView?EVirtualSensorPreflightPurpose::ScenarioTransition:EVirtualSensorPreflightPurpose::ManualStreamStart,bOwnedPreflightExpanded);
+        const auto Check=UVirtualSensorOutputPreflight::InspectForPresentation(this,Outputs,Targets,bOwnedScenarioStreamView?EVirtualSensorPreflightPurpose::ScenarioTransition:EVirtualSensorPreflightPurpose::ManualStreamStart,bOwnedPreflightExpanded,0,bOwnedScenarioStreamView&&Options.Policy==ESlabExecutionPolicy::RequireData);
         OwnedPreflightSnapshot=Check;bOwnedPreflightSnapshotReady=true;
         if(bOwnedPreflightExpanded)CachedPcdPreflight=Check.Summary;
         OwnedPreflightFix=0;

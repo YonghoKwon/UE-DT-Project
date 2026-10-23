@@ -476,7 +476,6 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 		if(((Sequence.InputCount-1)%SendOptions.Divisor())!=0)
 		{
 			++Runtime.Status.ConfiguredDivisorSkippedCount;
-			RecordSlabFailure(Frame.SlabContext.RunId,Frame.SensorId,EVirtualSensorStreamKind::PointCloud,Frame.FrameId,TEXT("Configured PCD send divisor"));
 			return;
 		}
 		if (TransportComponent && Frame.PointSnapshot.IsValid())

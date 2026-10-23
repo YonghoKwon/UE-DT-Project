@@ -53,6 +53,10 @@ FVirtualSensorOutputPreflightResult EvaluatePreflight(FVirtualSensorOutputPrefli
     return R;
 }
 }
+FString UVirtualSensorOutputPreflight::RequiredPcdDivisorError(const FString& SensorId,int32 Divisor)
+{
+    return Divisor==1?FString():FString::Printf(TEXT("%s: 데이터 필수 실행에는 PCD 전송 1/1이 필요합니다(현재 1/%d). 데이터 → PCD 전송에서 1/1로 변경하거나 관찰 허용을 선택하세요."),*SensorId,Divisor);
+}
 FString UVirtualSensorOutputPreflight::FormatDetails(const FVirtualSensorOutputPreflightResult& R)
 {return FormatPreflightDetails(R);}
 FVirtualSensorOutputPreflightResult UVirtualSensorOutputPreflight::Evaluate(FVirtualSensorOutputPreflightResult R,int64 MaxMessageBytes)
@@ -62,7 +66,7 @@ FVirtualSensorOutputPreflightResult UVirtualSensorOutputPreflight::Inspect(const
 
 FVirtualSensorOutputPreflightResult UVirtualSensorOutputPreflight::InspectForPurpose(const UObject* Context,const FVirtualSlabSensorOutputSelection& Outputs,const TArray<FString>& Targets,EVirtualSensorPreflightPurpose Purpose,double ObservedFps)
 {return InspectForPresentation(Context,Outputs,Targets,Purpose,true,ObservedFps);}
-FVirtualSensorOutputPreflightResult UVirtualSensorOutputPreflight::InspectForPresentation(const UObject* Context,const FVirtualSlabSensorOutputSelection& Outputs,const TArray<FString>& Targets,EVirtualSensorPreflightPurpose Purpose,bool bBuildDetails,double ObservedFps)
+FVirtualSensorOutputPreflightResult UVirtualSensorOutputPreflight::InspectForPresentation(const UObject* Context,const FVirtualSlabSensorOutputSelection& Outputs,const TArray<FString>& Targets,EVirtualSensorPreflightPurpose Purpose,bool bBuildDetails,double ObservedFps,bool bRequireAllPcdFrames)
 {
     FVirtualSensorOutputPreflightResult R;auto* World=Context?Context->GetWorld():nullptr;
     auto* Layout=World?World->GetSubsystem<UVirtualSensorLayoutSubsystem>():nullptr;auto* C=Layout?Layout->Coordinator():nullptr;
@@ -104,7 +108,16 @@ FVirtualSensorOutputPreflightResult UVirtualSensorOutputPreflight::InspectForPre
             }
             auto& Row=R.Streams.AddDefaulted_GetRef();Row.SensorId=Id;Row.Kind=Kind;Row.ConfigurationRevision=A->GetConfigurationRevision();
             Row.bPlannedOutput=Selected;Row.RequestedHz=1.0/(Camera?S.CameraCaptureInterval:S.LidarScanInterval)/FMath::Max(1,Config.FrameStride);
-            if(Kind==EVirtualSensorStreamKind::PointCloud)Row.RequestedHz/=P->GetPcdSendOptions(Id).Divisor();
+            if(Kind==EVirtualSensorStreamKind::PointCloud)
+            {
+                const int32 Divisor=P->GetPcdSendOptions(Id).Divisor();Row.RequestedHz/=Divisor;
+                if(Selected&&Purpose==EVirtualSensorPreflightPurpose::ScenarioTransition)
+                {
+                    const FString Error=RequiredPcdDivisorError(Id,Divisor);
+                    if(!Error.IsEmpty())
+                    {if(bRequireAllPcdFrames)R.BlockingReasons.AddUnique(Error);else R.Warnings.AddUnique(Error);}
+                }
+            }
             const bool UseRaw=Config.TransportBackend==EVirtualSensorStreamTransportBackend::TcpStompHighThroughput&&P->CanUseHighThroughputTransport();
             Row.TransportBackend=UseRaw?EVirtualSensorStreamTransportBackend::TcpStompHighThroughput:EVirtualSensorStreamTransportBackend::EngineStompCompatibility;
             R.bRequiresRaw|=UseRaw;R.bRequiresEngine|=!UseRaw;Row.bTransportConnected=UseRaw?R.bRawConnected:R.bEngineConnected;

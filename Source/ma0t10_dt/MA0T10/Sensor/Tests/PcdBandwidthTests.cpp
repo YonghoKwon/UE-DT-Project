@@ -15,6 +15,11 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarExportComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarAnalysisComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 
 struct FPcdBandwidthTestAccess
 {
@@ -105,11 +110,12 @@ bool FPcdBandwidthDivisorTest::RunTest(const FString&)
 		FVirtualPcdSendOptions O;O.SendDivisor=Divisor;FString Error;TestTrue(TEXT("configure all before stream"),P->SetPcdSendOptions(TEXT(""),O,true,Error));
 		for(int32 I=1;I<=20;++I)for(const FString Id:{TEXT("A"),TEXT("B"),TEXT("C")})
 		{
-			FVirtualSensorFrameEnvelope F;F.SensorKind=EVirtualSensorKind::Lidar;F.SensorId=Id;F.FrameId=I;
+			FVirtualSensorFrameEnvelope F;F.SensorKind=EVirtualSensorKind::Lidar;F.SensorId=Id;F.FrameId=I;F.SlabContext.RunId=TEXT("configured-divisor-run");
 			F.PointSnapshot=MakeShared<const TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe>();FPcdBandwidthTestAccess::Queue(P,F);
 		}
 		const auto& R=FPcdBandwidthTestAccess::Runtime(P,TEXT(""));TestEqual(TEXT("20Hz input unchanged for all3 wildcard producers"),R.Status.InputFrameCount,int64(60));
 		TestEqual(TEXT("configured send Hz per sensor independent of wildcard interleave"),R.Status.ConfiguredDivisorSkippedCount,int64(60-60/Divisor));
+		TestEqual(TEXT("intentional divisor skips never record Slab delivery failure"),P->GetFailedSlabRunCount(TEXT("configured-divisor-run")),int64(0));
 		TestFalse(TEXT("option mutation rejects retained FIFO work"),P->SetPcdSendOptions(TEXT("A"),O,false,Error));
 	}
 	auto* Saved=NewObject<UVirtualSensorUiPreferencesSaveGame>();FVirtualPcdSendOptions O;O.Profile=EVirtualPcdFieldProfile::Custom;O.CustomFieldMask=511;O.SendDivisor=4;O.bCompressed=true;Saved->PcdSendOptionsBySensor.Add(TEXT("A"),O);Saved->SensorStreamFrameStride=7;
@@ -170,5 +176,85 @@ bool FPcdBandwidthLiveDisplayTest::RunTest(const FString&)
  TestTrue(TEXT("overflow clears after missing events expire"),Overflow.Read(12.).bComplete);
  TestEqual(TEXT("unknown header cannot claim100% compression"),FVirtualPcdCodec::EncodedPointBytes({},true),int64(-1));
  return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPcdLongMetadataTest,"MA0T10.PcdBandwidth.LongMetadata",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FPcdLongMetadataTest::RunTest(const FString&)
+{
+ FVirtualLidarPoint Point;Point.bHit=true;Point.SensorLocalPositionMeters=FVector(1.25,-2.5,3.75);
+ const TArray<const FVirtualLidarPoint*> Points={&Point};
+ const FString Meta=TEXT("{\"context\":\"")+FString::ChrN(200000,TEXT('m'))+TEXT("한글\"}");
+ for(auto Profile:{EVirtualPcdFieldProfile::Full,EVirtualPcdFieldProfile::Compact,EVirtualPcdFieldProfile::Minimal,EVirtualPcdFieldProfile::Custom})for(bool Compressed:{false,true})
+ {
+  FVirtualPcdSendOptions O;O.Profile=Profile;O.bCompressed=Compressed;O.CustomFieldMask=15;
+  TArray<uint8> Bytes,Plain;FString Error;FVirtualPcdDocument Doc,Reference;
+  TestTrue(TEXT("encode long UTF8 META for every profile/encoding"),FVirtualPcdCodec::Encode(Points,Meta,O,Bytes));
+  TestTrue(TEXT("decode self-generated header beyond64KiB"),FVirtualPcdCodec::Decode(Bytes,Doc,Error));
+  TestTrue(TEXT("complete UTF8 META retained"),Doc.PayloadOffset>65536&&Doc.Header.Contains(Meta));
+  TestEqual(TEXT("long-header accounting excludes header/size prefix"),FVirtualPcdCodec::EncodedPointBytes(Bytes,Compressed),int64(Bytes.Num()-Doc.PayloadOffset-(Compressed?8:0)));
+  O.bCompressed=false;FVirtualPcdCodec::Encode(Points,TEXT(""),O,Plain);FVirtualPcdCodec::Decode(Plain,Reference,Error);
+  TestTrue(TEXT("long META does not alter selected point bits"),Doc.Records==Reference.Records);
+ }
+ for(bool Compressed:{false,true})
+ {
+  FVirtualPcdSendOptions O;O.bCompressed=Compressed;TArray<uint8> Bare,Bytes;FVirtualPcdDocument Doc;FString Error;
+  FVirtualPcdCodec::Encode(Points,TEXT(""),O,Bare);FVirtualPcdCodec::Decode(Bare,Doc,Error);
+  const FString EmptyJson=TEXT("{\"pad\":\"\"}");
+  const int32 Fill=FVirtualPcdCodec::MaxHeaderBytes-Doc.PayloadOffset-FTCHARToUTF8(TEXT("# MA0T10_META \n")).Length()-FTCHARToUTF8(*EmptyJson).Length();
+  const FString AtLimit=TEXT("{\"pad\":\"")+FString::ChrN(Fill,TEXT('p'))+TEXT("\"}");
+  TestTrue(TEXT("inclusive1MiB UTF8 header boundary accepted by writer"),FVirtualPcdCodec::Encode(Points,AtLimit,O,Bytes));
+  TestTrue(TEXT("inclusive1MiB boundary accepted by reader"),FVirtualPcdCodec::Decode(Bytes,Doc,Error));
+  TestEqual(TEXT("header limit includes DATA newline"),Doc.PayloadOffset,FVirtualPcdCodec::MaxHeaderBytes);
+  TestEqual(TEXT("accounting recognizes marker ending exactly at bound"),FVirtualPcdCodec::EncodedPointBytes(Bytes,Compressed),int64(Bytes.Num()-Doc.PayloadOffset-(Compressed?8:0)));
+  TArray<uint8> Beyond={uint8('#'),uint8('x'),uint8('\n')};Beyond.Append(Bytes);
+  TestFalse(TEXT("external header above bound remains rejected"),FVirtualPcdCodec::Decode(Beyond,Doc,Error));
+  TestEqual(TEXT("oversized external header cannot claim valid accounting"),FVirtualPcdCodec::EncodedPointBytes(Beyond,Compressed),int64(-1));
+  const FString TooLong=TEXT("{\"pad\":\"")+FString::ChrN(Fill+1,TEXT('p'))+TEXT("\"}");
+  TestFalse(TEXT("writer rejects over-bound META instead of generating unreadable PCD"),FVirtualPcdCodec::Encode(Points,TooLong,O,Bytes));
+  TestTrue(TEXT("rejected encoding returns no partial PCD"),Bytes.IsEmpty());
+ }
+ return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPcdRequiredDivisorTest,"MA0T10.PcdBandwidth.RequiredDataDivisorPreflight",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FPcdRequiredDivisorTest::RunTest(const FString&)
+{
+ auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* C=W->SpawnActor<AVirtualSensorCoordinator>();
+ auto* A=W->SpawnActor<AVirtualLidarSensorActor>();auto* B=W->SpawnActor<AVirtualLidarSensorActor>();
+ A->ScanComponent->SensorId=TEXT("divided");B->ScanComponent->SensorId=TEXT("full-rate");C->RegisterSensorActor(A);C->RegisterSensorActor(B);A->StopSensor();B->StopSensor();
+ auto* P=C->StreamPublisherComponent.Get();auto* T=C->SharedTransportComponent.Get();T->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+ auto Profile=T->GetTransportProfile();Profile.BrokerUrl=TEXT("tcp://127.0.0.1:1");Profile.UserName.Reset();Profile.ExportTopic=TEXT("topic.pcd-local");T->ConfigureTransportProfile(Profile);T->SetSessionCredentials(TEXT(""),TEXT(""));
+ auto* Session=W->GetSubsystem<UVirtualSensorSlabContextSubsystem>();auto* Raw=W->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
+ FVirtualSlabSensorOutputSelection Outputs=FVirtualSlabSensorOutputSelection::ObservationOnly();Outputs.bPointCloud=true;
+ FString Error;FSlabExecutionOptions Execution;Execution.Policy=ESlabExecutionPolicy::RequireData;
+ const FString Scenario=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
+ for(int32 Divisor:{1,2,4})
+ {
+  FVirtualPcdSendOptions O;O.SendDivisor=Divisor;TestTrue(TEXT("configure wildcard divisor"),P->SetPcdSendOptions(TEXT(""),O,true,Error));
+  FVirtualPcdSendOptions Full;TestTrue(TEXT("exact target retains1/1"),P->SetPcdSendOptions(B->GetSensorId(),Full,false,Error));
+  const auto Required=UVirtualSensorOutputPreflight::InspectForPresentation(W,Outputs,{A->GetSensorId()},EVirtualSensorPreflightPurpose::ScenarioTransition,true,60,true);
+  const auto PolicyError=[](const FString& Text){return Text.Contains(TEXT("PCD 전송 1/1"));};
+  TestEqual(TEXT("required-data UI preflight blocks only configured division"),Required.BlockingReasons.ContainsByPredicate(PolicyError),Divisor!=1);
+  const auto Observation=UVirtualSensorOutputPreflight::InspectForPurpose(W,Outputs,{A->GetSensorId()},EVirtualSensorPreflightPurpose::ScenarioTransition,60);
+  TestFalse(TEXT("observation preflight does not block intended division"),Observation.BlockingReasons.ContainsByPredicate(PolicyError));
+  TestEqual(TEXT("observation warns about stricter required-data contract"),Observation.Warnings.ContainsByPredicate(PolicyError),Divisor!=1);
+  const auto Other=UVirtualSensorOutputPreflight::InspectForPresentation(W,Outputs,{B->GetSensorId()},EVirtualSensorPreflightPurpose::ScenarioTransition,true,60,true);
+  TestFalse(TEXT("non-target divided sensor cannot block full-rate selected target"),Other.BlockingReasons.ContainsByPredicate(PolicyError));
+  if(Divisor==1)continue;
+  const auto Before=Session->GetSlabSensorSessionStatus();const auto Connection=Raw->GetConnectionRevision();
+  const FString Run=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
+  TestFalse(TEXT("authoritative required-data start rejects division before preparation"),Session->PrepareScenarioTransmission(Run,{A->GetSensorId()},Scenario,Outputs,Execution,Error));
+  TestTrue(TEXT("blocking message includes actual divisor and corrective choice"),Error.Contains(FString::Printf(TEXT("1/%d"),Divisor))&&Error.Contains(TEXT("1/1"))&&Error.Contains(TEXT("관찰 허용")));
+  TestEqual(TEXT("preflight rejection does not start a run"),Session->GetSlabSensorSessionStatus().RunId,Before.RunId);
+  TestEqual(TEXT("preflight rejection leaves session state unchanged"),Session->GetSlabSensorSessionStatus().State,Before.State);
+  TestFalse(TEXT("rejection claims no sensor ownership"),Session->ControlsSensor(A->GetSensorId()));
+  TestFalse(TEXT("rejection starts no acquisition"),A->IsSensorRunning());
+  TestEqual(TEXT("rejection starts no transport connection"),Raw->GetConnectionRevision(),Connection);
+  TestEqual(TEXT("rejection registers no managed run"),Raw->GetRunRetentionSnapshot(Run).KnownRunIds,0);
+  FSlabRunDeliverySummary Summary;TestFalse(TEXT("rejection creates no failed delivery ledger"),W->GetSubsystem<USlabRunResultsSubsystem>()->GetRunResult(Run,Summary));
+ }
+ // Full-rate selected target is valid even while another target retains the global1/4.
+ const FString Run=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
+ TestTrue(TEXT("full-rate target can prepare required data"),Session->PrepareScenarioTransmission(Run,{B->GetSensorId()},Scenario,Outputs,Execution,Error));
+ Session->EndSlabSensorSession(Run,true);Raw->StopHighThroughputTransport();
+ C->Destroy();A->Destroy();B->Destroy();return true;
 }
 #endif
