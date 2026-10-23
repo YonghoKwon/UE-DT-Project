@@ -75,6 +75,7 @@ private:
     UPROPERTY(Transient) TObjectPtr<UVerticalBox> DataRows;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> DataNeededLabel;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> Comparison;
+    UPROPERTY(Transient) TObjectPtr<UTextBlock> FontScaleLabel;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> Operation;
     UPROPERTY(Transient) TObjectPtr<UVerticalBox> Details;
     UPROPERTY(Transient) TObjectPtr<UEditableTextBox> IdInput;

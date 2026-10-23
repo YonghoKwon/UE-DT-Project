@@ -328,6 +328,7 @@ private:
     TArray<TSharedPtr<int32>> PcdDivisorChoices;
     mutable double NextPcdBandwidthEstimate=0;
     mutable FText CachedPcdBandwidthEstimate;
+    mutable FText CachedPcdBandwidthDetails, CachedPcdFieldSummary;
 	TSharedRef<SWidget> BuildCaptureTab();
 	TSharedRef<SWidget> BuildExportTab(TSharedPtr<EVirtualSensorExportKind> InitiallySelected);
 	TSharedRef<SWidget> BuildConnectionLogTab();

@@ -4,6 +4,20 @@
 /** Presentation only; inputs and output are in the monitor's viewport UI units. */
 namespace CoilLoadingPresentation
 {
+    inline FString FontLabel(float Scale)
+    { return FString::Printf(TEXT("코일 글자 %d%%"),FMath::RoundToInt(Scale*100)); }
+
+    inline FString MetricSummary(double TotalMass,double NextMass,double KG,double GM,double Heel,const FString& Udl,double CurrentDraft,double NextDraft,double Tpc,bool Confirmed)
+    {
+        return FString::Printf(TEXT("다음 포함 %.2f t · 다음 코일 %.3f t · 무게중심 높이(KG) %.3f m / 복원성 높이(GM) %.3f m\n횡경사 %+.3f° · 균등분포하중(UDL) %s · 흘수 현재 %.3f m / 다음 포함 %.3f m\n흘수 1cm당 톤수(TPC) %.2f t/cm%s · 코일 구멍축 선수미 / CSS Annex6"),TotalMass,NextMass,KG,GM,Heel,*Udl,CurrentDraft,NextDraft,Tpc,Confirmed?TEXT(""):TEXT(" · 자료 필요"));
+    }
+
+    inline FString ComparisonSummary(const FString& PhysicsState,double Displacement,double Rotation,double Hz,int32 Fits,bool Compared,double Deviation,double Residual)
+    {
+        const FString Center=Compared?FString::Printf(TEXT("%.3f m"),Deviation):TEXT("비교 불가 (점/방향 부족)");
+        return FString::Printf(TEXT("물리: %s · 이동 %.3f m · 회전 %.1f° · LiDAR %.1f Hz / 20 Hz · 코일 맞춤 %d개\n중심 편차 p95 %s / 표면 잔차 %.3f m"),*PhysicsState,Displacement,Rotation,Hz,Fits,*Center,Compared?Residual:0.);
+    }
+
     inline FString IssueSummary(int32 Danger,int32 Caution,int32 Unknown)
     { return FString::Printf(TEXT("위험 %d · 주의 %d · 미확인 %d개 사유"),Danger,Caution,Unknown); }
 

@@ -198,7 +198,23 @@ namespace SensorToolUiText
         return RequiredError?TransferCheck():FText::GetEmpty();
     }
     inline FText Warning(const FText& Reason) { return FText::Format(LOCTEXT("Warning", "⚠ {0}"), Reason); }
+    // Status-strip title only. Keep the original reason for the tooltip and existing destination.
+    inline FString StatusWarningSummary(const FString& Reason)
+    {
+        if(Reason.IsEmpty())return Reason;
+        if(Reason.Contains(TEXT("전송할 장비를")))return TEXT("장비 선택 필요");
+        if(Reason.Contains(TEXT("장비 없음")))return TEXT("장비 추가 필요");
+        if(Reason.Contains(TEXT("전송 방식이 맞지"))||Reason.Contains(TEXT("STOMP 전송 모드")))return TEXT("연결 방식 확인 필요");
+        if(Reason.StartsWith(TEXT("PCD 필요 ")))return TEXT("PCD 필요량·예산 확인");
+        if(Reason.Contains(TEXT("PCD 전송에는 서버")))return TEXT("서버 연결 설정 필요");
+        FString Title=PreflightShortReason(Reason),First;
+        if(Title.Split(TEXT(" · "),&First,nullptr))return First;
+        return Title;
+    }
+    inline FText CheckAction() { return LOCTEXT("CheckAction", "확인 ›"); }
     inline FText FontPercent(float Scale) { return FText::Format(LOCTEXT("FontPercent", "글자 {0}%"), FMath::RoundToInt(Scale * 100)); }
+    inline FText ToolsFontPercent(float Scale) { return FText::Format(LOCTEXT("ToolsFontPercent", "센서 도구 글자 {0}%"), FMath::RoundToInt(Scale * 100)); }
+    inline FText ToolsFontHint() { return LOCTEXT("ToolsFontHint", "센서 도구 글자만 변경합니다. 코일·해치 모니터는 각 화면에서 별도로 변경하세요."); }
     inline FText ResetUi() { return LOCTEXT("ResetUi", "센서 도구 UI 초기화"); }
 #undef LOCTEXT_NAMESPACE
 }
