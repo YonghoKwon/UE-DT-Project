@@ -169,6 +169,9 @@ try {
                             $probeArgs = @("`"$root/Tools/Artemis/pcd_loopback_probe.py`"", '--port', $ScheduledPcdLoopbackPort, '--report', "`"$runs/$name.receiver.json`"", '--stop-file', "`"$runs/$name.receiver.stop`"")
                             if ($NativeLzfValidatorPath) { $probeArgs += @('--native-validator', "`"$NativeLzfValidatorPath`"") }
                             $probe = Start-Process -FilePath (Get-Command python.exe -ErrorAction Stop).Source -ArgumentList $probeArgs -WindowStyle Hidden -PassThru -RedirectStandardOutput "$runs/$name.receiver.log" -RedirectStandardError "$runs/$name.receiver.stderr.log"
+                            # Windows PowerShell needs the native handle retained before
+                            # exit; otherwise WaitForExit can leave ExitCode null (even0).
+                            $probeHandle = $probe.Handle
                             $ready = $false
                             for ($attempt = 0; $attempt -lt 50; $attempt++) {
                                 if (Test-Path -LiteralPath "$runs/$name.receiver.log") { $ready = [bool](Select-String -LiteralPath "$runs/$name.receiver.log" -SimpleMatch 'PCD loopback ready' -Quiet) }
@@ -191,7 +194,7 @@ try {
                         if ($null -ne $probe) {
                             [IO.File]::WriteAllText("$runs/$name.receiver.stop", '')
                             if (!$probe.WaitForExit(10000)) { throw "Owned receiver did not stop; PID=$($probe.Id)" }
-                            if ($probe.ExitCode -ne 0) { throw "Owned receiver failed; inspect $name.receiver.stderr.log" }
+                            if ($null -eq $probe.ExitCode -or $probe.ExitCode -ne 0) { throw "Owned receiver failed or exit code unavailable; inspect $name.receiver.stderr.log" }
                         }
                     }
                     if (-not (Test-Path -LiteralPath $json)) { throw "No measurement for $name (exit $($process.ExitCode))" }
