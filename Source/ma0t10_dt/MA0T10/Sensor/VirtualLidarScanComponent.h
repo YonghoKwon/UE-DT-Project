@@ -26,6 +26,7 @@ struct FVirtualLidarDerivedOutputJob;
 struct FVirtualLidarSceneQueryBuffer;
 struct FVirtualLidarSceneQueryJob;
 struct FVirtualLidarScenePointPool;
+struct FSensorRtHit;
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnVirtualLidarDerivedFrameCompletedNative,const FVirtualSensorFrameEnvelope&);
 DECLARE_MULTICAST_DELEGATE_FourParams(FOnVirtualLidarCompatibilityRequestCompletedNative,const FString&,bool,const FVirtualSensorFrameEnvelope&,const FString&);
 
@@ -109,6 +110,10 @@ private:
     TSharedPtr<FVirtualLidarSceneQueryJob,ESPMode::ThreadSafe> SceneQueryJob;
     TSharedPtr<const TArray<FVector3f>,ESPMode::ThreadSafe> SharedSceneQueryDirections;
     uint32 SharedSceneDirectionKey=0;
+    // At most one optional FileSave summary per backend for this component lifetime.
+    bool bHardwareSemanticDiagnosticIssued=false;
+    bool bDepthSemanticDiagnosticIssued=false;
+    void ReportHardwareSemanticDiagnostics(const TArray<FSensorRtHit>& Hits,const TCHAR* Stage,const FString& Failure=FString());
     void BeginSceneQueryBatch();
     bool PollSceneQueryBatch();
     int32 SceneQueryReadyRays() const;

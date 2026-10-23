@@ -1,5 +1,7 @@
-#include "IndustrialLidarProfiles.h"
 #include "VirtualLidarScanComponent.h"
+#include "IndustrialLidarProfiles.h"
+#include "VirtualLidarSemanticDiagnostics.h"
+#include "Dom/JsonObject.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
 #include "Async/Async.h"
@@ -417,6 +419,17 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
     for (const auto& Count : SemanticIdCounts)
         if (const auto* Identity = Frame.SemanticIdentities.Find(Count.Key))
             ScheduledSemanticCounts.FindOrAdd(Identity->Label.ToString()) += Count.Value;
+    if(Frame.Request.bRequestSemantics&&!bDepthSemanticDiagnosticIssued&&VirtualLidarSemanticDiagnostics::IsEnabled())
+    {
+        bDepthSemanticDiagnosticIssued=true;
+        auto Report=VirtualLidarSemanticDiagnostics::BuildDepthReport(Frame,GpuDepthPixelIndices,ScheduledPoints);
+        Report->SetBoolField(TEXT("semantic_classification_enabled"),bEnableSemanticClassification);
+        Report->SetBoolField(TEXT("dataset_semantic_demand"),bDatasetSemanticDemand);
+        Report->SetNumberField(TEXT("requested_backend"),int32(AcquisitionBackend));
+        Report->SetNumberField(TEXT("active_backend"),int32(ActiveAcquisitionBackend));
+        VirtualLidarSemanticDiagnostics::Persist(this,SensorId,FrameId+1,ScheduledGeneration,
+            TEXT("gpu_depth_projection"),TEXT("converted"),Report);
+    }
 }
 
 void UVirtualLidarScanComponent::EnsureGpuDepthBeamLookup(const FVirtualLidarDepthAcquisitionFrame& Frame)
