@@ -17,6 +17,8 @@
 #include "ImageUtils.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "HAL/FileManager.h"
 
 struct FHatch07Probe
@@ -64,7 +66,7 @@ class FHatch07Command final:public IAutomationLatentCommand
     void Shot(UWorld* W,UShipHatchMonitorWidget& M,const TCHAR* Name)
     {
         TArray<FColor> Pixels;FIntVector Size;if(!T->TestTrue(TEXT("actual RHI screenshot"),FSlateApplication::Get().TakeScreenshot(W->GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,Size)))return;
-        const FString Root=FPaths::ProjectSavedDir()/TEXT("Reports/HATCH07-COIL02/progress");IFileManager::Get().MakeDirectory(*Root,true);TArray64<uint8> Png;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,Png);FFileHelper::SaveArrayToFile(Png,*(Root/Name));
+        FString Report;FParse::Value(FCommandLine::Get(),TEXT("HatchReport="),Report);const FString Root=Report.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/HATCH07-COIL02/progress"):Report/TEXT("progress");IFileManager::Get().MakeDirectory(*Root,true);TArray64<uint8> Png;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,Png);FFileHelper::SaveArrayToFile(Png,*(Root/Name));
         const auto G=M.GetCachedGeometry();const auto Rect=M.GetSceneRect();const int32 X=FMath::Clamp(FMath::RoundToInt(Rect.Left*Size.X/G.GetLocalSize().X),0,Size.X-1),Y=FMath::Clamp(FMath::RoundToInt(Rect.Top*Size.Y/G.GetLocalSize().Y),0,Size.Y-1),Right=FMath::Clamp(FMath::RoundToInt(Rect.Right*Size.X/G.GetLocalSize().X),X+1,Size.X),Bottom=FMath::Clamp(FMath::RoundToInt(Rect.Bottom*Size.Y/G.GetLocalSize().Y),Y+1,Size.Y);
         TArray<FColor> Scene;Scene.Reserve((Right-X)*(Bottom-Y));for(int Row=Y;Row<Bottom;++Row)for(int Col=X;Col<Right;++Col)Scene.Add(Pixels[Row*Size.X+Col]);Png.Reset();FImageUtils::PNGCompressImageArray(Right-X,Bottom-Y,Scene,Png);FFileHelper::SaveArrayToFile(Png,*(Root/(FPaths::GetBaseFilename(Name)+TEXT("-scene.png"))));
     }

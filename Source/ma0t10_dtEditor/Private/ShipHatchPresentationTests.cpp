@@ -17,6 +17,8 @@
 #include "Components/ScrollBox.h"
 #include "Components/TextBlock.h"
 #include "Components/PanelWidget.h"
+#include "Components/WrapBox.h"
+#include "Components/ComboBoxString.h"
 #include "EngineUtils.h"
 #include "Camera/CameraActor.h"
 #include "Engine/LocalPlayer.h"
@@ -47,13 +49,25 @@ struct FHatchPresentationProbe
             const auto& G=Text->GetCachedGeometry();const auto P=Root.AbsoluteToLocal(G.GetAbsolutePosition());
             const FVector2D Desired=Text->GetDesiredSize(),Actual=G.GetLocalSize();
             T.TestTrue(TEXT("visible label has enough arranged width: ")+Text->GetText().ToString(),Desired.X<=Actual.X+1);
+            T.TestTrue(TEXT("visible label has enough arranged height: ")+Text->GetText().ToString(),Desired.Y<=Actual.Y+1);
             T.TestTrue(TEXT("visible label remains within client bounds"),P.X>=-1&&P.Y>=-1&&P.X+Actual.X<=Size.X+1&&P.Y+Actual.Y<=Size.Y+1);
         }
         if(M.QuickToolScroll&&M.QuickToolScroll->IsVisible()){
-            T.TestEqual(TEXT("quick toolbar uses actual horizontal scrolling"),M.QuickToolScroll->GetOrientation(),Orient_Horizontal);
+            T.TestEqual(TEXT("toolbar overflow uses vertical scrolling, preserving full preset names"),M.QuickToolScroll->GetOrientation(),Orient_Vertical);
             T.TestEqual(TEXT("quick toolbar clips offscreen labels to its own scroll region"),M.QuickToolScroll->GetClipping(),EWidgetClipping::ClipToBounds);
             const auto G=M.QuickToolScroll->GetCachedGeometry();const auto P=Root.AbsoluteToLocal(G.GetAbsolutePosition()),Z=G.GetLocalSize();
             T.TestTrue(TEXT("quick toolbar scroll region remains inside the client"),P.X>=-1&&P.Y>=-1&&P.X+Z.X<=Size.X+1&&P.Y+Z.Y<=Size.Y+1);
+            for(auto Row:M.ToolbarRows)
+            {
+                if(!Row->IsVisible()||!Row->GetParent()->IsVisible())continue;
+                const auto RowGeometry=Row->GetCachedGeometry();
+                for(auto Child:Row->GetAllChildren())
+                {
+                    const auto ChildGeometry=Child->GetCachedGeometry();const auto Position=RowGeometry.AbsoluteToLocal(ChildGeometry.GetAbsolutePosition());
+                    T.TestTrue(TEXT("wrapped toolbar control fits horizontally without a scroll hunt"),Position.X>=-1&&Position.X+ChildGeometry.GetLocalSize().X<=Z.X+1);
+                    T.TestTrue(TEXT("wrapped toolbar control has its full desired width"),Child->GetDesiredSize().X<=ChildGeometry.GetLocalSize().X+1);
+                }
+            }
         }
         T.TestTrue(TEXT("3D occupies only its assigned scene rectangle"),M.SceneRect.Right<=Size.X&&M.SceneRect.Bottom<=Size.Y);
         if(M.IsSplitView()||M.GetView()<2)
@@ -76,6 +90,17 @@ struct FHatchPresentationProbe
     }
     static void Controls(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
     {
+        const auto Cargo=M.CargoChoice;const auto Models=M.FieldChoices;const auto Revision=M.Simulation->Revision();
+        auto* Selectors=CastChecked<UShipHatchDetailsSection>(M.WidgetTree->FindWidget(TEXT("HatchSensorSelectors")));
+        auto* SelectorToggle=CastChecked<UButton>(Selectors->GetChildAt(0));auto* SelectorBody=Selectors->GetChildAt(1);
+        T.TestEqual(TEXT("Model selectors start collapsed while view presets stay exposed"),SelectorBody->GetVisibility(),ESlateVisibility::Collapsed);
+        for(int32 I=0;I<2;++I)
+        {
+            SelectorToggle->OnClicked.Broadcast();
+            T.TestEqual(TEXT("Accordion preserves the existing cargo selector instance"),M.CargoChoice.Get(),Cargo.Get());
+            for(int32 Sensor=0;Sensor<Models.Num();++Sensor)T.TestEqual(TEXT("Accordion preserves each existing sensor selector instance"),M.FieldChoices[Sensor].Get(),Models[Sensor].Get());
+            T.TestEqual(TEXT("Opening/closing selectors does not change the surface revision"),M.Simulation->Revision(),Revision);
+        }
         M.ViewButtons[1]->OnClicked.Broadcast();T.TestEqual(TEXT("point segment selects point view"),M.GetView(),1);
         for(int32 I=0;I<5;++I){M.ColorButtons[I]->OnClicked.Broadcast();T.TestEqual(TEXT("each color segment routes to its palette"),M.GetColor(),I);}
         M.SizeSlider->SetValue(4);M.SizeSlider->OnValueChanged.Broadcast(4);M.DensitySlider->SetValue(25);M.DensitySlider->OnValueChanged.Broadcast(25);
