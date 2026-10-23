@@ -4,11 +4,11 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
-## LIDAR-WALLCLOCK-28b — wall-clock 획득·환경 독립 판정 (직렬 검증 대기)
+## LIDAR-WALLCLOCK-28b — 직렬 중단·기준 결정 필요
 
 사용자2026-10-23 #28b 승인. 기준b4e8327, 지정worktree feat/lidar-wallclock-28b에서 자동 획득의 단조 wall-clock grid·한 프레임1회·동시1획득·만료슬롯 집계를 구현했다. pause 제외/재시작/즉시요청/데이터셋 단발을 보존하고 CPU·센서 소유BLAS/TLAS가 같은 admission을 사용한다. 기존 코드는 이미 게임 시간 deadline 방식이므로 프레임 modulo 제거로 설명하지 않는다. 획득 메타데이터/공개BP·PCD·80MiB/s·FIFO는 유지한다. DTCore 변경 후보 없음(기존 프로젝트 Scheduler의 책임).
 
-새 gate는 센서별 실제획득Hz/요청Hz≥0.95 및 동일90초 workload의 ABAB×3(A6/B6) FPS·engine p95·GT 중앙값 각각2%다. 기존≥59FPS/3프레임 assertion은 legacy 참고로 남긴다. 백그라운드CPU snapshot은 판정에 사용하지 않는다. 빌드 없는 판정 회귀20/기존cohort5·quick9/layer0→0 통과, 가상시계C++2개는 작성만 했고 실행하지 않았다. Editor/Game Development·집중/전체회귀·90초 실제HWRT/CPU·표준RT on perf는 다음직렬단계에서 확인한다. [전후 비교·수치 입증 계획·명령·한계](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md). 과거 #28통합FAIL은 보존하며 구현을 실측PASS로 표시하지 않는다.
+직렬 단계에서 origin/master98e2131을 승인 범위대로 병합하고 압축 기본On·분주·대역폭 검사를 보존했다. Editor/Game 빌드·새 C++2개·기존 PCD7개 통과, 별도 UI1개는 opt-in skip이다. 912928e의90초 visible 실측에서 센서3대의 완료1771/1771/1770회, legacy cadence 최소1771회 대비 마지막1개가FAIL했지만 새 비율은모두≥0.95였다. 사용자 중단 조건에 따라 추가 측정을 멈췄으며 전체 통합을PASS로 표시하지 않는다. CPU 실제RHI·1/2·1/4 실측·90초 ABAB·표준RT on perf·release는 미수행이다. 기존 legacy도 gate로 유지할지,95% 기준 교체를 수용할지 결정이 필요하다. [같은 실행의 전후 판정표·근거·복원](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md). DTCore/획득 snapshot/저장 계약 변경 없음.
 
 ## FOLLOWUP-28-26 — 환경 정리 후 FPS 통과, 획득cadence로 통합 gate 차단
 

@@ -6,6 +6,14 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-23 LIDAR-WALLCLOCK-28b — 직렬 비교 중단
+
+- 메인 feat/lidar-wallclock-28b에서 시작264d100, origin/master98e2131 병합b090ebe, 충돌은 README/GpuLidarScheduledTests의 양쪽 의도를 보존했다. 측정코드912928e는 기본Full+LZF On·1/1, native LZF 수신기, 분주 진단 선택·기존 대역폭 검사·새 획득비율/legacy 기록을 함께 사용한다. 송신/획득 런타임은 이번 직렬 단계에서 추가 수정하지 않았다.
+- Editor/Game Development build exit0. 새 C++ 가상시계2 Success, PCDBandwidth7 Success/UiRhi1 opt-in skip/0Fail(NullRHI는 순수 로직에만 적용). 합성 PS20 PASS 및 Python receiver3/native 적용3 PASS. UI skip을 실제 RHI 통과로 세지 않는다.
+- 1920×1080 visible/DPI1·실제D3D12/ProjectDefault RT on·3×OS1-64 Rev7 1024×64/20Hz·Full+LZF+1/1·80MiB/s·warmup10초/measure90.002607초. FPS59.098854/engine p9517.716698ms/GT11.675628ms, engine5320프레임,150ms 초과0. 센서 완료1771/1771/1770, Hz19.677208/19.677208/19.666097, 비율0.983860/0.983860/0.983305, 누락슬롯29/29/30이다.
+- legacy FPS3개PASS, cadence 최소floor(5320/3)−2=1771회 대비PASS/PASS/FAIL. 새 비율3개PASS로 기존실패를허용하므로 사용자 "기준 완화로 보이면 멈추고 보고" 지시를 적용했다. 자동화Success/JSON valid=true는 계측 실행 완료일 뿐, 비완화 수용 검사는FAIL이다. ABAB 미수행이므로 전체 새gate PASS를 주장하지 않는다.
+- 추가CPU 실제RHI/전송분주1/2·1/4실측/90초ABAB/표준RT on perf/release 중단·NOT_RUN. 2%악화 여부도 미측정이므로 fallback 적용 근거가 없고 기본 옵션을 임의로 바꾸지 않았다. 기존cadence gate 병행 또는95%교체 수용의 정책 결정이 필요하다. 개인설정44개 원본집합/해시 복원, 보호297개 차이0, 자체 Editor/PIE/loopback 정상종료. [RESULT](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md)와 새 result.json/merge_check를 따른다.
+
 ## 2026-10-23 LIDAR-WALLCLOCK-28b — 병렬 구현·빌드 없는 검증
 
 - 기준b4e8327/지정worktree `wt_28b`, DTCore b2504d1 clean. 기존 게임 시간 deadline을 pause 제외 단조 wall-clock grid로 분리하고 CPU/HWRT 공통 최대1admission/엔진프레임·동시1획득·만료슬롯 집계를 구현했다. 같은프레임 재시작·데이터셋 단발 hold/retry를 보존했다.

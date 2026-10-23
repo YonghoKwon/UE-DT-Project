@@ -18,9 +18,9 @@
 
 ## 1. 현재 상태 한눈에 보기
 
-### LIDAR-WALLCLOCK-28b — 구현·정적 검증, 직렬 빌드/측정 대기
+### LIDAR-WALLCLOCK-28b — 직렬 비교에서 중단, 기준 결정 필요
 
-LiDAR 자동 획득의 admission을 pause를 제외한 단조 wall-clock deadline으로 분리한다. 요청 주기 grid·센서별 시작 위상을 유지하고 CPU/센서 소유 HWRT 공통으로 최대1회/엔진프레임·동시1획득을 허용하며 만료 슬롯을 집계한다. Blueprint/API·획득 snapshot·PCD/출력 계약은 유지한다. 90초 검증은 센서별 실제/요청 Hz≥0.95와 같은 workload ABAB 중앙값2%를 함께 사용하고 기존59FPS/3프레임 assertion은 legacy 참고로 보존한다. 20개 합성 판정 회귀·quick9·layer0/0은 통과했으나 C++ 테스트 실행·컴파일·실제 RHI/90초·성능은 병렬 금지로 미수행이다. 과거 #28 실패를 통과로 바꾸지 않는다. [설계·직렬 검증 명령·위험](Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md).
+LiDAR 자동 획득의 pause 제외 wall-clock grid·최대1회/엔진프레임·동시1획득을 구현하고 origin/master98e2131의 PCD 압축 기본On·분주·대역폭 검사와 통합했다. Editor/Game 빌드·새 C++2테스트는 통과했다. 912928e의90초 visible/D3D12·RT on·Full+LZF+1/1에서 legacy cadence 최소1771회에3대째가1770회로FAIL했으나 새 비율은0.983305로PASS했다. 기준 완화로 보이면 멈추라는 지시에 따라 추가 측정을 중단하고 전체gate를PASS로 표시하지 않는다. CPU 실제RHI·분주 실측·ABAB·release는 미수행이다. 개인설정44개 복원·보호hash차이0. [같은 실행의 비교·중단 근거](Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md).
 
 ### PCD-BANDWIDTH-01 — 전송 용량 옵션·기본 LZF 적용
 
