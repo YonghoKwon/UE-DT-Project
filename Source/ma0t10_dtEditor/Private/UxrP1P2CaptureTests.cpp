@@ -194,7 +194,12 @@ public:
                 else
                 {
                     Coil->ShowTools();auto* Navigation=Cast<USensorToolToolbarWidget>(Workspace->GetOwnedNavigation());if(!Navigation)return false;
-                    if(!OriginalNavigation.IsValid())OriginalNavigation=Navigation;
+                    if(!OriginalNavigation.IsValid())
+                    {
+                        Coil->Coordinator->SelectSensorActor(Coil->Simulation->Lidar.Get());Workspace->SynchronizeOwnedSelection();
+                        for(const auto Role:{ESensorToolPanelRole::Monitor,ESensorToolPanelRole::Settings,ESensorToolPanelRole::Replay,ESensorToolPanelRole::SlabProgress,ESensorToolPanelRole::SlabCharts})Workspace->SetPanelOpen(Role,false);
+                        OriginalNavigation=Navigation;
+                    }
                     if(Step<4){Workspace->CollapseSidebar();Scene=FString::Printf(TEXT("T01-rail-%d"),Font);}
                     else if(Step<6){Navigation->OpenOwnedDestination(ESensorToolDestination::Placement);Scene=FString::Printf(TEXT("T01-placement-%d"),Font);}
                     else if(Step<12)
