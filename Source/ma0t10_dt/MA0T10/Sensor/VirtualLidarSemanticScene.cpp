@@ -1,6 +1,7 @@
 #include "VirtualLidarSemanticScene.h"
 #include "VirtualLidarSurfaceResponseComponent.h"
 #include "VirtualLidarScanComponent.h"
+#include "VirtualLidarSemanticDiagnostics.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/TextureRenderTarget2D.h"
@@ -40,6 +41,7 @@ bool FVirtualLidarSemanticScene::Capture(UVirtualLidarScanComponent& Scan, const
 
 bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, const FTransform& Pose, float HorizontalFov, int32 Width, int32 Height, TFunctionRef<FName(const UPrimitiveComponent*)> Resolve, bool bRecordActorPaths, TFunction<bool(const UPrimitiveComponent*)> VisibilityFilter, bool bCaptureFidelity)
 {
+    bCapturePending=false;
     auto* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/MA0T10/Sensor/Materials/M_LidarSemanticId.M_LidarSemanticId"));
     if (!Material) { Status = TEXT("GPU 분류 재질 누락: 미분류 (센서 측정 유지)"); return false; }
     if (!World) return false;
@@ -166,7 +168,34 @@ bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, con
     CaptureComponent->FOVAngle = HorizontalFov;
     VirtualSensorCaptureRendering::Prepare(*CaptureComponent, true);
     Scene.GetWorld()->SendAllEndOfFrameUpdates();
-    CaptureComponent->CaptureScene();
     Status = FString::Printf(TEXT("GPU 의미 분류: %d개 proxy · 미지원/숨김 %d개 (깊이 불일치=미분류)"), Identities.Num(), Unsupported);
+    if(VirtualLidarSemanticDiagnostics::IsEnabled())
+    {
+        int32 Registered=0,Visible=0,Renderable=0,RenderState=0,SceneProxy=0,Precaching=0;
+        for(const auto& Pair:Proxies)if(const auto* Mesh=Pair.Value.Mesh)
+        {Registered+=Mesh->IsRegistered();Visible+=Mesh->IsVisible();Renderable+=Mesh->ShouldRender();
+         RenderState+=Mesh->IsRenderStateCreated();SceneProxy+=Mesh->SceneProxy!=nullptr;Precaching+=Mesh->IsPSOPrecaching();}
+        Status+=FString::Printf(TEXT(" [editor=%d source_world=%d capture_world=%d source_feature=%d capture_feature=%d format=%d]"),
+            GIsEditor,int32(World->WorldType),int32(Scene.GetWorld()->WorldType),int32(World->GetFeatureLevel()),
+            int32(Scene.GetWorld()->GetFeatureLevel()),int32(Target->GetFormat()));
+        Status+=FString::Printf(TEXT(" [registered=%d visible=%d should_render=%d render_state=%d scene_proxy=%d precaching=%d]"),
+            Registered,Visible,Renderable,RenderState,SceneProxy,Precaching);
+    }
+    bCapturePending=true;
+    PollPendingCapture();
+    return true;
+}
+
+bool FVirtualLidarSemanticScene::PollPendingCapture()
+{
+    if(!bCapturePending)return true;
+    // Only the already prepared proxy snapshot is touched here. Never rediscover
+    // source components or replace acquisition transforms/identity while waiting.
+    Scene.GetWorld()->SendAllEndOfFrameUpdates();
+    for(const auto& Pair:Proxies)if(const auto* Mesh=Pair.Value.Mesh;Mesh&&Mesh->IsVisible())
+        if(Mesh->IsPSOPrecaching()||!Mesh->SceneProxy)return false;
+    CaptureComponent->CaptureScene();
+    Status+=TEXT(" · 의미 분류 준비 완료");
+    bCapturePending=false;
     return true;
 }

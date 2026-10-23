@@ -78,7 +78,7 @@ TArray<FVirtualCameraTruthBox> FVirtualCameraTruthFrame::FindBoxes(const TArray<
 struct FVirtualCameraTruthWork
 {
     ~FVirtualCameraTruthWork(){--ActiveTruthWork;}
-    std::atomic<bool> Cancelled{false}, CopiesQueued{false};
+    std::atomic<bool> Cancelled{false}, CopiesQueued{false}, InitialCopiesQueued{false};
     TSharedPtr<FRHIGPUTextureReadback,ESPMode::ThreadSafe> Depth,Semantic,Rgb;
     TSharedPtr<FVirtualCameraTruthFrame,ESPMode::ThreadSafe> Frame=MakeShared<FVirtualCameraTruthFrame,ESPMode::ThreadSafe>();
     TMap<int32,TPair<uint8,uint32>> Identities;
@@ -87,6 +87,7 @@ struct FVirtualCameraTruthWork
     int32 Revision=0;
     double Started=0;
     bool Mapping=false, Save=false,Dataset=false,IncludeTruth=true;
+    bool WaitingSemanticCapture=false;
     FString Directory,Error;
     FVirtualCameraTruthSaveCompletion SaveCompleted;
     TArray<int64> SavedSizes;
@@ -104,6 +105,7 @@ void UVirtualCameraGroundTruth::EndPlay(const EEndPlayReason::Type Reason){Cance
 void UVirtualCameraGroundTruth::OnUnregister(){Cancel();ReleaseReadbackCache();if(DepthCapture)DepthCapture->DestroyComponent();DepthCapture=nullptr;DepthTarget=nullptr;SemanticScene.Reset();Super::OnUnregister();}
 void UVirtualCameraGroundTruth::Cancel(const FString& Reason)
 {
+    if(SemanticScene)SemanticScene->CancelPendingCapture();
     if(GetWorld())GetWorld()->GetTimerManager().ClearTimer(PollTimer);
     if(Work)
     {
@@ -148,6 +150,7 @@ bool UVirtualCameraGroundTruth::Capture(UVirtualCameraCaptureComponent& Source,c
     };
     if(!SemanticScene->Capture(GetWorld(),Source.GetOwner(),Source.GetComponentTransform(),Snapshot.HorizontalFov,Snapshot.Width,Snapshot.Height,VirtualSensorSemanticLabels::Resolve,true,Visible))
     {return Reject(SemanticScene->Status);}
+    State->WaitingSemanticCapture=SemanticScene->IsCapturePending();
     for(const auto& Entry:SemanticScene->Identities)
     {
         const FString Path=SemanticScene->ActorPaths.FindRef(Entry.Key);
@@ -170,17 +173,19 @@ bool UVirtualCameraGroundTruth::Capture(UVirtualCameraCaptureComponent& Source,c
     }
     auto* RgbResource=Dataset&&Source.GetCameraRenderTarget()?Source.GetCameraRenderTarget()->GameThread_GetRenderTargetResource():nullptr;
     if(Dataset){if(!CachedRgb){CachedRgb=MakeShared<FRHIGPUTextureReadback,ESPMode::ThreadSafe>(TEXT("DatasetRgb"));++ReadbackAllocations;}State->Rgb=CachedRgb;}
-    ENQUEUE_RENDER_COMMAND(CameraTruthCopy)([State,DepthResource,SemanticResource,RgbResource](FRHICommandListImmediate& Cmd)
+    const bool QueueSemanticNow=!State->WaitingSemanticCapture;
+    ENQUEUE_RENDER_COMMAND(CameraTruthCopy)([State,DepthResource,SemanticResource,RgbResource,QueueSemanticNow](FRHICommandListImmediate& Cmd)
     {
         if(State->Cancelled)return;
         // InitResource/UpdateResource and both captures precede this command. Fetching
         // texture refs on the game thread can observe an uninitialized first target.
         const auto D=DepthResource?DepthResource->GetRenderTargetTexture():FTextureRHIRef(), S=SemanticResource?SemanticResource->GetRenderTargetTexture():FTextureRHIRef();
-        if(!State->IncludeTruth||(D.IsValid()&&S.IsValid()))
+        if(!State->IncludeTruth||(D.IsValid()&&(!QueueSemanticNow||S.IsValid())))
         {
-            if(State->IncludeTruth){VirtualSensorTextureReadback::Enqueue(Cmd,*State->Depth,D);VirtualSensorTextureReadback::Enqueue(Cmd,*State->Semantic,S);}
+            if(State->IncludeTruth){VirtualSensorTextureReadback::Enqueue(Cmd,*State->Depth,D);if(QueueSemanticNow)VirtualSensorTextureReadback::Enqueue(Cmd,*State->Semantic,S);}
             if(State->Rgb){if(!RgbResource||!RgbResource->GetRenderTargetTexture().IsValid())return;VirtualSensorTextureReadback::Enqueue(Cmd,*State->Rgb,RgbResource->GetRenderTargetTexture());}
-            State->CopiesQueued.store(true,std::memory_order_release);
+            State->InitialCopiesQueued.store(true,std::memory_order_release);
+            if(QueueSemanticNow)State->CopiesQueued.store(true,std::memory_order_release);
         }
     });
     State->Frame->SubmitMs=(FPlatformTime::Seconds()-State->Started)*1000;
@@ -193,6 +198,18 @@ void UVirtualCameraGroundTruth::Poll()
 {
     auto State=Work;if(!State||State->Cancelled||State->Mapping)return;
     if(!State->Source.IsValid()||State->Source->GetFileCaptureRevision()!=State->Revision||(State->IncludeTruth&&!State->Source->bGroundTruthEnabled)){Cancel();return;}
+    if(State->WaitingSemanticCapture&&State->InitialCopiesQueued.load(std::memory_order_acquire)&&SemanticScene->PollPendingCapture())
+    {
+        State->WaitingSemanticCapture=false;
+        auto* Resource=SemanticScene->GetTarget()->GameThread_GetRenderTargetResource();
+        ENQUEUE_RENDER_COMMAND(CameraTruthDeferredSemanticCopy)([State,Resource](FRHICommandListImmediate& Cmd)
+        {
+            if(State->Cancelled)return;
+            const auto Texture=Resource?Resource->GetRenderTargetTexture():FTextureRHIRef();
+            if(Texture.IsValid())
+            {VirtualSensorTextureReadback::Enqueue(Cmd,*State->Semantic,Texture);State->CopiesQueued.store(true,std::memory_order_release);}
+        });
+    }
     if(!State->CopiesQueued.load(std::memory_order_acquire)||(State->Depth&&!State->Depth->IsReady())||(State->Semantic&&!State->Semantic->IsReady())||(State->Rgb&&!State->Rgb->IsReady()))
     {if(FPlatformTime::Seconds()-State->Started>10){const FString Reason=TEXT("정답 데이터 GPU 대기 시간 초과");Cancel(Reason);Status=Reason;}return;}
     State->Mapping=true;GetWorld()->GetTimerManager().ClearTimer(PollTimer);

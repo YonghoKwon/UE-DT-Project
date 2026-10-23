@@ -4,14 +4,22 @@
 
 ## 확인한 원인
 
-Tag가 Shipping에서 직렬화되지 않는 문제가 아니었다. **게임 실행에서 private semantic capture가 editor 전용 scene 구성으로 만들어져 ID/depth가 정상 측정 depth와 대응하지 않는 문제**였다.
+Tag가 Shipping에서 직렬화되지 않는 문제가 아니었다. **private scene의 editor 전용 visibility 구성과 cooked 실행의 PSO 준비 지연**이라는 두 초기화 문제가 있었다. metadata table은 정상인데 실제 semantic pass에 primitive가 그려지지 않아 ID/depth가 배경값으로 남았다.
 
 - `Sensor/VirtualSensorSemanticLabels.cpp:27–42`는 runtime Actor Tags/이름/class/component 규칙을 사용하며 ActorLabel/editor metadata를 읽지 않는다.
 - `Sensor/VirtualLidarSemanticScene.cpp`의 `FPreviewScene::ConstructionValues` 기본값은 bEditor=true다. 로컬 UE5.3 `Engine/Source/Runtime/Engine/Public/PreviewScene.h:23–34,63` 및 `Private/PreviewScene.cpp:31–40`에서 이것이 **EditorPreview world + editor hit proxies**를 선택하는 것을 확인했다.
 - 기준 `698a895`의 Editor `-game` 및 실제 Development 패키지 모두 기존 `/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap`에서 32,256점을 생성했지만 **Slab0, instance0=32,256**이었다. diagnostic에는 named surfaces4/Slab surface1이 있고 semantic pixels81,792개도 존재했지만 **depth_mismatch32,256 / mapped0**이었다. 즉 metadata가 동결된 이후의 depth 대응 단계에서 누락됐다.
 - 유일한 production 동작 변경을 `.SetEditor(GIsEditor)`로 한 로컬 A/B에서 Editor `-game` 결과가 **Slab1,800 / instance0=0 / depth_mismatch0 / mapped32,256**으로 바뀌었다. Slab/sensor pose·치수는 같고 PCD binary body의 SHA256도 전후 **ac492cd014eee9876035bd9f5b4026506579ce02ecedf175baf6f03ea0b8e16b**로 완전히 같았다. 측정 geometry/body는 그대로 두고 semantic identity 대응을 복구한 것이다.
 
-이는 scene construction 선택의 인과 A/B다. world type과 hit-proxy 설정 중 어느 renderer 내부 분기 하나만이 원인이라고 더 좁혀 주장하지 않는다. 1cm 허용치 확대·Tag 강제 추가·ID 재번호화·좌표/해상도 변경·CPU fallback으로 해결하지 않았다. Editor 안의 기존 scene 구성은 유지한다. Camera GT와 legacy GPU LiDAR는 같은 private semantic scene 구현을 사용하므로 관련 RHI 회귀도 함께 확인한다.
+world type 문제는 UE5.3 `SceneComponent.cpp:3093–3102`의 ShouldRender/UsesGameHiddenFlags 분기로도 확인했다. 그러나 `efa5848`의 world 구성 수정만 적용한 실제 Development 패키지는 첫 장면이 여전히 Slab0이었다. 그 실패를 보존하고 Editor 성공을 패키지 통과로 옮기지 않았다.
+
+추가 native 진단은 registered/visible/should_render/render_state가 각각4인 반면 **scene_proxy0 / precaching4**임을 보였다. semantic depth는 배경1e8cm, main depth는 약1800cm였다. UE5.3 `Engine/Private/StaticMeshRender.cpp:2621–2624`는 PSO가 준비되지 않은 `DelayUntilPSOPrecached` 상태에서 CreateSceneProxy가 nullptr을 반환한다. 실제 cold 3장면 실행도 **첫 장면 Slab0 → 2·3번째 1800**이었다. PSO 준비 전 pass를 완료로 읽은 것이 남은 패키지 누락 원인이었다.
+
+두 번째 수정은 전역 PSO 정책을 바꾸지 않는다. private proxy geometry/identity/pose를 acquisition 시점에 동결하고, PSO/scene proxy 준비가 끝날 때까지 기존 비동기 Poll에서 semantic pass만 보류한다. LiDAR는 이미 캡처한 main depth target을 유지한다. Camera GT는 원래 RGB/depth를 즉시 staging copy하고 semantic copy만 나중에 큐에 넣어 RGB target이 다른 frame으로 바뀌어도 영향을 받지 않는다. 새 main capture/readback/동기 wait나 다음 frame으로의 조용한 교체는 없다. cancel/generation과 기존 timeout을 유지하며 준비 실패는 명시적 실패로 남는다.
+
+이 WIP native trial은 첫 장면부터 3개 모두 named Slab1800, instance0=0, depth mismatch0이었다. camera_truth=true의 별도 cold 3장면에서도 LiDAR1800씩, Camera raw class2 mask19,257 pixels씩을 얻었다. package baseline과 수정 trial의 PCD body SHA256도 위 값과 같았다. 최종 committed-SHA 패키지 실행은 RESULT의 commit/binary hash와 판정만 기준으로 한다.
+
+1cm 허용치 확대·Tag 강제 추가·ID 재번호화·좌표/해상도 변경·CPU fallback으로 해결하지 않았다. Editor 안의 기존 scene 구성은 유지한다. Camera GT와 legacy GPU LiDAR가 같은 private semantic scene을 사용하므로 #24의 양쪽 pending/readback만 수정했다. #22 듀얼 미리보기 코드는 바꾸지 않았다.
 
 ## #28b 병합 보존
 
@@ -42,6 +50,7 @@ python -X utf8 -m unittest discover -s Scripts -p test_audit_lidar_semantics.py 
 - `MA0T10.GpuLidar.PointModelSnapshot`, `.StaticCollisionRhi`, `.RigidInstanceRhi`, `.FallbackSelection`
 - `MA0T10.LidarRegression.GpuSemanticRhi`
 - `MA0T10.CameraGroundTruth.DepthSemanticInstanceRhi`
+- `MA0T10.GpuCaptureLifetime`(취소/반복/설정 변경 4개)
 
 ## 직렬 package 재현 조건
 

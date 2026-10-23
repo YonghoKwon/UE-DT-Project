@@ -90,6 +90,8 @@ TSharedRef<FJsonObject> BuildDepthReport(const FVirtualLidarDepthAcquisitionFram
     Report->SetNumberField(TEXT("snapshot_slab_surfaces"), Slab);
     Report->SetNumberField(TEXT("snapshot_slab_tagged_surfaces"), SlabTag);
     int32 NoDepth = 0, NoSemantic = 0, NonFinite = 0, Mismatch = 0, NoId = 0, Mapped = 0;
+    TArray<TSharedPtr<FJsonValue>> Samples;
+    double MaxDelta = 0;
     for (int32 Pixel : PixelIndices)
     {
         if (!Frame.ForwardDepthCentimeters.IsValidIndex(Pixel) ||
@@ -98,6 +100,16 @@ TSharedRef<FJsonObject> BuildDepthReport(const FVirtualLidarDepthAcquisitionFram
         if (!Frame.SemanticIdDepth.IsValidIndex(Pixel)) { ++NoSemantic; continue; }
         const auto& IdDepth = Frame.SemanticIdDepth[Pixel];
         if (!FMath::IsFinite(IdDepth.R) || !FMath::IsFinite(IdDepth.A)) { ++NonFinite; continue; }
+        const double Delta=FMath::Abs(double(IdDepth.A)-Frame.ForwardDepthCentimeters[Pixel]);
+        MaxDelta=FMath::Max(MaxDelta,Delta);
+        if(Samples.Num()<8)
+        {
+            auto Sample=MakeShared<FJsonObject>();Sample->SetNumberField(TEXT("pixel"),Pixel);
+            Sample->SetNumberField(TEXT("main_depth_cm"),Frame.ForwardDepthCentimeters[Pixel]);
+            Sample->SetNumberField(TEXT("semantic_depth_cm"),IdDepth.A);
+            Sample->SetNumberField(TEXT("semantic_id"),IdDepth.R);
+            Samples.Add(MakeShared<FJsonValueObject>(Sample));
+        }
         if (FMath::Abs(IdDepth.A - Frame.ForwardDepthCentimeters[Pixel]) > 1.0f) { ++Mismatch; continue; }
         // Check range before float->int conversion; corrupt ID pixels are diagnostic data too.
         if (IdDepth.R < 0 || double(IdDepth.R) > double(MAX_int32) ||
@@ -111,6 +123,8 @@ TSharedRef<FJsonObject> BuildDepthReport(const FVirtualLidarDepthAcquisitionFram
     Report->SetNumberField(TEXT("depth_mismatch"), Mismatch);
     Report->SetNumberField(TEXT("missing_identity"), NoId);
     Report->SetNumberField(TEXT("mapped"), Mapped);
+    Report->SetNumberField(TEXT("max_depth_delta_cm"), MaxDelta);
+    Report->SetArrayField(TEXT("depth_samples"), Samples);
     int32 OutputHits = 0, OutputNamed = 0, OutputSlab = 0;
     for (const auto& Point : Points) if (Point.bHit)
     {

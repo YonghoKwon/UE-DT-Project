@@ -20,7 +20,7 @@
 
 ### ANALYSIS-24 — 게임 실행의 Slab 의미 분류
 
-private semantic scene은 Editor에서는 기존 EditorPreview, `-game`/패키지에서는 GamePreview로 구성한다. 기본 editor scene 구성이 게임 실행에서 ID/depth 대응을 전부 실패시키던 경로를 수정했으며 Tag·분류 규칙·1cm 대응 기준·PCD 33B/라벨 5B는 유지한다. 명시적 `-LidarSemanticDiagnostics`의 센서·backend별 1회 요약과 `Scripts/audit_lidar_semantics.py --expect-backend 2 --require-slab`로 실제 파일을 대조한다. [직렬 원인 분석·재현](docs/research/ANALYSIS-24-22-serial.md), [실행별 최종 결과·제한](Saved/Reports/ANALYSIS-24-22/RESULT.md)을 따른다.
+private semantic scene은 Editor에서는 기존 EditorPreview, `-game`/패키지에서는 GamePreview로 구성한다. cooked 게임에서 PSO 준비 중 실제 proxy가 없는 첫 pass는 완료로 발행하지 않고, 동결한 geometry/identity를 유지해 기존 Poll에서 준비 완료 뒤 한 번 렌더한다. LiDAR main depth와 Camera RGB/depth는 원래 요청의 데이터를 보존하며 Tag·분류 규칙·1cm 대응 기준·PCD 33B/라벨 5B는 유지한다. 명시적 `-LidarSemanticDiagnostics`의 센서·backend별 1회 요약과 `Scripts/audit_lidar_semantics.py --expect-backend 2 --require-slab`로 실제 파일을 대조한다. [직렬 원인 분석·재현](docs/research/ANALYSIS-24-22-serial.md), [실행별 최종 결과·제한](Saved/Reports/ANALYSIS-24-22/RESULT.md)을 따른다.
 
 ### UXR-P1/P2a — 운전원 표시 개선·직렬 UI 검증
 

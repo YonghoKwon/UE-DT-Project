@@ -161,6 +161,17 @@ bool UVirtualLidarGpuDepthProjectionComponent::BeginAcquisition(const FVirtualLi
 void UVirtualLidarGpuDepthProjectionComponent::QueueReadback()
 {
 	if (!DepthRenderTarget || bReadbackQueued) return;
+    if(SemanticScene&&SemanticScene->IsCapturePending())
+    {
+        if(!SemanticScene->PollPendingCapture())
+        {
+            StatusMessage=TEXT("GPU semantic PSO initialization pending");
+            if(FPlatformTime::Seconds()-AcquisitionSubmittedSeconds>1.0)
+            {StatusMessage=TEXT("GPU semantic PSO initialization failed");bAcquisitionActive=false;SemanticScene->CancelPendingCapture();}
+            return;
+        }
+        PendingSemanticStatus=SemanticScene->Status;
+    }
 	FTextureRenderTargetResource* Resource = DepthRenderTarget->GameThread_GetRenderTargetResource();
 	const FTextureRHIRef Texture = Resource ? Resource->GetRenderTargetTexture() : FTextureRHIRef();
 	if (!Texture.IsValid())
@@ -332,6 +343,7 @@ void UVirtualLidarGpuDepthProjectionComponent::CancelDatasetAcquisition()
 void UVirtualLidarGpuDepthProjectionComponent::CancelAcquisitionInternal(bool KeepReadbacks)
 {
 	++AcquisitionGeneration;
+    if(SemanticScene)SemanticScene->CancelPendingCapture();
 	if(!KeepReadbacks)ReleaseReadbackOnRenderThread();
 	CompletedFrame.Reset();
 	bAcquisitionActive = false;
