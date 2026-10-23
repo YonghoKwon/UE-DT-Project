@@ -20,6 +20,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 
 namespace
 {
@@ -42,6 +43,9 @@ class FGpuScheduledRun final:public IAutomationLatentCommand
     TMap<FString,TArray<double>> EncodeTimes;
     FDelegateHandle EncodeHandle;
     FVirtualPcdSendOptions BandwidthOptions;
+    struct FFrameCosts{double Render=0,Schedule=0,Complete=0,Publisher=0,Events=0,Telemetry=0,Gc=0;int64 Completed=0;};
+    TArray<FFrameCosts> FrameCosts;TArray<int64> PreviousFrames;
+    bool CaptureFrameCosts=false,OwnHitchDiagnostics=false;
     static double Percentile(TArray<double> A,double P){A.Sort();return A.IsEmpty()?0:A[FMath::Clamp(FMath::CeilToInt(A.Num()*P)-1,0,A.Num()-1)];}
 
     double NextPcdBudgetSample=0,MaximumPcdRequiredMiB=0;int PcdBudgetWarningSamples=0;
@@ -53,6 +57,7 @@ class FGpuScheduledRun final:public IAutomationLatentCommand
     }
 public:
     FGpuScheduledRun(FAutomationTestBase* T,int Count,bool High,bool OperatingMap=false):Test(T),SensorCount(Count),OS1(High),Operating(OperatingMap){}
+    ~FGpuScheduledRun(){if(OwnHitchDiagnostics)FVirtualSensorHitchDiagnostics::Stop();}
     bool Update() override
     {
         const double Now=FPlatformTime::Seconds();if(Now-Started>180){Test->AddError(TEXT("scheduled GPU acquisition benchmark timed out"));return true;}
@@ -127,10 +132,27 @@ public:
             if(!FParse::Param(FCommandLine::Get(),TEXT("RenderOffscreen"))&&!Test->TestTrue(TEXT("visible PIE window verified"),VisibleWindowVerified))return true;
             if(PcdPublisher.IsValid())for(const auto& A:Sensors)PcdBaselines.Add(A->ScanComponent->SensorId,PcdStatus(A->ScanComponent->SensorId));
             if(OperatingCamera.IsValid())CameraBaseline=OperatingCamera->GetSensorRuntimeStatus().FrameId;
+            CaptureFrameCosts=FParse::Param(FCommandLine::Get(),TEXT("GpuLidarTimingTrace"));PreviousFrames=Baselines;
+#if defined(MA0T10_SENSOR_HITCH_FRAME_COSTS_AVAILABLE)
+            if(CaptureFrameCosts&&!FVirtualSensorHitchDiagnostics::IsEnabled()){FVirtualSensorHitchDiagnostics::Start();OwnHitchDiagnostics=true;}
+#endif
             Measured=Last=Now;MeasurementUtc=FDateTime::UtcNow();FirstFrame=GFrameCounter;Phase=2;return false;
         }
         if(Sensors[0]->GetWorld()->GetGameViewport()->Viewport->GetSizeXY()!=MeasurementClient){Test->AddError(TEXT("measurement viewport changed"));return true;}
         Wall.Add((Now-Last)*1000);Last=Now;Engine.Add(FApp::GetDeltaTime()*1000);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));Gpu.Add(FPlatformTime::ToMilliseconds(GGPUFrameTime));
+        if(CaptureFrameCosts)
+        {
+            FFrameCosts C;C.Render=FPlatformTime::ToMilliseconds(GRenderThreadTime);
+            for(int I=0;I<Sensors.Num();++I)if(Sensors[I].IsValid())
+            {const int64 Id=Sensors[I]->GetSensorRuntimeStatus().FrameId;C.Completed+=Id-PreviousFrames[I];PreviousFrames[I]=Id;}
+#if defined(MA0T10_SENSOR_HITCH_FRAME_COSTS_AVAILABLE)
+            using H=FVirtualSensorHitchDiagnostics;using S=EVirtualSensorHitchSection;
+            C.Schedule=H::CurrentFrameSeconds(S::SensorSchedule)*1000;C.Complete=H::CurrentFrameSeconds(S::SensorComplete)*1000;
+            C.Publisher=H::CurrentFrameSeconds(S::Publisher)*1000;C.Events=H::CurrentFrameSeconds(S::TransportEvents)*1000;
+            C.Telemetry=H::CurrentFrameSeconds(S::Telemetry)*1000;C.Gc=H::CurrentFrameSeconds(S::GarbageCollection)*1000;
+#endif
+            FrameCosts.Add(C);
+        }
         Slow+=FApp::GetDeltaTime()>.15;
         if(PcdPublisher.IsValid()&&Now>=NextPcdBudgetSample)
         {
@@ -293,8 +315,13 @@ public:
         FString CohortOutput;
         if(FParse::Value(FCommandLine::Get(),TEXT("GpuLidarOutput="),CohortOutput))
         {
-            FString Csv=TEXT("callback_ms,engine_ms,game_thread_ms,gpu_ms\n");
-            for(int I=0;I<Wall.Num();++I)Csv+=FString::Printf(TEXT("%.6f,%.6f,%.6f,%.6f\n"),Wall[I],Engine[I],Game[I],Gpu[I]);
+            FString Csv=TEXT("callback_ms,engine_ms,game_thread_ms,gpu_ms");
+            if(CaptureFrameCosts)Csv+=TEXT(",render_thread_ms,scheduler_ms,sensor_complete_ms,publisher_ms,transport_events_ms,telemetry_ms,gc_ms,completed_scans");Csv+=TEXT("\n");
+            for(int I=0;I<Wall.Num();++I)
+            {
+                Csv+=FString::Printf(TEXT("%.6f,%.6f,%.6f,%.6f"),Wall[I],Engine[I],Game[I],Gpu[I]);
+                if(CaptureFrameCosts){const auto& C=FrameCosts[I];Csv+=FString::Printf(TEXT(",%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%lld"),C.Render,C.Schedule,C.Complete,C.Publisher,C.Events,C.Telemetry,C.Gc,C.Completed);}Csv+=TEXT("\n");
+            }
             Test->TestTrue(TEXT("scheduled raw frame samples written"),FFileHelper::SaveStringToFile(Csv,*(CohortOutput+TEXT(".frames.csv")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
             R->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());Text.Reset();FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Text));
             Test->TestTrue(TEXT("scheduled cohort report written"),FFileHelper::SaveStringToFile(Text,*CohortOutput,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
