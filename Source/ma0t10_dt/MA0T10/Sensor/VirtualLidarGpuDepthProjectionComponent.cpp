@@ -146,8 +146,14 @@ bool UVirtualLidarGpuDepthProjectionComponent::BeginAcquisition(const FVirtualLi
 		if (auto* Scan = GetOwner() ? GetOwner()->FindComponentByClass<UVirtualLidarScanComponent>() : nullptr)
 		{
 			if (!SemanticScene) SemanticScene = MakeUnique<FVirtualLidarSemanticScene>();
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+            SemanticScene->bForcePsoPendingForTests=bForceSemanticPsoPendingForTests;
+#endif
 			if (SemanticScene->Capture(*Scan, Request, PendingCaptureWidth, PendingCaptureHeight))
-				PendingSemanticIdentities = SemanticScene->Identities;
+            {
+                PendingSemanticIdentities = SemanticScene->Identities;
+                if(!SemanticScene->IsCapturePending())bSemanticPsoWaitExpired=false;
+            }
 			PendingSemanticStatus = SemanticScene->Status;
 		}
 	}
@@ -165,12 +171,22 @@ void UVirtualLidarGpuDepthProjectionComponent::QueueReadback()
     {
         if(!SemanticScene->PollPendingCapture())
         {
-            StatusMessage=TEXT("GPU semantic PSO initialization pending");
-            if(FPlatformTime::Seconds()-AcquisitionSubmittedSeconds>1.0)
-            {StatusMessage=TEXT("GPU semantic PSO initialization failed");bAcquisitionActive=false;SemanticScene->CancelPendingCapture();}
-            return;
+            // Optional labels must never terminate a valid depth acquisition.
+            // Reuse the existing 1s texture-initialization ceiling for the first
+            // cold PSO episode, rather than paying that delay on every frame.
+            constexpr double SemanticPsoGraceSeconds=1.0;
+            if(!bSemanticPsoWaitExpired&&FPlatformTime::Seconds()-AcquisitionSubmittedSeconds<SemanticPsoGraceSeconds)
+            {StatusMessage=TEXT("GPU semantic PSO initialization pending");return;}
+            bSemanticPsoWaitExpired=true;
+            SemanticScene->CancelPendingCapture();
+            PendingSemanticIdentities.Reset();
+            PendingSemanticStatus=TEXT("GPU 의미 분류: 미분류 (PSO 대기 초과, 깊이 측정 유지)");
         }
-        PendingSemanticStatus=SemanticScene->Status;
+        else
+        {
+            bSemanticPsoWaitExpired=false;
+            PendingSemanticStatus=SemanticScene->Status;
+        }
     }
 	FTextureRenderTargetResource* Resource = DepthRenderTarget->GameThread_GetRenderTargetResource();
 	const FTextureRHIRef Texture = Resource ? Resource->GetRenderTargetTexture() : FTextureRHIRef();
@@ -203,13 +219,22 @@ void UVirtualLidarGpuDepthProjectionComponent::QueueReadback()
 	if (PendingRequest.bRequestSemantics && SemanticScene && PendingSemanticIdentities.Num() > 0)
 	{
 		SemanticTexture = SemanticScene->GetTarget()->GameThread_GetRenderTargetResource()->GetRenderTargetTexture();
-		if (!SemanticTexture.IsValid()) { StatusMessage = TEXT("GPU semantic target initialization pending"); return; }
-		if (!SemanticReadback.IsValid())
-		{
-			SemanticReadback = MakeShared<FRHIGPUTextureReadback, ESPMode::ThreadSafe>(TEXT("VirtualLidarSemanticReadback"));
-			++ReadbackAllocationCount;
-		}
-		bPendingSemanticReadback = true;
+		if (!SemanticTexture.IsValid())
+        {
+            if(!bSemanticPsoWaitExpired&&FPlatformTime::Seconds()-AcquisitionSubmittedSeconds<1.0)
+            {StatusMessage=TEXT("GPU semantic target initialization pending");return;}
+            PendingSemanticIdentities.Reset();
+            PendingSemanticStatus=TEXT("GPU 의미 분류: 미분류 (대상 준비 중, 깊이 측정 유지)");
+        }
+		else
+        {
+            if (!SemanticReadback.IsValid())
+            {
+                SemanticReadback = MakeShared<FRHIGPUTextureReadback, ESPMode::ThreadSafe>(TEXT("VirtualLidarSemanticReadback"));
+                ++ReadbackAllocationCount;
+            }
+            bPendingSemanticReadback = true;
+        }
 	}
 	const auto CapturedSemanticReadback = bPendingSemanticReadback ? SemanticReadback : nullptr;
 	const TSharedPtr<FRHIGPUTextureReadback, ESPMode::ThreadSafe> CapturedReadback = Readback;
@@ -228,6 +253,14 @@ void UVirtualLidarGpuDepthProjectionComponent::QueueReadback()
 	bReadbackQueued = true;
 	StatusMessage = TEXT("GPU SceneDepth readback pending");
 }
+
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+void UVirtualLidarGpuDepthProjectionComponent::SetSemanticPsoPendingForTests(bool bPending)
+{
+    bForceSemanticPsoPendingForTests=bPending;
+    if(SemanticScene)SemanticScene->bForcePsoPendingForTests=bPending;
+}
+#endif
 
 EVirtualSensorBackendPollResult UVirtualLidarGpuDepthProjectionComponent::PollAcquisition(
 	FVirtualLidarDepthAcquisitionFrame& OutFrame)

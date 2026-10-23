@@ -20,6 +20,9 @@ public:
     bool IsCapturePending() const { return bCapturePending; }
     bool PollPendingCapture();
     void CancelPendingCapture() { bCapturePending=false; }
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    bool bForcePsoPendingForTests = false;
+#endif
     TMap<int32, FString> ActorPaths;
     TMap<int32, TWeakObjectPtr<AActor>> Actors;
     TMap<int32, FVirtualLidarGpuSemanticIdentity> Identities;
@@ -33,4 +36,6 @@ private:
     int32 NextId = 1;
     bool bShaderWarmupRequested = false;
     bool bCapturePending = false;
+    TArray<UStaticMeshComponent*> PendingProxies;
+    bool bPendingProxyUpdateSent = false;
 };

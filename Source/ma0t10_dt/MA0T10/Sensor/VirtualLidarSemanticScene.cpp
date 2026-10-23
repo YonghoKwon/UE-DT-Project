@@ -42,6 +42,8 @@ bool FVirtualLidarSemanticScene::Capture(UVirtualLidarScanComponent& Scan, const
 bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, const FTransform& Pose, float HorizontalFov, int32 Width, int32 Height, TFunctionRef<FName(const UPrimitiveComponent*)> Resolve, bool bRecordActorPaths, TFunction<bool(const UPrimitiveComponent*)> VisibilityFilter, bool bCaptureFidelity)
 {
     bCapturePending=false;
+    PendingProxies.Reset();
+    bPendingProxyUpdateSent=false;
     auto* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/MA0T10/Sensor/Materials/M_LidarSemanticId.M_LidarSemanticId"));
     if (!Material) { Status = TEXT("GPU 분류 재질 누락: 미분류 (센서 측정 유지)"); return false; }
     if (!World) return false;
@@ -156,6 +158,7 @@ bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, con
         }
         if(bRecordActorPaths){ActorPaths.Add(Entry.Id, Source->GetOwner()->GetPathName());Actors.Add(Entry.Id,Source->GetOwner());}
         Identities.Add(Entry.Id, MoveTemp(Identity));
+        PendingProxies.Add(Entry.Mesh);
     }
     auto* Target = GetTarget();
     if (Target->SizeX != Width || Target->SizeY != Height)
@@ -191,9 +194,21 @@ bool FVirtualLidarSemanticScene::PollPendingCapture()
     if(!bCapturePending)return true;
     // Only the already prepared proxy snapshot is touched here. Never rediscover
     // source components or replace acquisition transforms/identity while waiting.
-    Scene.GetWorld()->SendAllEndOfFrameUpdates();
-    for(const auto& Pair:Proxies)if(const auto* Mesh=Pair.Value.Mesh;Mesh&&Mesh->IsVisible())
-        if(Mesh->IsPSOPrecaching()||!Mesh->SceneProxy)return false;
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    if(bForcePsoPendingForTests)return false;
+#endif
+    // Capture already flushed the changed snapshot. PSO completion schedules a
+    // render-state refresh; flush it once, only after all PSOs are ready. Repeated
+    // scheduler polls must not flush a whole world or rediscover proxy identities.
+    for(const auto* Mesh:PendingProxies)if(Mesh->IsPSOPrecaching())return false;
+    if(!bPendingProxyUpdateSent)
+    {
+        bool bMissingProxy=false;
+        for(const auto* Mesh:PendingProxies)bMissingProxy|=Mesh->SceneProxy==nullptr;
+        if(bMissingProxy)Scene.GetWorld()->SendAllEndOfFrameUpdates();
+        bPendingProxyUpdateSent=true;
+    }
+    for(const auto* Mesh:PendingProxies)if(!Mesh->SceneProxy)return false;
     CaptureComponent->CaptureScene();
     Status+=TEXT(" · 의미 분류 준비 완료");
     bCapturePending=false;

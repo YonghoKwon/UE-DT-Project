@@ -15,7 +15,7 @@ world type 문제는 UE5.3 `SceneComponent.cpp:3093–3102`의 ShouldRender/Uses
 
 추가 native 진단은 registered/visible/should_render/render_state가 각각4인 반면 **scene_proxy0 / precaching4**임을 보였다. semantic depth는 배경1e8cm, main depth는 약1800cm였다. UE5.3 `Engine/Private/StaticMeshRender.cpp:2621–2624`는 PSO가 준비되지 않은 `DelayUntilPSOPrecached` 상태에서 CreateSceneProxy가 nullptr을 반환한다. 실제 cold 3장면 실행도 **첫 장면 Slab0 → 2·3번째 1800**이었다. PSO 준비 전 pass를 완료로 읽은 것이 남은 패키지 누락 원인이었다.
 
-두 번째 수정은 전역 PSO 정책을 바꾸지 않는다. private proxy geometry/identity/pose를 acquisition 시점에 동결하고, PSO/scene proxy 준비가 끝날 때까지 기존 비동기 Poll에서 semantic pass만 보류한다. LiDAR는 이미 캡처한 main depth target을 유지한다. Camera GT는 원래 RGB/depth를 즉시 staging copy하고 semantic copy만 나중에 큐에 넣어 RGB target이 다른 frame으로 바뀌어도 영향을 받지 않는다. 새 main capture/readback/동기 wait나 다음 frame으로의 조용한 교체는 없다. cancel/generation과 기존 timeout을 유지하며 준비 실패는 명시적 실패로 남는다.
+두 번째 수정은 전역 PSO 정책을 바꾸지 않는다. private proxy geometry/identity/pose를 acquisition 시점에 동결하고, PSO/scene proxy 준비가 끝날 때까지 기존 비동기 Poll에서 semantic pass만 보류한다. LiDAR는 이미 캡처한 main depth target을 유지한다. Camera GT는 원래 RGB/depth를 즉시 staging copy하고 semantic copy만 나중에 큐에 넣어 RGB target이 다른 frame으로 바뀌어도 영향을 받지 않는다. 새 main capture/readback/동기 wait나 다음 frame으로의 조용한 교체는 없다. cancel/generation을 유지한다. 아래 리뷰 수정에서 optional semantic PSO timeout은 깊이 프레임을 미분류로 완료하도록 바꿨다.
 
 이 WIP native trial은 첫 장면부터 3개 모두 named Slab1800, instance0=0, depth mismatch0이었다. camera_truth=true의 별도 cold 3장면에서도 LiDAR1800씩, Camera raw class2 mask19,257 pixels씩을 얻었다. package baseline과 수정 trial의 PCD body SHA256도 위 값과 같았다. 최종 committed-SHA 패키지 실행은 RESULT의 commit/binary hash와 판정만 기준으로 한다.
 
@@ -95,3 +95,13 @@ HWRT3 추가 비교는 기존 UI/public Actor API로 backend를 명시적으로 
 표준 RT ProjectDefault ABAB, Shipping HWRT3, #22 직접 마우스 수용, 실제 장비/회사/소비자 ACK는 미수행이다. job tick wall 수치는 표준 perf gate를 대신하지 않는다.
 
 최종 정리 시 package 실행 프로세스가 모두 정상 종료했는지 확인한다. root가 `Saved/Reports/ANALYSIS-24-22/package/` 안인지 절대 경로로 검증하고, 소유 staging/archive/user binary를 정리한다. 삭제 전 build/runtime exit·binary hash·label/diagnostic counts·실패/skip을 요약 JSON에 남기며 결과 문서와 요약 JSON을 보존한다. 개인 설정의 원본 집합/해시와 보호 경로를 마지막에 복원·대조한다.
+
+## 독립 리뷰 R1 — semantic PSO timeout
+
+기존 `PollAcquisition`은 timeout 상태 문자열의 failed를 Failed로 반환하고 `VirtualLidarScanComponentAcquisition.cpp`는 in-flight 해제 및 CPU fallback을 수행했다. 따라서 영구 in-flight 정지로 단정할 수는 없지만, optional 라벨 때문에 정상 깊이 프레임을 버리는 문제는 있었다.
+
+PSO가 1초 내 준비되지 않으면 frozen semantic identities를 지우고 semantic staging copy를 생략하며, 이미 캡처한 원래 깊이 프레임은 Completed로 반환한다. 상태는 `미분류 (PSO 대기 초과, 깊이 측정 유지)`다. 같은 scene이 계속 준비되지 않는 다음 프레임은 추가 대기하지 않고 미분류로 완료한다. PSO가 준비된 acquisition은 그 프레임의 새 snapshot으로 라벨을 복구한다. stale ID/depth나 이전 transform을 재사용하지 않는다. 1초는 기존 깊이 texture 초기화 ceiling을 상한으로 재사용한 최초 cold-start 유예이며 장비별 PSO 완료를 보장하는 값이 아니다. 최초 지연은 최대 약1초이며 그 이후 지속 pending 상태에 프레임별1초 지연을 반복하지 않는다. 선택 라벨 target 미준비는 같은1초 ceiling 안에서 다음 poll의 RHI 생성 완료를 기다린 뒤, 초과한 경우에만 미분류로 완료한다. 즉시 미분류로 처리했던 첫 R1 시도는 기존 정확도 회귀 첫 프레임에서 실패해 보존했고, 이 초기화 유예를 복원한 재실행은 같은>=99% 기준으로 통과했다.
+
+`MA0T10.LidarRegression.SemanticPsoTimeoutRecoveryRhi`는 component 단위 강제 pending seam(Shipping에는 컴파일되지 않음)으로 실제 D3D12 depth/readback을 검사한다. 최초 유예 종료 후60개 깊이 프레임, requested20Hz 대비>=99%, 빈 semantic pixels/identities, 불변 frame ID, ready 전환 뒤 실제 Slab 픽셀/identity 복구를 검사한다. 첫 실행은19.996390Hz였다. pure mock 성공이나 CPU fallback을 GPU 완료로 세지 않는다.
+
+private scene은 snapshot 변경 때 한번 flush하고, pending poll에는 cached proxy list의 PSO readiness만 확인한다. PSO 완료 task가 render state dirty를 설정한 뒤 필요한 refresh만 한 번 더 flush한다(UE5.3 PrimitiveComponent.cpp:4497–4556). 매 poll world flush/TMap 순회는 제거했다. 표준 RT-on ABAB 및 default Rev7x3 90초 visible 결과와 startup Error 분류는 RESULT/result.json의 같은 source SHA 증거를 따른다.
