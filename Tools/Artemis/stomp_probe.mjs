@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { parsePcd } from './pcd_codec.mjs';
 
 const args = new Map();
 for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i], process.argv[i + 1]);
@@ -150,19 +151,20 @@ function takeNextFrame() {
 }
 
 function validateBinaryPcd(headers, body) {
-  const marker = Buffer.from('DATA binary\n');
-  const payloadOffset = body.indexOf(marker) + marker.length;
-  const headerText = payloadOffset >= marker.length ? body.subarray(0, payloadOffset).toString('utf8') : '';
+  let parsed;
+  try { parsed = parsePcd(body, { materialize: false }); } catch { parsed = null; }
+  const payloadOffset = parsed?.payloadOffset ?? 0;
+  const headerText = parsed?.headerText ?? '';
   const pointCount = Number(headers['x-point-count'] ?? '-1');
   const checksum = crypto.createHash('sha1').update(body).digest('hex');
   const checks = {
     schema: headers.schema === 'virtual-pointcloud.pcd.v1',
     contentType: headers['content-type'] === 'application/vnd.pcd',
     signature: body.subarray(0, 11).toString('ascii') === '# .PCD v0.7',
-    fields: headerText.includes('FIELDS x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence'),
-    pointCount: Number.isInteger(pointCount) && pointCount >= 0 && headerText.includes(`POINTS ${pointCount}`),
-    marker: payloadOffset >= marker.length,
-    bodyLength: body.length === payloadOffset + pointCount * 33,
+    fields: Boolean(parsed),
+    pointCount: Number.isInteger(pointCount) && pointCount >= 0 && parsed?.points === pointCount,
+    marker: Boolean(parsed),
+    bodyLength: Boolean(parsed),
     checksum: checksum.toLowerCase() === String(headers['x-checksum-sha1'] ?? headers.checksum ?? '').toLowerCase(),
   };
   const metadataLines = headerText.split('\n').filter(line => line.startsWith('# MA0T10_META '));

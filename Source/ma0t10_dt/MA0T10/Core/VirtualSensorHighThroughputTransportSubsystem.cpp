@@ -46,6 +46,7 @@ struct FWorkerEvent
 	FString SensorId;
 	int64 FrameId = 0;
 	int32 Bytes = 0;
+	int64 PcdOriginalPointBytes = 0, PcdEncodedPointBytes = 0;
 	int32 QueueDepth = 0;
 	int32 ReceiptDepth = 0;
 	int64 GapDelta = 0;
@@ -628,6 +629,8 @@ private:
 		Event.SensorId = Frame.SensorId;
 		Event.FrameId = Frame.FrameId;
 		Event.Bytes = static_cast<int32>(FMath::Min<int64>(MAX_int32, Frame.NumBytes()));
+		Event.PcdOriginalPointBytes=Frame.PcdOriginalPointBytes;
+		Event.PcdEncodedPointBytes=Frame.PcdEncodedPointBytes;
 		Event.RequestId=RequestId;Event.RunId=HeaderValue(Frame.Headers,TEXT("x-run-uuid"));Event.AcquisitionUtc=Frame.TimestampUtc;
 		Event.ObservedUtc=FDateTime::UtcNow();Event.ObservedSeconds=LastSocketWriteSeconds;
 		Event.QueueDepth = QueueCounts[static_cast<int32>(Frame.StreamKind)].Load();
@@ -1040,6 +1043,12 @@ UVirtualSensorHighThroughputTransportSubsystem::UVirtualSensorHighThroughputTran
 
 UVirtualSensorHighThroughputTransportSubsystem::~UVirtualSensorHighThroughputTransportSubsystem() = default;
 
+FVirtualPcdBandwidthSample UVirtualSensorHighThroughputTransportSubsystem::GetRecentPcdBandwidth(const FString& SensorId,double Now) const
+{
+ if(const auto* Window=PcdBandwidthBySensor.Find(SensorId))return Window->Read(Now);
+ return {};
+}
+
 void UVirtualSensorHighThroughputTransportSubsystem::Deinitialize()
 {
 	StopHighThroughputTransport();
@@ -1315,7 +1324,9 @@ void UVirtualSensorHighThroughputTransportSubsystem::DrainWorkerEvents()
 		switch (Event.Type)
 		{
 		case EWorkerEventType::Submitted:
-			++Telemetry.SubmittedCount;
+			if(Event.StreamKind==EVirtualSensorStreamKind::PointCloud)
+   PcdBandwidthBySensor.FindOrAdd(Event.SensorId).Record(Event.ObservedSeconds,Event.Bytes,Event.PcdOriginalPointBytes,Event.PcdEncodedPointBytes);
+   ++Telemetry.SubmittedCount;
 			Telemetry.SubmittedBytes += Event.Bytes;
 			if (Telemetry.FirstSubmittedSeconds <= 0.0) Telemetry.FirstSubmittedSeconds = FPlatformTime::Seconds();
 			{

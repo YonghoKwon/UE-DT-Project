@@ -18,6 +18,14 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### PCD-BANDWIDTH-01 — 전송 용량 옵션·기본 LZF 적용
+
+Full/Compact/Minimal/Custom·필드 체크·LZF·1/1·1/2·1/4를 LiDAR별/일괄 적용하고 기존 v6 설정을 보존한다. 사용자 결정대로 Full+LZF On+1/1을 유지하며 파일 저장은 Full+binary다. 압축 체크박스 옆과 툴팁에 PCL·프로젝트 수신기·ROS2 브리지 호환 및 자체 서버 압축 해제 지원 확인 안내를 표시한다. 전송 중에는 최근 1초 실제 PCD body 바이트·Hz·payload 압축 절감률과 실측 예산 %를 우선 표시하고, 미전송 상태에서만 **최대 추정**을 표시한다.
+
+최신 독립 리뷰 수정 `a784f6b`는 설정 분주 생략을 `ConfiguredDivisorSkippedCount`에만 기록한다. 데이터 필수 실행은 모든 획득 PCD를 요구하므로 대상 분주가 1/1이 아니면 UI 사전 점검과 실제 준비 진입점에서 차단한다. 관찰 허용·독립 전송은 분주를 유지한다. PCD UTF-8 헤더는 생성·파싱·바이트 집계가 공통 1 MiB 상한을 사용하며 초과 헤더는 생성하지 않는다. 관련 자동화 37 Success/8 조건부 skip/0 Fail·quick·layer0→0·DTCore guard가 통과했다. 이번 작은 수정은 지정 검증 범위에 따라 release/perf/90초 측정을 재실행하지 않았다.
+
+이전 송신 구현 `69d6626`의 3대×90초 local loopback 합계는 Full binary 73.61 → 기본 38.81 MiB/s(−47.28%), Compact 31.54, Minimal 27.57이었다. encode/engine/callback 150ms 초과·형식 오류 0이다. 이전 `f3b59c4`의 release는425 Success/44 조건부 skip/0 Fail, 표시형 RT on ABAB×3는 FPS +0.0006%·engine p95 0%·GT +0.0201%로 통과했다. 이 수치를 최신 수정의 재측정 결과로 표시하지 않는다. 직접 마우스는 monitor capture 오류로 보류이며 기존 #28b 절대 검사 실패도 보존한다. [현재 검증·이전 수치·커밋·제한](Saved/Reports/PCD-BANDWIDTH-01/RESULT.md).
+
 ### FOLLOWUP-28-26 — 환경 정리 후 FPS 통과, 획득cadence로 통합 gate 차단
 
 독립 리뷰 수정: `f5d5a4e`는 최신 작은 PCD가 이전 큰 FIFO head를 영구 대기시키는 센서 토큰 상한을 수정한다. 해당 센서의 현재 FIFO head 바디까지 상한에 포함하고, 기존 refill 공정성·실제 바이트 차감·전역 버킷·예약 상한은 유지한다. Exact/Wildcard 1.32MB→66KB 회귀는 수정 전2 Fail, 수정 후 모두1.05초 버킷 시간 내 FIFO 송신접수·socket·receipt·외부33-byte/schema/checksum 검증 PASS, overload/교체0이다. `4c24907`은 `-CoilPhotoReport` 별칭을 복원하며 `-CoilReport`가 우선한다. 핵심5 Success, SensorStream/별칭38 Success·6조건부skip·0Fail이다. [증거](Saved/Reports/FOLLOWUP-28-26/r5/REVIEW-FIX.md).
@@ -537,7 +545,7 @@ node Tools/Artemis/publish_slab_scenario.mjs --input "C:/TestData/scenario.json"
 | Slab 입력 | topic.scenario | JSON, MESSAGE_ID=IFactory-agent |
 | Camera 출력 | topic.virtual.sensor.camera.0 | 고성능 원본 JPEG / virtual-camera.jpeg.v1 |
 | LiDAR 값 출력 | topic.virtual.sensor.lidar.0 | point 배열 없는 통계 JSON / virtual-lidar.telemetry.v1 |
-| PCD 출력 | topic.virtual.sensor.export.0 | 완전한 PCD v0.7 DATA binary / virtual-pointcloud.pcd.v1 |
+| PCD 출력 | topic.virtual.sensor.export.0 | PCD v0.7 DATA binary 또는 선택 LZF binary_compressed / virtual-pointcloud.pcd.v1 |
 
 Raw TCP STOMP worker가 binary I/O·receipt·자체 수신 검증을 담당한다. 기존 JSON `virtual-camera.v1`/`virtual-lidar.v1`은 호환 경로에 남는다. HTTP JSON/raw file POST도 별도 지원한다. `wss://`는 Engine STOMP 호환 경로이며 Raw TCP TLS 지원으로 보지 않는다.
 
@@ -549,7 +557,30 @@ Raw TCP STOMP worker가 binary I/O·receipt·자체 수신 검증을 담당한�
 
 재개는 새 acquisition 프레임부터이며 frame id·시퀀스·PCD bytes를 초기화하거나 폐기한 프레임을 재전송하지 않는다. 중단 때 폐기한 프레임은 Slab failure와 과부하 폐기 수에 남긴다. 실제 receipt가 30초간 계속 진행되면 백오프를 초기화한다(`PointCloudOverloadBackoffResetSeconds=30`); 연결된 채 대기한 시간만으로 초기화하지 않는다. 사용자 중지·송신 끄기·스트림 재설정·종료는 재개 예약을 취소한다. 옵션을 끄면 재시작 전까지 중지하는 기존 정책이다. 상태바는 **"PCD 과부하 · 잠시 후 자동 재개"**, 진단은 최소 대기시간·재개 횟수·폐기 수를 표시하며 실제 연결 경고와 구분한다. 설정은 component UPROPERTY, 재개 상태는 실행 중 임시값이며 기존 Blueprint 함수·세션 SaveGame 버전은 유지한다.
 
+### PCD-BANDWIDTH-01 — LiDAR별 전송 용량 선택
+
+**데이터 → PCD 전송 → PCD 전송 용량**에서 선택 LiDAR 또는 전체 LiDAR에 필드 프로파일·LZF 압축·전송 분주를 적용한다. Blueprint는 SensorManager의 `SetPcdBandwidthOptions` 또는 Publisher의 `SetPcdSendOptions` / `GetPcdSendOptions`를 사용한다. UI 변경은 기존 SensorUI v6 SaveGame의 추가 map에 저장하며 기존 저장값·슬롯·버전을 유지한다. XYZ는 항상 포함한다. **새 전송 기본값은 Full + LZF 압축 켜짐 + 1/1**이다. 저장·Recorder의 기본값은 Full + binary다. 기존에 명시적으로 저장한 압축 끄기·필드·주기 선택은 기본값보다 우선한다.
+
+| 프로파일 | 필드 | 비압축 점당 크기 |
+|---|---|---|
+| Full (기본) | 기존 11필드 | 33 B |
+| Compact | x y z intensity ring time_offset_ns | 24 B |
+| Minimal | x y z | 12 B |
+| Custom | XYZ + 사용자가 체크한 필드 | 12–33 B |
+
+**압축 호환 안내:** 기본 On · PCD 표준 binary_compressed(LZF). PCL(loadPCDFile)·본 프로젝트 수신기·ROS2 브리지는 읽을 수 있음. 자체 파서를 쓰는 서버는 압축 해제 지원 확인 후 사용, 미지원이면 체크 해제.
+
+binary/binary_compressed PCD UTF-8 헤더는 `DATA` 줄의 개행까지 최대 1 MiB다. 생성기·수신 파서·실측 바이트 집계가 같은 상한을 사용하며 생성기는 초과 헤더를 거부한다(점 데이터의 기존 128 MiB 디코드 상한과 별개).
+
+PCD 헤더의 FIELDS/SIZE/TYPE/COUNT로 레코드를 해석해야 한다. `DATA binary_compressed`는 little-endian u32 압축 크기·원본 크기 뒤 단일 LZF 스트림이며 압축 전 데이터는 필드별 SoA다([PCL 규격](https://github.com/PointCloudLibrary/pcl/blob/master/doc/tutorials/content/pcd_file_format.rst)). 프로젝트 수신기·저장 점군 재생·TestSet 검증·PCD 검사 스크립트·JS STOMP probe·ROS2 wire reader는 두 형식을 읽고 누락 필드는 기본값으로 복원한다. ROS PointCloud2는 기존 33바이트 로컬 메시지 레이아웃을 유지하며, 누락 intensity/ring/index/time/validity는 0, return_count/confidence는 1로 채운다. 외부 수신기와 필드 축소 합의 후 선택한다. 압축 기본값의 실측 판정은 `Saved/Reports/PCD-BANDWIDTH-01/RESULT.md`에 기록한다.
+
+전송 분주 1/1·1/2·1/4는 20Hz 측정에서 전송만 20·10·5Hz로 바꾼다. acquisition·preview·Slab 분석·Export/Recorder의 Full 파일 저장은 유지한다. 의도된 분주 생략은 `ConfiguredDivisorSkippedCount`에만 기록하고 Slab 실패로 기록하지 않는다. 데이터 필수 실행의 PCD 대상은 전부 1/1이어야 하며 UI 사전 점검과 실제 준비 진입점에서 분주 1/2·1/4를 차단한다. 모든 획득 프레임을 요구하는 기존 FrameStride=1 정책과 맞춘 것이다. 관찰 허용·독립 전송의 분주 선택은 유지하며 자동으로 1/1로 덮어쓰지 않는다. 진행 중인 FIFO 작업을 폐기하지 않도록 옵션 변경 전 전송을 중지하고 준비 대기열 배수를 기다린다. 이미 송신기에 접수한 bytes와 receipt는 원래 snapshot으로 끝까지 처리한다.
+
+표시값은 점당 bytes·대당/전체 MiB/s·decimal Mbps·현재 예산 대비 %다. 송신 중 Raw TCP PCD는 최근 1초 소켓 쓰기 완료 body 바이트(PCD 헤더 포함)·대당 Hz·같은 프레임의 payload 압축 절감률을 우선 표시하고 예산 %도 실측으로 계산한다. 미송신 상태에서만 규격 최대 점 수 × 비압축 크기를 **최대 추정**으로 표시한다. 미지원 backend 또는 집계 손실은 실측 미완료로 표시하고 추정 예산으로 대체하지 않는다. 80 MiB/s 예산·기존 사용자 예산 override·공평 배분·FIFO head 정책은 유지한다. 숨긴 패널의 표시 문자열 조립은 멈추며 최대 5Hz로 갱신한다.
+
 ### PCD 소비자가 알아야 할 최소 계약
+
+아래는 Full 비압축 레코드 예시다. 기본 실시간 전송은 같은 필드의 `DATA binary_compressed`이며 두 encoding 모두 헤더를 읽어 해석한다.
 
 **ROS2로 보기(ROS2-01, 사용자 2026-10-15):** [외부 브리지 안내](Tools/Ros2Bridge/README.md)에 WSL2 설치·기존 PCD 송신·Foxglove 연결·정상 종료/삭제 절차가 있다. UE C++·wire·Broker 설정을 바꾸지 않는다. PCD 로컬 XYZ는 이미 ROS와 같은 m·오른손 축이므로 그대로 사용하고 acquisition TF의 UE 월드 Y만 변환한다. binary JPEG에는 pose/FOV가 없어 CameraInfo는 미보정이며, CAM-GT 정답 데이터의 새 서버 송신과 구분한다. UE UI의 ROS2 상태 표시는 2단계 제안이다.
 
@@ -561,11 +592,11 @@ COUNT 1 1 1 1 1 1 1 1 1 1 1
 DATA binary
 ```
 
-- 한 점 33바이트, little-endian. XYZ는 센서 로컬 **m**, X 전방/Y 좌측/Z 위쪽이다. 12/36/40바이트 stride로 읽으면 안 된다.
+- 기본 Full은 한 점 33바이트, little-endian. 선택 전송 프로파일은 위 표와 헤더의 stride를 따른다. XYZ는 센서 로컬 **m**, X 전방/Y 좌측/Z 위쪽이다. 12/36/40바이트 stride로 읽으면 안 된다.
 - `# MA0T10_META {JSON}` 주석에 sensor_id, sensor_frame_id, timestamp_utc 및 선택적 run_uuid/scenario_uuid/mtl_no/frame_no/elapsed_sec가 있다. Slab frame_no와 sensor_frame_id는 다른 번호이며 식별 정수는 문자열로 보존한다.
 - snapshot pose가 있으면 `sensor_to_world_m`(row-major 4×4, column vector 적용)로 UE 월드 meter를 복원한다. 센서를 회전한 경우 로컬 Z에 센서 높이만 더하면 틀린다.
 - `POINTS 0`도 정상 프레임이다. checksum/content-length는 주석을 포함한 전체 파일 바이트 기준이다. 일반 PCD 라이브러리 재저장은 사용자 주석을 제거할 수 있다.
-- 실시간 PCD는 Binary 고정이다. 수동 ASCII/기존 API의 주석 포함 여부를 동일하다고 가정하지 않는다.
+- 실시간 PCD는 binary 또는 선택 binary_compressed다. 수동 ASCII/기존 API의 주석 포함 여부를 동일하다고 가정하지 않는다.
 - Tag/Semantic/ROI 필터는 측정 출력 조건이다. `PointCloudTarget`/Semantic은 Digital Twin 정보이며 ML-X 고유 기능이라고 표기하지 않는다. `mtl_no`가 붙어도 모든 점이 그 Slab 점이라는 뜻은 아니다.
 
 ```powershell
@@ -713,6 +744,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+PCD-BANDWIDTH-01은 L1 공용 PCD 코덱·전송 옵션/분주와 L2 수신·재생 adapter, L3 기존 소유 데이터 패널·v6 설정을 확장한다. DTCore·모듈·자산·저장 슬롯 변경 없이 layer/allowlist 0→0을 검증한다. 파일 저장은 Full binary를 유지한다.
 
 FOLLOWUP-28은 기존 L1 송신기/상태와 L3 소유 데이터 패널·상태바만 확장한다. 새 모듈·플러그인·자산·DTCore·wire·SaveGame 형식 변경 없이 layer/allowlist0→0이다.
 
