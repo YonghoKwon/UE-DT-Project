@@ -145,6 +145,7 @@ public:
     void SetSceneRect(FSlateRect Rect,FVector2D Full,bool Visible);
     void SetView(int32 View);
     void ShowTools();
+    FVector2D GetToolsInset() const;
     void Focus(int32 Preset);
 protected:
     virtual void BeginPlay() override;

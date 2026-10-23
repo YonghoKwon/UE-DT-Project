@@ -1,4 +1,5 @@
 #include "CoilLoadingMonitor.h"
+#include "CoilLoadingPresentation.h"
 #include "SensorOwnedPresentationStyle.h"
 #include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
@@ -115,13 +116,15 @@ bool UCoilLoadingMonitor::ApplyInputs()
 }
 void UCoilLoadingMonitor::Refresh()
 {
-    auto* S=Sim.Get();if(!S||!IsVisible())return;if(LastPlanCount!=S->Plan().Num()){LastPlanCount=S->Plan().Num();SyncInputs();}const FVector2D Size=UWidgetLayoutLibrary::GetViewportSize(this)/UWidgetLayoutLibrary::GetViewportScale(this);if(Size.X<=0||Size.Y<=0)return;
+    auto* S=Sim.Get();if(!S||!IsVisible())return;if(LastPlanCount!=S->Plan().Num()){LastPlanCount=S->Plan().Num();SyncInputs();}const FVector2D FullSize=UWidgetLayoutLibrary::GetViewportSize(this)/UWidgetLayoutLibrary::GetViewportScale(this);if(FullSize.X<=0||FullSize.Y<=0)return;
+    const FBox2D Area=CoilLoadingPresentation::AvailableArea(FullSize,Host.IsValid()?Host->GetToolsInset():FVector2D::ZeroVector);
+    const FVector2D Size=Area.GetSize(),Offset=Area.Min;
     const double Left=FMath::Min(360.*TextScale,Size.X*.34),X=Left+24,Width=FMath::Max(100.,Size.X-X-12),FooterH=FMath::Clamp(Size.Y*.27,170.,260.),Top=160*TextScale;
     const FVector2D Positions[]={{12,12},{X,12},{X,Top},{X,Size.Y-FooterH-12}},Sizes[]={{Left,Size.Y-24},{Width,Top-24},{Width,Size.Y-FooterH-Top-24},{Width,FooterH}};
-    for(int32 I=0;I<Slots.Num();++I){Slots[I]->SetPosition(Positions[I]);Slots[I]->SetSize(Sizes[I]);}
-    const FVector2D MaskPositions[]={{0,0},{0,Size.Y-FooterH-24},{0,Top},{Size.X-12,Top}},MaskSizes[]={{Size.X,Top},{Size.X,FooterH+24},{X,Size.Y-FooterH-Top-24},{12,Size.Y-FooterH-Top-24}};
+    for(int32 I=0;I<Slots.Num();++I){Slots[I]->SetPosition(Positions[I]+Offset);Slots[I]->SetSize(Sizes[I]);}
+    const FVector2D MaskPositions[]={{0,0},{0,Size.Y-FooterH-24},{0,Top},{FullSize.X-12,Top}},MaskSizes[]={{FullSize.X,Top},{FullSize.X,FullSize.Y-Size.Y+FooterH+24},{X+Offset.X,Size.Y-FooterH-Top-24},{12,Size.Y-FooterH-Top-24}};
     for(int32 I=0;I<SceneMasks.Num();++I){SceneMasks[I]->SetPosition(MaskPositions[I]);SceneMasks[I]->SetSize(MaskSizes[I]);}
-    ViewRect=FSlateRect(X,Top,Size.X-12,Size.Y-FooterH-24);SceneInputSlot->SetPosition({X,Top});SceneInputSlot->SetSize({Width,ViewRect.Bottom-ViewRect.Top});const int32 View=S->View();PlotCard->SetVisibility(View==2||View==3?ESlateVisibility::Visible:ESlateVisibility::Collapsed);if(Host.IsValid())Host->SetSceneRect(ViewRect,Size,View!=2&&View!=3);
+    ViewRect=FSlateRect(X+Offset.X,Top,FullSize.X-12,Size.Y-FooterH-24);SceneInputSlot->SetPosition({X+Offset.X,Top});SceneInputSlot->SetSize({Width,ViewRect.Bottom-ViewRect.Top});const int32 View=S->View();PlotCard->SetVisibility(View==2||View==3?ESlateVisibility::Visible:ESlateVisibility::Collapsed);if(Host.IsValid())Host->SetSceneRect(ViewRect,FullSize,View!=2&&View!=3);
     const int32 Selected=S->HighlightedCoils().Num()==1?S->HighlightedCoils()[0]:INDEX_NONE;RemoveButton->SetIsEnabled(S->Plan().IsValidIndex(Selected)&&S->Phase()==ECoilLoadingPhase::Idle);SelectionText->SetText(FText::FromString(S->Plan().IsValidIndex(Selected)?TEXT("선택: ")+S->Plan()[Selected].Spec.CoilId:TEXT("선택 없음 · 코일 클릭 후 제거")));
     if(!S->LastPlanSavePath.IsEmpty()&&S->LastPlanSavePath!=LastShownPlanPath){LastShownPlanPath=S->LastPlanSavePath;FileInput->SetText(FText::FromString(LastShownPlanPath));}
     Operation->SetText(FText::FromString(S->Status+FString::Printf(TEXT(" · 홀드 %.2f×%.2fm / 개구 %.2f×%.2fm"),S->Settings.HoldLength,S->Settings.HoldWidth,S->Settings.OpeningLength,S->Settings.OpeningWidth)));
