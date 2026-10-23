@@ -18,6 +18,10 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### LIDAR-WALLCLOCK-28b — 구현·정적 검증, 직렬 빌드/측정 대기
+
+LiDAR 자동 획득의 admission을 pause를 제외한 단조 wall-clock deadline으로 분리한다. 요청 주기 grid·센서별 시작 위상을 유지하고 CPU/센서 소유 HWRT 공통으로 최대1회/엔진프레임·동시1획득을 허용하며 만료 슬롯을 집계한다. Blueprint/API·획득 snapshot·PCD/출력 계약은 유지한다. 90초 검증은 센서별 실제/요청 Hz≥0.95와 같은 workload ABAB 중앙값2%를 함께 사용하고 기존59FPS/3프레임 assertion은 legacy 참고로 보존한다. 20개 합성 판정 회귀·quick9·layer0/0은 통과했으나 C++ 테스트 실행·컴파일·실제 RHI/90초·성능은 병렬 금지로 미수행이다. 과거 #28 실패를 통과로 바꾸지 않는다. [설계·직렬 검증 명령·위험](Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md).
+
 ### FOLLOWUP-28-26 — 환경 정리 후 FPS 통과, 획득cadence로 통합 gate 차단
 
 독립 리뷰 수정: `f5d5a4e`는 최신 작은 PCD가 이전 큰 FIFO head를 영구 대기시키는 센서 토큰 상한을 수정한다. 해당 센서의 현재 FIFO head 바디까지 상한에 포함하고, 기존 refill 공정성·실제 바이트 차감·전역 버킷·예약 상한은 유지한다. Exact/Wildcard 1.32MB→66KB 회귀는 수정 전2 Fail, 수정 후 모두1.05초 버킷 시간 내 FIFO 송신접수·socket·receipt·외부33-byte/schema/checksum 검증 PASS, overload/교체0이다. `4c24907`은 `-CoilPhotoReport` 별칭을 복원하며 `-CoilReport`가 우선한다. 핵심5 Success, SensorStream/별칭38 Success·6조건부skip·0Fail이다. [증거](Saved/Reports/FOLLOWUP-28-26/r5/REVIEW-FIX.md).
@@ -799,7 +803,7 @@ AUTO-01은 기존 모듈의 L2 `Scenario/Automation`에서 하위 센서/출력�
 |---|---|
 | VirtualSensorActorBase / Camera·LiDAR Actor | 실행·편집 상태·interaction·외부 프레임 API(`SubmitExternalFrame`) |
 | Capture / Scan / Analysis / Visualization / Export | 측정과 파생 처리 분담 |
-| VirtualSensorSchedulerSubsystem | 자동 작업 분배; 센서 수 기반 60/30 FPS 예산은 지원 보증이 아님 |
+| VirtualSensorSchedulerSubsystem | 자동 작업 분배; LiDAR admission은 pause 제외 wall-clock grid·최대1회/프레임, CPU/HWRT 공통. 센서 수 기반 60/30 FPS 예산은 지원 보증이 아님 |
 | IVirtualSensorAcquisitionBackend | 기존 GPU LiDAR 경계; 아직 Camera/SDK 전체의 범용 확장 계약은 아님 |
 | Output / StreamPublisher / Transport / Recorder / HighThroughputTransport | 프레임 라우팅·직렬화·송수신·기록, Raw TCP STOMP worker |
 | FileSave / PeriodicFileSave | Widget 수명과 독립적인 bounded 파일 작업 |

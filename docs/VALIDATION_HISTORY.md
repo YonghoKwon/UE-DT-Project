@@ -6,6 +6,13 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-23 LIDAR-WALLCLOCK-28b — 병렬 구현·빌드 없는 검증
+
+- 기준b4e8327/지정worktree `wt_28b`, DTCore b2504d1 clean. 기존 게임 시간 deadline을 pause 제외 단조 wall-clock grid로 분리하고 CPU/HWRT 공통 최대1admission/엔진프레임·동시1획득·만료슬롯 집계를 구현했다. 같은프레임 재시작·데이터셋 단발 hold/retry를 보존했다.
+- 기존≥59FPS/엔진3프레임 assertion은 원문 수식·이름의 legacy JSON/로그로 보존한다. 새 후보별 획득/요청Hz≥0.95와 같은90초 workload ABAB×3 중앙값 각각2%(FPS/p95/GT)를 함께 판정한다. 배경CPU snapshot은 정보용이다.95% 허용은 사용자 지시의 기대값 교체이며 과거FAIL 재분류/실측PASS를 주장하지 않는다.
+- PowerShell 순수판정14+scheduled summarize cohort6=20 PASS/0FAIL, 기존cohort5 PASS, quick9 Success/0Failed/0Skip, layer 위반0/allowlist0→0, DTCore guard·PS parser3파일·diff check 통과. 합성 테스트와 실제 성능 증거를 구분한다.
+- 가상59/58/45/120FPS의20Hz·jitter/hitch/누락/몰아치기 차단·pause/재시작 C++2테스트는 작성만 했다. Editor/Game 컴파일·C++실행·feature/release·실제90초 CPU/HWRT/PCD·RT on ABAB는 병렬 지시의 금지에 따라 NOT_RUN. 메인 프로세스/화면/GPU/개인설정 조작0, 보호경로 변경0. 최종 커밋·증거·직렬 명령·미수행·merge_check는 [RESULT](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md) 및 result.json을 따른다.
+
 ## 2026-10-22 PR69 — FOLLOWUP 독립 코드 검수6건
 
 - 운전실 LiDAR signed 좌우 장착은 ±1.30m+사용자X보정, 절대오차<=1cm다. 캐빈폭2.4m의 반폭1.20m+외측브래킷0.10m로 산출하며 원래 단방향 하한 검사를 상·하한 검사로 대체했다.

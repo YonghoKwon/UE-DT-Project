@@ -4,6 +4,12 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## LIDAR-WALLCLOCK-28b — wall-clock 획득·환경 독립 판정 (직렬 검증 대기)
+
+사용자2026-10-23 #28b 승인. 기준b4e8327, 지정worktree feat/lidar-wallclock-28b에서 자동 획득의 단조 wall-clock grid·한 프레임1회·동시1획득·만료슬롯 집계를 구현했다. pause 제외/재시작/즉시요청/데이터셋 단발을 보존하고 CPU·센서 소유BLAS/TLAS가 같은 admission을 사용한다. 기존 코드는 이미 게임 시간 deadline 방식이므로 프레임 modulo 제거로 설명하지 않는다. 획득 메타데이터/공개BP·PCD·80MiB/s·FIFO는 유지한다. DTCore 변경 후보 없음(기존 프로젝트 Scheduler의 책임).
+
+새 gate는 센서별 실제획득Hz/요청Hz≥0.95 및 동일90초 workload의 ABAB×3(A6/B6) FPS·engine p95·GT 중앙값 각각2%다. 기존≥59FPS/3프레임 assertion은 legacy 참고로 남긴다. 백그라운드CPU snapshot은 판정에 사용하지 않는다. 빌드 없는 판정 회귀20/기존cohort5·quick9/layer0→0 통과, 가상시계C++2개는 작성만 했고 실행하지 않았다. Editor/Game Development·집중/전체회귀·90초 실제HWRT/CPU·표준RT on perf는 다음직렬단계에서 확인한다. [전후 비교·수치 입증 계획·명령·한계](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md). 과거 #28통합FAIL은 보존하며 구현을 실측PASS로 표시하지 않는다.
+
 ## FOLLOWUP-28-26 — 환경 정리 후 FPS 통과, 획득cadence로 통합 gate 차단
 
 독립 리뷰 수정: `f5d5a4e`는 최신 작은 PCD가 이전 큰 FIFO head를 영구 대기시키는 센서 토큰 상한을 수정한다. 해당 센서의 현재 FIFO head 바디까지 상한에 포함하고, 기존 refill 공정성·실제 바이트 차감·전역 버킷·예약 상한은 유지한다. Exact/Wildcard 1.32MB→66KB 회귀는 수정 전2 Fail, 수정 후 모두1.05초 버킷 시간 내 FIFO 송신접수·socket·receipt·외부33-byte/schema/checksum 검증 PASS, overload/교체0이다. `4c24907`은 `-CoilPhotoReport` 별칭을 복원하며 `-CoilReport`가 우선한다. 핵심5 Success, SensorStream/별칭38 Success·6조건부skip·0Fail이다. [증거](../Saved/Reports/FOLLOWUP-28-26/r5/REVIEW-FIX.md).
