@@ -35,6 +35,7 @@ public:
         return true;
     }
     std::uint64_t GetSkippedSlots() const { return TotalSkipped; }
+    double GetNextDue() const { return Origin + static_cast<double>(NextSlot) * Period; }
 
     void RequestImmediate(double Now)
     {

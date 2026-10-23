@@ -27,6 +27,15 @@ struct FVirtualLidarDerivedOutputJob;
 struct FVirtualLidarSceneQueryBuffer;
 struct FVirtualLidarSceneQueryJob;
 struct FVirtualLidarScenePointPool;
+#if WITH_DEV_AUTOMATION_TESTS
+struct FVirtualLidarTimingSample
+{
+    int64 FrameId=0;
+    double Due=0,Admitted=0,ReadbackObserved=0,Normalized=0,Completed=0;
+    uint64 AdmissionFrame=0,ReadbackFrame=0,CompletionFrame=0,LastBusyFrame=MAX_uint64;
+    int32 DueBusyFrames=0;
+};
+#endif
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnVirtualLidarDerivedFrameCompletedNative,const FVirtualSensorFrameEnvelope&);
 DECLARE_MULTICAST_DELEGATE_FourParams(FOnVirtualLidarCompatibilityRequestCompletedNative,const FString&,bool,const FVirtualSensorFrameEnvelope&,const FString&);
 
@@ -179,6 +188,13 @@ public:
     // Automatic scan entry points used by UVirtualSensorSchedulerSubsystem.
     // ScanAndSend remains the synchronous one-shot compatibility API.
     void PrepareScheduledScan(double NowSeconds);
+#if WITH_DEV_AUTOMATION_TESTS
+    void StartTimingTraceForTests() { bTimingTraceForTests=true; TimingSamplesForTests.Reset(); TimingSamplesForTests.Reserve(4096); }
+    const TArray<FVirtualLidarTimingSample>& GetTimingTraceForTests() const { return TimingSamplesForTests; }
+    bool bTimingTraceForTests=false;
+    FVirtualLidarTimingSample ActiveTimingSampleForTests;
+    TArray<FVirtualLidarTimingSample> TimingSamplesForTests;
+#endif
     void SuspendScheduledScanCadence(double WallSeconds) { ScheduledCadence.Suspend(WallSeconds); }
     uint64 GetScheduledMissedSlotCount() const { return ScheduledCadence.GetSkippedSlots(); }
     int32 ProcessScheduledScanChunk(int32 MaxRays);

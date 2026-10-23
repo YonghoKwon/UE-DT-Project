@@ -1,5 +1,5 @@
-#include "IndustrialLidarProfiles.h"
 #include "VirtualLidarScanComponent.h"
+#include "IndustrialLidarProfiles.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
 #include "Async/Async.h"
@@ -510,6 +510,11 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
                 ? TEXT("hardware_ray_tracing")
                 : TEXT("accurate_cpu_trace")));
     const bool bAcquisitionInProgress = bScheduledScanInProgress || bGpuDepthScanInProgress;
+#if WITH_DEV_AUTOMATION_TESTS
+    const double TraceDue=ScheduledCadence.GetNextDue();
+    if(bTimingTraceForTests&&bAcquisitionInProgress&&WallSeconds>=TraceDue&&ActiveTimingSampleForTests.LastBusyFrame!=GFrameCounter)
+    {++ActiveTimingSampleForTests.DueBusyFrames;ActiveTimingSampleForTests.LastBusyFrame=GFrameCounter;}
+#endif
     const auto Decision = ScheduledCadence.Poll(WallSeconds, SafeInterval, GFrameCounter, bAcquisitionInProgress);
     // Counts represent expired requested slots, not output drops or failed captures.
     RuntimeStatus.BudgetSkippedAcquisitionFrameCount += static_cast<int32>(FMath::Min<uint64>(
@@ -518,6 +523,9 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
         Decision.SkippedSlots, MAX_int32 - RuntimeStatus.DeadlineMissCount));
     if (Decision.bAdmit)
     {
+#if WITH_DEV_AUTOMATION_TESTS
+        if(bTimingTraceForTests){ActiveTimingSampleForTests=FVirtualLidarTimingSample();ActiveTimingSampleForTests.FrameId=FrameId+1;ActiveTimingSampleForTests.Due=TraceDue;ActiveTimingSampleForTests.Admitted=WallSeconds;ActiveTimingSampleForTests.AdmissionFrame=GFrameCounter;}
+#endif
         if (bSingleScheduledScanRequested)
         {
             ScheduledCadence.HoldAdmissions();

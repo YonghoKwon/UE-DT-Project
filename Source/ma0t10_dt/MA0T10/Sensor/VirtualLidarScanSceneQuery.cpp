@@ -55,6 +55,9 @@ struct FVirtualLidarSceneQueryJob
  bool bWorkerNormalize=false,WorkerStarted=false,bRollingTimestamps=false,bMultiEcho=false;
  float Interval=0;
  std::atomic<bool> WorkerReady{false};
+#if WITH_DEV_AUTOMATION_TESTS
+ std::atomic<double> NormalizeFinished{0};
+#endif
  ~FVirtualLidarSceneQueryJob(){if(PointLease)*PointLease=MoveTemp(WorkerPoints);}
 
  int ChunkCount=0;
@@ -101,6 +104,9 @@ void NormalizeHardware(const TSharedPtr<FVirtualLidarSceneQueryJob,ESPMode::Thre
    else if(J->bMultiEcho)InitializeWorkerPoint(*J,I,Point,Direction,Range);
   }
  },EParallelForFlags::BackgroundPriority|EParallelForFlags::Unbalanced);
+#if WITH_DEV_AUTOMATION_TESTS
+ J->NormalizeFinished.store(FPlatformTime::Seconds(),std::memory_order_relaxed);
+#endif
  J->Buffer->Busy.store(false,std::memory_order_release);J->WorkerReady.store(true,std::memory_order_release);
 }
 }
@@ -179,6 +185,9 @@ bool UVirtualLidarScanComponent::PollSceneQueryBatch()
    if(J->Buffer->Busy.load())return false;
    if(J->bWorkerNormalize)
    {
+#if WITH_DEV_AUTOMATION_TESTS
+    if(bTimingTraceForTests){ActiveTimingSampleForTests.ReadbackObserved=FPlatformTime::Seconds();ActiveTimingSampleForTests.ReadbackFrame=GFrameCounter;}
+#endif
     J->PointLease=MoveTemp(ScenePointLease);J->WorkerPoints=MoveTemp(ScheduledPoints);J->WorkerStarted=true;J->Buffer->Busy.store(true);
     Async(EAsyncExecution::ThreadPool,[J,Hits=MoveTemp(Hits)]() mutable {NormalizeHardware(J,MoveTemp(Hits));});return false;
    }
@@ -292,6 +301,9 @@ bool UVirtualLidarScanComponent::ShouldIgnoreScheduledHit(const FHitResult& Hit)
 int32 UVirtualLidarScanComponent::CompleteHardwareNormalizedFrame()
 {
  auto J=SceneQueryJob;if(!J||!J->WorkerStarted||!J->WorkerReady.load(std::memory_order_acquire))return -1;
+#if WITH_DEV_AUTOMATION_TESTS
+ if(bTimingTraceForTests)ActiveTimingSampleForTests.Normalized=J->NormalizeFinished.load(std::memory_order_relaxed);
+#endif
  const double Started=FPlatformTime::Seconds();ScheduledPoints=MoveTemp(J->WorkerPoints);ScenePointLease=MoveTemp(J->PointLease);
  TMap<FName,int32> Counts;ScheduledHitPointCount=0;ScheduledSemanticCounts.Reset();
  for(int I=0;I<ScheduledPoints.Num();++I)

@@ -106,7 +106,7 @@ public:
             {
                 A->StopSensor();if(I>=SensorCount)continue;
                 auto* Scan=A->ScanComponent.Get();if(OS1)Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::OusterOS1_64_Rev05);
-                Scan->AcquisitionBackend=FParse::Param(FCommandLine::Get(),TEXT("GpuLidarCpu"))?EVirtualLidarAcquisitionBackend::AccurateCpuTrace:EVirtualLidarAcquisitionBackend::Auto;Scan->ScanInterval=.05f;A->StartSensor();Sensors.Add(A);
+                Scan->AcquisitionBackend=FParse::Param(FCommandLine::Get(),TEXT("GpuLidarCpu"))?EVirtualLidarAcquisitionBackend::AccurateCpuTrace:EVirtualLidarAcquisitionBackend::Auto;Scan->ScanInterval=.05f;if(FParse::Param(FCommandLine::Get(),TEXT("GpuLidarTimingTrace")))Scan->StartTimingTraceForTests();A->StartSensor();Sensors.Add(A);
             }
             if(!Test->TestEqual(TEXT("requested sensor count is present"),Sensors.Num(),SensorCount))return true;
             Baselines.Init(0,Sensors.Num());
@@ -254,6 +254,19 @@ public:
                     Test->TestTrue(TEXT("default Rev7x3 receipts >=19Hz / configured divisor"),(S.ReceiptReceivedCount-B.ReceiptReceivedCount)/Seconds>=19.0/BandwidthOptions.Divisor());
                     Test->TestTrue(TEXT("default Rev7x3 validated receive >=19Hz / configured divisor"),(S.ConsumerReceivedCount-B.ConsumerReceivedCount)/Seconds>=19.0/BandwidthOptions.Divisor());
                     Test->TestEqual(TEXT("default Rev7x3 has no budget warnings during measurement"),PcdBudgetWarningSamples,0);
+                }
+            }
+            if(Scan->bTimingTraceForTests)
+            {
+                FString TraceOutput;
+                if(FParse::Value(FCommandLine::Get(),TEXT("GpuLidarOutput="),TraceOutput))
+                {
+                    FString Csv=TEXT("frame_id,admitted_s,due_s,readback_s,normalized_s,completed_s,admission_engine_frame,readback_engine_frame,completion_engine_frame,due_busy_frames\n");
+                    int32 Count=0;
+                    for(const auto& S:Scan->GetTimingTraceForTests())if(S.FrameId>Baselines[I])
+                    {++Count;Csv+=FString::Printf(TEXT("%lld,%.9f,%.9f,%.9f,%.9f,%.9f,%llu,%llu,%llu,%d\n"),S.FrameId,S.Admitted-Measured,S.Due-Measured,S.ReadbackObserved-Measured,S.Normalized-Measured,S.Completed-Measured,S.AdmissionFrame,S.ReadbackFrame,S.CompletionFrame,S.DueBusyFrames);}
+                    Row->SetNumberField(TEXT("timing_trace_samples"),Count);
+                    Test->TestTrue(TEXT("bounded timing trace written"),FFileHelper::SaveStringToFile(Csv,*(TraceOutput+TEXT(".")+Scan->SensorId+TEXT(".timing.csv")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
                 }
             }
             AActor* Actor=Sensors[I].Get();if(Actor)Sensors[I]->StopSensor();

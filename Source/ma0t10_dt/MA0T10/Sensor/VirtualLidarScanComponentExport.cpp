@@ -78,6 +78,10 @@ void UVirtualLidarScanComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 
 void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
 {
+#if WITH_DEV_AUTOMATION_TESTS
+    if(bTimingTraceForTests&&TimingSamplesForTests.Num()<4096)
+    {ActiveTimingSampleForTests.Completed=FPlatformTime::Seconds();ActiveTimingSampleForTests.CompletionFrame=GFrameCounter;TimingSamplesForTests.Add(ActiveTimingSampleForTests);}
+#endif
     FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::SensorComplete);
     bScheduledScanInProgress = false;
     CancelSceneQueryBatch();ScheduledRayQuery.Reset();
