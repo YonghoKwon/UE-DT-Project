@@ -24,6 +24,8 @@
 
 기존95% 교체는 폐기했다. 새99%·90초19.9Hz/.995 목표에 `ceil(요청Hz×wall초)−2` 완료 하한을 추가해 경계2회 허용을 유지하며 강화했다. 후보18개 센서·실행에서 새 하한≥legacy 하한·실제 완료≥새 하한을 확인했고 legacy assertion은 참고값으로 보존했다. CPU FullSpec 3대의 20Hz 요청 실측 9.911/9.922/10.255Hz는 용량 한계로 기록하며20Hz PASS가 아니다. 기존 모니터는 요청 측정률 미달을5초 완료 횟수로 경고한다. 1/4 분주에서는 자동 송신 제어 생략1회를 획득 누락·설정 분주와 따로 기록했다. [설계·같은 실행 비교표·검증·제한](Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md).
 
+Independent review rework (`10aba1d`): start/stop/restart/rate changes now rebalance every affected equal-rate cohort by SensorId rank/count from the next slot. Original delayed-acquisition counters are preserved; `ExpiredCadenceSlotCount` reports expired slots separately. Sequential-start90s visible RHI: all3 completed1800 frames at19.997992Hz,0expired slots; minimum phase gap0.333333308; multi-admission frames5.851659% (peak2). Related7/0/0 and quick/layer/guard passed. New slot minimum1799 exceeds same-run legacy1786. ABAB was skipped under the explicit review exception: initial simultaneous deadlines/admissions are unchanged in the90s regression. Earlier9588c25 release/perf results above retain their original scope.
+
 ### PCD-BANDWIDTH-01 — 전송 용량 옵션·기본 LZF 적용
 
 Full/Compact/Minimal/Custom·필드 체크·LZF·1/1·1/2·1/4를 LiDAR별/일괄 적용하고 기존 v6 설정을 보존한다. 사용자 결정대로 Full+LZF On+1/1을 유지하며 파일 저장은 Full+binary다. 압축 체크박스 옆과 툴팁에 PCL·프로젝트 수신기·ROS2 브리지 호환 및 자체 서버 압축 해제 지원 확인 안내를 표시한다. 전송 중에는 최근 1초 실제 PCD body 바이트·Hz·payload 압축 절감률과 실측 예산 %를 우선 표시하고, 미전송 상태에서만 **최대 추정**을 표시한다.

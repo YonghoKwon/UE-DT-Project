@@ -6,6 +6,14 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-23 LIDAR-WALLCLOCK-28b - independent review fixes
+
+- Code10aba1d: deterministic full-cohort rephase on membership/start-generation/period changes, future-slot application without debt/burst; unchanged simultaneous initial grid preserved. Original DeadlineMiss/BudgetSkipped event semantics restored, separate reflected ExpiredCadenceSlotCount added; all consumers inventoried.
+- Editor build and related D3D12 tests7Success/0Skip/0Fail. Regression covers3sequential orders, stop/restart, same-tick generation changes, mixed rates/period edits, >=1/count-epsilon spacing, unchanged90s simultaneous deadlines/admissions, and event-vs-slot counters. Initial implementation failure remains raw, corrected rerun passes unchanged expectations.
+- Sequential start frames613/634/655; real1920x1080visible RT-on Full+LZF PCD,90.009037s: all3x1800,19.997992Hz,0expired slots; due gaps>=0.333333308, same-frame314/5366=5.851659%, peak2. PCD3x1800 received,0skips/gaps/invalid/delivery errors. New slot minimum1799>=legacy1786; both legacy assertions and new gate pass in this same run.
+- ABAB skipped using explicit review exception, supported by identical simultaneous-start pure regression; no new2%measurement claimed. Prior9588c25 broad release/perf evidence remains historical. quick9/layer0->0/guard PASS. Fresh personal44/44exact restore; protected297unchanged; no maps/assets saved, no push/merge.
+- [RESULT](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md), `review-20261023T123501Z/manifest.json`, result.json and merge-check.json contain scope and limitations.
+
 ## 2026-10-23 LIDAR-WALLCLOCK-28b — 직렬 재작업 최종 검증
 
 - 자동 획득은 pause 제외 wall-clock 누적 기한·프레임당 최대1회·센서당 in-flight1회를 유지한다. 같은 주기 센서는 공통 grid에 균등 위상을 배치하고, 준비된 readback의 worker 정규화·순수 광선 패킷 병렬 생성·반환 point lease의 worker 정리로 GT 꼬리 지연을 줄였다. 공개 BP·획득 snapshot·PCD33-byte/FIFO/예산은 유지한다.
