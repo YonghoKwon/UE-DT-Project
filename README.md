@@ -18,9 +18,11 @@
 
 ## 1. 현재 상태 한눈에 보기
 
-### UXR-P2b — 150% 동적 행·해치 보기 구현, 직렬 검증 대기
+### UXR-P2b — 글자·해치 보기 직렬 UI 검증, 현장 수용 대기
 
-C02/H01/H03/H04의 코일 재생성 행 글자 배율, 해치 시점 버튼 줄바꿈·원료/센서 선택 접기, 한국어 역할과 TF 원문 접근, 미관측 격자 안내를 기존 L3 위젯 안에서 정리했다. 계산·센서 좌표·정책·저장값·DTCore·코일의 Slab UI 비노출 경계는 유지한다. `fadf810`에서 Editor 없는 quick9·layer/allowlist0→0·guard와 소스 비교8건을 확인했다. 신규 단위 테스트5개는 작성만 했으며 빌드·실제 UI/RHI·100/150% 캡처·성능은 미수행이다. [직렬 검증 목록과 제한](Saved/Reports/UXR-P2b/RESULT.md), 사용 빈도 근거가 없어 적용하지 않은 [C04 제안](docs/research/UXR-P2b/C04-proposal.md)을 따른다.
+C02/H01/H03/H04의 동적 행 배율·시점 줄바꿈/접기·한국어 역할/TF·미관측 설명을 정리했다. 직렬 검수에서 배지의 실제 필요 높이와 정지 시 마지막 획득 Hz 표시를 보완했다. 계산·센서 좌표·정책·저장값·DTCore·코일 Slab capability 경계는 유지한다. C04는 이용 빈도 근거가 없어 [문서 제안](docs/research/UXR-P2b/C04-proposal.md)만 유지했다.
+
+코드 `4887653`에서 UE5.3 Development 빌드, 관련22개(신규 단위5 포함), 두 client의 캡처 각2개 및150% anchor 각1개가 모두 Success/0 Fail/0 Skip이다. 실제 D3D12/HWRT·client1280×720/1920×1080·앱 글자100/150% PNG64장/공유1600px JPG64장과 직접 Computer Use4세션35행을 분리했다. WBP7 메모리 compile·quick9·layer/allowlist0→0·guard, 개인 설정43개 복원·보호 해시297개 일치를 확인했다. 성능은 이번 지시의 UI 전용 예외로 생략했으며 전체 release·OS DPI150%·현장 수용은 별도다. [결과·실패 이력·증거 한계](Saved/Reports/UXR-P2b/RESULT.md)를 따른다.
 
 ### UXR-P1/P2a — 운전원 표시 개선·직렬 UI 검증
 
@@ -763,7 +765,7 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
 
-UXR-P2b는 L3 코일/해치 표시와 순수 역할·라벨 배치 helper를 수정한다. 새 관리자·모듈·자산·DTCore adapter 없이 기존 UDxWidget 인스턴스와 센서 선택 컨트롤을 유지한다. 측정/분석·wire·저장 형식 변경 없이 layer/allowlist **0→0**이며 단위 테스트5개 및 기존 RHI 회귀의 역할/레이아웃 검사를 추가했다. Editor 실행을 금지한 병렬 작업이므로 [직렬 검증](Saved/Reports/UXR-P2b/RESULT.md)은 대기 상태다.
+UXR-P2b는 L3 코일/해치 표시와 순수 역할·라벨 배치 helper를 사용한다. 기존 UDxWidget/selector 인스턴스·계산·wire·저장 형식은 유지한다. 배지 높이와 정지 시 캐시 Hz 출처를 보완했고 layer/allowlist **0→0**이다. 코드4887653의 빌드·신규5/관련 UI/RHI·100/150% 캡처·직접 점검, UI 성능 생략 예외와 남은 수용 범위는 [직렬 결과](Saved/Reports/UXR-P2b/RESULT.md)를 따른다.
 
 UXR-P2a는 감사 C03·D02~D05·T02~T03의 문구·표시 밀도를 기존 L3 UI와 순수 표시 adapter에서 정리한다. 코덱의 영문 필드명·비트/순서/크기·대역폭 계산·전송 분주·저장값·DTCore·기존 열기 경로는 유지한다. layer/allowlist **0→0**이며 순수 로직/문구 자동화 5개를 추가했다. 병렬 구현 뒤 메인에서 직렬 빌드·관련 UI/RHI·100/150% 캡처를 검증했다. Slab capability에 따른 표시/수동 점검 경계와 남은 수용 범위는 [직렬 결과](Saved/Reports/UXR-P1P2a/RESULT.md)를 따른다.
 
