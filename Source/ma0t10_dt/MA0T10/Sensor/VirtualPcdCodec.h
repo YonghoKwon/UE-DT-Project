@@ -40,7 +40,9 @@ class MA0T10_DT_API FVirtualPcdCodec
 {
 public:
 	static const TCHAR* FieldName(int32 Index);
-	static int32 BytesPerPoint(const FVirtualPcdSendOptions& Options);
+	/** Header-bounded byte accounting only; never decompresses or copies the body. */
+ static int64 EncodedPointBytes(const TArray<uint8>& Bytes, bool bCompressed);
+ static int32 BytesPerPoint(const FVirtualPcdSendOptions& Options);
 	static double EstimateBytesPerSecond(const FVirtualPcdSendOptions& Options, int32 Points, double ScanHz);
 	static bool Encode(const TArray<const FVirtualLidarPoint*>& Points, const FString& MetadataJson, const FVirtualPcdSendOptions& Options, TArray<uint8>& Out);
 	static bool Decode(const TArray<uint8>& Bytes, FVirtualPcdDocument& Out, FString& Error);

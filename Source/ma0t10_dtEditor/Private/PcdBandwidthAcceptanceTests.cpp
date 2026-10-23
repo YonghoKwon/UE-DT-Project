@@ -63,13 +63,13 @@ public:
 			// Explicit fallback: render the production controls independently of the
 			// unavailable desktop monitor. This adds no product capture/readback path.
 			auto* Renderer=new FWidgetRenderer(true,true);
-			const auto Controls=Data->BuildPcdBandwidthOptions();auto* Target=Renderer->DrawWidget(Controls,FVector2D(720,560));
-			if(Target)Renderer->DrawWidget(Target,Controls,FVector2D(720,560),0);
+			const auto Controls=Data->BuildPcdBandwidthOptions();auto* Target=Renderer->DrawWidget(Controls,FVector2D(720,720));
+			if(Target)Renderer->DrawWidget(Target,Controls,FVector2D(720,720),0);
 			FlushRenderingCommands();TArray<FColor> ControlPixels;
 			Test->TestTrue(TEXT("offscreen production option controls readable"),Target&&Target->GameThread_GetRenderTargetResource()->ReadPixels(ControlPixels));
-			if(Target&&ControlPixels.Num()==720*560)
+			if(Target&&ControlPixels.Num()==720*720)
 			{
-				TArray64<uint8> ControlPng;FImageUtils::PNGCompressImageArray(720,560,ControlPixels,ControlPng);
+				TArray64<uint8> ControlPng;FImageUtils::PNGCompressImageArray(720,720,ControlPixels,ControlPng);
 				FFileHelper::SaveArrayToFile(ControlPng,*(Root()/(FString(TEXT("controls-"))+Names[Phase])));
 			}
 			BeginCleanup(Renderer);

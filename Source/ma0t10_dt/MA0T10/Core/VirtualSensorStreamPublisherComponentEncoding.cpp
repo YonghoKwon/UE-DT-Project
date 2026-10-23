@@ -662,6 +662,8 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 				Message.BinaryMetadata.FilterRevision = Config.PointCloudFilter.Revision;
 				Message.BinaryMetadata.ChecksumSha1 = BytesToHex(Hash, FSHA1::DigestSize).ToLower();
 				Message.ByteCount = Bytes.Num();
+    Message.PcdOriginalPointBytes=int64(PointCount)*FVirtualPcdCodec::BytesPerPoint(Config.PcdSendOptions);
+    Message.PcdEncodedPointBytes=FVirtualPcdCodec::EncodedPointBytes(Bytes,Config.PcdSendOptions.bCompressed);
 				Message.BinaryBody = MakeShared<const TArray<uint8>, ESPMode::ThreadSafe>(MoveTemp(Bytes));
 			}
 			else

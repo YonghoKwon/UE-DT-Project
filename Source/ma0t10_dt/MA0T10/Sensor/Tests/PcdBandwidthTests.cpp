@@ -5,6 +5,7 @@
 #include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualPointCloudStreamReceiverTC.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
 #include "Serialization/ObjectWriter.h"
+#include "ma0t10_dt/MA0T10/UI/VirtualPcdBandwidthPresentation.h"
 #include "Serialization/ObjectReader.h"
 #include "Misc/SecureHash.h"
 #include "Kismet/GameplayStatics.h"
@@ -35,11 +36,13 @@ bool FPcdBandwidthCodecTest::RunTest(const FString&)
 		TestTrue(TEXT("parse binary profile"),FVirtualPcdCodec::Decode(Binary,A,Error));
 		TestEqual(TEXT("header-derived record size"),A.PointBytes,FVirtualPcdCodec::BytesPerPoint(O));
 		TestEqual(TEXT("exact binary bytes"),Binary.Num()-A.PayloadOffset,3*A.PointBytes);
+		TestEqual(TEXT("binary accounting excludes PCD header"),FVirtualPcdCodec::EncodedPointBytes(Binary,false),int64(3*A.PointBytes));
 		TestEqual(TEXT("all selected fields have COUNT1"),A.Names.Num(),int32(FMath::CountBits(uint64(O.FieldMask()))));
 		TestTrue(TEXT("XYZ cannot be unchecked"),(O.FieldMask()&7)==7);
 		O.bCompressed=true;TestTrue(TEXT("encode compressed profile"),FVirtualPcdCodec::Encode(Points,TEXT(""),O,Compressed));
 		TestTrue(TEXT("parse compressed profile"),FVirtualPcdCodec::Decode(Compressed,B,Error));
 		TestTrue(TEXT("LZF/SoA roundtrip is bit exact for every selected field"),A.Records==B.Records);
+		TestEqual(TEXT("LZF accounting excludes header and size prefix"),FVirtualPcdCodec::EncodedPointBytes(Compressed,true),int64(Compressed.Num()-B.PayloadOffset-8));
 		TArray<FVirtualLidarPoint> Read;TestTrue(TEXT("decode defaults for omitted fields"),B.ReadPoints(Read));
 		if(Read.Num()==3){TestEqual(TEXT("XYZ retained"),Read[0].SensorLocalPositionMeters,Source[0].SensorLocalPositionMeters);if(Profile==EVirtualPcdFieldProfile::Minimal){TestEqual(TEXT("missing intensity defaults0"),Read[0].RawIntensity,0);TestEqual(TEXT("missing confidence defaults1"),Read[0].Confidence,1.f);TestFalse(TEXT("missing ring/index do not claim grid metadata"),Read[0].bHasGridCoord);}}
 		Compressed.Pop();TestFalse(TEXT("truncated compressed block rejected"),FVirtualPcdCodec::Decode(Compressed,B,Error));
@@ -134,5 +137,38 @@ bool FPcdBandwidthIsolationTest::RunTest(const FString&)
 	TArray<uint8> ScanAfter,ViewAfter,AnalysisAfter;FObjectWriter S2(L->ScanComponent,ScanAfter);FObjectWriter V2(L->VisualizationComponent,ViewAfter);FObjectWriter A2(L->AnalysisComponent,AnalysisAfter);
 	TestTrue(TEXT("scan component state unchanged"),ScanBefore==ScanAfter);TestTrue(TEXT("preview component state unchanged"),ViewBefore==ViewAfter);TestTrue(TEXT("Slab analysis state unchanged"),AnalysisBefore==AnalysisAfter);
 	L->Destroy();return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPcdBandwidthLiveDisplayTest,"MA0T10.PcdBandwidth.LiveDisplay",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FPcdBandwidthLiveDisplayTest::RunTest(const FString&)
+{
+ FVirtualPcdBandwidthWindow Window;
+ Window.Record(9.,99,200,50); // exact left boundary is excluded
+ Window.Record(9.25,1048576,2000000,1000000);
+ Window.Record(9.75,2097152,1000000,250000);
+ Window.Record(10.25,99,200,50); // future events do not count
+ auto Sample=Window.Read(10.);
+ TestEqual(TEXT("recent second is not a lifetime or last-frame average"),Sample.Frames,2);
+ TestEqual(TEXT("sum actual bytes including each header"),Sample.BodyBytes,int64(3*1048576));
+ TestEqual(TEXT("weighted payload reduction across changing frame options"),Sample.ReductionPercent(),(1.-1250000./3000000.)*100.);
+ TestEqual(TEXT("stalled sender expires to zero Hz"),Window.Read(12.).Frames,0);
+ TestEqual(TEXT("stalled sender expires to zero bytes"),Window.Read(12.).BodyBytes,int64(0));
+ FVirtualPcdBandwidthPresentation View;View.PointBytes=24;View.SensorCount=3;
+ View.SelectedMaximum=30*1048576.;View.TotalMaximum=90*1048576.;
+ auto Text=View.Text().ToString();TestTrue(TEXT("stopped maximum estimate is explicit"),Text.Contains(TEXT("최대 추정"))&&Text.Contains(TEXT("112.5%")));
+ View.ActiveCount=3;View.Selected.Frames=20;View.Selected.BodyBytes=10*1048576;
+ for(int I=0;I<3;++I){auto Device=View.Selected;Device.OriginalPointBytes=20*1048576;Device.EncodedPointBytes=10*1048576;View.Total.Add(Device);}
+ Text=View.Text().ToString();
+ TestTrue(TEXT("active UI prioritizes real recent bytes/Hz and weighted compression"),Text.Contains(TEXT("최근 1초 실측"))&&Text.Contains(TEXT("20.0 Hz"))&&Text.Contains(TEXT("30.00 MiB/s / 251.7 Mbps"))&&Text.Contains(TEXT("37.5%"))&&Text.Contains(TEXT("50.0%")));
+ TestFalse(TEXT("active actual budget never uses uncompressed spec112.5%"),Text.Contains(TEXT("112.5%"))||Text.Contains(TEXT("최대 추정")));
+ View.Selected={};View.Total={};Text=View.Text().ToString();
+ TestTrue(TEXT("active idle interval shows zero actual without estimate fallback"),Text.Contains(TEXT("0.0 Hz"))&&Text.Contains(TEXT("예산 0.0%")));
+ View.UnmeasuredCount=1;Text=View.Text().ToString();
+ TestFalse(TEXT("unsupported backend does not assert an actual budget percent"),Text.Contains(TEXT("예산 0.0%")));
+ FVirtualPcdBandwidthWindow Overflow;
+ for(int I=0;I<513;++I)Overflow.Record(10.,1,2,1);
+ TestFalse(TEXT("bounded history reports loss instead of silent undercount"),Overflow.Read(10.).bComplete);
+ TestTrue(TEXT("overflow clears after missing events expire"),Overflow.Read(12.).bComplete);
+ TestEqual(TEXT("unknown header cannot claim100% compression"),FVirtualPcdCodec::EncodedPointBytes({},true),int64(-1));
+ return true;
 }
 #endif

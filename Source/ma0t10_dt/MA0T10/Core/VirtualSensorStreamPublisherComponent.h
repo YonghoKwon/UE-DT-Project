@@ -177,6 +177,7 @@ private:
 		FString BinarySchema;
 		FString BinaryContentType;
 		int32 ByteCount = 0;
+		int64 PcdOriginalPointBytes = 0, PcdEncodedPointBytes = 0;
 		int32 ConfigRevision = 0;
 		int32 RetryAttempt = 0;
 		bool bBinaryPcd = false;

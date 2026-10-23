@@ -566,11 +566,13 @@ Raw TCP STOMP worker가 binary I/O·receipt·자체 수신 검증을 담당한�
 | Minimal | x y z | 12 B |
 | Custom | XYZ + 사용자가 체크한 필드 | 12–33 B |
 
+**압축 호환 안내:** 기본 On · PCD 표준 binary_compressed(LZF). PCL(loadPCDFile)·본 프로젝트 수신기·ROS2 브리지는 읽을 수 있음. 자체 파서를 쓰는 서버는 압축 해제 지원 확인 후 사용, 미지원이면 체크 해제.
+
 PCD 헤더의 FIELDS/SIZE/TYPE/COUNT로 레코드를 해석해야 한다. `DATA binary_compressed`는 little-endian u32 압축 크기·원본 크기 뒤 단일 LZF 스트림이며 압축 전 데이터는 필드별 SoA다([PCL 규격](https://github.com/PointCloudLibrary/pcl/blob/master/doc/tutorials/content/pcd_file_format.rst)). 프로젝트 수신기·저장 점군 재생·TestSet 검증·PCD 검사 스크립트·JS STOMP probe·ROS2 wire reader는 두 형식을 읽고 누락 필드는 기본값으로 복원한다. ROS PointCloud2는 기존 33바이트 로컬 메시지 레이아웃을 유지하며, 누락 intensity/ring/index/time/validity는 0, return_count/confidence는 1로 채운다. 외부 수신기와 필드 축소 합의 후 선택한다. 압축 기본값의 실측 판정은 `Saved/Reports/PCD-BANDWIDTH-01/RESULT.md`에 기록한다.
 
 전송 분주 1/1·1/2·1/4는 20Hz 측정에서 전송만 20·10·5Hz로 바꾼다. acquisition·preview·Slab 분석·Export/Recorder의 Full 파일 저장은 유지한다. 분주 생략은 별도 `ConfiguredDivisorSkippedCount`이며 데이터 필수 실행의 누락 실패를 숨기지 않는다. 진행 중인 FIFO 작업을 폐기하지 않도록 옵션 변경 전 전송을 중지하고 준비 대기열 배수를 기다린다. 이미 송신기에 접수한 bytes와 receipt는 원래 snapshot으로 끝까지 처리한다.
 
-표시값은 점당 bytes·대당/전체 MiB/s·decimal Mbps·현재 예산 대비 %다. 규격 점 수 기준 비압축 환산 추정으로 명시하며 압축률·검출점·필터·헤더에 따른 실제 양과 구분한다. 80 MiB/s 예산·기존 사용자 예산 override·공평 배분·FIFO head 정책은 유지한다. 숨긴 패널의 표시 문자열 조립은 멈추며 최대 5Hz로 갱신한다.
+표시값은 점당 bytes·대당/전체 MiB/s·decimal Mbps·현재 예산 대비 %다. 송신 중 Raw TCP PCD는 최근 1초 소켓 쓰기 완료 body 바이트(PCD 헤더 포함)·대당 Hz·같은 프레임의 payload 압축 절감률을 우선 표시하고 예산 %도 실측으로 계산한다. 미송신 상태에서만 규격 최대 점 수 × 비압축 크기를 **최대 추정**으로 표시한다. 미지원 backend 또는 집계 손실은 실측 미완료로 표시하고 추정 예산으로 대체하지 않는다. 80 MiB/s 예산·기존 사용자 예산 override·공평 배분·FIFO head 정책은 유지한다. 숨긴 패널의 표시 문자열 조립은 멈추며 최대 5Hz로 갱신한다.
 
 ### PCD 소비자가 알아야 할 최소 계약
 

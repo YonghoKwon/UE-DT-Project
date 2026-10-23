@@ -18,6 +18,7 @@
 #include "Json.h"
 #include "RHI.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 
 namespace
@@ -186,6 +187,13 @@ public:
                 Output->SetNumberField(TEXT("input_queue"),S.InputQueueDepth);Output->SetNumberField(TEXT("prepared_queue"),S.PreparedQueueDepth);
                 Output->SetNumberField(TEXT("raw_outstanding_frames"),S.RawOutstandingFrameCount);Output->SetNumberField(TEXT("raw_outstanding_bytes"),S.RawOutstandingBytes);
                 Output->SetNumberField(TEXT("last_frame_bytes"),S.LastFrameBytes);Output->SetNumberField(TEXT("last_points"),S.LastPointCount);
+                const auto Actual=Scan->GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->GetRecentPcdBandwidth(Scan->SensorId,Now);
+                Output->SetNumberField(TEXT("recent_1s_hz"),Actual.Frames);
+                Output->SetNumberField(TEXT("recent_1s_mib_s"),Actual.BodyBytes/1048576.);
+                Output->SetNumberField(TEXT("recent_1s_compression_reduction_percent"),Actual.ReductionPercent());
+                Output->SetBoolField(TEXT("recent_1s_complete"),Actual.bComplete);
+                Test->TestTrue(TEXT("live display receives completed socket writes per actual sensor"),Actual.bComplete&&Actual.Frames>0&&Actual.BodyBytes>Actual.EncodedPointBytes&&Actual.OriginalPointBytes>0);
+                if(!BandwidthOptions.bCompressed)Test->TestEqual(TEXT("binary live payload reduction zero"),Actual.ReductionPercent(),0.);
                 Output->SetNumberField(TEXT("required_mib_s"),S.PcdRequiredMiBPerSecond);
                 Output->SetNumberField(TEXT("budget_mib_s"),S.PcdBudgetMiBPerSecond);
                 Output->SetBoolField(TEXT("budget_warning"),S.PcdRequiredMiBPerSecond>S.PcdBudgetMiBPerSecond);

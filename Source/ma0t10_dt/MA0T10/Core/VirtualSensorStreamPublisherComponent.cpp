@@ -638,6 +638,8 @@ bool UVirtualSensorStreamPublisherComponent::TrySubmitHighThroughput(
 	UVirtualSensorHighThroughputTransportSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
 	FVirtualSensorBinaryFrame Frame;
 	Frame.StreamKind = Message.StreamKind;
+	Frame.PcdOriginalPointBytes=Message.PcdOriginalPointBytes;
+	Frame.PcdEncodedPointBytes=Message.PcdEncodedPointBytes;
 	Frame.SensorId = Message.SensorId;
 	Frame.FrameId = Message.FrameId;
 	Frame.TimestampUtc = Message.TimestampUtc;

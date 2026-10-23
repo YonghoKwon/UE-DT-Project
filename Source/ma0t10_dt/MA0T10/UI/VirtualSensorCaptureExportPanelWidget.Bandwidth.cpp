@@ -1,6 +1,8 @@
 #include "VirtualSensorCaptureExportPanelWidget.h"
 
 #include "VirtualSensorUiPreferences.h"
+#include "VirtualPcdBandwidthPresentation.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "SensorToolWidgetDecl.h"
 #include "SensorOwnedPresentationStyle.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
@@ -14,6 +16,11 @@
 
 namespace
 {
+const FText& PcdCompressionCompatibility()
+{
+ static const FText Text=FText::FromString(TEXT("기본 On · PCD 표준 binary_compressed(LZF). PCL(loadPCDFile)·본 프로젝트 수신기·ROS2 브리지는 읽을 수 있음. 자체 파서를 쓰는 서버는 압축 해제 지원 확인 후 사용, 미지원이면 체크 해제."));
+ return Text;
+}
 FText PcdProfileLabel(EVirtualPcdFieldProfile Profile)
 {
 	static const FText Labels[]={FText::FromString(TEXT("Full · 33 B/점 (기본)")),FText::FromString(TEXT("Compact · 24 B/점")),FText::FromString(TEXT("Minimal · 12 B/점")),FText::FromString(TEXT("Custom · 필드 선택"))};
@@ -50,15 +57,26 @@ FText UVirtualSensorCaptureExportPanelWidget::BuildPcdBandwidthEstimate() const
 	const double Now=FPlatformTime::Seconds();if(Now<NextPcdBandwidthEstimate)return CachedPcdBandwidthEstimate;
 	NextPcdBandwidthEstimate=Now+.2;
 	const auto* P=SensorManager?SensorManager->StreamPublisherComponent.Get():nullptr;
-	const auto O=ReadPcdBandwidthOptions();double Selected=0,Total=0;int32 Count=0;
-	if(SensorManager&&P)for(const auto& Ref:SensorManager->GetLidarComponents())
-	{
-		const auto* L=Ref.Get();if(!L)continue;++Count;
-		const double Rate=FVirtualPcdCodec::EstimateBytesPerSecond(P->GetPcdSendOptions(L->SensorId),L->HorizontalSamples*L->VerticalChannels,1./FMath::Max(.001f,L->ScanInterval));
-		Total+=Rate;if(L==SensorManager->GetSelectedLidar())Selected=Rate;
-	}
-	const double Budget=P?P->PointCloudBandwidthLimitMegabytesPerSecond:80.;
-	CachedPcdBandwidthEstimate=FText::FromString(FString::Printf(TEXT("%d B/점 · 선택 대당 %.2f MiB/s / %.1f Mbps\n합계 %d대 %.2f MiB/s / %.1f Mbps · %.0f MiB/s 예산 %.1f%%\n규격 점 수 기준 비압축 추정 · 압축률·검출점·헤더에 따라 실제 전송량이 달라집니다"),FVirtualPcdCodec::BytesPerPoint(O),Selected/1048576.,Selected*8/1000000.,Count,Total/1048576.,Total*8/1000000.,Budget,Budget>0?Total/1048576./Budget*100:0.));
+ FVirtualPcdBandwidthPresentation View;
+ View.PointBytes=FVirtualPcdCodec::BytesPerPoint(ReadPcdBandwidthOptions());
+ View.BudgetMiB=P?P->PointCloudBandwidthLimitMegabytesPerSecond:80.;
+ const auto* Raw=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>():nullptr;
+ if(SensorManager&&P)for(const auto& Ref:SensorManager->GetLidarComponents())
+ {
+  const auto* L=Ref.Get();if(!L)continue;++View.SensorCount;
+  const bool Selected=L==SensorManager->GetSelectedLidar();
+  const double Rate=FVirtualPcdCodec::EstimateBytesPerSecond(P->GetPcdSendOptions(L->SensorId),L->HorizontalSamples*L->VerticalChannels,1./FMath::Max(.001f,L->ScanInterval));
+  View.TotalMaximum+=Rate;if(Selected)View.SelectedMaximum=Rate;
+  const auto Actual=Raw?Raw->GetRecentPcdBandwidth(L->SensorId,Now):FVirtualPcdBandwidthSample();
+  const bool Active=P->IsStreamActiveOrAwaitingResume(EVirtualSensorStreamKind::PointCloud,L->SensorId);
+  // Accepted FIFO writes can still finish after Stop; retain actuals until the window expires.
+  if(!Active&&Actual.Frames==0)continue;
+  ++View.ActiveCount;FVirtualSensorStreamConfig Route;
+  if(Active&&(!Raw||!P->ResolveActiveStreamForSensor(EVirtualSensorStreamKind::PointCloud,L->SensorId,Route)||Route.TransportBackend!=EVirtualSensorStreamTransportBackend::TcpStompHighThroughput||Route.PointCloudFormat!=EVirtualPointCloudStreamFormat::PCD||Route.PcdDataMode!=EVirtualPcdDataMode::Binary))
+  {++View.UnmeasuredCount;continue;}
+  View.Total.Add(Actual);if(Selected)View.Selected=Actual;
+ }
+ CachedPcdBandwidthEstimate=View.Text();
 	return CachedPcdBandwidthEstimate;
 }
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildPcdBandwidthOptions()
@@ -82,9 +100,10 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildPcdBandwidthOpt
 	  .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualPcdFieldProfile> V,ESelectInfo::Type){if(V){auto O=ReadPcdBandwidthOptions();O.Profile=*V;ApplyPcdBandwidthOptions(O);}})
 	  [SNewSensorTool(STextBlock).Text_Lambda([this](){return PcdProfileLabel(ReadPcdBandwidthOptions().Profile);})]]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,6)[Fields]
-	 +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNew(SCheckBox).IsChecked_Lambda([this](){return ReadPcdBandwidthOptions().bCompressed?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
+	 +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNew(SCheckBox).ToolTipText(PcdCompressionCompatibility()).IsChecked_Lambda([this](){return ReadPcdBandwidthOptions().bCompressed?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
 	  .OnCheckStateChanged_Lambda([this](ECheckBoxState V){auto O=ReadPcdBandwidthOptions();O.bCompressed=V==ECheckBoxState::Checked;ApplyPcdBandwidthOptions(O);})
 	  [SNewSensorTool(STextBlock).Text(FText::FromString(TEXT("LZF 압축 · PCD binary_compressed")))]]
+	 +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text(PcdCompressionCompatibility())]
 	 +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<int32>>).ComboBoxStyle(&FSensorOwnedPresentationStyle::ComboBox()).OptionsSource(&PcdDivisorChoices)
 	  .OnGenerateWidget_Lambda([this](TSharedPtr<int32> V){return SNewSensorTool(STextBlock).Text(FText::FromString(FString::Printf(TEXT("전송 1/%d"),*V)));})
 	  .OnSelectionChanged_Lambda([this](TSharedPtr<int32> V,ESelectInfo::Type){if(V){auto O=ReadPcdBandwidthOptions();O.SendDivisor=*V;ApplyPcdBandwidthOptions(O);}})

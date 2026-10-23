@@ -100,6 +100,16 @@ bool FVirtualPcdCodec::DecompressLzf(const uint8* Input,int32 InSize,int32 OutSi
 	return O==OutSize;
 }
 
+int64 FVirtualPcdCodec::EncodedPointBytes(const TArray<uint8>& Bytes,bool bCompressed)
+{
+ const ANSICHAR* Marker=bCompressed?"\nDATA binary_compressed\n":"\nDATA binary\n";
+ const int32 Length=FCStringAnsi::Strlen(Marker),Limit=FMath::Min(Bytes.Num(),65536);
+ for(int32 I=0;I+Length<=Limit;++I)
+  if(Bytes[I]=='\n'&&FMemory::Memcmp(Bytes.GetData()+I,Marker,Length)==0)
+   return FMath::Max<int64>(0,Bytes.Num()-I-Length-(bCompressed?8:0));
+ return -1;
+}
+
 bool FVirtualPcdCodec::Encode(const TArray<const FVirtualLidarPoint*>& Points,const FString& Meta,const FVirtualPcdSendOptions& Options,TArray<uint8>& Out)
 {
 	Out.Reset();const int32 Step=BytesPerPoint(Options),Mask=Options.FieldMask();
