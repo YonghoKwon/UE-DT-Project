@@ -102,10 +102,12 @@ TSharedPtr<FBlas,ESPMode::ThreadSafe> GetBlas(FRHICommandListImmediate& Cmd,cons
 #endif
 class FScan;
 TArray<TSharedPtr<FScan,ESPMode::ThreadSafe>> RetiredScans; // RT ownership until fence ready
+TArray<TSharedPtr<FScan,ESPMode::ThreadSafe>> PendingReadbacks; // Same bounded scans; RT-only references
 class FScan final : public ISensorRtScan, public TSharedFromThis<FScan,ESPMode::ThreadSafe>
 {
 public:
     FSensorRtRequest Request;
+    bool bAutomaticReadback=false;
     FCriticalSection Mutex;
     TArray<FSensorRtHit> Hits;
     FString Failure;
@@ -143,28 +145,29 @@ public:
         Finished.store(true,std::memory_order_release);
     }
     void Fail(const TCHAR* Reason){Failure=Reason;Complete();}
+    void PumpReadback()
+    {
+#if RHI_RAYTRACING
+        if(Finished.load(std::memory_order_acquire)||!Readback||!Readback->IsReady())return;
+        const uint32 Bytes=Request.Rays.Num()*sizeof(FSensorRtHit);
+        if(!Cancelled.load(std::memory_order_acquire))
+        {
+            const void* Data=Readback->Lock(Bytes);
+            if(Data){Hits.SetNumUninitialized(Request.Rays.Num());FMemory::Memcpy(Hits.GetData(),Data,Bytes);Readback->Unlock();}
+            else Failure=TEXT("GPU readback lock failed");
+        }
+        Complete();
+#endif
+    }
     bool Poll(TArray<FSensorRtHit>& Out,FString& Error) override
     {
         if(Finished.load(std::memory_order_acquire)){Out=MoveTemp(Hits);Error=Failure;return true;}
 #if RHI_RAYTRACING
-        if(!PollQueued.exchange(true))
+        if(!bAutomaticReadback&&!PollQueued.exchange(true))
         {
             auto Self=AsShared();
             ENQUEUE_RENDER_COMMAND(PollSensorRt)([Self](FRHICommandListImmediate& Cmd)
-            {
-                if(!Self->Finished.load(std::memory_order_acquire)&&Self->Readback&&Self->Readback->IsReady())
-                {
-                    const uint32 Bytes=Self->Request.Rays.Num()*sizeof(FSensorRtHit);
-                    if(!Self->Cancelled.load())
-                    {
-                        const void* Data=Self->Readback->Lock(Bytes);
-                        if(Data){Self->Hits.SetNumUninitialized(Self->Request.Rays.Num());FMemory::Memcpy(Self->Hits.GetData(),Data,Bytes);Self->Readback->Unlock();}
-                        else Self->Failure=TEXT("GPU readback lock failed");
-                    }
-                    Self->Complete();
-                }
-                Self->PollQueued.store(false,std::memory_order_release);
-            });
+            {Self->PumpReadback();Self->PollQueued.store(false,std::memory_order_release);});
         }
 #endif
         return false;
@@ -262,8 +265,9 @@ TSharedPtr<ISensorRtScan,ESPMode::ThreadSafe> SensorOwnedRayTracing::Submit(FSen
         if(GeometryBytes>256ull*1024*1024)return {};
     }
     if(ActiveScans.fetch_add(1)>=MaxActiveScans){--ActiveScans;return {};}
-    auto Scan=MakeShared<FScan,ESPMode::ThreadSafe>();Scan->Request=MoveTemp(Request);
-    ENQUEUE_RENDER_COMMAND(DispatchSensorRt)([Scan](FRHICommandListImmediate& Cmd){Scan->Dispatch(Cmd);});
+    auto Scan=MakeShared<FScan,ESPMode::ThreadSafe>();Scan->bAutomaticReadback=bool(Request.OnReadback);Scan->Request=MoveTemp(Request);
+    ENQUEUE_RENDER_COMMAND(DispatchSensorRt)([Scan](FRHICommandListImmediate& Cmd)
+    {Scan->Dispatch(Cmd);if(Scan->bAutomaticReadback&&!Scan->Finished.load(std::memory_order_acquire))PendingReadbacks.Add(Scan);});
     return Scan;
 }
 void SensorOwnedRayTracing::RegisterShaders()
@@ -271,6 +275,11 @@ void SensorOwnedRayTracing::RegisterShaders()
     AddShaderSourceDirectoryMapping(TEXT("/MA0T10"),FPaths::Combine(FPaths::ProjectDir(),TEXT("Shaders")));
     EndFrameHandle=FCoreDelegates::OnEndFrameRT.AddLambda([]()
     {
+        for(int I=PendingReadbacks.Num()-1;I>=0;--I)
+        {
+            PendingReadbacks[I]->PumpReadback();
+            if(PendingReadbacks[I]->Finished.load(std::memory_order_acquire))PendingReadbacks.RemoveAtSwap(I);
+        }
         for(int I=RetiredScans.Num()-1;I>=0;--I)if(RetiredScans[I]->CanRetire())RetiredScans.RemoveAtSwap(I);
     });
 }
@@ -280,7 +289,8 @@ void SensorOwnedRayTracing::Shutdown()
     FCoreDelegates::OnEndFrameRT.Remove(EndFrameHandle);
     ENQUEUE_RENDER_COMMAND(ReleaseOwnedSensorRt)([](FRHICommandListImmediate& Cmd)
     {
-        RetiredScans.Reset();
+        for(const auto& Scan:PendingReadbacks){Scan->Cancelled.store(true,std::memory_order_release);Scan->Request.OnReadback=nullptr;}
+        PendingReadbacks.Reset();RetiredScans.Reset();
 #if RHI_RAYTRACING
         BlasCache.Reset();
 #endif
