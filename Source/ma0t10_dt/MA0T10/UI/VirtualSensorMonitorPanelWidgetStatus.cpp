@@ -254,6 +254,21 @@ FString UVirtualSensorMonitorPanelWidget::GetRealSensorDeploymentSummaryText() c
     }
     return TEXT("Real Sensor Deployment: source not bound; live adapter evidence pending");
 }
+void UVirtualSensorMonitorPanelWidget::UpdateOwnedAcquisitionRateWarning()
+{
+    auto* Actor = GetOwnedMonitoredActor();
+    if (OwnedRateWarningTarget.Get() != Actor)
+    {
+        OwnedAcquisitionRateWarning.Reset();
+        OwnedRateWarningTarget = Actor;
+    }
+    const bool bEligible = IsValid(Actor) && bShowingLidar && Actor->IsSensorRunning() &&
+        !Actor->IsInteractiveManipulationActive() && GetWorld() && !GetWorld()->IsPaused();
+    const auto Status = bEligible ? Actor->GetSensorRuntimeStatus() : FVirtualSensorRuntimeStatus();
+    OwnedAcquisitionRateWarning.Observe(FPlatformTime::Seconds(), Status.FrameId,
+        Status.RequestedAcquisitionRateHz, bEligible);
+}
+
 FString UVirtualSensorMonitorPanelWidget::BuildOwnedMeasurementWarning() const
 {
     const auto* Actor=GetOwnedMonitoredActor();if(!IsValid(Actor)||!Actor->IsSensorRunning())return FString();
@@ -262,6 +277,9 @@ FString UVirtualSensorMonitorPanelWidget::BuildOwnedMeasurementWarning() const
         if(Rate->State==EVirtualSensorRateState::Starved)return TEXT("측정 정체 · 마지막 측정 이후 새 데이터가 없습니다");
         if(Rate->State==EVirtualSensorRateState::Failed)return TEXT("측정 오류 · 개발자 정보에서 상세를 확인하세요");
     }
+    if (OwnedAcquisitionRateWarning.IsBelowRequest())
+        return FString::Printf(TEXT("요청 측정률 미달 · 요청 %.1fHz / 실제 %.1fHz · 측정 설정과 시스템 부하를 확인하세요"),
+            OwnedAcquisitionRateWarning.GetRequestedHz(), OwnedAcquisitionRateWarning.GetObservedHz());
     const auto Status=Actor->GetSensorRuntimeStatus();
     if(!Status.PerformanceWarning.IsEmpty())return SensorToolUiText::UserReason(Status.PerformanceWarning);
     if(!bShowingLidar)

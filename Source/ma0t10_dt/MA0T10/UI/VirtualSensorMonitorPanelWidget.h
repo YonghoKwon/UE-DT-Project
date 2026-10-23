@@ -6,6 +6,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorMonitorView.h"
 #include "Styling/SlateBrush.h"
+#include "SensorAcquisitionRateWarning.h"
 #include "VirtualSensorMonitorPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;
@@ -646,6 +647,9 @@ private:
     void RefreshCameraTruth();
 	void RefreshOwnedMonitorText();
 	FString BuildOwnedMeasurementWarning() const;
+	void UpdateOwnedAcquisitionRateWarning();
+	FSensorAcquisitionRateWarning OwnedAcquisitionRateWarning;
+	TWeakObjectPtr<AVirtualSensorActorBase> OwnedRateWarningTarget;
 	bool StartOwnedMonitoredEquipment();
 	bool OpenOwnedEquipmentPlacement();
 #if WITH_DEV_AUTOMATION_TESTS
