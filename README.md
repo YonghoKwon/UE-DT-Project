@@ -18,9 +18,11 @@
 
 ## 1. 현재 상태 한눈에 보기
 
-### LIDAR-WALLCLOCK-28b — 직렬 비교에서 중단, 기준 결정 필요
+### LIDAR-WALLCLOCK-28b — wall-clock 획득·직렬 검증
 
-LiDAR 자동 획득의 pause 제외 wall-clock grid·최대1회/엔진프레임·동시1획득을 구현하고 origin/master98e2131의 PCD 압축 기본On·분주·대역폭 검사와 통합했다. Editor/Game 빌드·새 C++2테스트는 통과했다. 912928e의90초 visible/D3D12·RT on·Full+LZF+1/1에서 legacy cadence 최소1771회에3대째가1770회로FAIL했으나 새 비율은0.983305로PASS했다. 기준 완화로 보이면 멈추라는 지시에 따라 추가 측정을 중단하고 전체gate를PASS로 표시하지 않는다. CPU 실제RHI·분주 실측·ABAB·release는 미수행이다. 개인설정44개 복원·보호hash차이0. [같은 실행의 비교·중단 근거](Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md).
+`9588c25`의 1920×1080 visible/D3D12·RT on·OS1-64 Rev7 3대·Full+LZF+1/1에서 센서별 최소 19.994257Hz(요청 대비 0.999712881)를 기록했다. 90초 ABAB×3(A6/B6)는 FPS +2.3469%·engine p95 -12.0994%·GT -29.0969%·GPU 시간 +1.3085%·RSS -0.0034%로 각2% 기준을 통과했다. 같은 SHA의 전체 release 415 Success/41 조건부 skip/0 Fail, 표준 RT on ABAB(FPS -0.0003%·p95 +0.0000%·GT -0.6244%)가 통과했다. skip을 실제 RHI 통과로 세지 않는다.
+
+기존95% 교체는 폐기했다. 새99%·90초19.9Hz/.995 목표에 `ceil(요청Hz×wall초)−2` 완료 하한을 추가해 경계2회 허용을 유지하며 강화했다. 후보18개 센서·실행에서 새 하한≥legacy 하한·실제 완료≥새 하한을 확인했고 legacy assertion은 참고값으로 보존했다. CPU FullSpec 3대의 20Hz 요청 실측 9.911/9.922/10.255Hz는 용량 한계로 기록하며20Hz PASS가 아니다. 기존 모니터는 요청 측정률 미달을5초 완료 횟수로 경고한다. 1/4 분주에서는 자동 송신 제어 생략1회를 획득 누락·설정 분주와 따로 기록했다. [설계·같은 실행 비교표·검증·제한](Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md).
 
 ### PCD-BANDWIDTH-01 — 전송 용량 옵션·기본 LZF 적용
 
@@ -836,7 +838,7 @@ AUTO-01은 기존 모듈의 L2 `Scenario/Automation`에서 하위 센서/출력�
 |---|---|
 | VirtualSensorActorBase / Camera·LiDAR Actor | 실행·편집 상태·interaction·외부 프레임 API(`SubmitExternalFrame`) |
 | Capture / Scan / Analysis / Visualization / Export | 측정과 파생 처리 분담 |
-| VirtualSensorSchedulerSubsystem | 자동 작업 분배; LiDAR admission은 pause 제외 wall-clock grid·최대1회/프레임, CPU/HWRT 공통. 센서 수 기반 60/30 FPS 예산은 지원 보증이 아님 |
+| VirtualSensorSchedulerSubsystem | 자동 작업 분배; LiDAR admission은 pause 제외 wall-clock grid·동일 주기 균등 위상·최대1회/프레임, CPU/HWRT 공통. 센서 수 기반 60/30 FPS 예산은 지원 보증이 아님 |
 | IVirtualSensorAcquisitionBackend | 기존 GPU LiDAR 경계; 아직 Camera/SDK 전체의 범용 확장 계약은 아님 |
 | Output / StreamPublisher / Transport / Recorder / HighThroughputTransport | 프레임 라우팅·직렬화·송수신·기록, Raw TCP STOMP worker |
 | FileSave / PeriodicFileSave | Widget 수명과 독립적인 bounded 파일 작업 |

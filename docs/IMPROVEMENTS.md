@@ -4,11 +4,13 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
-## LIDAR-WALLCLOCK-28b — 직렬 중단·기준 결정 필요
+## LIDAR-WALLCLOCK-28b — wall-clock 획득·직렬 검증 완료
 
-사용자2026-10-23 #28b 승인. 기준b4e8327, 지정worktree feat/lidar-wallclock-28b에서 자동 획득의 단조 wall-clock grid·한 프레임1회·동시1획득·만료슬롯 집계를 구현했다. pause 제외/재시작/즉시요청/데이터셋 단발을 보존하고 CPU·센서 소유BLAS/TLAS가 같은 admission을 사용한다. 기존 코드는 이미 게임 시간 deadline 방식이므로 프레임 modulo 제거로 설명하지 않는다. 획득 메타데이터/공개BP·PCD·80MiB/s·FIFO는 유지한다. DTCore 변경 후보 없음(기존 프로젝트 Scheduler의 책임).
+자동 획득은 pause 제외 wall-clock 누적 기한·프레임당 최대1회·센서당 in-flight1회를 유지한다. 같은 주기 센서는 공통 grid에 균등 위상을 배치하고, 준비된 readback의 worker 정규화·순수 광선 패킷 병렬 생성·반환 point lease의 worker 정리로 GT 꼬리 지연을 줄였다. 공개 BP·획득 snapshot·PCD33-byte/FIFO/예산은 유지한다.
 
-직렬 단계에서 origin/master98e2131을 승인 범위대로 병합하고 압축 기본On·분주·대역폭 검사를 보존했다. Editor/Game 빌드·새 C++2개·기존 PCD7개 통과, 별도 UI1개는 opt-in skip이다. 912928e의90초 visible 실측에서 센서3대의 완료1771/1771/1770회, legacy cadence 최소1771회 대비 마지막1개가FAIL했지만 새 비율은모두≥0.95였다. 사용자 중단 조건에 따라 추가 측정을 멈췄으며 전체 통합을PASS로 표시하지 않는다. CPU 실제RHI·1/2·1/4 실측·90초 ABAB·표준RT on perf·release는 미수행이다. 기존 legacy도 gate로 유지할지,95% 기준 교체를 수용할지 결정이 필요하다. [같은 실행의 전후 판정표·근거·복원](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md). DTCore/획득 snapshot/저장 계약 변경 없음.
+`9588c25`의 1920×1080 visible/D3D12·RT on·OS1-64 Rev7 3대·Full+LZF+1/1에서 센서별 최소 19.994257Hz(요청 대비 0.999712881)를 기록했다. 90초 ABAB×3(A6/B6)는 FPS +2.3469%·engine p95 -12.0994%·GT -29.0969%·GPU 시간 +1.3085%·RSS -0.0034%로 각2% 기준을 통과했다. 같은 SHA의 전체 release 415 Success/41 조건부 skip/0 Fail, 표준 RT on ABAB(FPS -0.0003%·p95 +0.0000%·GT -0.6244%)가 통과했다. skip을 실제 RHI 통과로 세지 않는다.
+
+기존95% 교체는 폐기했다. 새99%·90초19.9Hz/.995 목표에 `ceil(요청Hz×wall초)−2` 완료 하한을 추가해 경계2회 허용을 유지하며 강화했다. 후보18개 센서·실행에서 새 하한≥legacy 하한·실제 완료≥새 하한을 확인했고 legacy assertion은 참고값으로 보존했다. CPU FullSpec 3대의 20Hz 요청 실측 9.911/9.922/10.255Hz는 용량 한계로 기록하며20Hz PASS가 아니다. 기존 모니터는 요청 측정률 미달을5초 완료 횟수로 경고한다. 1/4 분주에서는 자동 송신 제어 생략1회를 획득 누락·설정 분주와 따로 기록했다. DTCore 변경 후보 없음. [상세 결과](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md).
 
 ## FOLLOWUP-28-26 — 환경 정리 후 FPS 통과, 획득cadence로 통합 gate 차단
 

@@ -6,6 +6,19 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-23 LIDAR-WALLCLOCK-28b — 직렬 재작업 최종 검증
+
+- 자동 획득은 pause 제외 wall-clock 누적 기한·프레임당 최대1회·센서당 in-flight1회를 유지한다. 같은 주기 센서는 공통 grid에 균등 위상을 배치하고, 준비된 readback의 worker 정규화·순수 광선 패킷 병렬 생성·반환 point lease의 worker 정리로 GT 꼬리 지연을 줄였다. 공개 BP·획득 snapshot·PCD33-byte/FIFO/예산은 유지한다.
+- `9588c25`의 1920×1080 visible/D3D12·RT on·OS1-64 Rev7 3대·Full+LZF+1/1에서 센서별 최소 19.994257Hz(요청 대비 0.999712881)를 기록했다. 90초 ABAB×3(A6/B6)는 FPS +2.3469%·engine p95 -12.0994%·GT -29.0969%·GPU 시간 +1.3085%·RSS -0.0034%로 각2% 기준을 통과했다.
+- 같은 SHA의 전체 release 415 Success/41 조건부 skip/0 Fail, 표준 RT on ABAB(FPS -0.0003%·p95 +0.0000%·GT -0.6244%)가 통과했다. skip을 실제 RHI 통과로 세지 않는다.
+- 기존95% 교체는 폐기했다. 새99%·90초19.9Hz/.995 목표에 `ceil(요청Hz×wall초)−2` 완료 하한을 추가해 경계2회 허용을 유지하며 강화했다. 후보18개 센서·실행에서 새 하한≥legacy 하한·실제 완료≥새 하한을 확인했고 legacy assertion은 참고값으로 보존했다.
+- CPU FullSpec 3대의 20Hz 요청 실측 9.911/9.922/10.255Hz는 용량 한계로 기록하며20Hz PASS가 아니다. 기존 모니터는 요청 측정률 미달을5초 완료 횟수로 경고한다.
+- 기존bfd46d0의 90초 ABAB는 p95+14.167537%로FAIL했고 보존했다. CSV profiler로 GT point storage1.220659→0.000827ms/frame, ray packet2.027379→0.252546ms/frame를 확인했다. 단일 진단을 ABAB PASS로 세지 않았다.
+- identity 테스트는 실제 admission 후 상태를 변경하고, 풀 테스트는 worker 정리 완료 후 동일 주소 재사용을 확인하도록 동기화했다. 기존 transform/label/반사율·weak pointer·보관값·fallback 횟수·정확도·150ms 기준은 유지했다.
+- 새 SHA의 1/2·1/4 실제 GPU RHI에서 획득은 약20Hz, 출력은 약10/5Hz였다. 1/4 운전실 우측의 자동 송신 제어 생략1회·선택 frame_id step8을 별도 기록했고 raw gap을 지우지 않았다. schema/CRC·송신 오류0이며 획득 누락·설정 분주 생략과 구분한다.
+- 개인 설정44개 원본 집합/해시 복원·보호297개 원본 hash 차이0·DTCore b2504d1 clean·layer0→0. SensorTestMap/자산 저장·보호 경로 stage·push/merge 없음. 중단된 release/11-of12 ABAB와 최초95% counterexample는 별도 이력으로 보존한다.
+- [RESULT](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md), result.json 및 merge-check.json을 독립 검수한다. Runtime9588c25 이후 gate 도구·문서 커밋은 Source 동일성으로 구분한다.
+
 ## 2026-10-23 LIDAR-WALLCLOCK-28b — 직렬 비교 중단
 
 - 메인 feat/lidar-wallclock-28b에서 시작264d100, origin/master98e2131 병합b090ebe, 충돌은 README/GpuLidarScheduledTests의 양쪽 의도를 보존했다. 측정코드912928e는 기본Full+LZF On·1/1, native LZF 수신기, 분주 진단 선택·기존 대역폭 검사·새 획득비율/legacy 기록을 함께 사용한다. 송신/획득 런타임은 이번 직렬 단계에서 추가 수정하지 않았다.
