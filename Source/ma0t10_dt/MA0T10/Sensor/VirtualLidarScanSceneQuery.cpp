@@ -6,8 +6,11 @@
 #include "Async/ParallelFor.h"
 #include "Misc/ScopeLock.h"
 #include "HAL/IConsoleManager.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 #include <atomic>
 #include <memory>
+
+CSV_DEFINE_CATEGORY(LidarWallclock28b,true);
 
 struct FVirtualLidarSceneQueryBuffer
 {
@@ -20,6 +23,7 @@ struct FVirtualLidarScenePointPool
  FCriticalSection Mutex;
  TArray<FPoints*> Free;
  uint64 Bytes=0;
+ std::atomic<int32> PendingResets{0};
  explicit FVirtualLidarScenePointPool(int32 Capacity)
  {
   Free.Reserve(3);
@@ -77,6 +81,10 @@ TAutoConsoleVariable<int32> CVarLidarReadbackNormalize(TEXT("ma0t10.LidarReadbac
  TEXT("Start bounded CPU normalization directly after HWRT readback.0 retains legacy GT polling."));
 TAutoConsoleVariable<int32> CVarLidarCpuSnapshotNormalize(TEXT("ma0t10.LidarCpuSnapshotNormalize"),1,
  TEXT("Normalize immutable managed CPU snapshots on their existing worker.0 retains GT chunks."));
+ TAutoConsoleVariable<int32> CVarLidarParallelRayPacket(TEXT("ma0t10.LidarParallelRayPacket"),1,
+  TEXT("Parallelize pure HWRT ray-packet math;0 retains the serial loop."));
+ TAutoConsoleVariable<int32> CVarLidarPointPoolAsyncReset(TEXT("ma0t10.LidarPointPoolAsyncReset"),1,
+  TEXT("Clear returned, exclusively owned point leases off GT;0 retains reset at next acquisition."));
 void InitializeWorkerPoint(const FVirtualLidarSceneQueryJob& J,int I,FVirtualLidarPoint& P,FVector& Direction,float& Range)
 {
  const int Row=I/J.Width,Col=I%J.Width;
@@ -186,12 +194,20 @@ void UVirtualLidarScanComponent::BeginSceneQueryBatch()
      HardwareSurfaceIdentities.Add(Weak,MoveTemp(Identity));
     }
    }
-   Request.Rays.SetNumUninitialized(J->Width*J->Height);const auto Origin=J->Pose.GetLocation();
-   for(int I=0;I<Request.Rays.Num();++I)
+   {
+   CSV_SCOPED_TIMING_STAT(LidarWallclock28b,RayPacket);
+   CSV_CUSTOM_STAT(LidarWallclock28b,Admissions,1,ECsvCustomStatOp::Accumulate);
+   const int32 RayCount=J->Width*J->Height;Request.Rays.SetNumUninitialized(RayCount);const auto Origin=J->Pose.GetLocation();
+   const auto FillRay=[&](int I)
    {
     const int Row=I/J->Width,Col=I%J->Width;const FVector Local=J->Directions?FVector((*J->Directions)[I]):IndustrialLidar::Beam(J->Profile,I,J->Width,J->Height,J->Frame,J->Vertical[Row],J->Horizontal[Col]).Vector();
     const float Range=J->Profile==EVirtualLidarDeviceProfile::HesaiXT32&&(Row<8||Row>=24)?FMath::Min(J->Range,5000.f):J->Range;
     Request.Rays[I]={FVector3f(Origin),Range,FVector3f(J->Pose.TransformVectorNoScale(Local).GetSafeNormal()),0};
+   };
+   if(CVarLidarParallelRayPacket.GetValueOnGameThread()!=0)
+    ParallelFor(FMath::DivideAndRoundUp(RayCount,512),[&](int Chunk)
+    {for(int I=Chunk*512;I<FMath::Min(RayCount,(Chunk+1)*512);++I)FillRay(I);},EParallelForFlags::Unbalanced);
+   else for(int I=0;I<RayCount;++I)FillRay(I);
    }
    if(J->bWorkerNormalize&&CVarLidarReadbackNormalize.GetValueOnGameThread()!=0)
    {
@@ -339,6 +355,7 @@ void UVirtualLidarScanComponent::RecordSceneQueryWork(double Seconds,bool Comple
 }
 void UVirtualLidarScanComponent::AcquireScenePointStorage(int32 Capacity)
 {
+ CSV_SCOPED_TIMING_STAT(LidarWallclock28b,PointStorage);
  RecycleScenePointStorage();
  if(ScenePointCapacity!=Capacity)
  {
@@ -352,7 +369,20 @@ void UVirtualLidarScanComponent::AcquireScenePointStorage(int32 Capacity)
   // A fresh shared control block per publication also expires old weak pointers.
   // Storage returns only after the last immutable consumer releases that frame.
   TWeakPtr<FVirtualLidarScenePointPool,ESPMode::ThreadSafe> WeakPool(ScenePointPool);
-  ScenePointLease=MakeShareable(P,[WeakPool](TArray<FVirtualLidarPoint>* Released){if(auto Pool=WeakPool.Pin())Pool->Return(Released);else delete Released;});
+  ScenePointLease=MakeShareable(P,[WeakPool](TArray<FVirtualLidarPoint>* Released)
+  {
+   auto Pool=WeakPool.Pin();if(!Pool){delete Released;return;}
+   if(CVarLidarPointPoolAsyncReset.GetValueOnAnyThread()==0){Pool->Return(Released);return;}
+   // The last immutable consumer has released this array. Keep it outside the
+   // same three-lease pool until cleanup finishes; workers never touch UObjects.
+   if(IsInGameThread()&&Released->Num()>0&&GThreadPool&&!IsEngineExitRequested())
+   {
+    Pool->PendingResets.fetch_add(1,std::memory_order_relaxed);
+    Async(EAsyncExecution::ThreadPool,[Pool=MoveTemp(Pool),Released]()
+    {Released->Reset();Pool->Return(Released);Pool->PendingResets.fetch_sub(1,std::memory_order_release);});
+   }
+   else {Released->Reset();Pool->Return(Released);}
+  });
   ScheduledPoints=MoveTemp(*P);ScheduledPoints.Reset();return;
  }
  // A transport/export consumer may legally retain every lease. Never mutate
@@ -365,6 +395,15 @@ void UVirtualLidarScanComponent::AcquireScenePointStorage(int32 Capacity)
 }
 void UVirtualLidarScanComponent::RecycleScenePointStorage()
 {if(ScenePointLease){*ScenePointLease=MoveTemp(ScheduledPoints);ScenePointLease.Reset();}}
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+bool UVirtualLidarScanComponent::WaitForScenePointPoolCleanupForTesting() const
+{
+ check(IsInGameThread());auto Pool=ScenePointPool;if(!Pool)return true;
+ const double Deadline=FPlatformTime::Seconds()+2;
+ while(Pool->PendingResets.load(std::memory_order_acquire)>0&&FPlatformTime::Seconds()<Deadline)FPlatformProcess::SleepNoStats(.001f);
+ return Pool->PendingResets.load(std::memory_order_acquire)==0;
+}
+#endif
 TSharedPtr<TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe> UVirtualLidarScanComponent::CompleteScenePointStorage()
 {
  if(!ScenePointLease)return {};
@@ -396,6 +435,7 @@ bool UVirtualLidarScanComponent::ShouldIgnoreScheduledHit(const FHitResult& Hit)
 int32 UVirtualLidarScanComponent::CompleteHardwareNormalizedFrame()
 {
  auto J=SceneQueryJob;if(!J||!J->WorkerStarted||!J->WorkerReady.load(std::memory_order_acquire))return -1;
+ CSV_SCOPED_TIMING_STAT(LidarWallclock28b,ConsumeNormalized);
 #if WITH_DEV_AUTOMATION_TESTS
  if(bTimingTraceForTests)
  {

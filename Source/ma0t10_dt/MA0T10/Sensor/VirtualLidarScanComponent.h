@@ -156,6 +156,7 @@ public:
     FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     uint64 GetScenePointPoolFallbacksForTesting() const { return ScenePointPoolFallbacksForTesting; }
+    bool WaitForScenePointPoolCleanupForTesting() const;
 #endif
     UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="DigitalTwin|VirtualLidar|Output")
     EVirtualLidarCompatibilityOutputPolicy CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::LegacyAlways;
