@@ -127,7 +127,7 @@ FVector2D ACoilLoadingMonitorHost::GetToolsInset() const
     const auto Rects=Workspace->GetOwnedDiagnosticExclusionRects();
     if(Rects.Num()<2)return FVector2D::ZeroVector;
     const double Scale=UWidgetLayoutLibrary::GetViewportScale(this);
-    const FVector2D Viewport=UWidgetLayoutLibrary::GetViewportSize(this);
+    const FVector2D Viewport=UWidgetLayoutLibrary::GetViewportSize(GetWorld());
     if(Scale<=0||Viewport.GetMin()<=0)return FVector2D::ZeroVector;
     // Workspace reports viewport pixels, including Main Canvas rehosting offsets.
     return FVector2D(FMath::Max(0.,Rects[0].Max.X)/Scale,FMath::Max(0.,Viewport.Y-Rects[1].Min.Y)/Scale);
