@@ -268,6 +268,7 @@ private:
     friend class FDatasetManualAcceptanceCommand;
     friend class FExport01RhiCommand;
     friend class FUxr15Audit;
+    friend class FPcdBandwidthUiRun;
     friend class FUxr16Audit;
     friend class FUxr16Integration;
     friend class FUxr15OptionBindingsTest;
@@ -320,12 +321,12 @@ private:
     TSharedRef<SWidget> BuildPcdBandwidthOptions();
     FVirtualPcdSendOptions ReadPcdBandwidthOptions() const;
     void ApplyPcdBandwidthOptions(const FVirtualPcdSendOptions& Options);
-    FString BuildPcdBandwidthEstimate() const;
+    FText BuildPcdBandwidthEstimate() const;
     bool bPcdApplyAll=false;
     TArray<TSharedPtr<EVirtualPcdFieldProfile>> PcdProfileChoices;
     TArray<TSharedPtr<int32>> PcdDivisorChoices;
     mutable double NextPcdBandwidthEstimate=0;
-    mutable FString CachedPcdBandwidthEstimate;
+    mutable FText CachedPcdBandwidthEstimate;
 	TSharedRef<SWidget> BuildCaptureTab();
 	TSharedRef<SWidget> BuildExportTab(TSharedPtr<EVirtualSensorExportKind> InitiallySelected);
 	TSharedRef<SWidget> BuildConnectionLogTab();

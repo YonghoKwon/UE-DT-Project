@@ -33,6 +33,11 @@ class FGpuScheduledRun final:public IAutomationLatentCommand
     TWeakObjectPtr<UVirtualSensorStreamPublisherComponent> PcdPublisher;
     TMap<FString,FVirtualSensorStreamStatus> PcdBaselines;
     int PcdPort=0;
+    TMap<FString,TArray<double>> EncodeTimes;
+    FDelegateHandle EncodeHandle;
+    FVirtualPcdSendOptions BandwidthOptions;
+    static double Percentile(TArray<double> A,double P){A.Sort();return A.IsEmpty()?0:A[FMath::Clamp(FMath::CeilToInt(A.Num()*P)-1,0,A.Num()-1)];}
+
     double NextPcdBudgetSample=0,MaximumPcdRequiredMiB=0;int PcdBudgetWarningSamples=0;
     FVirtualSensorStreamStatus PcdStatus(const FString& Id) const
     {
@@ -68,6 +73,12 @@ public:
                 Transport->ConfigureTransportProfile(Profile);Transport->SetSessionCredentials(TEXT(""),TEXT(""));
                 auto* Publisher=NewObject<UVirtualSensorStreamPublisherComponent>(Sim);Sim->AddInstanceComponent(Publisher);
                 Publisher->SetTransportComponent(Transport);Publisher->RegisterComponent();PcdPublisher=Publisher;
+                FString FieldProfile;FParse::Value(FCommandLine::Get(),TEXT("PcdBandwidthProfile="),FieldProfile);
+                if(FieldProfile==TEXT("Compact"))BandwidthOptions.Profile=EVirtualPcdFieldProfile::Compact;
+                else if(FieldProfile==TEXT("Minimal"))BandwidthOptions.Profile=EVirtualPcdFieldProfile::Minimal;
+                BandwidthOptions.bCompressed=FParse::Param(FCommandLine::Get(),TEXT("PcdBandwidthCompressed"));
+                FString OptionError;Test->TestTrue(TEXT("bandwidth fixture sets explicit send options"),Publisher->SetPcdSendOptions(TEXT(""),BandwidthOptions,true,OptionError));
+                EncodeHandle=Publisher->OnPcdEncoded.AddLambda([this](const FString& Id,int64,float Ms,int32){if(Phase==2)EncodeTimes.FindOrAdd(Id).Add(Ms);});
                 // Use the production normalization/default budgets: PCD binary, FIFO,
                 // stride 1, receipt every frame, 20 retained frames, 80 MiB/s.
                 for(int I=0;I<SensorCount;++I)if(auto* A=Sim->SensorAt(I))
@@ -162,6 +173,15 @@ public:
                 Output->SetNumberField(TEXT("bandwidth_deferred"),S.BandwidthDeferredFrameCount-B.BandwidthDeferredFrameCount);
                 Output->SetNumberField(TEXT("delivery_failures"),S.DeliveryFailureCount-B.DeliveryFailureCount+S.RawDeliveryFailureCount-B.RawDeliveryFailureCount);
                 Output->SetNumberField(TEXT("serialization_p95_ms"),S.SerializationP95LatencyMs);
+                const auto Samples=EncodeTimes.FindRef(Scan->SensorId);
+                Output->SetNumberField(TEXT("window_encode_samples"),Samples.Num());
+                Output->SetNumberField(TEXT("window_encode_p50_ms"),Percentile(Samples,.5));
+                Output->SetNumberField(TEXT("window_encode_p95_ms"),Percentile(Samples,.95));
+                int Over=0;for(double V:Samples)Over+=V>150;
+                Output->SetNumberField(TEXT("window_encode_over_150ms"),Over);
+                Output->SetNumberField(TEXT("mib_per_second"),(S.TotalSubmittedBytes-B.TotalSubmittedBytes)/Seconds/1048576.);
+                Output->SetNumberField(TEXT("send_profile"),int(BandwidthOptions.Profile));
+                Output->SetBoolField(TEXT("compressed"),BandwidthOptions.bCompressed);
                 Output->SetNumberField(TEXT("input_queue"),S.InputQueueDepth);Output->SetNumberField(TEXT("prepared_queue"),S.PreparedQueueDepth);
                 Output->SetNumberField(TEXT("raw_outstanding_frames"),S.RawOutstandingFrameCount);Output->SetNumberField(TEXT("raw_outstanding_bytes"),S.RawOutstandingBytes);
                 Output->SetNumberField(TEXT("last_frame_bytes"),S.LastFrameBytes);Output->SetNumberField(TEXT("last_points"),S.LastPointCount);
@@ -190,6 +210,7 @@ public:
             }
             AActor* Actor=Sensors[I].Get();if(Actor)Sensors[I]->StopSensor();
         }
+        if(PcdPublisher.IsValid())PcdPublisher->OnPcdEncoded.Remove(EncodeHandle);
         if(OperatingCamera.IsValid())OperatingCamera->StopSensor();
         R->SetArrayField(TEXT("sensors"),Rows);R->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());
         FString Text;FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Text));FString Root;if(FParse::Value(FCommandLine::Get(),TEXT("ReportExportPath="),Root))Root/=TEXT("measurements");else Root=FPaths::ProjectSavedDir()/TEXT("Reports/GPU-LIDAR-01/progress/scheduled");if(PcdPort)Root/=TEXT("pcd-on");IFileManager::Get().MakeDirectory(*Root,true);

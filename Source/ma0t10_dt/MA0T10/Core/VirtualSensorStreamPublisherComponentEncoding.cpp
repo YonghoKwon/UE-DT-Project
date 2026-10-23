@@ -675,8 +675,9 @@ void UVirtualSensorStreamPublisherComponent::StartPointCloudSerialization(const 
 		{
 			if (WeakThis.IsValid())
 			{
-				if (FStreamRuntime* Runtime = WeakThis->StreamRuntimes.Find(StreamKey))
+				if (FStreamRuntime* Runtime = WeakThis->StreamRuntimes.Find(StreamKey); Runtime && Runtime->ConfigRevision==CapturedConfigRevision)
 				{
+					WeakThis->OnPcdEncoded.Broadcast(Message.SensorId,Message.FrameId,SerializationLatencyMs,Message.ByteCount);
 					Runtime->Status.LastSerializationLatencyMs = SerializationLatencyMs;
 					Runtime->SerializationLatencySamples.Add(SerializationLatencyMs);
 					if (Runtime->SerializationLatencySamples.Num() > 256)

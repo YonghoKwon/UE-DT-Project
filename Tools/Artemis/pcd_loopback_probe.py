@@ -14,27 +14,90 @@ import time
 from pathlib import Path
 
 MAX_BODY = 8 * 1024 * 1024
-EXPECTED = {
-    "FIELDS": "x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence",
-    "SIZE": "4 4 4 2 2 2 1 1 8 1 4",
-    "TYPE": "F F F U U U U U I U F",
-    "COUNT": "1 1 1 1 1 1 1 1 1 1 1",
-    "HEIGHT": "1", "DATA": "binary",
-}
+# PCD 0.7/PCL field layout. Full remains the default; optional stream profiles
+# select a subset with mandatory XYZ. Storage writers continue using Full.
+FIELD_TYPES = dict(zip(
+    "x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence".split(),
+    [(4,"F"),(4,"F"),(4,"F"),(2,"U"),(2,"U"),(2,"U"),(1,"U"),(1,"U"),(8,"I"),(1,"U"),(4,"F")]))
+
+
+def decode_lzf(data, expected):
+    if not 0 <= expected <= MAX_BODY:
+        raise ValueError("LZF output exceeds fixture bound")
+    out = bytearray()
+    i = 0
+    while i < len(data):
+        control = data[i]
+        i += 1
+        if control < 32:
+            n = control + 1
+            if i+n > len(data) or len(out)+n > expected:
+                raise ValueError("truncated/overflow LZF literal")
+            out.extend(data[i:i+n])
+            i += n
+        else:
+            n = control >> 5
+            if n == 7:
+                if i >= len(data):
+                    raise ValueError("truncated LZF match length")
+                n += data[i]
+                i += 1
+            if i >= len(data):
+                raise ValueError("truncated LZF distance")
+            distance = ((control & 31) << 8) + data[i] + 1
+            i += 1
+            n += 2
+            if distance > len(out) or len(out)+n > expected:
+                raise ValueError("invalid LZF reference/output size")
+            block = bytes(out[-distance:])
+            out.extend((block * ((n+distance-1)//distance))[:n])
+    if len(out) != expected:
+        raise ValueError("LZF size mismatch")
+    return out
 
 
 def validate_pcd(body, headers):
-    marker = b"DATA binary\n"
-    offset = body.find(marker, 0, 16384)
-    if offset < 0:
-        raise ValueError("missing binary PCD header")
-    start = offset + len(marker)
-    fields = dict(line.split(" ", 1) for line in body[:start].decode("utf-8").splitlines()
-                  if " " in line and not line.startswith("#"))
-    if any(fields.get(k) != v for k, v in EXPECTED.items()):
-        raise ValueError("33-byte PCD schema differs")
+    import struct
+    start = 0
+    fields = {}
+    for line in body[:65536].splitlines(keepends=True):
+        start += len(line)
+        if line.startswith(b"#"):
+            continue
+        if not line.endswith(b"\n"):
+            raise ValueError("truncated PCD header")
+        key, _, value = line.decode("utf-8").strip().partition(" ")
+        if key in fields:
+            raise ValueError("duplicate PCD header")
+        fields[key] = value
+        if key == "DATA":
+            break
+    if fields.get("VERSION") != "0.7" or fields.get("DATA") not in ("binary", "binary_compressed"):
+        raise ValueError("unsupported PCD version/data")
+    names = fields["FIELDS"].split()
+    sizes = [int(v) for v in fields["SIZE"].split()]
+    types = fields["TYPE"].split()
+    counts = [int(v) for v in fields["COUNT"].split()]
+    if len(names) != len(set(names)) or not {"x", "y", "z"} <= set(names):
+        raise ValueError("PCD requires unique fields and XYZ")
+    if not len(names) == len(sizes) == len(types) == len(counts):
+        raise ValueError("PCD field descriptor lengths differ")
+    for name, size, kind, count in zip(names, sizes, types, counts):
+        if FIELD_TYPES.get(name) != (size, kind) or count != 1:
+            raise ValueError("PCD field type differs")
     points = int(fields["POINTS"])
-    if int(fields["WIDTH"]) != points or len(body) - start != points * 33:
+    expected = points * sum(sizes)
+    if points < 0 or expected > MAX_BODY or int(fields["WIDTH"]) * int(fields["HEIGHT"]) != points:
+        raise ValueError("PCD dimensions/size differ")
+    data = body[start:]
+    if fields["DATA"] == "binary_compressed":
+        if len(data) < 8:
+            raise ValueError("missing LZF size prefix")
+        compressed, uncompressed = struct.unpack_from("<II", data)
+        if uncompressed != expected or compressed != len(data)-8:
+            raise ValueError("LZF size prefix differs")
+        decode_lzf(data[8:], uncompressed)
+    elif len(data) != expected:
         raise ValueError("PCD record length differs")
     if int(headers["point-count"]) != points:
         raise ValueError("point count header differs")

@@ -104,6 +104,7 @@ FVirtualSensorOutputPreflightResult UVirtualSensorOutputPreflight::InspectForPre
             }
             auto& Row=R.Streams.AddDefaulted_GetRef();Row.SensorId=Id;Row.Kind=Kind;Row.ConfigurationRevision=A->GetConfigurationRevision();
             Row.bPlannedOutput=Selected;Row.RequestedHz=1.0/(Camera?S.CameraCaptureInterval:S.LidarScanInterval)/FMath::Max(1,Config.FrameStride);
+            if(Kind==EVirtualSensorStreamKind::PointCloud)Row.RequestedHz/=P->GetPcdSendOptions(Id).Divisor();
             const bool UseRaw=Config.TransportBackend==EVirtualSensorStreamTransportBackend::TcpStompHighThroughput&&P->CanUseHighThroughputTransport();
             Row.TransportBackend=UseRaw?EVirtualSensorStreamTransportBackend::TcpStompHighThroughput:EVirtualSensorStreamTransportBackend::EngineStompCompatibility;
             R.bRequiresRaw|=UseRaw;R.bRequiresEngine|=!UseRaw;Row.bTransportConnected=UseRaw?R.bRawConnected:R.bEngineConnected;
@@ -129,8 +130,11 @@ FVirtualSensorOutputPreflightResult UVirtualSensorOutputPreflight::InspectForPre
                     Row.Specification+=FString::Printf(TEXT(" · 설정 %s / 현재 %s"),Configured,Resolved==EVirtualLidarAcquisitionBackend::GpuDepthProjection?TEXT("GPU"):TEXT("CPU/외부"));
                     if(!BackendReason.IsEmpty())Row.Specification+=TEXT(" · ")+BackendReason;
                 }
-                Row.EstimatedBytesPerFrame=int64(S.LidarHorizontalSamples)*S.LidarVerticalChannels*Echoes*33+4096;
-                Row.Specification+=FString::Printf(TEXT(" · fallback 포함 최대 echo %d · 33bytes/점"),Echoes);
+                const auto SendOptions=P->GetPcdSendOptions(Id);
+                const int32 PointBytes=FVirtualPcdCodec::BytesPerPoint(SendOptions);
+                Row.EstimatedBytesPerFrame=int64(S.LidarHorizontalSamples)*S.LidarVerticalChannels*Echoes*PointBytes+4096;
+                Row.bEstimateUncertain|=SendOptions.bCompressed;
+                Row.Specification+=FString::Printf(TEXT(" · fallback 포함 최대 echo %d · %dbytes/점 · 전송 1/%d · 비압축 환산"),Echoes,PointBytes,SendOptions.Divisor());
                 const auto Frame=Scan?Scan->GetLastFrameSnapshot():nullptr;
                 if(Frame&&Frame->PipelineGeneration==Scan->GetFileCaptureRevision()&&Frame->HorizontalSamples==S.LidarHorizontalSamples&&Frame->VerticalChannels==S.LidarVerticalChannels&&FMath::IsNearlyEqual(Frame->MaxDistanceCm,S.LidarMaxDistance))
                     for(const auto& Status:P->GetStreamStatuses())if(Status.SensorId==Id&&Status.StreamKind==Kind&&Status.LastSubmittedFrameId==Frame->FrameId)Row.ObservedBytesPerFrame=Status.LastFrameBytes;

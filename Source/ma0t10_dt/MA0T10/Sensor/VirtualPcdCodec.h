@@ -13,7 +13,7 @@ struct MA0T10_DT_API FVirtualPcdSendOptions
 {
 	GENERATED_BODY()
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, SaveGame) EVirtualPcdFieldProfile Profile = EVirtualPcdFieldProfile::Full;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, SaveGame) int32 CustomFieldMask = 2047;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, SaveGame, meta=(ClampMin="0", ClampMax="2047")) int32 CustomFieldMask = 2047;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, SaveGame) bool bCompressed = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, SaveGame, meta=(ClampMin="1", ClampMax="4")) int32 SendDivisor = 1;
 	int32 FieldMask() const;

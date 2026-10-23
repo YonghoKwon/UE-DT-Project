@@ -23,6 +23,8 @@ class MA0T10_DT_API UVirtualSensorStreamPublisherComponent : public UActorCompon
 
 public:
 	FSimpleMulticastDelegate OnStreamConfigurationChanged;
+	DECLARE_MULTICAST_DELEGATE_FourParams(FPcdEncoded,const FString&,int64,float,int32);
+	FPcdEncoded OnPcdEncoded;
 	UFUNCTION(BlueprintCallable, Category="DigitalTwin|VirtualSensor|PCD")
 	bool SetPcdSendOptions(const FString& SensorId, const FVirtualPcdSendOptions& Options, bool bApplyToAll, FString& Error);
 	UFUNCTION(BlueprintPure, Category="DigitalTwin|VirtualSensor|PCD")
@@ -151,6 +153,7 @@ private:
     friend struct FPointCloudOverloadTestAccess;
     friend struct FPcdRateControlTestAccess;
     friend struct FPcdFairBudgetTestAccess;
+    friend struct FPcdBandwidthTestAccess;
     friend class FUxr15OptionBindingsTest;
 #endif
 	friend class FSensorPlacementGateTest;

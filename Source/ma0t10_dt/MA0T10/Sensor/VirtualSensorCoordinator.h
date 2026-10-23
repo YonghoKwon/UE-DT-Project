@@ -226,6 +226,8 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
     TArray<FVirtualSensorSummary> GetLidarSummaries() const;
 
+    const TArray<TObjectPtr<UVirtualLidarScanComponent>>& GetLidarComponents() const { return Lidars; }
+
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
     TArray<FVirtualSensorSummary> GetRealSensorSourceSummaries() const;
 

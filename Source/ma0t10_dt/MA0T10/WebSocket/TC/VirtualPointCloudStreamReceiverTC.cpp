@@ -60,16 +60,7 @@ bool ParseInt32Header(const TMap<FName, FString>& Headers, const TCHAR* Name, in
 	return ReadRequiredHeader(Headers, Name, Text) && LexTryParseString(OutValue, *Text);
 }
 
-int32 FindBinaryPayloadOffset(const TArray<uint8>& Bytes)
-{
-	static const ANSICHAR Marker[] = "DATA binary\n";
-	constexpr int32 MarkerLength = static_cast<int32>(sizeof(Marker) - 1);
-	for (int32 Index = 0; Index + MarkerLength <= Bytes.Num(); ++Index)
-	{
-		if (FMemory::Memcmp(Bytes.GetData() + Index, Marker, MarkerLength) == 0) return Index + MarkerLength;
-	}
-	return INDEX_NONE;
-}
+
 }
 
 UVirtualPointCloudStreamReceiverTC::UVirtualPointCloudStreamReceiverTC()
