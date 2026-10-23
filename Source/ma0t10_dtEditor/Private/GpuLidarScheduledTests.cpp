@@ -38,7 +38,7 @@ class FGpuScheduledRun final:public IAutomationLatentCommand
     TArray<double> Engine,Wall,Game,Gpu;uint64 FirstFrame=0;int Slow=0;
     TWeakObjectPtr<UVirtualSensorStreamPublisherComponent> PcdPublisher;
     TMap<FString,FVirtualSensorStreamStatus> PcdBaselines;
-    int PcdPort=0; FIntPoint MeasurementClient;
+    int PcdPort=0; FIntPoint MeasurementClient; float MeasurementDpi=0; bool VisibleWindowVerified=false;
     TMap<FString,TArray<double>> EncodeTimes;
     FDelegateHandle EncodeHandle;
     FVirtualPcdSendOptions BandwidthOptions;
@@ -85,6 +85,13 @@ public:
                 BandwidthOptions.bCompressed=FParse::Param(FCommandLine::Get(),TEXT("PcdBandwidthCompressed"));
                 if(FParse::Param(FCommandLine::Get(),TEXT("PcdBandwidthDefaults")))BandwidthOptions=Publisher->GetPcdSendOptions(TEXT(""));
                 else {FString OptionError;Test->TestTrue(TEXT("bandwidth fixture sets explicit send options"),Publisher->SetPcdSendOptions(TEXT(""),BandwidthOptions,true,OptionError));}
+                int32 SendDivisor=1;
+                if(FParse::Value(FCommandLine::Get(),TEXT("PcdBandwidthDivisor="),SendDivisor))
+                {
+                    if(!Test->TestTrue(TEXT("send divisor is1,2,4"),SendDivisor==1||SendDivisor==2||SendDivisor==4))return true;
+                    BandwidthOptions.SendDivisor=SendDivisor;FString OptionError;
+                    if(!Test->TestTrue(TEXT("configure send division without changing acquisition"),Publisher->SetPcdSendOptions(TEXT(""),BandwidthOptions,true,OptionError)))return true;
+                }
                 EncodeHandle=Publisher->OnPcdEncoded.AddLambda([this](const FString& Id,int64,float Ms,int32){if(Phase==2)EncodeTimes.FindOrAdd(Id).Add(Ms);});
                 // Use the production normalization/default budgets: PCD binary, FIFO,
                 // stride 1, receipt every frame, 20 retained frames, 80 MiB/s.
@@ -111,6 +118,9 @@ public:
             MissedSlotBaselines.Reset();
             for(int I=0;I<Sensors.Num();++I){Baselines[I]=Sensors[I]->ScanComponent->GetRuntimeStatus().FrameId;MissedSlotBaselines.Add(Sensors[I]->ScanComponent->GetRuntimeStatus().DeadlineMissCount);}
             MeasurementClient=Sensors[0]->GetWorld()->GetGameViewport()->Viewport->GetSizeXY();
+            if(auto Window=FSlateApplication::Get().FindWidgetWindow(Sensors[0]->GetWorld()->GetGameViewport()->GetGameViewportWidget().ToSharedRef()))
+            {MeasurementDpi=Window->GetDPIScaleFactor();VisibleWindowVerified=Window->IsVisible();}
+            if(!FParse::Param(FCommandLine::Get(),TEXT("RenderOffscreen"))&&!Test->TestTrue(TEXT("visible PIE window verified"),VisibleWindowVerified))return true;
             if(PcdPublisher.IsValid())for(const auto& A:Sensors)PcdBaselines.Add(A->ScanComponent->SensorId,PcdStatus(A->ScanComponent->SensorId));
             if(OperatingCamera.IsValid())CameraBaseline=OperatingCamera->GetSensorRuntimeStatus().FrameId;
             Measured=Last=Now;MeasurementUtc=FDateTime::UtcNow();FirstFrame=GFrameCounter;Phase=2;return false;
@@ -137,6 +147,7 @@ public:
         R->SetNumberField(TEXT("warmup_seconds"),10);R->SetNumberField(TEXT("samples"),Wall.Num());
         R->SetBoolField(TEXT("render_offscreen"),FParse::Param(FCommandLine::Get(),TEXT("RenderOffscreen")));
         R->SetStringField(TEXT("actual_client"),FString::Printf(TEXT("%dx%d"),MeasurementClient.X,MeasurementClient.Y));
+        R->SetNumberField(TEXT("dpi_scale"),MeasurementDpi);R->SetBoolField(TEXT("visible_window_verified"),VisibleWindowVerified);
         for(const TCHAR* Key:{TEXT("Perf01SourceCommit="),TEXT("Perf01RunId="),TEXT("Perf01InstrumentSha="),TEXT("Perf01SessionSha=")})
         {FString Value;FParse::Value(FCommandLine::Get(),Key,Value);R->SetStringField(FString(Key).LeftChop(1),Value);}
         R->SetStringField(TEXT("measurement_started_utc"),MeasurementUtc.ToIso8601());R->SetStringField(TEXT("measurement_ended_utc"),FDateTime::UtcNow().ToIso8601());R->SetNumberField(TEXT("seconds"),Now-Measured);R->SetNumberField(TEXT("engine_fps"),1000/FMath::Max(.001,Average(Engine)));
@@ -209,6 +220,8 @@ public:
                 Output->SetNumberField(TEXT("window_encode_over_150ms"),Over);
                 Output->SetNumberField(TEXT("mib_per_second"),(S.TotalSubmittedBytes-B.TotalSubmittedBytes)/Seconds/1048576.);
                 Output->SetNumberField(TEXT("send_profile"),int(BandwidthOptions.Profile));
+                Output->SetNumberField(TEXT("send_divisor"),BandwidthOptions.Divisor());
+                Output->SetNumberField(TEXT("configured_divisor_skipped"),S.ConfiguredDivisorSkippedCount-B.ConfiguredDivisorSkippedCount);
                 Output->SetBoolField(TEXT("compressed"),BandwidthOptions.bCompressed);
                 Output->SetNumberField(TEXT("input_queue"),S.InputQueueDepth);Output->SetNumberField(TEXT("prepared_queue"),S.PreparedQueueDepth);
                 Output->SetNumberField(TEXT("raw_outstanding_frames"),S.RawOutstandingFrameCount);Output->SetNumberField(TEXT("raw_outstanding_bytes"),S.RawOutstandingBytes);
@@ -226,20 +239,20 @@ public:
                 Output->SetNumberField(TEXT("fair_share_mib_s"),S.PcdFairShareMiBPerSecond);
                 Output->SetNumberField(TEXT("points_times_33_times_requested_hz_mib_s"),S.LastPointCount*33.0*20/1048576.0);
                 Output->SetStringField(TEXT("message"),S.Message);Row->SetObjectField(TEXT("pcd"),Output);
-                Test->TestTrue(TEXT("PCD serialization >=10Hz"),(S.SerializedFrameCount-B.SerializedFrameCount)/Seconds>=10);
-                Test->TestTrue(TEXT("PCD socket submission >=10Hz"),(S.SubmittedFrameCount-B.SubmittedFrameCount)/Seconds>=10);
-                Test->TestTrue(TEXT("PCD broker receipts >=10Hz"),(S.ReceiptReceivedCount-B.ReceiptReceivedCount)/Seconds>=10);
-                Test->TestTrue(TEXT("PCD local validated receiver >=10Hz"),(S.ConsumerReceivedCount-B.ConsumerReceivedCount)/Seconds>=10);
+                Test->TestTrue(TEXT("PCD serialization >=10Hz / configured divisor"),(S.SerializedFrameCount-B.SerializedFrameCount)/Seconds>=10.0/BandwidthOptions.Divisor());
+                Test->TestTrue(TEXT("PCD socket submission >=10Hz / configured divisor"),(S.SubmittedFrameCount-B.SubmittedFrameCount)/Seconds>=10.0/BandwidthOptions.Divisor());
+                Test->TestTrue(TEXT("PCD broker receipts >=10Hz / configured divisor"),(S.ReceiptReceivedCount-B.ReceiptReceivedCount)/Seconds>=10.0/BandwidthOptions.Divisor());
+                Test->TestTrue(TEXT("PCD local validated receiver >=10Hz / configured divisor"),(S.ConsumerReceivedCount-B.ConsumerReceivedCount)/Seconds>=10.0/BandwidthOptions.Divisor());
                 Test->TestEqual(TEXT("PCD encode failures"),S.EncodeFailureCount-B.EncodeFailureCount,int64(0));
                 Test->TestEqual(TEXT("PCD invalid received"),S.ConsumerValidationFailureCount-B.ConsumerValidationFailureCount,int64(0));
                 Test->TestEqual(TEXT("PCD FIFO overloads"),S.OverloadCount-B.OverloadCount,int64(0));
                 if(!Operating&&!OS1&&SensorCount==3&&Scan->DeviceProfile==EVirtualLidarDeviceProfile::OusterOS1_64_Rev7)
                 {
                     Test->TestEqual(TEXT("approved default PCD budget80MiB/s"),S.PcdBudgetMiBPerSecond,80.f);
-                    Test->TestTrue(TEXT("default Rev7x3 serialization >=19Hz"),(S.SerializedFrameCount-B.SerializedFrameCount)/Seconds>=19);
-                    Test->TestTrue(TEXT("default Rev7x3 socket submission >=19Hz"),(S.SubmittedFrameCount-B.SubmittedFrameCount)/Seconds>=19);
-                    Test->TestTrue(TEXT("default Rev7x3 receipts >=19Hz"),(S.ReceiptReceivedCount-B.ReceiptReceivedCount)/Seconds>=19);
-                    Test->TestTrue(TEXT("default Rev7x3 validated receive >=19Hz"),(S.ConsumerReceivedCount-B.ConsumerReceivedCount)/Seconds>=19);
+                    Test->TestTrue(TEXT("default Rev7x3 serialization >=19Hz / configured divisor"),(S.SerializedFrameCount-B.SerializedFrameCount)/Seconds>=19.0/BandwidthOptions.Divisor());
+                    Test->TestTrue(TEXT("default Rev7x3 socket submission >=19Hz / configured divisor"),(S.SubmittedFrameCount-B.SubmittedFrameCount)/Seconds>=19.0/BandwidthOptions.Divisor());
+                    Test->TestTrue(TEXT("default Rev7x3 receipts >=19Hz / configured divisor"),(S.ReceiptReceivedCount-B.ReceiptReceivedCount)/Seconds>=19.0/BandwidthOptions.Divisor());
+                    Test->TestTrue(TEXT("default Rev7x3 validated receive >=19Hz / configured divisor"),(S.ConsumerReceivedCount-B.ConsumerReceivedCount)/Seconds>=19.0/BandwidthOptions.Divisor());
                     Test->TestEqual(TEXT("default Rev7x3 has no budget warnings during measurement"),PcdBudgetWarningSamples,0);
                 }
             }

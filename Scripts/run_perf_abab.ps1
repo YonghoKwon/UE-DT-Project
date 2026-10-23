@@ -9,6 +9,8 @@
     [ValidateSet('Perf01', 'ScheduledLidar')][string]$Workload = 'Perf01',
     [ValidateSet('Gpu', 'Cpu')][string]$ScheduledBackend = 'Gpu',
     [ValidateRange(0, 65535)][int]$ScheduledPcdLoopbackPort = 0,
+    [ValidateSet(1,2,4)][int]$ScheduledDivisor = 1,
+    [string]$NativeLzfValidatorPath = '',
     [double]$ThresholdPercent = 2.0,
     [string]$EngineRoot = 'C:/Program Files/Epic Games/UE_5.3',
     [string]$ReportRoot = '',
@@ -94,8 +96,10 @@ $manifest = [ordered]@{
     Baseline = [ordered]@{ Ref = $Baseline; Commit = $refs.A }; Candidate = [ordered]@{ Ref = $Candidate; Commit = $refs.B }
     DTCore = $dtcore; Instrument = [ordered]@{ Path = $instrument; Sha256 = (Get-Sha256 $instrumentSource) }
     SessionInstrument = [ordered]@{ Path = $sessionInstrument; Sha256 = (Get-Sha256 (Join-Path $root $sessionInstrument)) }
-    Workload = $Workload; ScheduledBackend = $ScheduledBackend; ScheduledPcdLoopbackPort = $ScheduledPcdLoopbackPort
+    Workload = $Workload; ScheduledBackend = $ScheduledBackend; ScheduledPcdLoopbackPort = $ScheduledPcdLoopbackPort; ScheduledDivisor = $ScheduledDivisor
     RelativeGateSha256 = (Get-Sha256 "$PSScriptRoot/PerfRelativeGate.ps1")
+    ReceiverSha256 = (Get-Sha256 "$root/Tools/Artemis/pcd_loopback_probe.py")
+    NativeLzfValidatorSha256 = $(if ($NativeLzfValidatorPath) { Get-Sha256 $NativeLzfValidatorPath } else { '' })
     BackgroundCpuSnapshots = 'runs/<run>.background-cpu.json; informational, not used in verdict'
     Map = "/Game/MA0T10/Maps/Tests/$mapName"; Viewport = '1920x1080'; Rhi = 'D3D12'; RayTracing = $RayTracing
     Pairs = $pairList; Display = $Display; Blocks = $Blocks; WarmupSeconds = 10; MeasurementSeconds = $MeasurementSeconds
@@ -135,7 +139,7 @@ try {
     }
     foreach ($pairCount in $pairList) {
         foreach ($offscreen in $displays) {
-            $condition = $(if ($Workload -eq 'ScheduledLidar') { "lidar3-$ScheduledBackend-pcd$ScheduledPcdLoopbackPort-" } else { "${pairCount}pair-" }) + $(if ($offscreen) { 'offscreen' } else { 'visible' })
+            $condition = $(if ($Workload -eq 'ScheduledLidar') { "lidar3-$ScheduledBackend-div$ScheduledDivisor-pcd$ScheduledPcdLoopbackPort-" } else { "${pairCount}pair-" }) + $(if ($offscreen) { 'offscreen' } else { 'visible' })
             for ($block = 1; $block -le $Blocks; $block++) {
                 $index = 0
                 foreach ($label in 'A', 'B', 'A', 'B') {
@@ -146,6 +150,7 @@ try {
                     $arguments = @("`"$owned/$label/ma0t10_dt.uproject`"", "/Game/MA0T10/Maps/Tests/$mapName", '-unattended', '-nop4', '-nosplash', '-windowed', '-NoVSync', '-NoSound', '-ResX=1920', '-ResY=1080', '-d3d12', '-Perf01', "-Perf01Pairs=$pairCount", "-Perf01Seconds=$MeasurementSeconds", "`"-Perf01Output=$json`"", "`"-abslog=$runs/$name.log`"", '"-ExecCmds=t.MaxFPS 0,r.VSync 0,r.VSyncEditor 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10.PERF01.AcquisitionAndPreview;Quit"', '"-TestExit=Automation Test Queue Empty"')
                     if ($Workload -eq 'ScheduledLidar') {
                         $arguments = @("`"$owned/$label/ma0t10_dt.uproject`"", "/Game/MA0T10/Maps/Tests/$mapName", '-unattended', '-nop4', '-nosplash', '-windowed', '-NoVSync', '-NoSound', '-ResX=1920', '-ResY=1080', '-d3d12', "-GpuLidarMeasurementSeconds=$MeasurementSeconds", "`"-GpuLidarOutput=$json`"", "`"-abslog=$runs/$name.log`"", '"-ExecCmds=t.MaxFPS 60,r.VSync 0,r.VSyncEditor 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10.GpuLidar.ScheduledThree;Quit"', '"-TestExit=Automation Test Queue Empty"')
+                        $arguments += @('-PcdBandwidthDefaults', "-PcdBandwidthDivisor=$ScheduledDivisor")
                         if ($label -eq 'A') { $arguments += '-GpuLidarReferenceRun' }
                         if ($ScheduledBackend -eq 'Cpu') { $arguments += '-GpuLidarCpu' }
                         if ($ScheduledPcdLoopbackPort) { $arguments += "-GpuLidarPcdLoopbackPort=$ScheduledPcdLoopbackPort" }
@@ -162,6 +167,7 @@ try {
                             # Own one credential-free receiver per run. Frame IDs restart
                             # with each Editor; separate reports avoid artificial gaps/duplicates.
                             $probeArgs = @("`"$root/Tools/Artemis/pcd_loopback_probe.py`"", '--port', $ScheduledPcdLoopbackPort, '--report', "`"$runs/$name.receiver.json`"", '--stop-file', "`"$runs/$name.receiver.stop`"")
+                            if ($NativeLzfValidatorPath) { $probeArgs += @('--native-validator', "`"$NativeLzfValidatorPath`"") }
                             $probe = Start-Process -FilePath (Get-Command python.exe -ErrorAction Stop).Source -ArgumentList $probeArgs -WindowStyle Hidden -PassThru -RedirectStandardOutput "$runs/$name.receiver.log" -RedirectStandardError "$runs/$name.receiver.stderr.log"
                             $ready = $false
                             for ($attempt = 0; $attempt -lt 50; $attempt++) {
@@ -205,7 +211,7 @@ try {
                             if ($receiver.invalid -ne 0 -or @($receiver.errors).Count -ne 0) { throw "External PCD schema/checksum receiver failed: $name" }
                             foreach ($sensor in $data.sensors) {
                                 $external = $receiver.sensors.PSObject.Properties[$sensor.sensor]
-                                if ($null -eq $external -or $external.Value.frames -le 0 -or $external.Value.duplicates -ne 0 -or $external.Value.gaps -ne 0) { throw "External PCD receive/gap/duplicate check failed: $name" }
+                                if ($null -eq $external -or $external.Value.frames -le 0 -or $external.Value.duplicates -ne 0 -or ($ScheduledDivisor -eq 1 -and $external.Value.gaps -ne 0)) { throw "External PCD receive/gap/duplicate check failed: $name" }
                             }
                         }
                     }
