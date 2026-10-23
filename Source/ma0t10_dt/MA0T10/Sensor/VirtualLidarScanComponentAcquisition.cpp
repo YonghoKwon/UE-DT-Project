@@ -116,10 +116,12 @@ void UVirtualLidarScanComponent::StopDatasetScan()
 void UVirtualLidarScanComponent::RequestDatasetScanOnce()
 {
     if(!GetWorld()||IsScanRunning())return;
-    StartScan();RequestImmediateScheduledScan();PrepareScheduledScan(GetWorld()->GetTimeSeconds());
+    StartScan();RequestImmediateScheduledScan();bSingleScheduledScanRequested=true;
+    PrepareScheduledScan(GetWorld()->GetTimeSeconds());
     // Keep scheduler polling this acquisition, but never start a second frame
     // before the dataset orchestrator consumes the first completed snapshot.
-    NextScheduledScanTime=TNumericLimits<double>::Max();
+    // Prepare holds admissions only after a start. A same-frame restart may
+    // need to wait for the next engine frame without losing the one-shot.
 }
 void UVirtualLidarScanComponent::StopScanInternal(bool KeepReadbacks)
 {
@@ -133,12 +135,12 @@ void UVirtualLidarScanComponent::StopScanInternal(bool KeepReadbacks)
 	if (GetWorld()) if (auto* Slab=FVirtualSensorAcquisitionContextProviders::Get(GetWorld())) Slab->CompleteAcquisition(SensorId,FrameId+1,false);
     if (GetWorld()) GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
     UnregisterFromPerformanceSubsystem();
-    NextScheduledScanTime = -1.0;
+    ScheduledCadence.Stop();
+    bSingleScheduledScanRequested = false;
     bScheduledScanInProgress = false;
     bGpuDepthScanInProgress = false;
     CancelSceneQueryBatch();ScheduledRayQuery.Reset();HardwareSurfaceIdentities.Reset();
     RecycleScenePointStorage();
-    bDeadlineMissRecordedForActiveAcquisition = false;
     if(GpuDepthProjectionComponent.IsValid()){if(KeepReadbacks)GpuDepthProjectionComponent->CancelDatasetAcquisition();else GpuDepthProjectionComponent->CancelAcquisition();}
     bScheduledPayloadBuildInFlight = false;
     bScheduledAutoExportInFlight = false;
@@ -204,7 +206,8 @@ int32 UVirtualLidarScanComponent::ProcessGpuDepthScan()
         ActiveAcquisitionBackend = EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
         RuntimeStatus.ActiveAcquisitionBackend = TEXT("accurate_cpu_trace");
         RuntimeStatus.AcquisitionBackendMessage = AcquisitionBackendFallbackReason;
-        if (GetWorld()) NextScheduledScanTime = GetWorld()->GetTimeSeconds();
+        if (ScheduledCadence.RetryHeldAdmission(FPlatformTime::Seconds())) bSingleScheduledScanRequested = true;
+        RequestImmediateScheduledScan();
         return 0;
     }
     if (Result != EVirtualSensorBackendPollResult::Completed)

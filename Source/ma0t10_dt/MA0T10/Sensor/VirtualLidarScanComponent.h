@@ -8,6 +8,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorResourceDiagnostics.h"
 #include "VirtualLidarFidelity.h"
 #include "VirtualLidarPointModel.h"
+#include "VirtualLidarCadence.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorRayQuery.h"
 #include "VirtualLidarScanComponent.generated.h"
 
@@ -178,6 +179,8 @@ public:
     // Automatic scan entry points used by UVirtualSensorSchedulerSubsystem.
     // ScanAndSend remains the synchronous one-shot compatibility API.
     void PrepareScheduledScan(double NowSeconds);
+    void SuspendScheduledScanCadence(double WallSeconds) { ScheduledCadence.Suspend(WallSeconds); }
+    uint64 GetScheduledMissedSlotCount() const { return ScheduledCadence.GetSkippedSlots(); }
     int32 ProcessScheduledScanChunk(int32 MaxRays);
 	void RequestImmediateScheduledScan();
     void SetInteractivePreviewMode(bool bEnabled, bool bSuppressDerivedOutput = true);
@@ -360,7 +363,7 @@ public:
     const FVirtualSensorRuntimeStatus& GetRuntimeStatus() const { return RuntimeStatus; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
-    bool IsScanRunning() const { return NextScheduledScanTime >= 0.0; }
+    bool IsScanRunning() const { return ScheduledCadence.IsRunning(); }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|SlabAnalysis")
     const FVirtualLidarSlabAnalysisResult& GetLastSlabAnalysis() const { return LastSlabAnalysis; }
@@ -793,7 +796,8 @@ private:
     UPROPERTY(Transient)
     TObjectPtr<UInstancedStaticMeshComponent> PointCloudPreviewComponent;
 
-    double NextScheduledScanTime = -1.0;
+    FVirtualLidarCadence ScheduledCadence;
+    bool bSingleScheduledScanRequested = false;
     double ScheduledScanStartTime = -1.0;
 	FVirtualSensorAcquisitionContext ScheduledSlabContext;
     double LastScheduledCompletionTime = -1.0;
@@ -812,7 +816,6 @@ private:
     FString GpuPreviewFallbackReason;
     bool bScheduledScanInProgress = false;
     bool bGpuDepthScanInProgress = false;
-    bool bDeadlineMissRecordedForActiveAcquisition = false;
     bool bScheduledPayloadBuildInFlight = false;
     FVirtualLidarCompatibilityOutputStatus CompatibilityStatus;
     TMap<FString,TWeakObjectPtr<UObject>> CompatibilityConsumers;

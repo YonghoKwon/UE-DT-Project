@@ -190,6 +190,9 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
     if (GetWorld() && GetWorld()->IsPaused())
     {
         CompactRegistrations();
+        const double WallSeconds = FPlatformTime::Seconds();
+        for (const auto& Lidar : Lidars)
+            if (Lidar.IsValid()) Lidar->SuspendScheduledScanCadence(WallSeconds);
         RefreshTelemetry(0.0f);
         return; // Diagnostics may tick while paused, acquisition must not.
     }
@@ -302,9 +305,9 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
 
     // A GPU acquisition can complete inside ProcessScheduledScanChunk after
     // the pre-pass has already observed it as in-flight. Re-run only the cheap
-    // admission step so a due ML-X frame starts in this Tick instead of idling
-    // for another complete 0.05-second period. No additional scan is queued;
-    // every component still permits exactly one acquisition in flight.
+    // admission step so a due frame starts in this Tick. The component keeps
+    // one acquisition in flight and admits at most once per engine frame,
+    // including across these two passes. Expired wall-clock slots are counted.
     for (const TWeakObjectPtr<UVirtualLidarScanComponent>& Lidar : Lidars)
     {
         if (Lidar.IsValid()) Lidar->PrepareScheduledScan(NowSeconds);

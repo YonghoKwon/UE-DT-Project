@@ -231,8 +231,8 @@ void UVirtualLidarScanComponent::StartScan()
 {
     if (!GetWorld() || ScanInterval <= 0.0f) return;
     GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
-    NextScheduledScanTime = GetWorld()->GetTimeSeconds() + (GetTypeHash(SensorId) % 1000) / 1000.0 * FMath::Max(0.001f, ScanInterval);
-    bDeadlineMissRecordedForActiveAcquisition = false;
+    ScheduledCadence.Start(FPlatformTime::Seconds(), ScanInterval, (GetTypeHash(SensorId) % 1000) / 1000.0);
+    bSingleScheduledScanRequested = false;
     if (!bRegisteredWithPerformanceSubsystem)
     {
         RuntimeStatus.LastAcquisitionProgressWorldSeconds = -1.0;
@@ -244,9 +244,9 @@ void UVirtualLidarScanComponent::StartScan()
 
 void UVirtualLidarScanComponent::RequestImmediateScheduledScan()
 {
-	if (NextScheduledScanTime >= 0.0 && GetWorld())
+	if (IsScanRunning() && GetWorld())
 	{
-		NextScheduledScanTime = GetWorld()->GetTimeSeconds();
+		ScheduledCadence.RequestImmediate(FPlatformTime::Seconds());
 	}
 }
 
@@ -497,7 +497,9 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
 #if WITH_DEV_AUTOMATION_TESTS
     if(FreezeAcquisitionForTests)return;
 #endif
-    if (NextScheduledScanTime < 0.0) return;
+    if (!IsScanRunning()) return;
+    const double WallSeconds = FPlatformTime::Seconds();
+    if (GetWorld() && GetWorld()->IsPaused()) { ScheduledCadence.Suspend(WallSeconds); return; }
     const double SafeInterval = FMath::Max(0.001, static_cast<double>(ScanInterval));
     RuntimeStatus.RequestedAcquisitionRateHz = static_cast<float>(1.0 / SafeInterval);
     RuntimeStatus.RequestedAcquisitionBackend = AcquisitionBackend == EVirtualLidarAcquisitionBackend::Auto
@@ -508,24 +510,19 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
                 ? TEXT("hardware_ray_tracing")
                 : TEXT("accurate_cpu_trace")));
     const bool bAcquisitionInProgress = bScheduledScanInProgress || bGpuDepthScanInProgress;
-    if (bAcquisitionInProgress && NowSeconds >= NextScheduledScanTime)
+    const auto Decision = ScheduledCadence.Poll(WallSeconds, SafeInterval, GFrameCounter, bAcquisitionInProgress);
+    // Counts represent expired requested slots, not output drops or failed captures.
+    RuntimeStatus.BudgetSkippedAcquisitionFrameCount += static_cast<int32>(FMath::Min<uint64>(
+        Decision.SkippedSlots, MAX_int32 - RuntimeStatus.BudgetSkippedAcquisitionFrameCount));
+    RuntimeStatus.DeadlineMissCount += static_cast<int32>(FMath::Min<uint64>(
+        Decision.SkippedSlots, MAX_int32 - RuntimeStatus.DeadlineMissCount));
+    if (Decision.bAdmit)
     {
-        // Do not move the deadline beyond the active acquisition here. The
-        // scheduler polls completion later in the same Tick; advancing the
-        // deadline first introduced an artificial idle period of one complete
-        // ML-X scan interval. Record the miss once and let the post-poll
-        // PrepareScheduledScan call admit the next coherent capture.
-        if (!bDeadlineMissRecordedForActiveAcquisition)
+        if (bSingleScheduledScanRequested)
         {
-            ++RuntimeStatus.BudgetSkippedAcquisitionFrameCount;
-            ++RuntimeStatus.DeadlineMissCount;
-            bDeadlineMissRecordedForActiveAcquisition = true;
+            ScheduledCadence.HoldAdmissions();
+            bSingleScheduledScanRequested = false;
         }
-    }
-    if (!bAcquisitionInProgress && NowSeconds >= NextScheduledScanTime)
-    {
-        do { NextScheduledScanTime += SafeInterval; } while (NextScheduledScanTime <= NowSeconds);
-        bDeadlineMissRecordedForActiveAcquisition = false;
         ActiveAcquisitionBackend = ResolveAcquisitionBackend(AcquisitionBackendFallbackReason);
         if (ActiveAcquisitionBackend == EVirtualLidarAcquisitionBackend::GpuDepthProjection)
         {
