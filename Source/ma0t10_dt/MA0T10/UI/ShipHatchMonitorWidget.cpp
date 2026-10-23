@@ -119,14 +119,14 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     StatusText=Label(TEXT("● 측정 준비 중"),Style::BodySize,false,Style::Success());StatusChip=Card(TEXT("HatchStatusChip"),Style::Selection());StatusChip->SetBrush(*Style::ChipBrush());StatusChip->SetPadding(FMargin(Style::Gap,4));StatusChip->SetContent(StatusText);StatusText->SetAutoWrapText(true);Row->AddChildToHorizontalBox(StatusChip)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     StatusText->SetToolTipText(FText::FromString(TEXT("붐·운전실 좌·우 순서의 목표/실제 전체 스캔 획득Hz입니다. 해치 전용 불변 삼각형BVH를 CPU 작업 스레드에서 계산하고 게임 스레드의 재질·점 처리 예산으로 분할합니다. 전체 광선 수·구조 복잡도·프레임 부하에 따라 목표보다 낮아질 수 있습니다. 분석은 별도 작업으로 최대5Hz입니다. 송신Hz와 구분합니다.")));
     GrabDisplayToggle=Button(TEXT("그랩 표시 꺼짐"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnGrabDisplayToggle));Row->AddChildToHorizontalBox(GrabDisplayToggle)->SetPadding(FMargin(0,0,Style::Gap,0));GrabDisplayToggle->SetToolTipText(FText::FromString(TEXT("꺼짐: 그랩·로프와 해당 차폐를 제외하고 즉시 퍼내기. 켜짐: 단일 그랩 모델·기구 연동과 실제 시야 차폐를 표시합니다.")));
-    Row->AddChildToHorizontalBox(Button(TEXT("3분할 보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSplit)))->SetPadding(FMargin(0,0,Style::Gap,0));Row->AddChildToHorizontalBox(Button(TEXT("설정 · 상세"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSettings)));
+    Row->AddChildToHorizontalBox(Button(TEXT("분할 보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSplit)))->SetPadding(FMargin(0,0,Style::Gap,0));Row->AddChildToHorizontalBox(Button(TEXT("설정 · 상세"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSettings)));
     auto* Sub=WidgetTree->ConstructWidget<UHorizontalBox>();Head->AddChildToVerticalBox(Sub)->SetPadding(FMargin(0,Style::Gap,0,0));
     ContextText=Label(TEXT("홀드 01 · 철광석 · ML-X + Livox"),Style::LabelSize,false,Style::Muted());Sub->AddChildToHorizontalBox(ContextText)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     UpdatedText=Label(TEXT("마지막 갱신 —"),Style::LabelSize,false,Style::Muted());Sub->AddChildToHorizontalBox(UpdatedText);
     auto* CoverageHint=Label(ShipHatchMetricPresentation::CoverageHint(),Style::LabelSize,false,Style::Muted());CoverageHint->SetAutoWrapText(true);Head->AddChildToVerticalBox(CoverageHint)->SetPadding(FMargin(0,Style::Gap,0,0));
     auto* Metrics=WidgetTree->ConstructWidget<UHorizontalBox>();Add(Metrics);
     for(int32 I=0;I<6;++I)
-    {auto* C=Card(*FString::Printf(TEXT("Metric%d"),I),Style::Section());C->SetToolTipText(FText::FromString(ShipHatchMetricPresentation::Source(I)));auto* B=WidgetTree->ConstructWidget<UVerticalBox>();C->SetContent(B);MetricValues.Add(Label(TEXT("—"),Style::TitleSize+Style::Gap,true,I==0?Style::Accent():Style::Text()));B->AddChildToVerticalBox(MetricValues.Last());auto* Caption=Label(ShipHatchMetricPresentation::Caption(I),Style::LabelSize,false,Style::Muted());Caption->SetAutoWrapText(true);B->AddChildToVerticalBox(Caption);auto* LayoutSlot=Metrics->AddChildToHorizontalBox(C);LayoutSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LayoutSlot->SetPadding(FMargin(I?Style::Gap:0,0,0,0));}
+    {auto* C=Card(*FString::Printf(TEXT("Metric%d"),I),Style::Section());C->SetPadding(FMargin(Style::Gap));C->SetToolTipText(FText::FromString(ShipHatchMetricPresentation::Source(I)));auto* B=WidgetTree->ConstructWidget<UVerticalBox>();C->SetContent(B);MetricValues.Add(Label(TEXT("—"),Style::TitleSize,true,I==0?Style::Accent():Style::Text()));B->AddChildToVerticalBox(MetricValues.Last());auto* Caption=Label(ShipHatchMetricPresentation::Caption(I),Style::LabelSize,false,Style::Muted());Caption->SetAutoWrapText(true);B->AddChildToVerticalBox(Caption);auto* LayoutSlot=Metrics->AddChildToHorizontalBox(C);LayoutSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LayoutSlot->SetPadding(FMargin(I?Style::Gap:0,0,0,0));}
     auto* Toolbar=Card(TEXT("Hatch3dToolbar"));Add(Toolbar);Toolbar->SetClipping(EWidgetClipping::ClipToBounds);QuickToolScroll=WidgetTree->ConstructWidget<UScrollBox>();QuickToolScroll->SetClipping(EWidgetClipping::ClipToBounds);Toolbar->SetContent(QuickToolScroll);ToolbarContent=WidgetTree->ConstructWidget<UVerticalBox>();auto* ToolsBox=ToolbarContent.Get();QuickToolScroll->AddChild(ToolsBox);
     auto WrapRow=[&](const TCHAR* Name){auto* W=WidgetTree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass(),Name);W->SetExplicitWrapSize(true);W->SetInnerSlotPadding(FVector2D(Style::Gap,Style::Gap));ToolbarRows.Add(W);ToolsBox->AddChildToVerticalBox(W)->SetPadding(FMargin(0,0,0,Style::Gap));return W;};
     auto* Modes=WrapRow(TEXT("HatchViewModes"));
@@ -134,6 +134,7 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     PointControlsToggle=Button(TEXT("점군 설정 ▾"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnPointControlsToggle));Modes->AddChildToWrapBox(PointControlsToggle);
     DigToggle=Button(TEXT("퍼내기 켜기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnDigToggle));Modes->AddChildToWrapBox(DigToggle);
     Modes->AddChildToWrapBox(Button(TEXT("최대화"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnMax3d)));
+    MoreToggle=Button(TEXT("시점 · 더보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnMore));Modes->AddChildToWrapBox(MoreToggle);
     ModeLabel=Label(TEXT("이동 모드 · 좌/우 드래그 회전 · 휠 확대"),Style::LabelSize,false,Style::Accent());ModeLabel->SetAutoWrapText(true);ToolsBox->AddChildToVerticalBox(ModeLabel);
     auto* Cameras=WrapRow(TEXT("HatchCameraPresets"));
     CameraPresetButtons={Button(TEXT("위에서 보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnTop)),Button(TEXT("비스듬히 보기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnOblique)),Button(TEXT("시점 초기화"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnReset))};for(auto B:CameraPresetButtons)Cameras->AddChildToWrapBox(B);
@@ -156,12 +157,14 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     auto* MapHint=Label(TEXT("청록 카메라 · 노랑 단면선 · 회색 미관측"),Style::LabelSize,false,Style::Muted());MapHint->SetAutoWrapText(true);TopBox->AddChildToVerticalBox(MapHint);
     auto* Section=Card(TEXT("HatchSectionCard"));Add(Section);auto* SectionBox=WidgetTree->ConstructWidget<UVerticalBox>();Section->SetContent(SectionBox);
     auto* SectionHead=WidgetTree->ConstructWidget<UHorizontalBox>();SectionBox->AddChildToVerticalBox(SectionHead);
-    SectionHead->AddChildToHorizontalBox(Label(TEXT("홀드 단면"),Style::BodySize,true))->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-    SectionLengthButton=Button(TEXT("길이"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSectionLength));SectionWidthButton=Button(TEXT("폭"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSectionWidth));SectionHead->AddChildToHorizontalBox(SectionLengthButton);SectionHead->AddChildToHorizontalBox(SectionWidthButton)->SetPadding(FMargin(4,0));SectionHead->AddChildToHorizontalBox(Button(TEXT("확대"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnMaxSection)));
-    auto* PositionRow=WidgetTree->ConstructWidget<UHorizontalBox>();SectionBox->AddChildToVerticalBox(PositionRow);SectionLabel=Label(TEXT("Y 0.0 m"),Style::LabelSize);PositionRow->AddChildToHorizontalBox(SectionLabel)->SetPadding(FMargin(0,0,8,0));
+    SectionToggle=Button(TEXT("홀드 단면 펼치기"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSectionDrawer));SectionHead->AddChildToHorizontalBox(SectionToggle)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    auto* SectionButtons=WidgetTree->ConstructWidget<UHorizontalBox>();SectionActions=SectionButtons;SectionHead->AddChildToHorizontalBox(SectionButtons);SectionActions->SetVisibility(ESlateVisibility::Collapsed);
+    SectionBody=WidgetTree->ConstructWidget<UVerticalBox>();SectionBox->AddChildToVerticalBox(SectionBody)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));SectionBody->SetVisibility(ESlateVisibility::Collapsed);
+    SectionLengthButton=Button(TEXT("길이"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSectionLength));SectionWidthButton=Button(TEXT("폭"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnSectionWidth));SectionButtons->AddChildToHorizontalBox(SectionLengthButton);SectionButtons->AddChildToHorizontalBox(SectionWidthButton)->SetPadding(FMargin(4,0));SectionButtons->AddChildToHorizontalBox(Button(TEXT("확대"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnMaxSection)));
+    auto* PositionRow=WidgetTree->ConstructWidget<UHorizontalBox>();SectionBody->AddChildToVerticalBox(PositionRow);SectionLabel=Label(TEXT("Y 0.0 m"),Style::LabelSize);PositionRow->AddChildToHorizontalBox(SectionLabel)->SetPadding(FMargin(0,0,8,0));
     SectionSlider=WidgetTree->ConstructWidget<USlider>();SectionSlider->SetValue(.5);SectionSlider->SetSliderBarColor(Style::Border());SectionSlider->SetSliderHandleColor(Style::Warning());PositionRow->AddChildToHorizontalBox(SectionSlider)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));SectionSlider->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnSectionPosition);
-    SectionView=WidgetTree->ConstructWidget<UShipHatchAnalysisView>();SectionView->Monitor=this;SectionView->bSection=true;SectionCache=WidgetTree->ConstructWidget<UInvalidationBox>();SectionCache->SetCanCache(true);SectionCache->SetContent(SectionView);SectionBox->AddChildToVerticalBox(SectionCache)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-    SectionBox->AddChildToVerticalBox(Label(TEXT("현재 모의 높이장 · 바닥 0 m · 청록 카메라"),Style::LabelSize,false,Style::Muted()));
+    SectionView=WidgetTree->ConstructWidget<UShipHatchAnalysisView>();SectionView->Monitor=this;SectionView->bSection=true;SectionCache=WidgetTree->ConstructWidget<UInvalidationBox>();SectionCache->SetCanCache(true);SectionCache->SetContent(SectionView);SectionBody->AddChildToVerticalBox(SectionCache)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    SectionBody->AddChildToVerticalBox(Label(TEXT("현재 모의 높이장 · 바닥 0 m · 청록 카메라"),Style::LabelSize,false,Style::Muted()));
     auto* Footer=Card(TEXT("HatchFooter"));Footer->SetPadding(FMargin(Style::Gap));Add(Footer);DigAmounts=Label(TEXT("퍼낸 양  이번 0.00 m³ · 누적 0.00 m³  |  전체 홀드 기준 · 회색은 측정 불가"),Style::LabelSize,false,Style::Muted());auto* FooterRows=WidgetTree->ConstructWidget<UVerticalBox>();Footer->SetContent(FooterRows);FooterRows->AddChildToVerticalBox(DigAmounts);FooterRows->AddChildToVerticalBox(CoverageText);
     PointPanel=Card(TEXT("HatchPointOverlay"));PointPanel->SetPadding(FMargin(Style::Gap));auto PointTint=Style::Panel();PointTint.A=.86;PointPanel->SetBrushColor(PointTint);PointPanel->SetClipping(EWidgetClipping::ClipToBounds);Add(PointPanel);auto* PointScroll=WidgetTree->ConstructWidget<UScrollBox>();PointPanel->SetContent(PointScroll);auto* Points=WidgetTree->ConstructWidget<UVerticalBox>();PointScroll->AddChild(Points);Points->AddChildToVerticalBox(Button(TEXT("접기 ∧"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnPointControlsToggle)));
     auto* Colors=WidgetTree->ConstructWidget<UVerticalBox>();Points->AddChildToVerticalBox(Colors)->SetPadding(FMargin(0,Style::Gap,0,Style::Gap));
@@ -232,6 +235,10 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     auto* SelectorBody=WidgetTree->ConstructWidget<UVerticalBox>();auto* SelectorHeader=WidgetTree->ConstructWidget<UButton>();SelectorHeader->SetStyle(Style::Button());SelectorHeader->SetContent(Label(TEXT("원료 · 센서 선택 (펼치기/접기)"),Style::BodySize,true));Selectors->InitializeSection(SelectorHeader,SelectorBody,false);ToolsBox->AddChildToVerticalBox(Selectors);
     SelectorBody->AddChildToVerticalBox(Label(TEXT("원료"),Style::LabelSize,false,Style::Muted()));CargoChoice->RemoveFromParent();SelectorBody->AddChildToVerticalBox(CargoChoice);
     for(int32 I=0;I<3;++I){SelectorBody->AddChildToVerticalBox(Label(ShipHatchLabelPresentation::SensorRole(I),Style::LabelSize,false,Style::Muted()));FieldChoices[I]->RemoveFromParent();SelectorBody->AddChildToVerticalBox(FieldChoices[I]);FieldChoices[I]->SetToolTipText(FText::FromString(ShipHatchLabelPresentation::SensorTooltip(I)));}
+    // Rehost the same controls once, without rebuilding widgets on drawer toggles.
+    Modes->RemoveFromParent();ModeLabel->RemoveFromParent();Toolbar->SetContent(nullptr);
+    auto* Compact=WidgetTree->ConstructWidget<UVerticalBox>();Toolbar->SetContent(Compact);Compact->AddChildToVerticalBox(Modes);Compact->AddChildToVerticalBox(ModeLabel);
+    auto* MoreCard=Card(TEXT("HatchMoreDrawer"));MoreCard->SetClipping(EWidgetClipping::ClipToBounds);MoreCard->SetContent(QuickToolScroll);MoreDrawerSlot=Root->AddChildToCanvas(MoreCard);MoreDrawerSlot->SetZOrder(20);MoreCard->SetVisibility(ESlateVisibility::Collapsed);
     CargoChoice->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnCargo);SensorChoice->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnSensor);FontChoice->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnFont);GridSize->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnGrid);SizeSlider->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnSizeSlider);DensitySlider->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnDensitySlider);SetFontPercent(100);UpdateSegments();
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -275,25 +282,44 @@ void UShipHatchMonitorWidget::InvalidatePlots()
 void UShipHatchMonitorWidget::Layout()
 {
     if(LayoutSlots.Num()!=9)return;FVector2D Size=GetCachedGeometry().GetLocalSize();if(Size.X<100)Size=UWidgetLayoutLibrary::GetViewportSize(this)/UWidgetLayoutLibrary::GetViewportScale(this);if(Size.X<100||Size.Y<100)return;
-    const double Gap=Style::Gap,P=Style::PanelPadding,S=FontScale,Width=Size.X-2*P,Left=bSplit?(Width-Gap)*.62:Width,Right=Width-Left-Gap,RightX=P+Left+Gap;
+    const double Gap=Style::Gap,P=Style::PanelPadding,S=FontScale,Width=Size.X-2*P,Left=bSplit?(Width-Gap)*.70:Width,Right=Width-Left-Gap,RightX=P+Left+Gap;
     if(!Size.Equals(LastLayout,.1))
     {
-        for(auto Value:MetricValues)Value->SetFont(Style::Font(Size.X<1500?Style::TitleSize:Style::TitleSize+Style::Gap,FontScale,true));
+        for(auto Value:MetricValues)Value->SetFont(Style::Font(Style::TitleSize,FontScale,true));
         for(auto Row:ToolbarRows)Row->SetWrapSize(FMath::Max(100.,Left-2*P-Style::SectionGap));
         ForceLayoutPrepass();
     }
-    const double Header=FMath::Max(76*S,double(LayoutSlots[1]->Content->GetDesiredSize().Y)),Metrics=92*S,Footer=60*S,DataTop=P+Header+Gap+Metrics+Gap,DataHeight=FMath::Max(120.,Size.Y-DataTop-P-Footer-Gap);
-    const double ToolbarHeight=FMath::Clamp(double(ToolbarContent->GetDesiredSize().Y)+2*P,64*S,FMath::Max(64*S,DataHeight-100*S));
-    if(Size.Equals(LastLayout,.1)&&FMath::IsNearlyEqual(Header,double(LastHeaderHeight),.1)&&FMath::IsNearlyEqual(ToolbarHeight,double(LastToolbarHeight),.1))return;
-    LastLayout=Size;LastHeaderHeight=Header;LastToolbarHeight=ToolbarHeight;
+    const double Header=FMath::Max(76*S,double(LayoutSlots[1]->Content->GetDesiredSize().Y)),Metrics=72*S,Footer=FMath::Max(44.,double(LayoutSlots[6]->Content->GetDesiredSize().Y)),DataTop=P+Header+Gap+Metrics+Gap,DataHeight=FMath::Max(120.,Size.Y-DataTop-P-Footer-Gap);
+    const double ToolbarHeight=LayoutSlots[3]->Content->GetDesiredSize().Y;
+    const double DrawerHeight=FMath::Min(DataHeight-ToolbarHeight,double(ToolbarContent->GetDesiredSize().Y)+2*P);
+    if(Size.Equals(LastLayout,.1)&&FMath::IsNearlyEqual(Header,double(LastHeaderHeight),.1)&&FMath::IsNearlyEqual(ToolbarHeight,double(LastToolbarHeight),.1)&&FMath::IsNearlyEqual(DrawerHeight,double(LastDrawerHeight),.1)&&FMath::IsNearlyEqual(Footer,double(LastFooterHeight),.1))return;
+    LastLayout=Size;LastHeaderHeight=Header;LastToolbarHeight=ToolbarHeight;LastDrawerHeight=DrawerHeight;LastFooterHeight=Footer;
     auto Set=[&](int32 I,double X,double Y,double W,double H,bool Visible=true){auto* LayoutSlot=LayoutSlots[I].Get();LayoutSlot->SetPosition(FVector2D(X,Y));LayoutSlot->SetSize(FVector2D(W,H));LayoutSlot->Content->SetVisibility(Visible?ESlateVisibility::Visible:ESlateVisibility::Collapsed);};
     Set(1,P,P,Width,Header);Set(2,P,P+Header+Gap,Width,Metrics);const bool Scene=bSplit||ActiveView<2;
     Set(0,P,DataTop,Left,DataHeight,Scene);Set(3,P,DataTop,Left,ToolbarHeight,Scene);SceneRect=FSlateRect(P,DataTop+ToolbarHeight,P+Left,DataTop+DataHeight);
     if(bSettings)SceneRect.Left=P+FMath::Min(Left-2*Gap,Style::SidebarWidth*S)+2*Gap;
-    Set(4,bSplit?RightX:P,DataTop,bSplit?Right:Width,bSplit?(DataHeight-Gap)*.5:DataHeight,bSplit||(ActiveView==2||ActiveView==3));Set(5,bSplit?RightX:P,bSplit?DataTop+(DataHeight+Gap)*.5:DataTop,bSplit?Right:Width,bSplit?(DataHeight-Gap)*.5:DataHeight,bSplit||ActiveView==4);
+    const double SectionHeight=bSectionExpanded?(DataHeight-Gap)*.5:SectionToggle->GetDesiredSize().Y+2*P;
+    const double MapHeight=DataHeight-SectionHeight-Gap;
+    Set(4,bSplit?RightX:P,DataTop,bSplit?Right:Width,bSplit?MapHeight:DataHeight,bSplit||(ActiveView==2||ActiveView==3));Set(5,bSplit?RightX:P,bSplit?DataTop+MapHeight+Gap:DataTop,bSplit?Right:Width,bSplit?SectionHeight:DataHeight,bSplit||ActiveView==4);
+    SectionBody->SetVisibility(bSectionExpanded||(!bSplit&&ActiveView==4)?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    SectionActions->SetVisibility(SectionBody->GetVisibility());
+    CastChecked<UTextBlock>(SectionToggle->GetContent())->SetText(FText::FromString(!bSplit&&ActiveView==4?TEXT("분할로 돌아가기"):bSectionExpanded?TEXT("홀드 단면 접기"):TEXT("홀드 단면 펼치기")));
     Set(6,P,Size.Y-P-Footer,Width,Footer);Set(7,SceneRect.Left+Gap,SceneRect.Top+Gap,FMath::Min(280.*S,(SceneRect.Right-SceneRect.Left)*.18),FMath::Min(480*S,SceneRect.Bottom-SceneRect.Top-2*Gap),false);Set(8,P+Gap,DataTop+Gap,FMath::Min(Left-2*Gap,Style::SidebarWidth*S),DataHeight-2*Gap,bSettings);UpdateOverlayControlVisibility();
+    MoreDrawerSlot->SetPosition(FVector2D(P,SceneRect.Top));MoreDrawerSlot->SetSize(FVector2D(Left,DrawerHeight));MoreDrawerSlot->Content->SetVisibility(bMoreExpanded&&Scene?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    QuickToolScroll->SetVisibility(MoreDrawerSlot->Content->GetVisibility());
     if(auto* H=Host.Get())H->SetSceneRect(SceneRect,Size,Scene);
     UpdateCamera();
+}
+void UShipHatchMonitorWidget::OnMore()
+{
+    bOrbit=false;bMoreExpanded=!bMoreExpanded;MoreToggle->SetStyle(bMoreExpanded?Style::PrimaryButton():Style::Button());
+    CastChecked<UTextBlock>(MoreToggle->GetContent())->SetText(FText::FromString(bMoreExpanded?TEXT("시점 · 접기"):TEXT("시점 · 더보기")));LastLayout=FVector2D::ZeroVector;Layout();
+}
+void UShipHatchMonitorWidget::OnSectionDrawer()
+{
+    if(!bSplit&&ActiveView==4){SetSplitView(true);return;}
+    bSectionExpanded=!bSectionExpanded;SectionBody->SetVisibility(bSectionExpanded?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    CastChecked<UTextBlock>(SectionToggle->GetContent())->SetText(FText::FromString(bSectionExpanded?TEXT("홀드 단면 접기"):TEXT("홀드 단면 펼치기")));LastLayout=FVector2D::ZeroVector;Layout();
 }
 void UShipHatchMonitorWidget::SetFontPercent(int32 Percent)
 {
@@ -544,6 +570,7 @@ bool UShipHatchMonitorWidget::SceneInputAt(const FGeometry& G,FVector2D P) const
 {
     if(!IsVisible()||!(bSplit||ActiveView<2)||!SceneRect.ContainsPoint(G.AbsoluteToLocal(P)))return false;
     if(bSettings&&SettingsPanel->GetCachedGeometry().IsUnderLocation(P))return false;
+    if(bMoreExpanded&&MoreDrawerSlot->Content->GetCachedGeometry().IsUnderLocation(P))return false;
     for(auto B:SensorBadges)if(B&&B->GetCachedGeometry().IsUnderLocation(P))return false;
     return ActiveView!=1||!PointPanel->IsVisible()||!PointPanel->GetCachedGeometry().IsUnderLocation(P);
 }

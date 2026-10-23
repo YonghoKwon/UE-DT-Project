@@ -76,6 +76,7 @@ class MA0T10_DT_API UShipHatchMonitorWidget : public UDxWidget
     friend struct FHatch06Probe;
     friend struct FHatchCabProbe;
     friend struct FHatch07Probe;
+    friend struct FHatch150Probe;
 public:
     void Bind(AShipHatchMonitorHost* InHost,AShipHatchSimulation* InSimulation);
     void Refresh();
@@ -150,8 +151,16 @@ private:
     UPROPERTY(Transient) TObjectPtr<UTextBlock> CoverageText;
     UPROPERTY(Transient) TObjectPtr<UScrollBox> QuickToolScroll;
     UPROPERTY(Transient) TObjectPtr<UVerticalBox> ToolbarContent;
+    UPROPERTY(Transient) TObjectPtr<UCanvasPanelSlot> MoreDrawerSlot;
+    UPROPERTY(Transient) TObjectPtr<UButton> MoreToggle;
+    UPROPERTY(Transient) TObjectPtr<UButton> SectionToggle;
+    UPROPERTY(Transient) TObjectPtr<UVerticalBox> SectionBody;
+    UPROPERTY(Transient) TObjectPtr<UWidget> SectionActions;
+    bool bMoreExpanded=false,bSectionExpanded=false;
+    UFUNCTION() void OnMore();
+    UFUNCTION() void OnSectionDrawer();
     UPROPERTY(Transient) TArray<TObjectPtr<UWrapBox>> ToolbarRows;
-    float LastHeaderHeight=0,LastToolbarHeight=0;
+    float LastHeaderHeight=0,LastToolbarHeight=0,LastDrawerHeight=0,LastFooterHeight=0;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> LegendText;
     UPROPERTY(Transient) TObjectPtr<UImage> AnalysisImage;
     UPROPERTY(Transient) TObjectPtr<UTexture2D> AnalysisTexture;

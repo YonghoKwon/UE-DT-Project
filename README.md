@@ -18,6 +18,12 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### UXR-H150 — 해치 150% 표시 공간 확보, 독립 검수 대기
+
+해치 모니터의 보조 시점·보기 설정·원료/센서 선택을 기존 인스턴스 그대로 `시점 · 더보기` 드로어로 옮겼다. 지표 카드 여백을 줄이고 숫자를 기본 제목 크기로 맞췄으며, 우측 `홀드 단면 펼치기`로 기존 단면을 열며 접으면 히트맵 공간을 복원한다. 계산·센서·저장값·DTCore·코일 월드는 유지한다.
+
+100/150%×1280×720/1920×1080 실제 D3D12 geometry·PNG에서 기본 접힌 화면의 3D 높이≥45%, 히트맵 실제 plot 폭/우측 카드 폭≥60%를 확인했다. 관련12종(해상도별 총14회)·WBP7 메모리 compile·Editor/Game Development·quick9·layer0→0·guard를 검증했다. 직접 점검·접힌 화면의 비율·단면 펼침 시 공간 공유·초기 실패와 미수행은 [결과](Saved/Reports/UXR-H150/RESULT.md)를 따른다. 브라우저 실행 중이므로 사용자 지시대로 성능 측정을 생략했다.
+
 ### UXR-P2b — 글자·해치 보기 직렬 UI 검증, 현장 수용 대기
 
 C02/H01/H03/H04의 동적 행 배율·시점 줄바꿈/접기·한국어 역할/TF·미관측 설명을 정리했다. 직렬 검수에서 배지의 실제 필요 높이와 정지 시 마지막 획득 Hz 표시를 보완했다. 계산·센서 좌표·정책·저장값·DTCore·코일 Slab capability 경계는 유지한다. C04는 이용 빈도 근거가 없어 [문서 제안](docs/research/UXR-P2b/C04-proposal.md)만 유지했다.
@@ -764,6 +770,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+UXR-H150은 기존 L3 해치 Widget 내부의 재배치·접기·분할 비율만 바꾼다. layer/allowlist **0→0**, 기존 UDxWidget·selector·분석 인스턴스·L1/L2·DTCore·wire·저장 형식 변경 없음. [검증과 제한](Saved/Reports/UXR-H150/RESULT.md).
 
 DUAL-CAMERA-22는 기존 L3 Monitor에서 주 정답 영상 미준비 시 보조 RGB brush 갱신이 차단되는 조기 반환을 제거했다. 새 회귀는 Editor 모듈과 테스트 전용 friend만 사용하며 layer/allowlist **0→0**, 새 모듈·자산·DTCore·wire·저장 형식 변경은 없다. [기능 검증·직접 점검·성능 미수행](Saved/Reports/DUAL-CAMERA-22/RESULT.md)을 구분한다.
 
