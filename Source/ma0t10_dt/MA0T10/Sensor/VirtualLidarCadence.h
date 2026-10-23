@@ -25,6 +25,15 @@ public:
     }
 
     void Stop() { bRunning = false; bSuspended = false; }
+    // Equal phases share the same wall-clock period grid even when Start calls
+    // have different timestamps. The first due slot never predates Start.
+    void StartAligned(double Now, double Interval, double Phase)
+    {
+        if (!std::isfinite(Now) || !std::isfinite(Interval)) { Stop(); return; }
+        const double P = SafePeriod(Interval);
+        Start(std::floor(Now / P) * P, Interval, Phase);
+        if (GetNextDue() + P * 1.e-6 < Now) ++NextSlot;
+    }
     bool IsRunning() const { return bRunning; }
     void HoldAdmissions() { bHeld = true; } // Dataset one-shot still needs completion polling.
     bool RetryHeldAdmission(double Now)

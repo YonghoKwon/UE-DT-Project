@@ -121,6 +121,7 @@ public:
     void UnregisterCamera(UVirtualCameraCaptureComponent* Camera);
     void RegisterLidar(UVirtualLidarScanComponent* Lidar);
     void UnregisterLidar(UVirtualLidarScanComponent* Lidar);
+    double ResolveLidarCadencePhase(const UVirtualLidarScanComponent* Lidar) const;
 
     void RegisterTask(UActorComponent* TaskComponent);
     void UnregisterTask(UActorComponent* TaskComponent);

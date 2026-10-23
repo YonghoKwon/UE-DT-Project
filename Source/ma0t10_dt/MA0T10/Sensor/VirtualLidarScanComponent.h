@@ -814,6 +814,8 @@ private:
     TObjectPtr<UInstancedStaticMeshComponent> PointCloudPreviewComponent;
 
     FVirtualLidarCadence ScheduledCadence;
+    bool bAutomaticCadencePhasePending = false;
+    double AutomaticCadenceStartedAt = 0;
     bool bSingleScheduledScanRequested = false;
     double ScheduledScanStartTime = -1.0;
 	FVirtualSensorAcquisitionContext ScheduledSlabContext;

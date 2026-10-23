@@ -70,4 +70,41 @@ bool FLidarWallClockBackpressureTest::RunTest(const FString&)
     TestEqual(TEXT("10FPS missing 20Hz slots remain visible"), int64(Slow.GetSkippedSlots()), int64(10));
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarWallClockPhaseSpreadTest,"MA0T10.LidarWallClock.PhaseSpread",
+    EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLidarWallClockPhaseSpreadTest::RunTest(const FString&)
+{
+    for(const int32 Fps:{59,58,45,120})
+    {
+        FVirtualLidarCadence Clocks[3];int32 Counts[3]={},DoubleFrames=0,Peak=0;
+        constexpr double Started=1000.023;
+        for(int I=0;I<3;++I)
+        {
+            Clocks[I].StartAligned(Started+I*.001,.05,double(I)/3);
+            TestTrue(TEXT("aligned first deadline never predates sensor start"),Clocks[I].GetNextDue()>=Started+I*.001-1.e-7);
+        }
+        for(int Frame=0;Frame<Fps*90;++Frame)
+        {
+            int Admissions=0;const double Now=Started+double(Frame)/Fps;
+            for(int I=0;I<3;++I)
+            {
+                if(Clocks[I].Poll(Now,.05,Frame,false).bAdmit){++Counts[I];++Admissions;}
+                TestFalse(TEXT("phase spreading never bypasses frame latch"),Clocks[I].Poll(Now,.05,Frame,false).bAdmit);
+            }
+            Peak=FMath::Max(Peak,Admissions);DoubleFrames+=Admissions>1;
+        }
+        for(int I=0;I<3;++I)
+        {
+            TestTrue(TEXT("every phased sensor sustains20Hz with one boundary-slot tolerance"),FMath::Abs(Counts[I]-1800)<=1);
+            TestEqual(TEXT("phase spreading drops no requested slots"),int64(Clocks[I].GetSkippedSlots()),int64(0));
+        }
+        TestTrue(TEXT("regular45..120FPS never admits three simultaneous20Hz sensors"),Peak<=2);
+        if(Fps==58||Fps==59)TestTrue(TEXT("near59FPS multi-admission frames stay below5percent"),DoubleFrames<double(Fps*90)*.05);
+    }
+    FVirtualLidarCadence Delayed;Delayed.StartAligned(1.023,.05,0);
+    const auto D=Delayed.Poll(1.26,.05,99,false);
+    TestTrue(TEXT("delayed first poll admits only one due scan"),D.bAdmit);
+    TestEqual(TEXT("phase initialization preserves actual delayed-start missed slots"),int64(D.SkippedSlots),int64(4));
+    return true;
+}
 #endif

@@ -138,6 +138,21 @@ void UVirtualSensorSchedulerSubsystem::UnregisterLidar(UVirtualLidarScanComponen
     NextLidarIndex = Lidars.Num() > 0 ? NextLidarIndex % Lidars.Num() : 0;
 }
 
+double UVirtualSensorSchedulerSubsystem::ResolveLidarCadencePhase(const UVirtualLidarScanComponent* Lidar) const
+{
+    if(!Lidar)return 0;
+    int32 Count=0,Rank=0;
+    for(const auto& Entry:Lidars)
+    {
+        const auto* Other=Entry.Get();
+        if(!Other||!Other->IsScanRunning()||Other->ScanInterval!=Lidar->ScanInterval)continue;
+        ++Count;
+        const int32 Order=Other->SensorId.Compare(Lidar->SensorId,ESearchCase::CaseSensitive);
+        if(Order<0||(Order==0&&Other->GetUniqueID()<Lidar->GetUniqueID()))++Rank;
+    }
+    return Count>0?double(Rank)/Count:0;
+}
+
 void UVirtualSensorSchedulerSubsystem::SetPreferredCamera(UVirtualCameraCaptureComponent* Camera)
 {
     PreferredCamera = Camera;

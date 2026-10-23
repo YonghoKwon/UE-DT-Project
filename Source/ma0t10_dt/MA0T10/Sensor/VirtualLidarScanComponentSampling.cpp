@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "HAL/IConsoleManager.h"
 #include "IndustrialLidarProfiles.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
@@ -32,6 +33,12 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "Misc/Crc.h"
 #include <atomic>
+
+namespace
+{
+TAutoConsoleVariable<int32> CVarLidarPhaseSpread(TEXT("ma0t10.LidarPhaseSpread"),1,
+    TEXT("Even automatic same-rate LiDAR phases;0 retains hashed phases. Restart scans after changing."));
+}
 
 
 
@@ -231,7 +238,8 @@ void UVirtualLidarScanComponent::StartScan()
 {
     if (!GetWorld() || ScanInterval <= 0.0f) return;
     GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
-    ScheduledCadence.Start(FPlatformTime::Seconds(), ScanInterval, (GetTypeHash(SensorId) % 1000) / 1000.0);
+    AutomaticCadenceStartedAt=FPlatformTime::Seconds();bAutomaticCadencePhasePending=true;
+    ScheduledCadence.Start(AutomaticCadenceStartedAt, ScanInterval, (GetTypeHash(SensorId) % 1000) / 1000.0);
     bSingleScheduledScanRequested = false;
     if (!bRegisteredWithPerformanceSubsystem)
     {
@@ -247,6 +255,7 @@ void UVirtualLidarScanComponent::RequestImmediateScheduledScan()
 	if (IsScanRunning() && GetWorld())
 	{
 		ScheduledCadence.RequestImmediate(FPlatformTime::Seconds());
+		bAutomaticCadencePhasePending=false; // Explicit immediate/one-shot keeps its own grid.
 	}
 }
 
@@ -501,6 +510,13 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
     const double WallSeconds = FPlatformTime::Seconds();
     if (GetWorld() && GetWorld()->IsPaused()) { ScheduledCadence.Suspend(WallSeconds); return; }
     const double SafeInterval = FMath::Max(0.001, static_cast<double>(ScanInterval));
+    if(bAutomaticCadencePhasePending)
+    {
+        bAutomaticCadencePhasePending=false;
+        if(CVarLidarPhaseSpread.GetValueOnGameThread()!=0&&!bSingleScheduledScanRequested&&FMath::IsFinite(SafeInterval))
+            if(const auto* Scheduler=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>():nullptr)
+                ScheduledCadence.StartAligned(AutomaticCadenceStartedAt,SafeInterval,Scheduler->ResolveLidarCadencePhase(this));
+    }
     RuntimeStatus.RequestedAcquisitionRateHz = static_cast<float>(1.0 / SafeInterval);
     RuntimeStatus.RequestedAcquisitionBackend = AcquisitionBackend == EVirtualLidarAcquisitionBackend::Auto
         ? TEXT("auto")
