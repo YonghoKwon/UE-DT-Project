@@ -1384,3 +1384,10 @@ Codex가 한 항목을 끝낼 때마다 Claude가 이 표 기준으로 **개편 
 PCD 외 포맷의 신규 개선(IO-01 포함)은 보류다. 관련 정확성·정합성·종료 회귀는 각 단계에 포함하지만 전체 미완료 목록을 매번 재실행하거나 배치 작업의 착수 조건으로 삼지 않는다.
 
 완료 이력은 각 항목에 검증 SHA·보고서 경로·남은 제한을 붙인다. 이 문서 작성은 해당 기능의 구현 승인이나 실행 완료가 아니다.
+
+
+### PCD-BANDWIDTH-01 — 전송 전용 필드·압축·주기 선택 (사용자 2026-10-23)
+
+Full/Compact/Minimal/Custom·필드별 체크·LZF binary_compressed·LiDAR별 1/1·1/2·1/4 전송과 SensorManager 일괄 적용을 기존 데이터 패널에 추가했다. 3대 90초 native loopback에서 Full 압축은 합계 38.99 MiB/s, 인코딩·엔진·callback의 150ms 초과 0회로 기본 On을 선택했다. Full 필드·1/1과 기존 사용자 명시 선택은 유지한다. SaveGame v6 추가 map으로 기존 개인 설정을 보존하며 파일 저장은 Full 유지다. 수신기·TestSet 재생은 헤더 기반으로 두 encoding을 읽는다. 80 MiB/s 예산·#28 공평 배분·FIFO head 회귀 기준은 유지한다.
+
+현재 결과와 압축 기본값의 조건별 판정·90초 네 조건 실측·수행/미수행은 `Saved/Reports/PCD-BANDWIDTH-01/RESULT.md`, 기계 판정은 같은 폴더 `result.json`을 따른다. 구현·로컬 실측을 외부 수신기/회사 수용으로 확대하지 않는다. DTCore 변경 후보 없음(기존 프로젝트 전용 대용량 worker/수신 adapter 범위).
