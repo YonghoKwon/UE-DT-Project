@@ -524,10 +524,11 @@ void UVirtualSensorMonitorPanelWidget::RefreshImageBrush()
     if (!Resource)
     {
         if(CameraTruthDisplayMode&&NativeViewImage){NativeViewBrush.SetResourceObject(nullptr);NativeViewImage->Invalidate(EInvalidateWidgetReason::Paint);}
-        return;
+        // The primary GT preview may be unready while the secondary RGB camera
+        // is already acquiring. Keep updating that camera's independent brush.
     }
 
-    if (ViewImage)
+    if (Resource && ViewImage)
     {
         FSlateBrush Brush;
         Brush.SetResourceObject(Resource);
@@ -535,7 +536,7 @@ void UVirtualSensorMonitorPanelWidget::RefreshImageBrush()
         ViewImage->SetBrush(Brush);
     }
 
-    if (NativeViewImage)
+    if (Resource && NativeViewImage)
     {
 		if (bShowingLidar || bPrimaryFrameChanged || NativeViewBrush.GetResourceObject() != Resource)
 		{

@@ -6,6 +6,12 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-24 DUAL-CAMERA-22 — 보조 RGB 영상 갱신
+
+- 기준 `a42ab78`의 기존 표시형 D3D12 회귀3개는 성공했다. 새 회귀에서 주 Camera는 정답 영상 미준비·정지 상태, 보조 Camera는640×480·유효 frame인데 보조 brush가null/640×360에 머무는2assertion 실패를 확인했다. 일반RGB 듀얼0×0·RT0×0·빈JPEG의 현재 재현과 구분한다.
+- `RefreshImageBrush`의 주 resource 없음 조기 반환을 제거하고 주 image 갱신만 조건부로 처리했다. 같은 테스트·기준을 유지한 수정 후1920×1080 표시형 관련5개 Success/0Fail/0Skip, 두Camera 레코더JPEG·로컬RawTCP JPEG/해상도/checksum 검증 성공이다. 원본 실패·직접 조작·추가 해상도·최종SHA/gate·보호/개인설정 복원은 [RESULT](../Saved/Reports/DUAL-CAMERA-22/RESULT.md)와result.json을 따른다.
+- Brave 실행 중 사용자 지시로 성능측정은미수행이며 기존/자동 로그의FPS를새성능gate로사용하지 않는다. 회사/실장비·외부Broker/업무ACK 수용과구분한다.
+
 ## 2026-10-23 LIDAR-WALLCLOCK-28b - independent review fixes
 
 - Code10aba1d: deterministic full-cohort rephase on membership/start-generation/period changes, future-slot application without debt/burst; unchanged simultaneous initial grid preserved. Original DeadlineMiss/BudgetSkipped event semantics restored, separate reflected ExpiredCadenceSlotCount added; all consumers inventoried.
