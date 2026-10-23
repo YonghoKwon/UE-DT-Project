@@ -20,9 +20,9 @@
 
 ### PCD-BANDWIDTH-01 — 전송 용량 옵션·기본 LZF 적용
 
-Full/Compact/Minimal/Custom·필드 체크·LZF·1/1·1/2·1/4를 LiDAR별/일괄 적용하고 기존 v6 설정을 보존한다. 기본은 Full+LZF On+1/1이며 파일 저장은 Full+binary다. 같은 송신 구현의 3대×90초 local loopback 합계는 Full binary 73.72 → 기본 38.66 MiB/s(−47.56%), Compact 31.33, Minimal 27.64였다. 모든 조건의 encode/engine/callback 150ms 초과·형식 오류 0이다.
+Full/Compact/Minimal/Custom·필드 체크·LZF·1/1·1/2·1/4를 LiDAR별/일괄 적용하고 기존 v6 설정을 보존한다. 사용자 결정대로 Full+LZF On+1/1을 유지하며 파일 저장은 Full+binary다. 압축 체크박스 옆과 툴팁에 PCL·프로젝트 수신기·ROS2 브리지 호환 및 자체 서버 압축 해제 지원 확인 안내를 표시한다. 전송 중에는 최근 1초 실제 PCD body 바이트·Hz·payload 압축 절감률과 실측 예산 %를 우선 표시하고, 미전송 상태에서만 **최대 추정**을 표시한다.
 
-최종 코드 `1013f90`은 quick·release(410 실제 Success/41 조건부 skip/0 Fail, feature 중복 실행 포함)·표시형 RT on ABAB×3를 통과했다. ABAB 중앙값 FPS +0.0072%·engine p95 0%·GT −0.3376%, layer/allowlist 0→0, DTCore 고정이다. 자동 100% 글자 캡처와 직접 마우스 검증을 구분한다(Computer Use monitor capture 2회 실패로 직접 입력 보류). 3-PCD90초의 기존 절대 ≥59FPS/cadence는 Full binary·기본·Compact에서 실패했고 #28b로 별도 유지한다. 이 실패를 통과로 바꾸거나 1+1 상대 gate로 대체하지 않는다. [전체 조건·수치·커밋·제한](Saved/Reports/PCD-BANDWIDTH-01/RESULT.md).
+리뷰 후 송신 구현 `69d6626`의 3대×90초 local loopback 합계는 Full binary 73.61 → 기본 38.81 MiB/s(−47.28%), Compact 31.54, Minimal 27.57였다. 모든 조건의 encode/engine/callback 150ms 초과·형식 오류 0이다. 이후 사용자용 상태 문구만 다듬은 `f3b59c4`에서 quick·release(425 실제 Success/44 조건부 skip/0 Fail, feature 중복 실행 포함)·표시형 RT on ABAB×3를 통과했다. ABAB 중앙값 FPS +0.0006%·engine p95 0%·GT +0.0201%, layer/allowlist 0→0, DTCore 고정이다. 자동 100% 글자 캡처와 직접 마우스 검증은 구분한다(Computer Use monitor capture 2회 실패로 직접 입력 보류). 이번 3-PCD90초의 기존 절대 ≥59FPS/cadence는 Full binary에서 6개 실패했고 기본·Compact·Minimal은 통과했다. 이전 실패도 #28b 증거로 보존하며 상대 gate로 덮어쓰지 않는다. [전체 조건·수치·커밋·제한](Saved/Reports/PCD-BANDWIDTH-01/RESULT.md).
 
 ### FOLLOWUP-28-26 — 환경 정리 후 FPS 통과, 획득cadence로 통합 gate 차단
 

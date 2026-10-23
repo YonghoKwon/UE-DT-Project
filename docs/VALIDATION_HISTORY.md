@@ -646,3 +646,13 @@ RSS는 **user accepted unresolved RSS (2026-10-23)**로 #26b에 이관하고 머
 - 표준1Camera+1LiDAR/SlabScenarioValidationMap/1920×1080 표시형/D3D12/RT ProjectDefault/10+60초/ABAB×3(A6/B6): e01a47c→1013f90 FPS59.992680→59.997017(+0.0072295%), enginep9516.666900→동일(0%), GT6.629321→6.606941(−0.337592%). PASS. 독립3대90초 절대gate/회사 수용과 구분한다.
 - 자동 100%글자 캡처는Saved/Reports/PCD-BANDWIDTH-01/progress. Computer Use의CreateForMonitor0x80070057이2회 발생해 직접 마우스/키보드 검증은 deferred. 새 capture/readback은 opt-in Editor검증 도구에만 있다.
 - 개인 SaveGame/Editor파일344개와 보호파일297개, 기존 발표용 결과985개는 파일 집합/해시로 복원·보존했다. 비밀값 출력0. 상세 및 schema판정은Saved/Reports/PCD-BANDWIDTH-01/{RESULT.md,result.json,merge-check.json}; Saved는커밋하지 않는다.
+
+
+## 2026-10-23 — PCD-BANDWIDTH-01 리뷰: 압축 호환 안내·최근 1초 실측
+
+- `69d6626`: 기존 소켓 worker의 송신 완료 이벤트에 실제 body·선택 필드 압축 전후 payload 크기를 전달하고 센서별 최근1초 bounded window로 집계한다. 전송 중 실측 대역폭/Hz/압축 절감률·실측 예산%를 우선하며 미전송 때만 최대 추정, Stop 뒤 FIFO 배수도 실측 유지. 압축 기본 On 유지는 사용자 결정이다. 체크박스 옆/툴팁과 README 송신 옵션에 호환 안내를 추가했다.
+- `f3b59c4`: 사용자용 상태 문구4줄만 다듬었다. sender/codec/acquisition/metrics는69d6626과 동일하다. 명시 UI/RHI·PCD·기존 FIFO/공평배분·UXR03 집중 검증은19 실제 Success/2조건부skip/0Fail. 실측30MiB/s→80MiB/s 예산37.5%/251.7Mbps/20Hz, 가중 압축률50%, window 경계/expiry/0Hz/overflow/미지원 backend 및 헤더/size-prefix 제외를 고정했다.
+- 송신측정 SHA69d6626, Rev7×3 FullSpec1024×64 HWRT20Hz 요청·ShipHatchTestMap·1920×1080표시형/D3D12/RTProjectDefault·10+90초: Full binary73.6121/default38.8087/Compact31.5388/Minimal27.5722MiB/s; FPS58.5437/59.1263/59.3988/59.6495. 기본 감소47.2794%, encode/engine/callback150ms초과0·형식/encode/overload/delivery오류0. 각 acquisition-window ID 전부 외부 수신. 기존 절대 FPS/cadence는Full binary6Fail, 나머지Pass; 이전#28b 실패원문도유지한다.
+- f3b59c4 quick PASS `verify/20261023T024518462Z`; release PASS `verify/20261023T024528746Z`: 전체 고유448개 중407실제Success/41조건부skip, feature재실행포함425Success/44skip/0Fail. WBP7메모리컴파일·렌더문구PASS. Python ROS wire40/JS3/loopbackPython3 exit0.
+- e01a47c→f3b59c4 표준1Camera+1LiDAR/SlabScenarioValidationMap/1920×1080표시형/D3D12/RTProjectDefault/10+60초/ABAB×3 A6/B6: FPS59.998394→59.998771(+0.000627%), enginep9516.666900→동일(0%), GT6.031961→6.033172(+0.020075%). 12실행모두valid, 각2%기준PASS. `verify/20261023T030153968Z`.
+- 글자100% 생산UI RHI 캡처720×720을progress/에 갱신했다(client1920×1080/DPI1.0). 새 Computer Use 시도도CreateForMonitor0x80070057 두 번 실패하여 입력0, 직접마우스는deferred. 원래개인설정344개·보호297개·발표용결과985개 파일집합/해시복원·보존. 자기Editor정상종료·비밀노출0·DTCore/gitlink변경0·layer0→0. 새 발표회귀 출력은Saved/Reports/PCD-BANDWIDTH-01/review-01/release-unrelated-output/로 보존했다. 결과/schema/merge_check는같은항목폴더에갱신하고Saved는커밋하지않는다.
