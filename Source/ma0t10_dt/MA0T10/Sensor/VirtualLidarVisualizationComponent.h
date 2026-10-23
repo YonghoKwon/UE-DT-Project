@@ -34,6 +34,8 @@ public:
     void SetProjectionPreviewEnabled(bool Enabled);
     /** Opt-in display-copy adapter. Never mutates acquisition snapshots or output. */
     void SetPointPreviewTransform(TFunction<void(FVirtualLidarPoint&,double)> Transform);
+    /** Optional GT preflight: false proves the display transform is identity for this frame. */
+    void SetPointPreviewTransformNeeded(TFunction<bool(double)> Needed);
     /** Native, player CPU preview only. Never used by projections or payload encoders. */
     void SetColoredCpuPointTint(TOptional<FLinearColor> Tint){CpuPointTint=Tint;}
     /** Display-only violet height overlay for one semantic class; no snapshot/output changes. */
@@ -134,7 +136,11 @@ public:
     ELidarPointCloudRenderPolicy PointCloudRenderPolicy = ELidarPointCloudRenderPolicy::AutoPreferNiagara;
 
 private:
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    friend class FLidarPreviewIdentityTransformTest;
+#endif
     TFunction<void(FVirtualLidarPoint&,double)> PointPreviewTransform;
+    TFunction<bool(double)> PointPreviewTransformNeeded;
     TOptional<FLinearColor> CpuPointTint;
     FName CpuHeightOverlayLabel=NAME_None;
     bool bHeightJetPalette=false;
