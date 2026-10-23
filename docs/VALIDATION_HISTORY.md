@@ -702,3 +702,17 @@ RSS는 **user accepted unresolved RSS (2026-10-23)**로 #26b에 이관하고 머
 - D3D12 관련 자동화37 Success/8조건부skip/0Fail: MA0T10.PcdBandwidth(긴200KB UTF-8 META·모든프로파일/두encoding roundtrip·1MiB포함/초과경계·SlabRun태그 분주 실패0·데이터필수1/2/4 사전차단·대상격리·준비부작용0), #28 PcdFairBudget/PcdFifoBodyShrink.Exact/Wildcard, 기존 RateControl.EvenAdmissionAndSlabFailure 및 Preflight/Slab 회귀 통과. verify/20261023T034318156Z. 테스트는 코드 커밋 직전 동일 소스590개 해시로 확인했다. quick는 a784f6b에서 verify/20261023T034605780Z PASS. layer/allowlist0→0, DTCore b2504d1 clean.
 - perf는 사용자 허용에 따라 생략: 의도적 생략의 실패 기록 제거, worker의 헤더 bound/길이 비교, 시작 전 정책 검사와 기존 필수 상태 검사 내 O(1) 분주 조회에 한정한다. 새 GT 직렬화·캡처·대기·압축 알고리즘/기본값 변경0. 이전 f3b59c4의 RT-on ABAB는 이력이며 이번 코드의 재측정 PASS로 세지 않는다. release/90초도 이번 검증 범위에서 재실행하지 않았다. 기준2%/150ms/Hz 완화0.
 - 개인설정344개 원본집합·해시복원, 보호297개·기존 발표용985개 해시보존. 자기Editor종료, 보호자산/맵 저장0·DTCore/gitlink수정0·비밀노출0. 직접입력은 기존deferred를 유지한다. Saved/Reports/PCD-BANDWIDTH-01/{RESULT.md,result.json,merge-check.json} 갱신; base_commit e01a47c 유지; Saved 미커밋, push/merge없음.
+
+
+## 2026-10-23 — UXR-P1/P2a 직렬 통합·Slab UI 격리
+
+- 기준 `origin/master=3cad265f0c11e53512e6a8ffa8de24ae18df50a8`, 검증 코드 `fe7dda7c3872ae47e4fd79bf6b8263abc26feda5`, DTCore `b2504d1` 고정. 메인 `feat/uxr-p2-1023`에서 지정된 master 병합만 수행하고 README/IMPROVEMENTS 충돌은 양쪽 내용 보존으로 해결했다.
+- UE5.3 Development Editor 빌드, P1 4+P2a 5 순수 테스트와 새 Slab capability 회귀를 실제 실행했다. 최종 관련 UI/RHI 묶음28 Success/0 Fail/2 opt-in skip; 별도 캡처 실행은 1280×720/1920×1080 각각3 Success/0 Fail/0 Skip이다. opt-in skip2개 이름은 CoilCaptureRhi/HatchCaptureRhi이며 별도 활성 실행에서 통과했다. 고유 실제 Success 이름은30개다. 전체 MA0T10 release 실행은 아니다.
+- 실제 D3D12·client1280×720/1920×1080·글자100/150% PNG40장과 공유용1600px JPG40장, SHA/맵/DPI/UMG/배율/인스턴스 메타데이터를 남겼다. Windows DPI는1, UMG는 각각0.6660000086/1이었다. 직접 Computer Use는 코일의 Slab UI 미노출·PCD 프로필/분주·배율·사유 읽기·전송 해결 이동과 해치 출처/분할 전환을 확인했다. 원본 PNG·자동 캡처와 직접 마우스 행을 구분한다.
+- 사용자 지적 버그: 꺼진 Slab capability에서도 데이터 패널이 시나리오 점검/재생 UI를 준비하던 누락을 수정했다. 코일 데이터의 Slab 시나리오/재생 문구0을 실제 캡처에서 검사했고, 켜진 월드의 기존 UI 유지 회귀와 Slab 검증맵의 PCD UI를 실행했다. 소유 미리보기 Slab 요약·레거시 전송/실행 진단의 같은 경계를 보완했다. 일반 semantic 분류 ID/legend와 wire는 유지했다.
+- 실패 이력: 최초 P1 const 문맥 컴파일 오류와 신규 fixture의 타입 오류를 수정했다. 초기 RHI 묶음은5 Success/1 Fail였고 단독 드래그 재실행도 실패했다. replay/progress 창이 사용 가능 높이를 채워 Y 이동 범위가 없음을 확인해 기존 resize API로 fixture 높이600을 적용했다. 원래 시작점(100,150)·14개 조합·X>50/Y>10·capture/release 기준은 유지했다. 최종 통합 묶음에서 통과했으며 실패 로그를 보존한다.
+- 표시형 Editor의 초기화 중 LiveCoding.dll 접근 감지/힙 종료1회는 테스트 시작 전 발생했으며 같은 실행의 재시도는 정상 완료됐다. 오프스크린 자동화 시작 시 엔진 SwapChain4 ensure가 기록돼 원문 로그에 보존한다. 최종 자동화 assertion/프로세스 결과와 구분하며 원인을 제품 UI 코드로 확정하지 않는다. 초기 서명 정책/보고 경로/UTF16 메타데이터 처리 오류도 재실행 이력과 분리했다.
+- WBP7 메모리 컴파일(NullRHI, 자산 저장 없음), 새 rendered vocabulary, quick9, layer/allowlist0→0, DTCore guard 통과. 성능은 사용자 승인 UI 전용 예외로 생략했다. 3cad265 대비 production 변경은 L3 UI에 한정되며 acquisition/readback/codec/transport/Slab motion은 변경하지 않았다. 현재2% 성능 gate 통과를 주장하지 않는다.
+- Editor/PIE 정상 종료 뒤 개인 SaveGame/Editor 설정43개를 원본 집합·해시로 복원했고 보호 해시297개가 동일했다. 기존 SensorTestMap 사용자 변경·Config/Game.ini·PixelStreaming·Claude 전용 파일 및 DTCore source/gitlink는 보존했다. 운영맵/WBP 저장·재생성, push·master merge는 하지 않았다.
+- 별도 관찰: 데이터 패널이 닫힌 배치 화면에서는 장비가 표시돼도 툴바에 일반 `장비 선택 필요` 경고가 남는 경우가 있다. 기존 툴바 수동 점검의 대상 목록은 이번 범위에서 바꾸지 않았으며 후속 대상으로 보고한다. 직접 모든 조합·OS DPI150%·외부 수신/업무 ACK·현장 수용은 미수행이다.
+- 상세: [RESULT.md](../Saved/Reports/UXR-P1P2a/RESULT.md), [result.json](../Saved/Reports/UXR-P1P2a/result.json), [merge-check.json](../Saved/Reports/UXR-P1P2a/merge-check.json), `Saved/Reports/UXR-P1P2a/`의 원본 실패/성공·설정 복원 증거.

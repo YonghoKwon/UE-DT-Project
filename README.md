@@ -18,11 +18,11 @@
 
 ## 1. 현재 상태 한눈에 보기
 
-### UXR-P1 — 운전원 표시 개선 구현, 직렬 검증 대기
+### UXR-P1/P2a — 운전원 표시 개선·직렬 UI 검증
 
-감사 P1 네 건(T01/C01/H02/D01)을 L3 UI에서 구현했다. 기존 Workspace의 실제 점유 영역을 읽어 코일 소유 패널을 배치하고, 위험·주의 옆에 미확인 **사유 수**와 입력 확인 위치를 표시한다. 해치 카드에는 모의값/측정값 출처를 붙이며, 전송 점검 대상·짧은 사유·기존 해결 버튼은 옵션 스크롤 위에 유지한다. 계산·판정·전송 정책·저장값·DTCore·위젯 생성/재호스팅 경로는 유지한다.
+T01/C01/H02/D01과 C03·D02~D05·T02~T03을 기존 L3 UI에서 구현했다. 코일 패널은 소유 센서 도구의 점유 영역을 피하고, 위험·주의 옆에 미확인 사유 수를 표시한다. 해치 지표의 모의/측정 출처, 한국어 운전원 용어·수치별 단위, 짧은 PCD 안내·프레임 전송 간격·추정/실측 대역폭 표시를 적용했다. Slab 기능이 꺼진 월드의 데이터 패널은 수동 송신 점검을 사용하며 신규/재생 카드와 시나리오 경고를 표시하지 않는다. Slab 월드의 기존 흐름, 일반 PCD·파일 저장·기본 정책·저장값·DTCore는 유지한다.
 
-측정 없는 승인 worktree에서 quick·layer·DTCore guard와 소스 계약 검사를 수행했다. 순수 로직/문구 자동화 4개는 **작성만 했으며 빌드·실행하지 않았다**. Editor·직접 UI·100/150% 캡처·실제 RHI·성능은 직렬 단계 대기다. [감사 범위](docs/research/UXR-AUDIT-1023/RESULT.md)와 [결과·직렬 검증 목록](Saved/Reports/UXR-P1/RESULT.md)을 따른다.
+`fe7dda7`에서 관련 UI/RHI 묶음 **28 Success / 0 Fail / 2 opt-in skip**, 별도 두 해상도의 캡처 테스트 **각 3 Success / 0 Fail / 0 Skip**, WBP7 메모리 컴파일·quick9·layer/allowlist0→0·DTCore guard를 확인했다. P1 4개+P2a 5개와 Slab capability 회귀는 실제 실행됐다. 실제 client 1280×720/1920×1080·글자100/150% PNG40장과 공유 JPG40장, 직접 클릭 결과를 분리해 남겼다. 개인 설정43개와 보호 해시297개를 보존했다. 성능은 사용자 승인 UI 전용 예외로 생략했으며 현장 수용·전체 MA0T10 release 통과를 뜻하지 않는다. [현재 결과](Saved/Reports/UXR-P1P2a/RESULT.md), [검증 이력](docs/VALIDATION_HISTORY.md), [감사 범위](docs/research/UXR-AUDIT-1023/RESULT.md)를 따른다.
 
 ### LIDAR-WALLCLOCK-28b — wall-clock 획득·직렬 검증
 
@@ -759,9 +759,9 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
 
-UXR-P2a는 감사 C03·D02~D05·T02~T03의 문구·표시 밀도를 기존 L3 UI와 순수 표시 adapter에서 정리한다. 코덱의 영문 필드명·비트/순서/크기·대역폭 계산·전송 분주·저장값·DTCore·기존 열기 경로는 유지한다. layer/allowlist **0→0**이며 순수 로직/문구 자동화 5개를 추가했다. 병렬 worktree에서는 Editor·빌드·RHI·직접 UI·성능을 실행하지 않았으며, [결과·직렬 검증 목록](Saved/Reports/UXR-P2a/RESULT.md)과 result.json의 실제 gate를 따른다.
+UXR-P2a는 감사 C03·D02~D05·T02~T03의 문구·표시 밀도를 기존 L3 UI와 순수 표시 adapter에서 정리한다. 코덱의 영문 필드명·비트/순서/크기·대역폭 계산·전송 분주·저장값·DTCore·기존 열기 경로는 유지한다. layer/allowlist **0→0**이며 순수 로직/문구 자동화 5개를 추가했다. 병렬 구현 뒤 메인에서 직렬 빌드·관련 UI/RHI·100/150% 캡처를 검증했다. Slab capability에 따른 표시/수동 점검 경계와 남은 수용 범위는 [직렬 결과](Saved/Reports/UXR-P1P2a/RESULT.md)를 따른다.
 
-UXR-P1은 기존 L3 소유 UI·Host와 순수 표시 helper만 변경한다. Workspace의 읽기 전용 점유 사각형과 기존 열기/해결 이동을 사용하며 새 위젯 관리자·DTCore adapter·모듈·자산·저장 형식 변경 없이 layer/allowlist **0→0**이다. 빌드·RHI·직접 UI·성능 통과를 뜻하지 않는다.
+UXR-P1은 기존 L3 소유 UI·Host와 순수 표시 helper만 변경한다. Workspace의 읽기 전용 점유 사각형과 기존 열기/해결 이동을 사용하며 새 위젯 관리자·DTCore adapter·모듈·자산·저장 형식 변경 없이 layer/allowlist **0→0**이다. 메인 직렬 단계의 빌드·UI/RHI·캡처 결과와 성능 생략 예외는 [직렬 결과](Saved/Reports/UXR-P1P2a/RESULT.md)를 따른다.
 
 PCD-BANDWIDTH-01은 L1 공용 PCD 코덱·전송 옵션/분주와 L2 수신·재생 adapter, L3 기존 소유 데이터 패널·v6 설정을 확장한다. DTCore·모듈·자산·저장 슬롯 변경 없이 layer/allowlist 0→0을 검증한다. 파일 저장은 Full binary를 유지한다.
 
