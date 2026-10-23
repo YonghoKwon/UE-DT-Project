@@ -24,6 +24,7 @@ namespace ShipHatch { struct FAnalysis; struct FSettings; struct FSurface; struc
 struct FShipHatchMonitorWork;
 class UShipHatchMonitorWidget;
 class UScrollBox;
+class UWrapBox;
 
 /** A local details group. Explicit UMG visibility keeps collapsed contents
  * out of layout, input, accessibility and presentation refresh work. */
@@ -148,6 +149,9 @@ private:
     UPROPERTY(Transient) TObjectPtr<UTextBlock> StatsText;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> CoverageText;
     UPROPERTY(Transient) TObjectPtr<UScrollBox> QuickToolScroll;
+    UPROPERTY(Transient) TObjectPtr<UVerticalBox> ToolbarContent;
+    UPROPERTY(Transient) TArray<TObjectPtr<UWrapBox>> ToolbarRows;
+    float LastHeaderHeight=0,LastToolbarHeight=0;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> LegendText;
     UPROPERTY(Transient) TObjectPtr<UImage> AnalysisImage;
     UPROPERTY(Transient) TObjectPtr<UTexture2D> AnalysisTexture;

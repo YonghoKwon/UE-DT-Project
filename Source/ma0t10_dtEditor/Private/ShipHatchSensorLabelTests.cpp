@@ -4,6 +4,7 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
 #include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
+#include "ma0t10_dt/MA0T10/UI/ShipHatchLabelPresentation.h"
 #include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
 #include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
@@ -56,7 +57,8 @@ struct FHatchLabelProbe
             // Compare signed positions on both sides, allowing at most1cm;
             // a sensor farther out is a failure, not a looser lower bound.
             if(I){const double Expected=(I==1?-1.:1.)*1.30+S.SensorOffsets[I].X;T.TestTrue(TEXT("cab LiDAR signed mount is1.30m from mesh center within1cm"),FMath::Abs((Local.X-CabLocal.X)-Expected)<=.01);}
-            const TCHAR* Names[]={TEXT("os_lidar_boom"),TEXT("os_lidar_cabin_01"),TEXT("os_lidar_cabin_02")};T.TestEqual(TEXT("physical sensor identity never follows camera screen order"),CastChecked<UTextBlock>(M.SensorBadges[I]->GetContent())->GetText().ToString(),FString(Names[I]));
+            const TCHAR* Names[]={TEXT("os_lidar_boom"),TEXT("os_lidar_cabin_01"),TEXT("os_lidar_cabin_02")};T.TestEqual(TEXT("physical role never follows camera screen order"),CastChecked<UTextBlock>(M.SensorBadges[I]->GetContent())->GetText().ToString(),FString(ShipHatchLabelPresentation::SensorRole(I)));
+            T.TestTrue(TEXT("full physical TF identity remains on its own badge"),M.SensorBadges[I]->GetToolTipText().ToString().Contains(Names[I]));
             auto Row=MakeShared<FJsonObject>();Row->SetNumberField(TEXT("index"),I);Row->SetStringField(TEXT("physical_role"),Names[I]);Row->SetArrayField(TEXT("actor_world_cm"),Vector(A->GetActorLocation()));Row->SetArrayField(TEXT("origin_hold_m"),Vector(Local));Row->SetArrayField(TEXT("projected_root_xy"),Vector(FVector(P[I],0)));
             TArray<TSharedPtr<FJsonValue>> Rect;for(double V:{double(Boxes[I].Left),double(Boxes[I].Top),double(Boxes[I].Right),double(Boxes[I].Bottom)})Rect.Add(MakeShared<FJsonValueNumber>(V));Row->SetArrayField(TEXT("badge_root_ltrb"),Rect);Rows.Add(MakeShared<FJsonValueObject>(Row));
             const auto Frame=A->ScanComponent->GetLastFrameSnapshot();if(Frame){Row->SetArrayField(TEXT("acquisition_world_cm"),Vector(Frame->AcquisitionTransform.GetLocation()));Row->SetNumberField(TEXT("frame_id"),A->ScanComponent->GetRuntimeStatus().FrameId);T.TestTrue(TEXT("latched static acquisition origin agrees with actual detector"),Frame->AcquisitionTransform.GetLocation().Equals(A->GetActorLocation(),.001));}

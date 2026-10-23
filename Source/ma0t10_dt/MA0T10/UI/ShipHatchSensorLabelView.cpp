@@ -1,9 +1,13 @@
 #include "ShipHatchMonitorWidget.h"
+#include "ShipHatchLabelPresentation.h"
 #include "SensorOwnedPresentationStyle.h"
 #include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
 #include "Widgets/SLeafWidget.h"
 #include "Rendering/DrawElements.h"
 #include "Styling/CoreStyle.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Fonts/FontMeasure.h"
+#include "Rendering/SlateRenderer.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
@@ -28,16 +32,35 @@ public:
             const auto Root=M->GetCachedGeometry();const auto Size=Root.GetLocalSize();
             const auto Project=[&](FVector World,FVector2f& Pixel){FVector2D P;if(!PC->ProjectWorldLocationToScreen(World,P))return false;Pixel=FVector2f(G.AbsoluteToLocal(Root.LocalToAbsolute(P*Size/FVector2D(W,H))));return true;};
             const auto Line=[&](FVector A,FVector B,FLinearColor C){FVector2f P,Q;if(Project(A,P)&&Project(B,Q))FSlateDrawElement::MakeLines(Out,Layer+1,G.ToPaintGeometry(),{P,Q},ESlateDrawEffect::None,C,true,2);};
-            const FTransform Pose=S->GetActorTransform();const auto Frame=[&](const FString& Name,FTransform F)
+            const FTransform Pose=S->GetActorTransform();const auto At=[&](FVector P){return FTransform(Pose.GetRotation(),Pose.TransformPosition(P*100));};
+            FTransform Frames[8]={Pose,At({0,S->SeaRailY(),S->BoomSoffitZ()}),At({0,S->GrabLip().Y,S->BoomSoffitZ()+.75}),At({S->CabX,S->CabY,S->HoldDepth+S->CabHeight}),FTransform::Identity,FTransform::Identity,FTransform::Identity,At(S->GrabLip()+FVector(0,0,3))};
+            bool Present[8]={true,true,true,true,false,false,false,true};
+            for(int32 I=0;I<3;++I)if(const auto* A=S->SensorAt(I)){Frames[I+4]=A->GetActorTransform();Present[I+4]=true;}
+            const auto Scene=M->GetSceneRect();const auto Local=[&](FVector2D P){return G.AbsoluteToLocal(Root.LocalToAbsolute(P));};
+            const FSlateRect Bounds(Local(FVector2D(Scene.Left,Scene.Top)),Local(FVector2D(Scene.Right,Scene.Bottom)));
+            const float Scale=M->GetFontScale();const auto Font=FSensorOwnedPresentationStyle::Font(12,Scale);
+            if(LabelScale!=Scale)
             {
-                const auto O=F.GetLocation();Line(O,O+F.GetUnitAxis(EAxis::X)*180,FLinearColor::Red);Line(O,O+F.GetUnitAxis(EAxis::Y)*180,FLinearColor::Green);Line(O,O+F.GetUnitAxis(EAxis::Z)*180,FLinearColor::Blue);
-                FVector2f P;if(Project(O,P))FSlateDrawElement::MakeText(Out,Layer+2,G.ToPaintGeometry(FVector2D(220,28),FSlateLayoutTransform(FVector2D(P)+FVector2D(5,-22))),Name,FSensorOwnedPresentationStyle::Font(12,M->GetFontScale()),ESlateDrawEffect::None,FLinearColor::White);
-            };
-            static const FString Names[]={TEXT("Mesh_origin"),TEXT("Crane"),TEXT("Trolley"),TEXT("Cabin"),TEXT("os_lidar_boom"),TEXT("os_lidar_cabin_01"),TEXT("os_lidar_cabin_02"),TEXT("Grab")};
-            Frame(Names[0],Pose);const auto At=[&](FVector P){return FTransform(Pose.GetRotation(),Pose.TransformPosition(P*100));};
-            Frame(Names[1],At({0,S->SeaRailY(),S->BoomSoffitZ()}));Frame(Names[2],At({0,S->GrabLip().Y,S->BoomSoffitZ()+.75}));Frame(Names[3],At({S->CabX,S->CabY,S->HoldDepth+S->CabHeight}));
-            for(int I=0;I<3;++I)if(const auto* A=S->SensorAt(I))Frame(Names[I+4],A->GetActorTransform());
-            Frame(Names[7],At(S->GrabLip()+FVector(0,0,3)));
+                LabelScale=Scale;const auto Measure=FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+                for(int32 I=0;I<8;++I)LabelExtents[I]=FVector2D(Measure->Measure(ShipHatchLabelPresentation::FrameLabel(I),Font))+FVector2D(8,4)*Scale;
+            }
+            TArray<int32,TInlineAllocator<8>> Order;const int32 Selected=S->HighlightedSensor();
+            if(Selected>=0&&Selected<3)Order.Add(Selected+4);
+            for(int32 I=4;I<7;++I)Order.AddUnique(I);
+            for(int32 I:{0,1,2,3,7})Order.Add(I);
+            TArray<FSlateRect,TInlineAllocator<8>> Placed;
+            for(int32 I:Order)
+            {
+                if(!Present[I])continue;const auto& F=Frames[I];const auto O=F.GetLocation();
+                Line(O,O+F.GetUnitAxis(EAxis::X)*180,FLinearColor::Red);Line(O,O+F.GetUnitAxis(EAxis::Y)*180,FLinearColor::Green);Line(O,O+F.GetUnitAxis(EAxis::Z)*180,FLinearColor::Blue);
+                FVector2f Anchor;FSlateRect Rect;
+                if(!Project(O,Anchor)||!ShipHatchLabelPresentation::PlaceLabel(Bounds,FVector2D(Anchor),LabelExtents[I],Scale,Placed.GetData(),Placed.Num(),Rect))continue;
+                Placed.Add(Rect);const FVector2D End(FMath::Clamp(double(Anchor.X),double(Rect.Left),double(Rect.Right)),FMath::Clamp(double(Anchor.Y),double(Rect.Top),double(Rect.Bottom)));
+                const auto Color=Selected>=0&&I==Selected+4?FSensorOwnedPresentationStyle::Accent():FSensorOwnedPresentationStyle::Text();
+                FSlateDrawElement::MakeLines(Out,Layer+1,G.ToPaintGeometry(),{Anchor,FVector2f(End)},ESlateDrawEffect::None,Color,true,1);
+                FSlateDrawElement::MakeBox(Out,Layer+1,G.ToPaintGeometry(LabelExtents[I],FSlateLayoutTransform(FVector2D(Rect.Left,Rect.Top))),FCoreStyle::Get().GetBrush("WhiteBrush"),ESlateDrawEffect::None,FSensorOwnedPresentationStyle::Panel());
+                FSlateDrawElement::MakeText(Out,Layer+2,G.ToPaintGeometry(LabelExtents[I],FSlateLayoutTransform(FVector2D(Rect.Left,Rect.Top)+FVector2D(4,2)*Scale)),ShipHatchLabelPresentation::FrameLabel(I),Font,ESlateDrawEffect::None,Color);
+            }
             // When the physical grab is off this is a display-only pose envelope;
             // switching visualization must not add an acquisition obstruction.
             {
@@ -69,6 +92,8 @@ public:
     }
 private:
     TWeakObjectPtr<UShipHatchMonitorWidget> Monitor;
+    mutable float LabelScale=0;
+    mutable FVector2D LabelExtents[8];
 };
 }
 TSharedRef<SWidget> UShipHatchSensorLabelView::RebuildWidget(){return SNew(SHatchSensorLabels,Monitor.Get());}
