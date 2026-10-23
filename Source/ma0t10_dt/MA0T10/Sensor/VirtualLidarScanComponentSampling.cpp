@@ -559,7 +559,7 @@ int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
     }
     if (!bScheduledScanInProgress || MaxRays <= 0 || !GetWorld()) return 0;
     if(ScheduledRayQuery&&!PollSceneQueryBatch())return 0;
-    if(ActiveAcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing){const int32 Completed=CompleteHardwareNormalizedFrame();if(Completed>=0)return Completed;}
+    {const int32 Completed=CompleteHardwareNormalizedFrame();if(Completed>=0)return Completed;}
     const double SceneWorkStarted=ScheduledRayQuery?FPlatformTime::Seconds():0;
     UWorld* World = GetWorld();
     const int32 TotalRays = ScheduledScanWidth * ScheduledScanHeight;
