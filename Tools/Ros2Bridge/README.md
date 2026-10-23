@@ -194,3 +194,6 @@ wsl -d ma0t10-ros2 -u root -- bash '/mnt/c/Unreal Projects/ma0t10_dt/Tools/Ros2B
 Windows localhost의 `check_foxglove.py`는 설치된 SDK bridge의 `foxglove.sdk.v1` 프로토콜로 HTTP 101·PointCloud2 채널 광고를 확인한다. 브라우저 3D 표시 검사는 별도다. `summarize.py Saved/Reports/ROS2-01/<run>`은 `<run>-bridge.json`, `<run>-ros.json`, native ledger와 CLI 로그를 대조한다. source 전체 수에는 준비 10초가 포함되고 ledger는 측정 300초만 포함하므로 분모를 섞지 않는다.
 
 참고: [ROS Jazzy 공식 apt 절차](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html), [REP-103](https://www.ros.org/reps/rep-0103.html), [Artemis STOMP flow control](https://artemis.apache.org/components/artemis/documentation/latest/stomp.html), [WSL commands](https://learn.microsoft.com/en-us/windows/wsl/basic-commands).
+
+
+PCD-BANDWIDTH-01 호환: wire reader는 헤더 기반 Full/Compact/Minimal/Custom과 `binary`/LZF `binary_compressed`를 읽는다. 네트워크에서 생략한 필드는 로컬 PointCloud2의 기존 33-byte 레이아웃에 기본값으로 복원한다(intensity/ring/index/time/validity 0, return_count/confidence 1). 기존 int64 ns의 low/high 분리와 TF/FrameId/checksum 검증은 유지한다. `python -m unittest discover -s Tools/Ros2Bridge -p 'test_*.py' -v`는 ROS 설치 없이 wire 호환을 검사하며 실제 ROS 노드의 3대 20Hz 수용을 입증하지 않는다.

@@ -51,6 +51,9 @@ public:
     int32 Version = CurrentVersion;
 
     UPROPERTY(SaveGame)
+    TMap<FString,FVirtualPcdSendOptions> PcdSendOptionsBySensor;
+
+    UPROPERTY(SaveGame)
     TMap<FName, FVirtualSensorPanelUiState> PanelStates;
 
     UPROPERTY(SaveGame)

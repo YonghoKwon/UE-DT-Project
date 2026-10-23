@@ -92,3 +92,6 @@ docker logs ma0t10-artemis --tail 100
 종료할 때는 `docker compose -f Tools/Artemis/docker-compose.yml down`을 사용합니다. 저장된 Broker 인스턴스까지 초기화하려면 개발 데이터 삭제를 확인한 뒤 `down -v`를 사용합니다.
 
 운영 환경에서는 별도 계정과 TLS WebSocket(`wss://`)을 사용하고, 비밀번호나 Bearer token을 프로젝트 설정 또는 SaveGame에 저장하지 마세요.
+
+
+PCD-BANDWIDTH-01: `stomp_probe.mjs`는 헤더에 따른 필드 선택과 `binary`/LZF `binary_compressed`를 검증한다. checksum·point count·Slab metadata 검사는 유지한다. 자격증명 없는 codec 검사는 `node --test Tools/Artemis/pcd_codec.test.mjs`, 3대 loopback은 `Scripts/run_pcd_bandwidth_evidence.ps1`을 사용한다. loopback receipt/echo는 Artemis/회사 소비자 수용이나 업무 ACK가 아니다.

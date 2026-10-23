@@ -1,4 +1,5 @@
 #include "AgentTestSetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualPcdCodec.h"
 #include "VirtualDatasetSubsystem.h"
 #include "AgentTestSetPcdPreview.h"
 #include "AgentTestSetExamples.h"
@@ -551,12 +552,9 @@ void UAgentTestSetSubsystem::Pump()
                             return TEXT("프레임 라벨 ID 불일치 · ")+LabelPath+TEXT(" · expected=")+Copy.ScenarioId+TEXT("/")+Copy.RunId+TEXT(" actual=")+Scenario+TEXT("/")+Run;
                         const int64 Size=IFileManager::Get().FileSize(*PcdPath);TArray<uint8> Pcd;
                         if(Size<1||Size>16ll*1024*1024||!FFileHelper::LoadFileToArray(Pcd,*PcdPath))return TEXT("PCD 읽기/크기 검증 실패 · ")+PcdPath+FString::Printf(TEXT(" · bytes=%lld"),Size);
-                        static constexpr ANSICHAR Marker[]="DATA binary\n";int32 Offset=INDEX_NONE;
-                        for(int32 B=0;B+sizeof(Marker)-1<=FMath::Min(Pcd.Num(),65536);++B)if(!FMemory::Memcmp(Pcd.GetData()+B,Marker,sizeof(Marker)-1)){Offset=B+sizeof(Marker)-1;break;}
-                        if(Offset==INDEX_NONE)return TEXT("PCD binary 헤더 없음 · ")+PcdPath;
-                        FUTF8ToTCHAR Utf8(reinterpret_cast<const ANSICHAR*>(Pcd.GetData()),Offset);const FString Header(Utf8.Length(),Utf8.Get());TArray<FString> Lines;Header.ParseIntoArrayLines(Lines);int32 Points=-1;
-                        for(const auto& Line:Lines)if(Line.StartsWith(TEXT("POINTS ")))LexTryParseString(Points,*Line.Mid(7));
-                        if(Points<0||Points>250000||int64(Offset)+int64(Points)*33!=Size)return TEXT("PCD POINTS×33 크기 불일치 · ")+PcdPath+FString::Printf(TEXT(" · points=%d header=%d bytes=%lld"),Points,Offset,Size);
+                        FVirtualPcdDocument Document;FString DecodeError;
+                        if(!FVirtualPcdCodec::Decode(Pcd,Document,DecodeError)||Document.PointCount>250000)return TEXT("Invalid PCD header/body: ")+PcdPath;
+                        const int32 Points=Document.PointCount;
                         const FString PointLabels=Dir/TEXT("lidar_labels.bin");const int64 LabelBytes=IFileManager::Get().FileSize(*PointLabels);
                         if(LabelBytes!=int64(Points)*5)return TEXT("점별 라벨 POINTS×5 크기 불일치 · ")+PointLabels+FString::Printf(TEXT(" · points=%d bytes=%lld"),Points,LabelBytes);
                         Bytes+=Size;

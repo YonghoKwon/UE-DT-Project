@@ -38,7 +38,7 @@ bool USlabScenarioReplayPanelWidget::ReplaySelected()
 {
     if(GetReplayOutputs().HasAnyOutput())
     {
-        const auto Check=UVirtualSensorOutputPreflight::InspectForPurpose(this,GetReplayOutputs(),TargetSensorIds,EVirtualSensorPreflightPurpose::ScenarioTransition);CachedPreflight=Check.Summary;
+        const auto Check=UVirtualSensorOutputPreflight::InspectForPresentation(this,GetReplayOutputs(),TargetSensorIds,EVirtualSensorPreflightPurpose::ScenarioTransition,true,0,ExecutionOptions.Policy==ESlabExecutionPolicy::RequireData);CachedPreflight=Check.Summary;
         if(ExecutionOptions.Policy==ESlabExecutionPolicy::RequireData&&!Check.BlockingReasons.IsEmpty()){ActionMessage=FString::Join(Check.BlockingReasons,TEXT("\n"));return false;}
     }
     auto* M=Manager();return M&&M->RequestScenarioReplayWithExecutionOptions(SelectedUUID,GetReplayOutputs(),TargetSensorIds,ExecutionOptions);

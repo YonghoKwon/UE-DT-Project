@@ -3,6 +3,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
 #include "JsonObjectConverter.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
@@ -133,7 +134,13 @@ FString UVirtualSensorSlabContextSubsystem::BeginSessionInternal(const FString& 
 		if((Outputs.bPointCloud||Outputs.bLidarTelemetry)&&!bHasLidar) { Status.Message=TEXT("선택한 출력에는 LiDAR 대상이 필요합니다."); return FString(); }
 		if(Outputs.bCameraImage&&!bHasCamera) { Status.Message=TEXT("Camera 출력에는 Camera 대상이 필요합니다."); return FString(); }
 	}
-	for (const FString& SensorId : Ids) if (!NewTargets.Contains(SensorId)) { Status.Message=TEXT("요청한 SensorId를 찾을 수 없습니다."); return FString(); }
+ if(ActivatingPreparation&&Outputs.bPointCloud)for(const auto& Pair:NewTargets)
+  if(Pair.Value.IsValid()&&Pair.Value->GetSensorKind()==EVirtualSensorKind::Lidar)
+  {
+   const FString Error=UVirtualSensorOutputPreflight::RequiredPcdDivisorError(Pair.Key,Manager->StreamPublisherComponent->GetPcdSendOptions(Pair.Key).Divisor());
+   if(!Error.IsEmpty()){Status.Message=Error;return FString();}
+  }
+ for (const FString& SensorId : Ids) if (!NewTargets.Contains(SensorId)) { Status.Message=TEXT("요청한 SensorId를 찾을 수 없습니다."); return FString(); }
 	for (const auto& Pair:NewTargets) if(auto* Sensor=Pair.Value.Get())
 	{
 		const bool Needed=Sensor->GetSensorKind()==EVirtualSensorKind::Camera?Outputs.bCameraImage:(Outputs.bPointCloud||Outputs.bLidarTelemetry);
@@ -203,7 +210,17 @@ bool UVirtualSensorSlabContextSubsystem::PrepareScenarioTransmission(const FStri
 	{Error=TEXT("새 실행 UUID와 유효한 시나리오 UUID가 필요합니다.");return false;}
 	if(!FMath::IsFinite(Options.PreparationTimeoutSeconds)||Options.PreparationTimeoutSeconds<1||Options.PreparationTimeoutSeconds>120)
 	{Error=TEXT("준비 시간은 1~120초여야 합니다.");return false;}
-	for(TActorIterator<AVirtualSensorCoordinator> It(GetWorld());It;++It)Coordinator=*It;
+ for(TActorIterator<AVirtualSensorCoordinator> It(GetWorld());It;++It)
+ {
+  // Reject before sensor preparation, connection attempts, ownership or run registration.
+  if(Outputs.bPointCloud)for(const auto* Sensor:It->GetSensorActors())
+   if(IsValid(Sensor)&&Sensor->GetSensorKind()==EVirtualSensorKind::Lidar&&(Ids.IsEmpty()||Ids.Contains(Sensor->GetSensorId())))
+   {
+    Error=UVirtualSensorOutputPreflight::RequiredPcdDivisorError(Sensor->GetSensorId(),It->StreamPublisherComponent->GetPcdSendOptions(Sensor->GetSensorId()).Divisor());
+    if(!Error.IsEmpty())return false;
+   }
+  Coordinator=*It;
+ }
 	Targets.Reset();ConfigurationSnapshots.Reset();PreparationIds.Reset();bRequireRaw=false;bRequireEngine=false;
 	for(auto* Sensor:Coordinator->GetSensorActors())
 	{
@@ -266,7 +283,9 @@ FString UVirtualSensorSlabContextSubsystem::CheckRequiredDataHealth() const
 		if(Coordinator->StreamPublisherComponent)
 			for(auto Kind:{EVirtualSensorStreamKind::CameraImage,EVirtualSensorStreamKind::LidarPayload,EVirtualSensorStreamKind::PointCloud})
 				if(IsOutputSelected(Kind)&&Sensor&&((Kind==EVirtualSensorStreamKind::CameraImage)==(Sensor->GetSensorKind()==EVirtualSensorKind::Camera)))
-				{const auto C=Coordinator->StreamPublisherComponent->GetEffectiveStreamConfig(Kind,Pair.Key);if(!Coordinator->StreamPublisherComponent->IsStreamEnabled(Kind,Pair.Key)||C.FrameStride!=1||C.ReceiptSampleInterval!=1)return TEXT("필수 출력 스트림이 중지되거나 전송 정책이 변경되었습니다.");}
+				{if(Kind==EVirtualSensorStreamKind::PointCloud)
+     {const auto Error=UVirtualSensorOutputPreflight::RequiredPcdDivisorError(Pair.Key,Coordinator->StreamPublisherComponent->GetPcdSendOptions(Pair.Key).Divisor());if(!Error.IsEmpty())return Error;}
+     const auto C=Coordinator->StreamPublisherComponent->GetEffectiveStreamConfig(Kind,Pair.Key);if(!Coordinator->StreamPublisherComponent->IsStreamEnabled(Kind,Pair.Key)||C.FrameStride!=1||C.ReceiptSampleInterval!=1)return TEXT("필수 출력 스트림이 중지되거나 전송 정책이 변경되었습니다.");}
 		if(!Sensor||Sensor->GetSensorId()!=Pair.Key||SensorConfiguration(Sensor)!=ConfigurationSnapshots.FindRef(Pair.Key))return TEXT("대상 센서가 삭제되거나 고정한 측정 설정이 변경되었습니다.");
 		if(!Sensor->IsSensorRunning())return TEXT("필수 대상 센서의 측정이 중지되었습니다.");
 		if(Status.State==EVirtualSlabSessionState::Running)

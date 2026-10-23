@@ -1,4 +1,5 @@
 #include "AgentTestSetPcdPreview.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualPcdCodec.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "Engine/World.h"
@@ -29,31 +30,14 @@ FTestSetPcdFrame FAgentTestSetPcdPreview::ReadFrame(const FAgentTestSetItem& Ite
     Out.Pose=FTransform(Rotation,FVector(P[0],P[1],P[2])*100);Out.Width=int32(Width);Out.Height=int32(Height);if(Out.Pose.ContainsNaN()||Out.Pose.GetLocation().GetAbsMax()>1.e12)return Out;
     TArray<uint8> Bytes;const int64 Size=IFileManager::Get().FileSize(*(Root/TEXT("lidar.pcd")));
     if(Size<1||Size>16ll*1024*1024||Cancel.load()||!FFileHelper::LoadFileToArray(Bytes,*(Root/TEXT("lidar.pcd"))))return Out;
-    static constexpr ANSICHAR Marker[]="DATA binary\n";int32 Offset=INDEX_NONE;
-    for(int32 I=0;I+sizeof(Marker)-1<=FMath::Min(Bytes.Num(),65536);++I)if(!FMemory::Memcmp(Bytes.GetData()+I,Marker,sizeof(Marker)-1)){Offset=I+sizeof(Marker)-1;break;}
-    if(Offset==INDEX_NONE)return Out;
-    FUTF8ToTCHAR HeaderUtf8(reinterpret_cast<const ANSICHAR*>(Bytes.GetData()),Offset);const FString Header(HeaderUtf8.Length(),HeaderUtf8.Get());
-    if(!Header.Contains(TEXT("FIELDS x y z intensity ring horizontal_index return_index return_count time_offset_ns validity confidence\n"))||!Header.Contains(TEXT("SIZE 4 4 4 2 2 2 1 1 8 1 4\n"))||!Header.Contains(TEXT("TYPE F F F U U U U U I U F\n"))||!Header.Contains(TEXT("COUNT 1 1 1 1 1 1 1 1 1 1 1\n")))return Out;
-    int32 Count=-1;TArray<FString> Lines;Header.ParseIntoArrayLines(Lines);
-    for(const auto& Line:Lines)if(Line.StartsWith(TEXT("POINTS "))&&!LexTryParseString(Count,*Line.Mid(7)))return Out;
-    if(Count<0||Count>250000||int64(Offset)+int64(Count)*33!=Bytes.Num())return Out;
-    Out.Points.Reserve(Count);
-    for(int32 I=0;I<Count;++I)
+    FVirtualPcdDocument Pcd;FString PcdError;
+    if(!FVirtualPcdCodec::Decode(Bytes,Pcd,PcdError)||Pcd.PointCount>250000||!Pcd.ReadPoints(Out.Points))return Out;
+    for(int32 I=0;I<Out.Points.Num();++I)
     {
         if((I&1023)==0&&Cancel.load())return Out;
-        const uint8* B=Bytes.GetData()+Offset+I*33;
-        // Explicit little-endian 33-byte record, independent of C++ struct padding.
-        auto U16=[&](int32 O){return uint16(B[O])|(uint16(B[O+1])<<8);};
-        auto Float=[&](int32 O){uint32 V=uint32(B[O])|(uint32(B[O+1])<<8)|(uint32(B[O+2])<<16)|(uint32(B[O+3])<<24);float F;FMemory::Memcpy(&F,&V,4);return F;};
-        FVirtualLidarPoint V;const float X=Float(0),Y=Float(4),Z=Float(8);V.Confidence=Float(29);
-        if(!FMath::IsFinite(X)||!FMath::IsFinite(Y)||!FMath::IsFinite(Z)||!FMath::IsFinite(V.Confidence)||B[28]>uint8(EVirtualLidarPointValidity::InvalidCalibration))return Out;
-        V.SensorLocalPositionMeters=FVector(X,Y,Z);const FVector Local(X*100.,-Y*100.,Z*100.);
-        if(Local.SizeSquared()>FMath::Square(Out.Range*200.)||V.Confidence<0||V.Confidence>1)return Out;
-        V.WorldLocation=Out.Pose.TransformPosition(Local);V.Distance=Local.Size();V.LocalDirection=Local.GetSafeNormal();
-        V.RangeMillimeters=FMath::RoundToInt(V.Distance*10);V.RawIntensity=U16(12);V.NormalizedIntensity=V.RawIntensity/65535.f;
-        V.Ring=V.Row=U16(14);V.HorizontalIndex=V.Col=U16(16);V.EchoIndex=V.ReturnIndex=B[18];V.EchoCount=B[19];V.bHasGridCoord=true;
-        uint64 Time=0;for(int32 J=0;J<8;++J)Time|=uint64(B[20+J])<<(8*J);FMemory::Memcpy(&V.PointTimeOffsetNanoseconds,&Time,8);
-        V.Validity=EVirtualLidarPointValidity(B[28]);V.bHit=V.Validity==EVirtualLidarPointValidity::Valid;Out.Points.Add(MoveTemp(V));
+        auto& V=Out.Points[I];const auto M=V.SensorLocalPositionMeters;const FVector Local(M.X*100.,-M.Y*100.,M.Z*100.);
+        if(Local.SizeSquared()>FMath::Square(Out.Range*200.))return Out;
+        V.WorldLocation=Out.Pose.TransformPosition(Local);V.Distance=Local.Size();V.LocalDirection=Local.GetSafeNormal();V.RangeMillimeters=FMath::RoundToInt(V.Distance*10);
     }
     auto Snapshot=MakeShared<FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe>();
     Snapshot->Points=MakeShared<const TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe>(MoveTemp(Out.Points));
