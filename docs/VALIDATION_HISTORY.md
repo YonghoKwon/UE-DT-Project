@@ -634,3 +634,15 @@ RSS는 **user accepted unresolved RSS (2026-10-23)**로 #26b에 이관하고 머
 원시 MA0T10.GpuLidar.ScheduledThree는1Fail/3assertions이며 전부기존획득cadence다. 실제엔진5320프레임에서 floor(5320/3)-2=1771획득기준에1767/1766/1761회(각4/5/10회부족)로FAIL이다. FPS assertion실패0이나두기준모두통과한것이아니므로 feature/release(관련그룹)FAIL을유지하고 지시대로추가측정없이종료한다. 기준·소스·샘플링변경0, 이전실패원문모두보존. 원래≥19Hz송신목표와획득cadence를구분한다.
 
 전후읽기전용프로세스/GPU기록: Rider/브라우저본체없음(BraveCrashHandler잔존), OneDrive·INNORIX CPU활동기록만수행, 조작0. NVIDIA스냅샷GPU0%/37→40°C,다른Editor0. 측정구간밖순간값으로특정인과관계를단정하지않는다. 이번새개인43파일복원·보호297해시불변·전체Source동일. 기존38Success/6조건부skip집중검증·표준RTonABAB PASS·layer0→0이력을유지하고이번90초외전체release/집중그룹/ABAB는재실행하지않았다. RSS:user accepted unresolved RSS (2026-10-23),#26b 및원래8MiB/5쌍FAIL유지. [전체표·원시경로](../Saved/Reports/FOLLOWUP-28-26/r7/CLEANUP-90.md)·[manifest](../Saved/Reports/FOLLOWUP-28-26/r7/cleanup-manifest.json). 문서만커밋하고종료한다.
+
+
+## 2026-10-23 — PCD-BANDWIDTH-01
+
+- 기준 e01a47c, 재개 HEAD8884f5a(사용자가 WIP/캡처 PR병합), 최종 구현1013f90, DTCore b2504d1. push/merge 없음.
+- Full33/Compact24/Minimal12/Custom XYZ필수, PCL SoA+LZF, 전송 전용 분주, v6 추가 map·명시 사용자 binary 선택 보존, 파일 Full binary. 프로젝트 C++·ROS2/JS/CLI 수신 파서 확장, 기존 golden 유지.
+- 송신 측정 SHA77d2b40에서 3대 Rev7/20Hz 요청·HWRT·ShipHatchTestMap·1920×1080 표시형·RT ProjectDefault·준비10+측정90초. Full binary73.7191, 기본 Full+LZF38.6576, Compact+LZF31.3256, Minimal+LZF27.6399 MiB/s. FPS58.5807/58.8633/58.9969/59.7822; encode/engine/callback >150ms0, 형식 오류0. Full binary/기본/Compact의 기존 ≥59FPS·획득cadence FAIL은 그대로 보존(#28b). 전송 코덱·송신·획득은 최종 코드와 동일하며 이후 UI XYZ상수 비활성/회귀 및 도구·문서만 갱신했다.
+- 초기 Python loopback 검증기 2회는 검사기 CPU에 막혀3.6/8Hz를 기록했다. 검사 항목을 유지한 C보조 검증기와 Python decoder의 고정/비정상10,003건 판정 일치를 확인하고 native90초를 재실행했다. 두 초기 실행을 실제 제품 처리량 증거로 세지 않는다.
+- 최종 release1013f90은1920×1080환경에서410 실제 Success/41 조건부skip/0Fail(feature중복포함), WBP7개 메모리 컴파일·렌더 문구 통과. 최초 release의 Coil6개1280/1920조건불일치 및 기존 UI체크박스12개 고정계수1 Fail은 원문 보존. 환경 해상도를 맞추고 기존12개+신규13개/XYZ불변 별도 검증으로 재실행했다. 기대 기준/정확도/2%/150ms 완화0.
+- 표준1Camera+1LiDAR/SlabScenarioValidationMap/1920×1080 표시형/D3D12/RT ProjectDefault/10+60초/ABAB×3(A6/B6): e01a47c→1013f90 FPS59.992680→59.997017(+0.0072295%), enginep9516.666900→동일(0%), GT6.629321→6.606941(−0.337592%). PASS. 독립3대90초 절대gate/회사 수용과 구분한다.
+- 자동 100%글자 캡처는Saved/Reports/PCD-BANDWIDTH-01/progress. Computer Use의CreateForMonitor0x80070057이2회 발생해 직접 마우스/키보드 검증은 deferred. 새 capture/readback은 opt-in Editor검증 도구에만 있다.
+- 개인 SaveGame/Editor파일344개와 보호파일297개, 기존 발표용 결과985개는 파일 집합/해시로 복원·보존했다. 비밀값 출력0. 상세 및 schema판정은Saved/Reports/PCD-BANDWIDTH-01/{RESULT.md,result.json,merge-check.json}; Saved는커밋하지 않는다.

@@ -18,6 +18,12 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### PCD-BANDWIDTH-01 — 전송 용량 옵션·기본 LZF 적용
+
+Full/Compact/Minimal/Custom·필드 체크·LZF·1/1·1/2·1/4를 LiDAR별/일괄 적용하고 기존 v6 설정을 보존한다. 기본은 Full+LZF On+1/1이며 파일 저장은 Full+binary다. 같은 송신 구현의 3대×90초 local loopback 합계는 Full binary 73.72 → 기본 38.66 MiB/s(−47.56%), Compact 31.33, Minimal 27.64였다. 모든 조건의 encode/engine/callback 150ms 초과·형식 오류 0이다.
+
+최종 코드 `1013f90`은 quick·release(410 실제 Success/41 조건부 skip/0 Fail, feature 중복 실행 포함)·표시형 RT on ABAB×3를 통과했다. ABAB 중앙값 FPS +0.0072%·engine p95 0%·GT −0.3376%, layer/allowlist 0→0, DTCore 고정이다. 자동 100% 글자 캡처와 직접 마우스 검증을 구분한다(Computer Use monitor capture 2회 실패로 직접 입력 보류). 3-PCD90초의 기존 절대 ≥59FPS/cadence는 Full binary·기본·Compact에서 실패했고 #28b로 별도 유지한다. 이 실패를 통과로 바꾸거나 1+1 상대 gate로 대체하지 않는다. [전체 조건·수치·커밋·제한](Saved/Reports/PCD-BANDWIDTH-01/RESULT.md).
+
 ### FOLLOWUP-28-26 — 환경 정리 후 FPS 통과, 획득cadence로 통합 gate 차단
 
 독립 리뷰 수정: `f5d5a4e`는 최신 작은 PCD가 이전 큰 FIFO head를 영구 대기시키는 센서 토큰 상한을 수정한다. 해당 센서의 현재 FIFO head 바디까지 상한에 포함하고, 기존 refill 공정성·실제 바이트 차감·전역 버킷·예약 상한은 유지한다. Exact/Wildcard 1.32MB→66KB 회귀는 수정 전2 Fail, 수정 후 모두1.05초 버킷 시간 내 FIFO 송신접수·socket·receipt·외부33-byte/schema/checksum 검증 PASS, overload/교체0이다. `4c24907`은 `-CoilPhotoReport` 별칭을 복원하며 `-CoilReport`가 우선한다. 핵심5 Success, SensorStream/별칭38 Success·6조건부skip·0Fail이다. [증거](Saved/Reports/FOLLOWUP-28-26/r5/REVIEW-FIX.md).

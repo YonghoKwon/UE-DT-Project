@@ -1388,6 +1388,6 @@ PCD 외 포맷의 신규 개선(IO-01 포함)은 보류다. 관련 정확성·�
 
 ### PCD-BANDWIDTH-01 — 전송 전용 필드·압축·주기 선택 (사용자 2026-10-23)
 
-Full/Compact/Minimal/Custom·필드별 체크·LZF binary_compressed·LiDAR별 1/1·1/2·1/4 전송과 SensorManager 일괄 적용을 기존 데이터 패널에 추가했다. 3대 90초 native loopback에서 Full 압축은 합계 38.99 MiB/s, 인코딩·엔진·callback의 150ms 초과 0회로 기본 On을 선택했다. Full 필드·1/1과 기존 사용자 명시 선택은 유지한다. SaveGame v6 추가 map으로 기존 개인 설정을 보존하며 파일 저장은 Full 유지다. 수신기·TestSet 재생은 헤더 기반으로 두 encoding을 읽는다. 80 MiB/s 예산·#28 공평 배분·FIFO head 회귀 기준은 유지한다.
+Full/Compact/Minimal/Custom·필드별 체크·LZF binary_compressed·LiDAR별 1/1·1/2·1/4 전송과 SensorManager 일괄 적용을 기존 데이터 패널에 추가했다. 최종 동일 송신 구현의 3대 90초 native loopback에서 Full binary 73.72→기본 Full 압축 38.66 MiB/s(−47.56%), 인코딩·엔진·callback의 150ms 초과 0회로 기본 On을 선택했다. 최종 quick·release 410 실제 Success/41 조건부 skip/0 Fail·RT on ABAB(각2% 이내)·layer0→0을 통과했다. 직접 마우스는 monitor capture 오류로 보류이며 3-PCD 절대 FPS/cadence 실패는 #28b로 보존한다. Full 필드·1/1과 기존 사용자 명시 선택은 유지한다. SaveGame v6 추가 map으로 기존 개인 설정을 보존하며 파일 저장은 Full 유지다. 수신기·TestSet 재생은 헤더 기반으로 두 encoding을 읽는다. 80 MiB/s 예산·#28 공평 배분·FIFO head 회귀 기준은 유지한다.
 
 현재 결과와 압축 기본값의 조건별 판정·90초 네 조건 실측·수행/미수행은 `Saved/Reports/PCD-BANDWIDTH-01/RESULT.md`, 기계 판정은 같은 폴더 `result.json`을 따른다. 구현·로컬 실측을 외부 수신기/회사 수용으로 확대하지 않는다. DTCore 변경 후보 없음(기존 프로젝트 전용 대용량 worker/수신 adapter 범위).
