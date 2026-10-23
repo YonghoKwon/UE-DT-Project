@@ -111,3 +111,13 @@ startup Error22줄은 수정 전 Editor-game reference와 R1 Development GT-off/
 R1 성능 gate는 **미수행**이다. Brave 프로세스의 GPU VideoDecode 사용1%를 여러 번 확인해 base-rules의 다른 GPU 작업 중 측정 금지에 따라 시작하지 않았다. 영상 중지 확인 질문은 대기 중이며 브라우저를 조작하지 않았다. 조건 해제 후 `Scripts/verify.ps1 -Level perf -BaseCommit d2ca1d1 -PerfRayTracing ProjectDefault` 및 `Saved/Reports/ANALYSIS-24-22/review-r1/run-runtime-perf.ps1`로 default Rev7x3 90초 visible/GT-on 60초 visible을 수행해야 한다. 새 성능 값·GT 증가·2% 통과·slot gate 통과를 주장하지 않는다. 전체 release suite, Shipping HWRT3, #22 UI/회사 수용도 기존처럼 별도다.
 
 R1 최종 코드 근거(`Source/ma0t10_dt/MA0T10/` 기준): `Sensor/VirtualLidarGpuDepthProjectionComponent.cpp:167,177,183,268`(유예·미분류·깊이완료), `Sensor/VirtualLidarSemanticScene.cpp:192,203,208`(준비만 poll/조건부1회 flush), `Sensor/VirtualLidarScanComponentAcquisition.cpp:194,199`(기존 Failed fallback), `Sensor/Tests/LidarSemanticPsoTimeoutTests.cpp:60,67,73`(유예/60frame/복구 검사).
+
+## 2026-10-24 성능 재개 — fd5fac1 / 7e6e04d
+
+[최신 RESULT](../../Saved/Reports/ANALYSIS-24-22/RESULT.md)와 `resume-20261024/perf-final.json`이 현재 판정이다. 앞 R1의 영상 작업 대기는 해소됐다. README/history conflict는 양쪽을 보존했고 원래 cfa의 준비 완료 후1회 flush를 유지했으며 추가 production/threshold 변경은 없다.
+
+RT on 표준 ABAB12회(A/B각6중앙값)는 FPS저하0.004979%, p95증가0%, GameThread변화-0.034683%로2%PASS다. 같은1920x1080visible·10초warmup+60초·Camera1/LiDAR1 조건과 동일 instrument를 사용했다. 기본Rev7×3 90.0062795초는 각1800frames/19.998605Hz/ratio0.999930248/expiredslots0이며 기존 strict19.9Hz/.995와 canonical슬롯하한1799를 통과했다. 단일3센서 검사다.
+
+CameraGT-on은1회이며 비교 가능한 동일메인GT-off control1회를 추가했다. GameThread off5.096733→on6.147050ms(+1.050317ms/+20.607661%). 이 비용 관측에 원래 GT기능 비용이 포함되며, 코드 변경의2% 판정은 동일조건 표준ABAB를 따른다. pipeline truthframe완료와 Camera30/LiDAR20Hz를 실제JSON으로 확인했다. rawCSV/automation result와 실행인자 모두 저장했다.
+
+관련21RHI/logic tests와 Python5/quick9/layer/guard통과, 현재SHA의native패키징·전체release·직접마우스/현장/소비자ACK는 별도다. 운영맵/SensorTestMap은 저장하지 않았다. 새372개 설정 집합과753개 보호해시를 복원·대조했으며 이전353개 백업으로 덮어쓰지 않았다.

@@ -6,6 +6,15 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-24 ANALYSIS-24 — fd5fac1 병합과 성능 재개 완료
+
+- 기준 `fd5fac1440d87a3a48c4aba71814486c1d56874d`, Runtime merge `7e6e04d856a4dfaac8ad1db34d228ab41a2db60a`; README/history conflict 양쪽 보존, 추가 production/threshold 변경 없음. 최초5회 및 감시924회 영상 디코딩 재감지0; 환경값은 판정 미사용.
+- 표준 `verify.ps1 -Level perf -BaseCommit fd5fac1 -PerfRayTracing ProjectDefault`: visible1920x1080, Camera1+LiDAR1,10초 준비+60초 측정 ABABx3.12/12valid, A/B각6회 중앙값 FPS 59.998622→59.995635(저하0.004979%), enginep95 16.666900→16.666900ms(0%), GameThread 6.569258→6.566979ms(-0.034683%).2%PASS.
+- 기본 Rev7×3/HWRT/1024x64/20Hz, visible90.0062795초: 모두1800frames/19.998605Hz/ratio0.999930248/expiredslots0. 기존19.9Hz/.995 및 canonical ceil(requestHz*wallSeconds)-2 하한1799 PASS. 단일3센서 실행이며18sensor-run cohort 통과로 바꾸지 않았다.
+- CameraGT-on60초와 동일 메인 GT-off대조60초 각1회: GameThread 5.096733→6.147050ms, +1.050317ms(+20.607661%). 옵션on/off 관측이며 코드 전후ABAB2%와 구분한다. GT-on Camera30Hz/LiDAR20Hz, failure/overflow0. fixture송신/녹화off, 전달/ACK수용 아님.
+- 현재SHA Editorbuild0, 관련21Success/0Fail/0Skip (#24RHI14+dual1+H150layout1+P2bpure5), Python5/quick9/layer0→0/guard PASS. UIcapture는 자동이며 직접마우스가 아니다. fresh개인372files/보호753hash 복원; 운영맵 저장/DTCore수정 없음. 현재SHA패키징/전체release/현장 수용 미수행; cfa패키지12scene은 역사 증거로 보존.
+- [RESULT](../Saved/Reports/ANALYSIS-24-22/RESULT.md), `resume-20261024/perf-final.json`, `feature-final.json`, `restoration-and-protection.json`, result.json/merge-check 참조. 소유 perf archive는 표준 스크립트가 정리했고 공유 UBT/DDC는 보존. push 없음.
+
 ## 2026-10-24 ANALYSIS-24 R1 — semantic PSO timeout, performance environment pending
 
 - Runtime `cfa61f99493bdf237449ec380ca782d754037f80`: optional semantic PSO timeout completes the original frozen depth frame unclassified; one1s cold grace, no repeated waiting while still pending, current-snapshot semantics recover when ready. Pending proxy list is cached; end-of-frame refresh happens only when PSO completion requires it. Existing explicit Failed-to-CPU fallback remains available for actual depth failure.
