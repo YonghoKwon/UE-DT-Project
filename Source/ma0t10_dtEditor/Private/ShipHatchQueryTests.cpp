@@ -108,6 +108,7 @@ bool FHatchPointPoolLifetimeTest::RunTest(const FString&)
  Scan->AcquireScenePointStorage(64);Scan->ScheduledPoints.SetNum(1);Scan->ScheduledPoints[0].WorldLocation=FVector(1,2,3);
  auto A=Scan->CompleteScenePointStorage();const auto* Address=A->GetData();TWeakPtr<TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe> OldWeak=A;
  A.Reset();TestFalse(TEXT("released publication expires weak pointers even though storage is retained"),OldWeak.IsValid());
+ TestTrue(TEXT("exclusive point storage cleanup finishes before reuse assertion"),Scan->WaitForScenePointPoolCleanupForTesting());
  Scan->AcquireScenePointStorage(64);TestTrue(TEXT("same allocation reused with a new publication control block"),Scan->ScheduledPoints.GetData()==Address);Scan->ScheduledPoints.SetNum(1);Scan->ScheduledPoints[0].WorldLocation=FVector(4,5,6);
  auto Held=Scan->CompleteScenePointStorage();TWeakPtr<TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe> HeldWeak=Held;
  for(int I=0;I<8;++I){Scan->AcquireScenePointStorage(64);TestTrue(TEXT("held immutable storage cannot be leased"),Scan->ScheduledPoints.GetData()!=Held->GetData());Scan->ScheduledPoints.SetNum(1);auto Next=Scan->CompleteScenePointStorage();}

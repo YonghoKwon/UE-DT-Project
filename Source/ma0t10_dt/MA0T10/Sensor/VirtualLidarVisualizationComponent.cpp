@@ -605,10 +605,12 @@ void UVirtualLidarVisualizationComponent::RefreshColoredCpuPoints()
         LastMinDistanceCm=Min==FLT_MAX?0:Min;LastMaxDistanceCm=FMath::Max(LastMinDistanceCm+.01f,Max);
     }
     const int32 Limit=FMath::Min(12000,Policy.MaxPoints>0?Policy.MaxPoints:12000);
+    const double AcquisitionStart=Frame?Frame->AcquisitionStartedMonotonic:0;
+    const bool bApplyPointTransform=PointPreviewTransform&&(!PointPreviewTransformNeeded||PointPreviewTransformNeeded(AcquisitionStart));
     auto& Batch=ColoredPointBatch->BatchedPoints;Batch.Reset(Limit);
     for(int32 I=0;I<Points.Num()&&Batch.Num()<Limit;I+=FMath::Max(1,Policy.PointStride))
     {const auto& Source=Points[I];if(Policy.bHitOnly&&!Source.bHit)continue;
-     if(PointPreviewTransform){auto P=Source;PointPreviewTransform(P,Frame?Frame->AcquisitionStartedMonotonic:0);Batch.Emplace(P.WorldLocation,GetColoredCpuPointDisplayColor(P),Settings.PointSize,0.f,SDPG_World);}
+     if(bApplyPointTransform){auto P=Source;PointPreviewTransform(P,AcquisitionStart);Batch.Emplace(P.WorldLocation,GetColoredCpuPointDisplayColor(P),Settings.PointSize,0.f,SDPG_World);}
      else Batch.Emplace(Source.WorldLocation,GetColoredCpuPointDisplayColor(Source),Settings.PointSize,0.f,SDPG_World);}
     const int32 Visible=Batch.Num();
     // Pin the copied render-proxy allocation as well as the GT array capacity.
@@ -623,7 +625,9 @@ void UVirtualLidarVisualizationComponent::RefreshColoredCpuPoints()
 }
 
 void UVirtualLidarVisualizationComponent::SetPointPreviewTransform(TFunction<void(FVirtualLidarPoint&,double)> Transform)
-{PointPreviewTransform=MoveTemp(Transform);}
+{PointPreviewTransform=MoveTemp(Transform);PointPreviewTransformNeeded=nullptr;}
+void UVirtualLidarVisualizationComponent::SetPointPreviewTransformNeeded(TFunction<bool(double)> Needed)
+{PointPreviewTransformNeeded=MoveTemp(Needed);LastColoredPointUpdate=-1;}
 void UVirtualLidarVisualizationComponent::RefreshPointView()
 {if(bColoredCpuPointPreview&&PointPreviewTransform)if(auto* Batch=Cast<ULidarPlayerDisplayComponent>(ColoredPointBatch))if(Batch->IsVisible())Batch->RefreshPointView();}
 void UVirtualLidarVisualizationComponent::RefreshPointPreview()
