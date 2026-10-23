@@ -121,3 +121,13 @@ RT on 표준 ABAB12회(A/B각6중앙값)는 FPS저하0.004979%, p95증가0%, Gam
 CameraGT-on은1회이며 비교 가능한 동일메인GT-off control1회를 추가했다. GameThread off5.096733→on6.147050ms(+1.050317ms/+20.607661%). 이 비용 관측에 원래 GT기능 비용이 포함되며, 코드 변경의2% 판정은 동일조건 표준ABAB를 따른다. pipeline truthframe완료와 Camera30/LiDAR20Hz를 실제JSON으로 확인했다. rawCSV/automation result와 실행인자 모두 저장했다.
 
 관련21RHI/logic tests와 Python5/quick9/layer/guard통과, 현재SHA의native패키징·전체release·직접마우스/현장/소비자ACK는 별도다. 운영맵/SensorTestMap은 저장하지 않았다. 새372개 설정 집합과753개 보호해시를 복원·대조했으며 이전353개 백업으로 덮어쓰지 않았다.
+
+## GT-on / Rev7 전후 비교 조건 추가
+
+기존 표준ABAB는 CameraGT-off/MLX80 조건이므로 CameraGT-on 변경 비용의 전후 검증과 구분한다. 제품코드 변경 없이 기존 Perf01/verify 경로에 조건 인자만 추가했다. `-PerfCameraGroundTruth -PerfLidarProfile Rev7 -PerfRequireGpu`는 같은 SlabScenarioValidationMap의 CameraD455+Rev7/HWRT·의미분류on·1920x1080visible·10초warmup+60초·ABABx3를 실행한다. GPU평균도 같은2% 기준에 포함하며 누락/0GPU값은 실패다. 기본MLX80/GT-off 및 기존Scheduled의GPU/RSS/Hz 판정은 유지한다. 두revision에 동일한 committed instrument와 session helper를 overlay하고 hash를 검증한다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level perf -BaseCommit fd5fac1 -PerfRayTracing ProjectDefault -PerfCameraGroundTruth -PerfLidarProfile Rev7 -PerfRequireGpu
+```
+
+도구회귀는 기존5합성cohort에 GPU-only조건 성공/3%악화/측정값누락3개를 더해8개이며 실측으로 세지 않는다. WindowsPowerShell5의 단일문자열 native splat 문제는 명시적string[]로 수정했고 초기실패로그를 보존했다. 실측 판정과 커밋은 최신 RESULT/result.json을 따른다.

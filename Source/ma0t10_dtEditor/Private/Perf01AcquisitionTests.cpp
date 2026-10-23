@@ -64,6 +64,7 @@ class FPerf01AcquisitionCommand : public IAutomationLatentCommand
     float DpiScale=0;
     bool bVisibleVerified=false;
     bool bCameraTruthPerformance=false;
+    FString LidarProfile=TEXT("MLX80Native");
     bool bLidarFidelityPerformance=false;
     FString Output,Phase=TEXT("setup");
     bool bReported=false;
@@ -93,6 +94,7 @@ public:
         FParse::Value(FCommandLine::Get(),TEXT("Perf01Output="),Output);
         Pairs=FMath::Clamp(Pairs,1,2);Duration=FMath::Clamp(Duration,30,60);
         bCameraTruthPerformance=FParse::Param(FCommandLine::Get(),TEXT("CameraTruthPerformance"));
+        FParse::Value(FCommandLine::Get(),TEXT("Perf01LidarProfile="),LidarProfile);
         bLidarFidelityPerformance=FParse::Param(FCommandLine::Get(),TEXT("LidarFidelityPerformance"));
     }
     bool Update() override
@@ -110,6 +112,7 @@ public:
     }
     bool UpdateMeasurement()
     {
+        if(LidarProfile!=TEXT("MLX80Native")&&LidarProfile!=TEXT("Rev7")){Test->AddError(TEXT("Unsupported PERF01 LiDAR profile"));return true;}
         const double Now=FPlatformTime::Seconds();
         if(Now-Created>Duration+70){Test->AddError(TEXT("PERF-01 timeout"));return true;}
         UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();
@@ -145,7 +148,7 @@ public:
                 FVirtualSensorEditableState S,Applied;A->ReadEditableState(S);
                 S.SimulationQuality=EVirtualSensorSimulationQuality::FullSpec;
                 S.CameraProfile=EVirtualCameraDeviceProfile::IntelRealSenseD455;
-                S.LidarProfile=EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE;
+                S.LidarProfile=LidarProfile==TEXT("Rev7")?EVirtualLidarDeviceProfile::OusterOS1_64_Rev7:EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE;
                 FString Error;if(!A->ApplyProfileAndSimulationQuality(S,Applied,Error)){Test->AddError(Error);return true;}
                 S=Applied;S.SensorId=FString::Printf(TEXT("PERF01-%s-%d"),A->GetSensorKind()==EVirtualSensorKind::Camera?TEXT("CAM"):TEXT("LIDAR"),I);
 #if CAM_GT_PERF_AVAILABLE
@@ -157,8 +160,9 @@ public:
                 if(!A->ApplyEditableState(S,Error)){Test->AddError(Error);return true;}
                 if(auto* L=Cast<AVirtualLidarSensorActor>(A))
                 {
-                    // Test-owned fixture backend; identical to the map's original lidar.
-                    L->ScanComponent->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;
+                    // Test-owned condition, selected identically in both revisions.
+                    L->ScanComponent->AcquisitionBackend=LidarProfile==TEXT("Rev7")?EVirtualLidarAcquisitionBackend::HardwareRayTracing:EVirtualLidarAcquisitionBackend::GpuDepthProjection;
+                    if(LidarProfile==TEXT("Rev7"))L->ScanComponent->bEnableSemanticClassification=true;
                     L->ScanComponent->FidelityMode=EVirtualSensorFidelityMode::IdealTruth;
                     L->ScanComponent->bEnableRangeNoise=false;++Lidars;
                     if(bLidarFidelityPerformance)
@@ -237,6 +241,7 @@ public:
         Json->SetNumberField(TEXT("callback_p95_ms"),P95(Wall));Json->SetNumberField(TEXT("engine_frame_p95_ms"),P95(Engine));
         Json->SetNumberField(TEXT("game_thread_mean_ms"),Mean(Game));Json->SetNumberField(TEXT("gpu_mean_ms"),Mean(Gpu));
         Json->SetBoolField(TEXT("camera_ground_truth_enabled"),FParse::Param(FCommandLine::Get(),TEXT("CameraTruthPerformance")));
+        Json->SetStringField(TEXT("lidar_profile"),LidarProfile);
         Json->SetBoolField(TEXT("imu_enabled"),FParse::Param(FCommandLine::Get(),TEXT("ImuPerformance")));
         Json->SetNumberField(TEXT("samples"),Wall.Num());Json->SetNumberField(TEXT("pairs"),Pairs);
         Json->SetBoolField(TEXT("lidar_fidelity_enabled"),bLidarFidelityPerformance);
@@ -257,6 +262,12 @@ public:
             const auto S=A->GetSensorRuntimeStatus();auto Row=MakeShared<FJsonObject>();
             Row->SetStringField(TEXT("id"),A->GetSensorId());Row->SetStringField(TEXT("kind"),A->GetSensorKind()==EVirtualSensorKind::Camera?TEXT("Camera"):TEXT("Lidar"));
             Row->SetStringField(TEXT("backend"),S.ActiveAcquisitionBackend);
+            if(auto* L=Cast<AVirtualLidarSensorActor>(A))
+            {
+                Row->SetStringField(TEXT("device_profile"),StaticEnum<EVirtualLidarDeviceProfile>()->GetNameStringByValue(int64(L->ScanComponent->DeviceProfile)));
+                Row->SetBoolField(TEXT("semantic_classification_enabled"),L->ScanComponent->bEnableSemanticClassification);
+                if(LidarProfile==TEXT("Rev7"))Test->TestEqual(TEXT("Rev7 actual HWRT backend retained"),L->ScanComponent->GetActiveAcquisitionBackend(),EVirtualLidarAcquisitionBackend::HardwareRayTracing);
+            }
             Row->SetNumberField(TEXT("acquisition_hz_mean_including_zero"),RateSamples?RateSums[I]/RateSamples:0);
             Row->SetNumberField(TEXT("completed_frame_id_delta"),S.FrameId-StartFrames[I]);
             Row->SetNumberField(TEXT("failed_acquisition"),S.FailedAcquisitionFrameCount);Row->SetNumberField(TEXT("queue_overflow"),S.QueueOverflowCount);

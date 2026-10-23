@@ -1,7 +1,7 @@
 # Pure judgement shared by QA-02 and the scheduled LiDAR cohort. No process or file I/O.
 function Get-PerfRelativeComparison {
     param([object[]]$A, [object[]]$B, [int]$Expected, [double]$Threshold = 2.0,
-          [switch]$RequireAcquisitionRatio)
+          [switch]$RequireAcquisitionRatio, [switch]$RequireGpu)
     function Median([double[]]$Values) {
         $sorted = @($Values | Sort-Object)
         if (!$sorted.Count) { return [double]::NaN }
@@ -43,16 +43,20 @@ function Get-PerfRelativeComparison {
         }
     }
     $gpuA=$null; $gpuB=$null; $gpuRise=$null; $rssA=$null; $rssB=$null; $rssRise=$null
-    if ($RequireAcquisitionRatio) {
+    if ($RequireGpu -or $RequireAcquisitionRatio) {
         foreach ($row in @($A)+@($B)) {
-            foreach ($key in 'Gpu','Rss') {
-                $value=[double]$row.$key
-                if ([double]::IsNaN($value) -or [double]::IsInfinity($value) -or $value -le 0) { $failures += "invalid $key metric: $($row.File)" }
-            }
+            $value=[double]$row.Gpu
+            if ([double]::IsNaN($value) -or [double]::IsInfinity($value) -or $value -le 0) { $failures += "invalid Gpu metric: $($row.File)" }
         }
         $gpuA=Median @($A | ForEach-Object Gpu); $gpuB=Median @($B | ForEach-Object Gpu)
-        $rssA=Median @($A | ForEach-Object Rss); $rssB=Median @($B | ForEach-Object Rss)
         if ($gpuA -gt 0) {$gpuRise=($gpuB-$gpuA)/$gpuA*100; if($gpuRise -gt $Threshold){$failures+='GPU mean regression exceeds threshold'}}
+    }
+    if ($RequireAcquisitionRatio) {
+        foreach ($row in @($A)+@($B)) {
+            $value=[double]$row.Rss
+            if ([double]::IsNaN($value) -or [double]::IsInfinity($value) -or $value -le 0) { $failures += "invalid Rss metric: $($row.File)" }
+        }
+        $rssA=Median @($A | ForEach-Object Rss); $rssB=Median @($B | ForEach-Object Rss)
         if ($rssA -gt 0) {$rssRise=($rssB-$rssA)/$rssA*100; if($rssRise -gt $Threshold){$failures+='RSS regression exceeds threshold'}}
     }
     [PSCustomObject][ordered]@{
