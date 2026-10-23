@@ -69,6 +69,7 @@ class FP2bCapture final:public IAutomationLatentCommand
         TArray64<uint8> Png;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,Png);Test->TestTrue(TEXT("PNG saved"),FFileHelper::SaveArrayToFile(Png,*(Root/(Name+TEXT(".png")))));
         auto Meta=MakeShared<FJsonObject>();FString Commit;FParse::Value(FCommandLine::Get(),TEXT("UxrSourceCommit="),Commit);Meta->SetStringField(TEXT("commit"),Commit);
         Meta->SetStringField(TEXT("scene"),Scene);Meta->SetStringField(TEXT("map"),Hatch?TEXT("ShipHatchTestMap"):TEXT("CoilLoadingTestMap"));Meta->SetStringField(TEXT("rhi"),GDynamicRHI->GetName());
+        Meta->SetStringField(TEXT("dtcore"),TEXT("b2504d1dfea5659f832ff0d750515edee146a28e"));Meta->SetNumberField(TEXT("settle_min_seconds"),2);Meta->SetBoolField(TEXT("capture_has_no_submit_or_file_save_calls"),true);
         Meta->SetNumberField(TEXT("client_width"),Size.X);Meta->SetNumberField(TEXT("client_height"),Size.Y);const auto Window=FSlateApplication::Get().FindWidgetWindow(View);
         Meta->SetNumberField(TEXT("window_dpi"),Window?Window->GetDPIScaleFactor():0);Meta->SetNumberField(TEXT("umg_scale"),UWidgetLayoutLibrary::GetViewportScale(&M));
         Meta->SetNumberField(TEXT("font_percent"),100*(Hatch?CastChecked<UShipHatchMonitorWidget>(&M)->GetFontScale():CastChecked<UCoilLoadingMonitor>(&M)->FontScale()));
@@ -85,6 +86,10 @@ class FP2bCapture final:public IAutomationLatentCommand
         {
             auto& Monitor=*CastChecked<UShipHatchMonitorWidget>(&M);const auto* S=Monitor.GetSimulation();Meta->SetStringField(TEXT("status"),Monitor.GetStatusText());Meta->SetBoolField(TEXT("site_visualization"),Monitor.IsSiteVisualization());
             Meta->SetNumberField(TEXT("selected_sensor"),S->HighlightedSensor());Meta->SetNumberField(TEXT("surface_hash"),S->Surface().Hash());Meta->SetNumberField(TEXT("revision"),S->Revision());
+            TArray<TSharedPtr<FJsonValue>> Sensors;bool AnyRunning=false;
+            for(int32 I=0;I<3;++I)if(const auto* A=S->SensorAt(I)){const auto Status=A->GetSensorRuntimeStatus();auto Row=MakeShared<FJsonObject>();Row->SetNumberField(TEXT("index"),I);Row->SetBoolField(TEXT("running"),A->IsSensorRunning());Row->SetNumberField(TEXT("frame_id"),Status.FrameId);Row->SetStringField(TEXT("backend"),Status.ActiveAcquisitionBackend);Row->SetNumberField(TEXT("cached_acquisition_hz"),Status.MeasuredAcquisitionRateHz);Sensors.Add(MakeShared<FJsonValueObject>(Row));AnyRunning|=A->IsSensorRunning();}
+            Meta->SetArrayField(TEXT("sensors"),Sensors);
+            if(Scene.StartsWith(TEXT("H04-stopped"))){Test->TestFalse(TEXT("Stopped capture has no running sensors"),AnyRunning);Test->TestTrue(TEXT("Stopped capture explicitly identifies retained acquisition rates"),Monitor.GetStatusText().Contains(TEXT("측정 정지 · 마지막 획득")));}
             if(const auto* A=Monitor.GetDisplayAnalysis())
             {
                 Meta->SetNumberField(TEXT("unobserved_percent"),(1-A->Coverage)*100);
@@ -97,6 +102,7 @@ class FP2bCapture final:public IAutomationLatentCommand
             auto& Monitor=*CastChecked<UCoilLoadingMonitor>(&M);const int32 Font=Monitor.FontScale()>1?18:12;int32 Rows=0;
             for(auto* Item:Widgets)if(auto* B=Cast<UCoilLoadingWarningButton>(Item))if(auto* T=Cast<UTextBlock>(B->GetContent())){++Rows;Test->TestEqual(TEXT("Every regenerated actual coil issue row uses the current font"),T->GetFont().Size,float(Font));}
             Meta->SetNumberField(TEXT("issue_rows"),Rows);Meta->SetNumberField(TEXT("issue_font_size"),Font);Meta->SetNumberField(TEXT("unknown_groups"),Monitor.DataNeededCount);Meta->SetNumberField(TEXT("revision"),Monitor.Simulation()->Revision());
+            Meta->SetStringField(TEXT("backend"),Monitor.Simulation()->Lidar->GetSensorRuntimeStatus().ActiveAcquisitionBackend);
             auto* Workspace=W.GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();Test->TestFalse(TEXT("Coil world never enables Slab capability"),Workspace->AreSlabToolsEnabled());
             Meta->SetBoolField(TEXT("slab_tools_enabled"),Workspace->AreSlabToolsEnabled());TArray<TSharedPtr<FJsonValue>> Values;
             for(auto Role:{ESensorToolPanelRole::Data,ESensorToolPanelRole::Monitor})if(auto* Panel=Workspace->GetOwnedPanel(Role))if(Panel->IsVisible()&&!Panel->IsPanelCollapsed())
@@ -130,14 +136,14 @@ public:
             if(Hatch)
             {
                 auto& M=*Ship->Monitor;auto* S=Ship->Simulation.Get();if(!M.GetDisplayAnalysis())return false;
-                if(Phase==0){for(auto* Sensor:Ship->Coordinator->GetSensorActors())if(Sensor)Sensor->StartSensor();M.SetFontPercent(Font);M.SetSiteVisualization(false);M.SelectView(0);M.SetSplitView(true);M.SetCameraPreset(1);}
+                if(Phase==0){for(int32 I=0;I<3;++I)if(auto* Sensor=S->SensorAt(I))Sensor->StartSensor();M.SetFontPercent(Font);M.SetSiteVisualization(false);M.SelectView(0);M.SetSplitView(true);M.SetCameraPreset(1);}
                 if(Phase==1)M.SetSplitView(false);
                 if(Phase==2){M.SetSplitView(true);P2bGroup(M,TEXT("원료 · 센서 선택"),true);if(auto* Scroll=P2bToolbarScroll(M))Scroll->ScrollToEnd();}
                 if(Phase==3){P2bGroup(M,TEXT("원료 · 센서 선택"),false);P2bGroup(M,TEXT("보기 설정"),true);if(auto* Scroll=P2bToolbarScroll(M))Scroll->ScrollToEnd();}
                 if(Phase>=4&&Phase<=6){P2bGroup(M,TEXT("보기 설정"),false);if(auto* Scroll=P2bToolbarScroll(M))Scroll->ScrollToStart();M.SetSiteVisualization(true);M.SetSplitView(false);M.SetSiteCameraPreset(2);S->HighlightSensor(Phase-4);}
                 if(Phase==7)M.SetSiteCameraPreset(0);
                 if(Phase==8){M.SetSiteVisualization(false);M.SelectView(0);M.SetSplitView(true);M.SetCameraPreset(1);M.SetMapHeat(true);}
-                if(Phase==9)for(auto* Sensor:Ship->Coordinator->GetSensorActors())if(Sensor)Sensor->StopSensor();
+                if(Phase==9)for(int32 I=0;I<3;++I)if(auto* Sensor=S->SensorAt(I))Sensor->StopSensor();
                 const TCHAR* Names[]={TEXT("H01-split-presets"),TEXT("H01-single-presets"),TEXT("H01-selectors-expanded"),TEXT("H01-view-settings"),TEXT("H03-site-selected-boom"),TEXT("H03-site-selected-left"),TEXT("H03-site-selected-right"),TEXT("H03-site-overview"),TEXT("H04-unobserved-partial"),TEXT("H04-stopped-last-values")};Scene=FString::Printf(TEXT("%s-%d"),Names[Phase],Font);
             }
             else

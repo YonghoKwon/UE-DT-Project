@@ -76,6 +76,8 @@ bool FUxrP2bRates::RunTest(const FString&)
     TestTrue(TEXT("Goal and actual are labelled as acquisition Hz"),Text.StartsWith(TEXT("● 획득 Hz · 목표/실제\n")));
     TestTrue(TEXT("Different goals stay paired with each physical sensor, including zero Hz"),Text.Contains(TEXT("붐 20/19.9"))&&Text.Contains(TEXT("운전실 좌 10/0.0"))&&Text.Contains(TEXT("운전실 우 20/17.9")));
     TestFalse(TEXT("Formatting does not claim transmission, receipt or acknowledgement"),Text.Contains(TEXT("전송"))||Text.Contains(TEXT("receipt"))||Text.Contains(TEXT("ACK")));
+    const auto Stopped=ShipHatchLabelPresentation::AcquisitionRates(Goals,Actual,true);
+    TestTrue(TEXT("Stopped sensors keep their cached numbers explicitly labelled as the last acquisition"),Stopped.Contains(TEXT("측정 정지 · 마지막 획득 Hz"))&&Stopped.Contains(TEXT("붐 20/19.9"))&&Stopped.Contains(TEXT("운전실 좌 10/0.0")));
     return true;
 }
 

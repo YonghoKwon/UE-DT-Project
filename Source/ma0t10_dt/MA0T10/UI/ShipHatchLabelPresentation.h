@@ -28,9 +28,9 @@ namespace ShipHatchLabelPresentation
         return FString::Printf(TEXT("%s · TF %s\n좌우는 고정 설치 역할이며 화면의 좌우 순서가 아닙니다. 클릭하면 해당 센서를 강조합니다."),SensorRole(Index),FrameId(Index+4));
     }
 
-    inline FString AcquisitionRates(const double* Goals,const double* Actual)
+    inline FString AcquisitionRates(const double* Goals,const double* Actual,bool Stopped=false)
     {
-        return FString::Printf(TEXT("● 획득 Hz · 목표/실제\n붐 %.0f/%.1f · 운전실 좌 %.0f/%.1f · 운전실 우 %.0f/%.1f"),Goals[0],Actual[0],Goals[1],Actual[1],Goals[2],Actual[2]);
+        return FString::Printf(TEXT("%s\n붐 %.0f/%.1f · 운전실 좌 %.0f/%.1f · 운전실 우 %.0f/%.1f"),Stopped?TEXT("● 측정 정지 · 마지막 획득 Hz · 목표/실제"):TEXT("● 획득 Hz · 목표/실제"),Goals[0],Actual[0],Goals[1],Actual[1],Goals[2],Actual[2]);
     }
 
     inline bool Intersects(const FSlateRect& A,const FSlateRect& B)
