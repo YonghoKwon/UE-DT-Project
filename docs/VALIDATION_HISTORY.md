@@ -666,3 +666,8 @@ RSS는 **user accepted unresolved RSS (2026-10-23)**로 #26b에 이관하고 머
 - D3D12 관련 자동화37 Success/8조건부skip/0Fail: MA0T10.PcdBandwidth(긴200KB UTF-8 META·모든프로파일/두encoding roundtrip·1MiB포함/초과경계·SlabRun태그 분주 실패0·데이터필수1/2/4 사전차단·대상격리·준비부작용0), #28 PcdFairBudget/PcdFifoBodyShrink.Exact/Wildcard, 기존 RateControl.EvenAdmissionAndSlabFailure 및 Preflight/Slab 회귀 통과. verify/20261023T034318156Z. 테스트는 코드 커밋 직전 동일 소스590개 해시로 확인했다. quick는 a784f6b에서 verify/20261023T034605780Z PASS. layer/allowlist0→0, DTCore b2504d1 clean.
 - perf는 사용자 허용에 따라 생략: 의도적 생략의 실패 기록 제거, worker의 헤더 bound/길이 비교, 시작 전 정책 검사와 기존 필수 상태 검사 내 O(1) 분주 조회에 한정한다. 새 GT 직렬화·캡처·대기·압축 알고리즘/기본값 변경0. 이전 f3b59c4의 RT-on ABAB는 이력이며 이번 코드의 재측정 PASS로 세지 않는다. release/90초도 이번 검증 범위에서 재실행하지 않았다. 기준2%/150ms/Hz 완화0.
 - 개인설정344개 원본집합·해시복원, 보호297개·기존 발표용985개 해시보존. 자기Editor종료, 보호자산/맵 저장0·DTCore/gitlink수정0·비밀노출0. 직접입력은 기존deferred를 유지한다. Saved/Reports/PCD-BANDWIDTH-01/{RESULT.md,result.json,merge-check.json} 갱신; base_commit e01a47c 유지; Saved 미커밋, push/merge없음.
+
+
+## 2026-10-23 — MEMORY-TREND-26b 병렬 도구 구현·보존 증거 재분석
+
+기준98e2131/DTCore b2504d1, 지정 wt_26b에서 Editor·UBT·실측·GPU 실행 없이 기존 memory_curve 행/수집 경로를 재사용한 opt-in 30~60분 JSONL 샘플러와 시간 기반 전체/마지막1/3 분석을 추가했다. RSS/Commit/UObject·Default/Platform 상위16태그·GT 샘플 수집/직렬화/write/flush 비용을 저장하며 간격은5~30초다. Python 메모리 분석·기존8MiB 회귀23개 Success/0Fail. 보존 JSON19개 재분석은 원래5쌍의 절대2/4/5·차이3/4 FAIL을 그대로 재현했다. 별도 LLM 진단3곡선의 UObject43181 일정·소유/RHI 자원 동일만으로 무누수를 주장하지 않으며 약90초 곡선은 장시간 판정 데이터 부족이다. 할당자 보존을 잠정1순위로 두되 LLM 디깅 FMallocUnused 감소와 Untracked 증가를 반대 근거로 함께 기록했다. C++ 컴파일·실제 GT 비용/종료·장시간 안정화·제품 성능 수용은 직렬 단계 미수행이며 기존RSS 미해결 수용 결정을 유지한다. [도구·원인 순위·직렬 명령](MEMORY_TREND_26b.md), worktree Saved/Reports/MEMORY-TREND-26b/{RESULT.md,result.json,merge-check.json}에 gate/제한을 남긴다. 보호 경로/DTCore 변경·push/merge없음.
