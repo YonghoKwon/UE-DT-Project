@@ -2,6 +2,7 @@
 
 #include "VirtualSensorUiPreferences.h"
 #include "VirtualPcdBandwidthPresentation.h"
+#include "VirtualPcdOptionsPresentation.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "SensorToolWidgetDecl.h"
 #include "SensorOwnedPresentationStyle.h"
@@ -12,24 +13,23 @@
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SWrapBox.h"
+#include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/SBoxPanel.h"
 
 namespace
 {
 const FText& PcdCompressionCompatibility()
 {
- static const FText Text=FText::FromString(TEXT("기본 On · PCD 표준 binary_compressed(LZF). PCL(loadPCDFile)·본 프로젝트 수신기·ROS2 브리지는 읽을 수 있음. 자체 파서를 쓰는 서버는 압축 해제 지원 확인 후 사용, 미지원이면 체크 해제."));
+ static const FText Text=FText::FromString(VirtualPcdOptionsPresentation::CompressionCompatibility());
  return Text;
 }
 FText PcdProfileLabel(EVirtualPcdFieldProfile Profile)
 {
-	static const FText Labels[]={FText::FromString(TEXT("Full · 33 B/점 (기본)")),FText::FromString(TEXT("Compact · 24 B/점")),FText::FromString(TEXT("Minimal · 12 B/점")),FText::FromString(TEXT("Custom · 필드 선택"))};
-	return Labels[FMath::Clamp(int32(Profile),0,3)];
+	return FText::FromString(VirtualPcdOptionsPresentation::ProfileLabel(Profile));
 }
 FText PcdDivisorLabel(int32 Divisor)
 {
-	static const FText Labels[]={FText::FromString(TEXT("서버 전송 1/1 · 20 Hz 측정 시 20 Hz")),FText::FromString(TEXT("서버 전송 1/2 · 20 Hz 측정 시 10 Hz")),FText::FromString(TEXT("서버 전송 1/4 · 20 Hz 측정 시 5 Hz"))};
-	return Labels[Divisor==4?2:Divisor==2?1:0];
+	return FText::FromString(VirtualPcdOptionsPresentation::DivisorLabel(Divisor));
 }
 }
 
@@ -76,38 +76,48 @@ FText UVirtualSensorCaptureExportPanelWidget::BuildPcdBandwidthEstimate() const
   {++View.UnmeasuredCount;continue;}
   View.Total.Add(Actual);if(Selected)View.Selected=Actual;
  }
- CachedPcdBandwidthEstimate=View.Text();
+ CachedPcdBandwidthEstimate=View.Text();CachedPcdBandwidthDetails=View.Details();
+ CachedPcdFieldSummary=FText::FromString(VirtualPcdOptionsPresentation::FieldSummary(ReadPcdBandwidthOptions()));
 	return CachedPcdBandwidthEstimate;
 }
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildPcdBandwidthOptions()
 {
 	if(PcdProfileChoices.IsEmpty())for(auto V:{EVirtualPcdFieldProfile::Full,EVirtualPcdFieldProfile::Compact,EVirtualPcdFieldProfile::Minimal,EVirtualPcdFieldProfile::Custom})PcdProfileChoices.Add(MakeShared<EVirtualPcdFieldProfile>(V));
 	if(PcdDivisorChoices.IsEmpty())for(int32 V:{1,2,4})PcdDivisorChoices.Add(MakeShared<int32>(V));
+	CachedPcdFieldSummary=FText::FromString(VirtualPcdOptionsPresentation::FieldSummary(ReadPcdBandwidthOptions()));
 	auto Fields=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(12,6));
 	for(int32 I=0;I<11;++I)Fields->AddSlot()[SNew(SCheckBox)
 		.IsEnabled(I<3?TAttribute<bool>(false):TAttribute<bool>::CreateLambda([this](){return ReadPcdBandwidthOptions().Profile==EVirtualPcdFieldProfile::Custom;}))
 		.IsChecked_Lambda([this,I](){return ReadPcdBandwidthOptions().FieldMask()&(1<<I)?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
 		.OnCheckStateChanged_Lambda([this,I](ECheckBoxState State){auto O=ReadPcdBandwidthOptions();if(State==ECheckBoxState::Checked)O.CustomFieldMask|=1<<I;else O.CustomFieldMask&=~(1<<I);ApplyPcdBandwidthOptions(O);})
-		[SNewSensorTool(STextBlock).Text(FText::FromString(FVirtualPcdCodec::FieldName(I)))]];
+		.ToolTipText(FText::FromString(VirtualPcdOptionsPresentation::FieldTooltip(I)))
+		[SNewSensorTool(STextBlock).Text(FText::FromString(VirtualPcdOptionsPresentation::FieldLabel(I))).AutoWrapText(true)]];
 	return SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(12)
 	[SNew(SVerticalBox)
-	 +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("PCD 전송 용량 · 측정·미리보기·파일 저장은 유지")))]
+	 +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Text(FText::FromString(TEXT("PCD 전송 설정")))]
+	 +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("측정·미리보기·파일 저장 유지")))]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNew(SCheckBox).IsChecked_Lambda([this](){return bPcdApplyAll?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
 	  .OnCheckStateChanged_Lambda([this](ECheckBoxState V){bPcdApplyAll=V==ECheckBoxState::Checked;NextPcdBandwidthEstimate=0;})
-	  [SNewSensorTool(STextBlock).Text(FText::FromString(TEXT("전체 LiDAR에 적용 (끄면 선택 LiDAR)")))]]
+	  [SNewSensorTool(STextBlock).Text(FText::FromString(TEXT("전체 LiDAR에 적용"))).ToolTipText(FText::FromString(TEXT("끄면 선택 LiDAR에만 적용합니다")))]]
 	 +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualPcdFieldProfile>>).ComboBoxStyle(&FSensorOwnedPresentationStyle::ComboBox()).OptionsSource(&PcdProfileChoices)
-	  .OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualPcdFieldProfile> V){return SNewSensorTool(STextBlock).Text(PcdProfileLabel(*V));})
+	  .OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualPcdFieldProfile> V){return SNewSensorTool(STextBlock).Text(PcdProfileLabel(*V)).AutoWrapText(true);})
 	  .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualPcdFieldProfile> V,ESelectInfo::Type){if(V){auto O=ReadPcdBandwidthOptions();O.Profile=*V;ApplyPcdBandwidthOptions(O);}})
-	  [SNewSensorTool(STextBlock).Text_Lambda([this](){return PcdProfileLabel(ReadPcdBandwidthOptions().Profile);})]]
-	 +SVerticalBox::Slot().AutoHeight().Padding(0,6)[Fields]
+	  [SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return PcdProfileLabel(ReadPcdBandwidthOptions().Profile);})]]
+	 +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return CachedPcdFieldSummary;})]
+	 +SVerticalBox::Slot().AutoHeight()[SNew(SExpandableArea).InitiallyCollapsed(true)
+	  .HeaderContent()[SNewSensorTool(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("필드 상세 · 사용자 지정에서 편집")))]
+	  .BodyContent()[SNew(SVerticalBox)
+	   +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNewSensorTool(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("필드 편집: 사용자 지정에서만 가능 · XYZ 필수")))]
+	   +SVerticalBox::Slot().AutoHeight()[Fields]]]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNew(SCheckBox).ToolTipText(PcdCompressionCompatibility()).IsChecked_Lambda([this](){return ReadPcdBandwidthOptions().bCompressed?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
 	  .OnCheckStateChanged_Lambda([this](ECheckBoxState V){auto O=ReadPcdBandwidthOptions();O.bCompressed=V==ECheckBoxState::Checked;ApplyPcdBandwidthOptions(O);})
-	  [SNewSensorTool(STextBlock).Text(FText::FromString(TEXT("LZF 압축 · PCD binary_compressed")))]]
-	 +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text(PcdCompressionCompatibility())]
+	  [SNewSensorTool(STextBlock).Text(FText::FromString(TEXT("LZF 압축")))]]
+	 +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("서버의 압축 해제 지원을 확인하세요"))).ToolTipText(PcdCompressionCompatibility())]
 	 +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<int32>>).ComboBoxStyle(&FSensorOwnedPresentationStyle::ComboBox()).OptionsSource(&PcdDivisorChoices)
-	  .OnGenerateWidget_Lambda([this](TSharedPtr<int32> V){return SNewSensorTool(STextBlock).Text(FText::FromString(FString::Printf(TEXT("전송 1/%d"),*V)));})
+	  .ToolTipText(FText::FromString(VirtualPcdOptionsPresentation::DivisorTooltip()))
+	  .OnGenerateWidget_Lambda([this](TSharedPtr<int32> V){return SNewSensorTool(STextBlock).Text(PcdDivisorLabel(*V));})
 	  .OnSelectionChanged_Lambda([this](TSharedPtr<int32> V,ESelectInfo::Type){if(V){auto O=ReadPcdBandwidthOptions();O.SendDivisor=*V;ApplyPcdBandwidthOptions(O);}})
 	  [SNewSensorTool(STextBlock).Text_Lambda([this](){return PcdDivisorLabel(ReadPcdBandwidthOptions().Divisor());})]]
-	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return BuildPcdBandwidthEstimate();})]
-	 +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("Full 기본 · 필드 축소는 외부 수신기 합의 후 선택 · 변경 전 전송 중지·대기열 배수")))]];
+	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return BuildPcdBandwidthEstimate();}).ToolTipText_Lambda([this](){return CachedPcdBandwidthDetails;})]
+	 +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("전체가 기본 · 축소 전 수신기 합의\n변경 전 전송 중지·대기열 배수")))]];
 }

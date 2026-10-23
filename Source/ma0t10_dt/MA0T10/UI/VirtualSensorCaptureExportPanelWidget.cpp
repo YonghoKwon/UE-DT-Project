@@ -118,7 +118,7 @@ FString UVirtualSensorCaptureExportPanelWidget::GetScenarioRunComparisonText() c
 void UVirtualSensorCaptureExportPanelWidget::ClearScenarioRunComparison()
 {ComparisonRunA.Reset();ComparisonRunB.Reset();RunComparisonText.Reset();OwnedRunComparisonText.Reset();CachedRunResultsRevision=-1;}
 void UVirtualSensorCaptureExportPanelWidget::SetScenarioRunResultsExpanded(bool Expanded)
-{bRunResultsExpanded=Expanded;if(RunResultsArea)RunResultsArea->SetExpanded(Expanded);CachedRunResultsRevision=-1;if(Expanded)RefreshRunResults();}
+{bRunResultsExpanded=Expanded&&AreOwnedSlabToolsEnabled();if(RunResultsArea)RunResultsArea->SetExpanded(bRunResultsExpanded);CachedRunResultsRevision=-1;if(bRunResultsExpanded)RefreshRunResults();}
 
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildRunResultsContent()
 {
@@ -964,7 +964,7 @@ FString UVirtualSensorCaptureExportPanelWidget::GetLiveStreamSummaryText() const
 	FString Text = FString::Printf(TEXT("호환 JSON은 처리 중 1개+최신 대기 1개입니다. PCD/JPEG/telemetry의 실제 제출·receipt·자체수신은 각 스트림에서 확인하세요.\nPoint Cloud는 PCD Binary 고정 · 선택 LiDAR 요청 %.1fHz · 연결 중 무손실 FIFO(단계별 최대 20프레임)"), RequestedHz);
 	const TArray<FVirtualSensorStreamStatus> Statuses = Publisher->GetStreamStatuses();
 	if (Statuses.IsEmpty()) return Text + TEXT("아직 시작한 스트림이 없습니다.");
-	if (GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
+	if (AreOwnedSlabToolsEnabled()&&GetWorld()) if (auto* Slab=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>())
 	{
 		const auto S=Slab->GetSlabSensorSessionStatus();
 		if (!S.RunId.IsEmpty()) Text+=FString::Printf(TEXT("\n[Slab 연동] %s\nUUID %s · 소재 %s · Slab frame %lld · %.2f초 · 미완료 %lld"),*S.Message,*S.RunId,*S.CurrentSlab.MtlNo,S.CurrentSlab.SlabFrameNo,S.CurrentSlab.ElapsedSec,S.UnfinishedFrames);
@@ -1185,7 +1185,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildLiveStreamTab()
     }
     return SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
        +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(FVirtualSensorUiStyle::Warning).Text_Lambda([this](){return FText::FromString(LastUiMessage);})]
-	   +SVerticalBox::Slot().AutoHeight().Padding(0,5)[SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(10)[ScenarioOutputs]]
+	   +SVerticalBox::Slot().AutoHeight().Padding(0,5)[SNew(SBorder).Visibility_Lambda([this](){return AreOwnedSlabToolsEnabled()?EVisibility::Visible:EVisibility::Collapsed;}).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(10)[ScenarioOutputs]]
        +SVerticalBox::Slot().AutoHeight()[Cards]
        +SVerticalBox::Slot().AutoHeight().Padding(0,5)[SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("PcdPolicy","PCD: 완료 프레임 모두 · 매 프레임 receipt · 연결 중 FIFO"))]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 3)
@@ -1325,7 +1325,7 @@ void UVirtualSensorCaptureExportPanelWidget::AddResult(EVirtualSensorExportKind 
 void UVirtualSensorCaptureExportPanelWidget::RefreshNativeText()
 {
     if(GetVisibility()==ESlateVisibility::Hidden||GetVisibility()==ESlateVisibility::Collapsed||IsPanelCollapsed())return;
-	if(IsWorkspaceOwned()?(OwnedTab==ESensorOwnedDataTab::Results||(OwnedTab==ESensorOwnedDataTab::Diagnostics&&bOwnedRunDiagnosticsExpanded)):(bRunResultsExpanded&&ActiveTab==EVirtualSensorCaptureExportTab::ConnectionLog))RefreshRunResults();
+	if(AreOwnedSlabToolsEnabled()&&(IsWorkspaceOwned()?(OwnedTab==ESensorOwnedDataTab::Results||(OwnedTab==ESensorOwnedDataTab::Diagnostics&&bOwnedRunDiagnosticsExpanded)):(bRunResultsExpanded&&ActiveTab==EVirtualSensorCaptureExportTab::ConnectionLog)))RefreshRunResults();
     if(IsWorkspaceOwned()&&(OwnedTab!=ESensorOwnedDataTab::FileSave||!bOwnedStorageExpanded||GetVisibility()==ESlateVisibility::Hidden||GetVisibility()==ESlateVisibility::Collapsed||IsPanelCollapsed())) return;
     if (NativeStorageText.IsValid()) NativeStorageText->SetText(FText::FromString(GetStorageSummaryText()));
 }

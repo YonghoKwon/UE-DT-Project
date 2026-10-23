@@ -4,6 +4,18 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## UXR-P2a — 문구·밀도 구현·직렬 검증, 현장 수용 대기
+
+[UXR-AUDIT-1023](research/UXR-AUDIT-1023/RESULT.md)의 C03·D02~D05·T02~T03을 적용했다. 코일 번호/내경·수치별 단위·한글 뜻과 약어, PCD 한국어 필드/접힌 상세·짧은 압축 안내·추정/실측 출처·프레임 간격, 화면별 글자 배율·짧은 경고와 `확인` 표기를 정리했다. 원문은 툴팁/상세에 보존한다. 넓은 도구 옆의 코일 버튼은 같은 인스턴스에서 줄바꿈하고 헤더 높이는 실제 내용에 맞추며, 기존 분석 스크롤에 수치·비교 진단도 포함한다.
+
+P1과 통합한 `fe7dda7`에서 신규 순수 테스트9개 및 Slab capability 회귀, 관련 UI/RHI 묶음28 Success/0 Fail/2 opt-in skip, 별도 캡처 각 해상도3 Success/0 Fail/0 Skip, WBP7·quick9·layer/allowlist0→0·guard를 확인했다. 직접 점검과 두 client×글자100/150% PNG40장·공유 JPG40장은 [직렬 결과](../Saved/Reports/UXR-P1P2a/RESULT.md)를 따른다. L1 계산·wire·기본 정책·저장값·DTCore 변경 없음. 성능은 사용자 승인 UI 전용 예외로 생략했다. 전체 release·모든 직접 조합·OS DPI150%·현장 수용은 별도이며 C02/C04/H01/H03/H04는 이번 범위에 포함하지 않는다.
+
+## UXR-P1 — 감사 P1 구현·직렬 검증, 현장 수용 대기
+
+T01/C01/H02/D01의 소유 점유 영역 회피, 미확인 사유 수와 확인 위치, 해치 모의/측정 출처, 전송 상단 점검/기존 해결 이동을 구현했다. 직렬 빌드에서 UE5.3 뷰포트 API의 const 문맥을 같은 World 인자로 수정했다. 사용자 지적에 따라 `AreSlabToolsEnabled()==false`인 월드에서는 데이터/레거시 전송·결과/진단·소유 미리보기의 Slab 전용 표시를 숨기고 `ManualStreamStart`로 점검하며 재생 소유자 준비를 건너뛴다. Slab 월드의 기존 카드·선택·정책과 일반 PCD·저장은 유지한다.
+
+직렬 결과는 위 P2a와 같은 통합 코드/조건이다. 초기 창 드래그 실패는 최대 높이 창에 수직 이동 여지가 없는 fixture에서 재현돼, 기존 resize API로 시험 높이600을 적용했다. 시작점(100,150), 14개 조합, X>50/Y>10 및 capture/release assertion은 유지했고 최종 회귀를 통과했다. 실패 이력·직접 수행/미수행·개인 설정43개 복원·보호 경로297개 해시는 [직렬 결과](../Saved/Reports/UXR-P1P2a/RESULT.md)와 [검증 이력](VALIDATION_HISTORY.md)에 기록한다. DTCore 변경 후보는 추가하지 않는다.
+
 ## LIDAR-WALLCLOCK-28b — wall-clock 획득·직렬 검증 완료
 
 자동 획득은 pause 제외 wall-clock 누적 기한·프레임당 최대1회·센서당 in-flight1회를 유지한다. 같은 주기 센서는 공통 grid에 균등 위상을 배치하고, 준비된 readback의 worker 정규화·순수 광선 패킷 병렬 생성·반환 point lease의 worker 정리로 GT 꼬리 지연을 줄였다. 공개 BP·획득 snapshot·PCD33-byte/FIFO/예산은 유지한다.

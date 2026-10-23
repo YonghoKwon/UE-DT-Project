@@ -75,6 +75,7 @@ private:
     UPROPERTY(Transient) TObjectPtr<UVerticalBox> DataRows;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> DataNeededLabel;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> Comparison;
+    UPROPERTY(Transient) TObjectPtr<UTextBlock> FontScaleLabel;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> Operation;
     UPROPERTY(Transient) TObjectPtr<UVerticalBox> Details;
     UPROPERTY(Transient) TObjectPtr<UEditableTextBox> IdInput;
@@ -145,6 +146,7 @@ public:
     void SetSceneRect(FSlateRect Rect,FVector2D Full,bool Visible);
     void SetView(int32 View);
     void ShowTools();
+    FVector2D GetToolsInset() const;
     void Focus(int32 Preset);
 protected:
     virtual void BeginPlay() override;
