@@ -102,6 +102,12 @@ class FUxrCaptureCommand final:public IAutomationLatentCommand
         {
             bool Visible=true;for(UWidget* Parent=Label;Parent;Parent=Parent->GetParent())Visible&=Parent->IsVisible();
             if(Visible&&!Label->GetText().IsEmpty())Text.Add(MakeShared<FJsonValueString>(Label->GetText().ToString()));
+            if(!Hatch&&Label->GetText().ToString().StartsWith(TEXT("코일 글자")))
+            {
+                const FVector2D Actual=Label->GetCachedGeometry().GetLocalSize(),Desired=Label->GetDesiredSize();
+                Test->TestTrue(TEXT("Current coil font caption fits its arranged button"),Desired.X<=Actual.X+1&&Desired.Y<=Actual.Y+1);
+                Meta->SetNumberField(TEXT("coil_font_caption_actual_width"),Actual.X);Meta->SetNumberField(TEXT("coil_font_caption_desired_width"),Desired.X);
+            }
         }
         Meta->SetArrayField(TEXT("visible_umg_text"),Text);
         FString Json;FJsonSerializer::Serialize(Meta,TJsonWriterFactory<>::Create(&Json));
@@ -129,13 +135,17 @@ public:
             Workspace->SetSidebarMode(true);Workspace->ResetOwnedWorkspaceLayout();Workspace->CollapseSidebar();
             if(Coil&&Coil->Coordinator&&Coil->Coordinator->StreamPublisherComponent)Coil->Coordinator->StreamPublisherComponent->StopAllStreams(TEXT(""));
         }
-        if(WaitingManual)return FPaths::FileExists(UxrCaptureRoot()/TEXT("manual-finish.flag"));
+        if(WaitingManual)return FPaths::FileExists(UxrCaptureRoot()/(Hatch?TEXT("manual-hatch-finish.flag"):TEXT("manual-finish.flag")));
         if(!Prepared)
         {
             if(Hatch)
             {
                 if(!Ship->Monitor->GetAnalysis())return false;
-                if(Step>=4)return true;
+                if(Step>=4)
+                {
+                    if(Manual){FFileHelper::SaveStringToFile(TEXT("Hatch source cards ready for direct mouse verification."),*(UxrCaptureRoot()/TEXT("manual-hatch-ready.txt")));WaitingManual=true;return false;}
+                    return true;
+                }
                 Ship->Monitor->SetFontPercent(Step%2?150:100);Ship->Monitor->SetSplitView(true);
                 if(Step>=2)for(auto* Sensor:Ship->Coordinator->GetSensorActors())if(Sensor)Sensor->StopSensor();
                 Scene=FString::Printf(TEXT("H02-%s-%d"),Step<2?TEXT("measured-split"):TEXT("stopped-last-values"),Step%2?150:100);
