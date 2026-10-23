@@ -228,6 +228,7 @@ private:
 #endif
 	FString CachedPcdPreflight;
 	FString CachedPcdPreflightSummary;
+	FString CachedPcdPreflightShortSummary;
 	FVirtualSensorOutputPreflightResult OwnedPreflightSnapshot;
 	bool bOwnedPreflightSnapshotReady=false;
 	bool bRunResultsExpanded=false;

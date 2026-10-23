@@ -255,6 +255,7 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
         OwnedPreflightSnapshot=Check;bOwnedPreflightSnapshotReady=true;
         if(bOwnedPreflightExpanded)CachedPcdPreflight=Check.Summary;
         OwnedPreflightFix=0;
+        FString ShortReason;
         if(MissingOwner){CachedPcdPreflightSummary=TEXT("시나리오 연결을 확인하세요");OwnedPreflightFix=3;}
         else if(bOwnedScenarioStreamView&&!Outputs.HasAnyOutput())
         {CachedPcdPreflightSummary=Options.Policy==ESlabExecutionPolicy::RequireData?TEXT("출력을 선택하세요 · 연결 확인 후 시작에는 출력이 필요합니다"):TEXT("준비됨 · 관찰 전용");OwnedPreflightFix=4;}
@@ -262,11 +263,13 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
         {
             const auto& Reason=Check.BlockingReasons[0];
             CachedPcdPreflightSummary=SensorToolUiText::PreflightReason(Reason);
+            ShortReason=SensorToolUiText::PreflightShortReason(Reason);
             OwnedPreflightFix=Reason.Contains(TEXT("없"))||Reason.Contains(TEXT("중복"))?1:Reason.Contains(TEXT("주기"))||Reason.Contains(TEXT("수집 설정"))?2:0;
         }
         else if(Check.bSessionBusy&&bOwnedScenarioStreamView){CachedPcdPreflightSummary=TEXT("현재 실행을 마친 뒤 시작하세요");OwnedPreflightFix=3;}
         else if(!Check.bTransportConnected&&Outputs.HasAnyOutput())CachedPcdPreflightSummary=TEXT("서버 연결을 확인하세요");
         else {CachedPcdPreflightSummary=SensorToolUiText::Ready().ToString();OwnedPreflightFix=-1;}
+        CachedPcdPreflightShortSummary=ShortReason.IsEmpty()?CachedPcdPreflightSummary:MoveTemp(ShortReason);
         if(bOwnedDirectExpanded)
         {
             WorkspaceStreamCards.Reset();
@@ -397,25 +400,25 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
         .IsChecked_Lambda([this,I](){return (I==2?!bOwnedScenarioStreamView:bOwnedScenarioStreamView&&bOwnedReplayPreflight==(I==1))?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
         .OnCheckStateChanged_Lambda([this,I](ECheckBoxState){bOwnedScenarioStreamView=I!=2;bOwnedReplayPreflight=I==1;LastNativeStatusRefreshSeconds=-1;})
         [SNewSensorTool(STextBlock).Justification(ETextJustify::Center).Text(Targets[I])]];
-    return SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
+    return SNew(SVerticalBox)
+        +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SVerticalBox)
+            +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Text(SensorToolUiText::PreflightTarget())]
+            +SVerticalBox::Slot().AutoHeight().Padding(0,4,0,0)[Checks]]
+        +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ToolTipText_Lambda([this](){return FText::FromString(CachedPcdPreflightSummary);}).Text_Lambda([this](){return FText::FromString(CachedPcdPreflightShortSummary);})]
+        +SVerticalBox::Slot().AutoHeight().Padding(0,4,0,8)[SNewSensorTool(SButton).Visibility_Lambda([this](){return OwnedPreflightFix<0?EVisibility::Collapsed:EVisibility::Visible;})
+                .Text_Lambda([this](){return OwnedPreflightFix==1?LOCTEXT("FixEquipment","배치 열기"):OwnedPreflightFix==2?SensorToolUiText::SensorSettings():OwnedPreflightFix==3?SensorToolUiText::Scenario():OwnedPreflightFix==4?SensorToolUiText::ChangeInTransfer():LOCTEXT("FixServer","연결 설정 열기");})
+                .OnClicked_Lambda([this](){if(OwnedPreflightFix==0)OpenOwnedTab(ESensorOwnedDataTab::ServerConnection);else if(OwnedPreflightFix==4)FocusOwnedOutputSettings(bOwnedReplayPreflight);else if(auto* W=GetToolWorkspace()){const auto Role=OwnedPreflightFix==1?ESensorToolPanelRole::Placement:OwnedPreflightFix==2?ESensorToolPanelRole::Settings:ESensorToolPanelRole::SlabProgress;W->SetPanelOpen(Role,true);W->BringOwnedPanelToFront(Role);}return FReply::Handled();})]
+        +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
+        +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
+            .OnAreaExpansionChanged_Lambda([this](bool Open){bOwnedPreflightExpanded=Open;LastNativeStatusRefreshSeconds=-1;})
+            .HeaderContent()[SNewSensorTool(STextBlock).Text(SensorToolUiText::PreflightDetails())]
+            .BodyContent()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(CachedPcdPreflight);})]]
         +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
             .OnAreaExpansionChanged_Lambda([this](bool Open){bOwnedDirectExpanded=Open;LastNativeStatusRefreshSeconds=-1;})
             .HeaderContent()[SNewSensorTool(STextBlock).Text(SensorToolUiText::DirectTransfer())]
             .BodyContent()[Direct]]
         +SVerticalBox::Slot().AutoHeight().Padding(0,8)[BuildPcdBandwidthOptions()]
         +SVerticalBox::Slot().AutoHeight()[SNew(SHorizontalBox)+SHorizontalBox::Slot().FillWidth(1)[Column(false)]+SHorizontalBox::Slot().FillWidth(1).Padding(8,0,0,0)[Column(true)]]
-        +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SVerticalBox)
-            +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Text(SensorToolUiText::PreflightTarget())]
-            +SVerticalBox::Slot().AutoHeight().Padding(0,4,0,0)[Checks]]
-        +SVerticalBox::Slot().AutoHeight()[SNew(SHorizontalBox)
-            +SHorizontalBox::Slot().FillWidth(1)[SNewSensorTool(STextBlock).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ToolTipText_Lambda([this](){return FText::FromString(CachedPcdPreflightSummary);}).Text_Lambda([this](){return FText::FromString(CachedPcdPreflightSummary);})]
-            +SHorizontalBox::Slot().AutoWidth().Padding(8,0,0,0)[SNewSensorTool(SButton).Visibility_Lambda([this](){return OwnedPreflightFix<0?EVisibility::Collapsed:EVisibility::Visible;})
-                .Text_Lambda([this](){return OwnedPreflightFix==1?LOCTEXT("FixEquipment","배치 열기"):OwnedPreflightFix==2?SensorToolUiText::SensorSettings():OwnedPreflightFix==3?SensorToolUiText::Scenario():OwnedPreflightFix==4?SensorToolUiText::ChangeInTransfer():LOCTEXT("FixServer","연결 설정 열기");})
-                .OnClicked_Lambda([this](){if(OwnedPreflightFix==0)OpenOwnedTab(ESensorOwnedDataTab::ServerConnection);else if(OwnedPreflightFix==4)FocusOwnedOutputSettings(bOwnedReplayPreflight);else if(auto* W=GetToolWorkspace()){const auto Role=OwnedPreflightFix==1?ESensorToolPanelRole::Placement:OwnedPreflightFix==2?ESensorToolPanelRole::Settings:ESensorToolPanelRole::SlabProgress;W->SetPanelOpen(Role,true);W->BringOwnedPanelToFront(Role);}return FReply::Handled();})]]
-        +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
-            .OnAreaExpansionChanged_Lambda([this](bool Open){bOwnedPreflightExpanded=Open;LastNativeStatusRefreshSeconds=-1;})
-            .HeaderContent()[SNewSensorTool(STextBlock).Text(SensorToolUiText::PreflightDetails())]
-            .BodyContent()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(CachedPcdPreflight);})]]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
 	  .OnAreaExpansionChanged_Lambda([this](bool Open){bWorkspaceLiveDetails=Open;LastNativeStatusRefreshSeconds=-1;})
 	  .HeaderContent()[SNewSensorTool(STextBlock).Text(SensorToolUiText::Advanced())]
@@ -443,7 +446,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
 	      +SHorizontalBox::Slot().FillWidth(1).Padding(8,0,0,0)[SNewSensorTool(SEditableTextBox).Text_Lambda([this](){return FText::AsNumber(StreamReceiptInterval);}).OnTextCommitted_Lambda([this](const FText& T,ETextCommit::Type){StreamReceiptInterval=FMath::Max(1,FCString::Atoi(*T.ToString()));if(auto* P=UVirtualSensorUiPreferencesSaveGame::LoadOrCreate()){P->SensorStreamReceiptInterval=StreamReceiptInterval;UVirtualSensorUiPreferencesSaveGame::Save(P);}})]]]
 	   +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(CachedLiveStreamSummary);})]
 	  ]]
-	];
+	]];
 }
 
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedFileTab()

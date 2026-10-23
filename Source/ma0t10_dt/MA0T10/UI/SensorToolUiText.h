@@ -79,6 +79,25 @@ namespace SensorToolUiText
         if(Reason.Contains(TEXT("수집 설정")))return LOCTEXT("EquipmentSettingsRequired", "장비 설정을 읽을 수 없습니다 · 센서 상세 설정에서 확인하세요").ToString();
         return UserReason(Reason);
     }
+    // Short titles for the transfer check card only. Raw reasons stay in details.
+    inline FString PreflightShortReason(const FString& Reason)
+    {
+        if(Reason.Contains(TEXT("STOMP 전송 모드")))return TEXT("방식 확인 필요");
+        if(Reason.Contains(TEXT("STOMP")))return TEXT("서버 연결 설정 필요");
+        if(Reason.Contains(TEXT("PCD Topic")))return TEXT("PCD 출력 주소 필요");
+        if(Reason.Contains(TEXT("Camera Topic")))return TEXT("Camera 이미지 출력 주소 필요");
+        if(Reason.Contains(TEXT("LiDAR Topic")))return TEXT("LiDAR 정보 출력 주소 필요");
+        if(Reason.Contains(TEXT("Broker URL")))return TEXT("서버 주소 필요");
+        if(Reason.Contains(TEXT("Coordinator")))return TEXT("장비 연결 확인 필요");
+        if(Reason.Contains(TEXT("중복 SensorId")))return TEXT("장비 ID 중복");
+        if(Reason.Contains(TEXT("선택 센서 없음"))||Reason.Contains(TEXT("대상 SensorId 없음")))return TEXT("장비 선택 필요");
+        if(Reason.Contains(TEXT("LiDAR가 없")))return TEXT("전송할 LiDAR 필요");
+        if(Reason.Contains(TEXT("Camera가 없")))return TEXT("전송할 Camera 필요");
+        if(Reason.Contains(TEXT("측정 주기")))return TEXT("측정 주기 확인 필요");
+        if(Reason.Contains(TEXT("수집 설정")))return TEXT("센서 상세 설정 확인 필요");
+        if(Reason.Contains(TEXT("PCD 전송 1/1")))return TEXT("PCD 전송 간격 확인 필요");
+        return PreflightReason(Reason);
+    }
     inline FText Advanced() { return LOCTEXT("Advanced", "고급"); }
     inline FText Ready() { return LOCTEXT("Ready", "준비됨"); }
     inline FString OutputSummary(bool Pcd,bool Camera,bool Lidar)
