@@ -52,26 +52,28 @@ public:
 			Ready=FPlatformTime::Seconds()+2;return false;
 		}
 		if(FPlatformTime::Seconds()<Ready)return false;
-		if(Phase<2)
+		if(Phase<3)
 		{
+			const TCHAR* Names[]={TEXT("full-100.png"),TEXT("compact-compressed-100.png"),TEXT("defaults-100.png")};
 			TArray<FColor> Pixels;FIntVector Size;Test->TestTrue(TEXT("capture production owned data viewport"),FSlateApplication::Get().TakeScreenshot(World->GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,Size));
-			TArray64<uint8> Png;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,Png);IFileManager::Get().MakeDirectory(*Root(),true);FFileHelper::SaveArrayToFile(Png,*(Root()/(Phase==0?TEXT("options-full-100.png"):TEXT("options-compact-compressed-100.png"))));
+			TArray64<uint8> Png;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,Png);IFileManager::Get().MakeDirectory(*Root(),true);FFileHelper::SaveArrayToFile(Png,*(Root()/(FString(TEXT("options-"))+Names[Phase])));
 			auto Meta=MakeShared<FJsonObject>();Meta->SetNumberField(TEXT("client_width"),Size.X);Meta->SetNumberField(TEXT("client_height"),Size.Y);Meta->SetNumberField(TEXT("font_scale"),1.);
 			const auto Window=FSlateApplication::Get().FindWidgetWindow(World->GetGameViewport()->GetGameViewportWidget().ToSharedRef());Meta->SetNumberField(TEXT("window_dpi"),Window?Window->GetDPIScaleFactor():0.);
 			Meta->SetBoolField(TEXT("automated_capture_not_mouse_acceptance"),true);FString Text;FJsonSerializer::Serialize(Meta,TJsonWriterFactory<>::Create(&Text));FFileHelper::SaveStringToFile(Text,*(Root()/TEXT("capture-conditions.json")));
 			// Explicit fallback: render the production controls independently of the
 			// unavailable desktop monitor. This adds no product capture/readback path.
 			auto* Renderer=new FWidgetRenderer(true,true);
-			auto* Target=Renderer->DrawWidget(Data->BuildPcdBandwidthOptions(),FVector2D(720,560));
+			const auto Controls=Data->BuildPcdBandwidthOptions();auto* Target=Renderer->DrawWidget(Controls,FVector2D(720,560));
+			if(Target)Renderer->DrawWidget(Target,Controls,FVector2D(720,560),0);
 			FlushRenderingCommands();TArray<FColor> ControlPixels;
 			Test->TestTrue(TEXT("offscreen production option controls readable"),Target&&Target->GameThread_GetRenderTargetResource()->ReadPixels(ControlPixels));
 			if(Target&&ControlPixels.Num()==720*560)
 			{
 				TArray64<uint8> ControlPng;FImageUtils::PNGCompressImageArray(720,560,ControlPixels,ControlPng);
-				FFileHelper::SaveArrayToFile(ControlPng,*(Root()/(Phase==0?TEXT("controls-full-100.png"):TEXT("controls-compact-compressed-100.png"))));
+				FFileHelper::SaveArrayToFile(ControlPng,*(Root()/(FString(TEXT("controls-"))+Names[Phase])));
 			}
 			BeginCleanup(Renderer);
-			if(Phase++==0){FVirtualPcdSendOptions O;O.Profile=EVirtualPcdFieldProfile::Compact;O.bCompressed=true;FString Error;Test->TestTrue(TEXT("Compact comparison UI options"),C->SetPcdBandwidthOptions(TEXT(""),O,true,Error));Ready=FPlatformTime::Seconds()+2;return false;}
+			if(++Phase<3){FVirtualPcdSendOptions O;O.Profile=Phase==1?EVirtualPcdFieldProfile::Compact:EVirtualPcdFieldProfile::Full;O.bCompressed=Phase==1||C->StreamPublisherComponent->bDefaultPcdCompression;FString Error;Test->TestTrue(TEXT("comparison/default UI options"),C->SetPcdBandwidthOptions(TEXT(""),O,true,Error));Ready=FPlatformTime::Seconds()+2;return false;}
 		}
 		if(Manual){FFileHelper::SaveStringToFile(TEXT("Production options ready; automatic preparation/captures are separate from direct input."),*(Root()/TEXT("manual-ready.txt")));return FPaths::FileExists(Root()/TEXT("manual-finish.flag"));}
 		return true;

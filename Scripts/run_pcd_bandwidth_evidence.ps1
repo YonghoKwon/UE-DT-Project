@@ -34,6 +34,7 @@ try{
     }
     $args=@("$root/ma0t10_dt.uproject",'/Engine/Maps/Entry','-unattended','-nop4','-nosplash','-NoSound','-windowed','-d3d12','-ResX=1920','-ResY=1080',"-GpuLidarPcdLoopbackPort=$Port","-GpuLidarMeasurementSeconds=$Seconds","-ReportExportPath=$report","-abslog=$report/editor.log",'-TestExit=Automation Test Queue Empty','-ExecCmds=t.MaxFPS 60,r.VSync 0,r.VSyncEditor 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10.GpuLidar.ScheduledThree;Quit')
     if($Case -like '*compressed'){$args+='-PcdBandwidthCompressed'}
+    if($Case -eq 'defaults'){$args+='-PcdBandwidthDefaults'}
     if($Case -eq 'compact-compressed'){$args+='-PcdBandwidthProfile=Compact'}
     if($Case -eq 'minimal-compressed'){$args+='-PcdBandwidthProfile=Minimal'}
     if($Offscreen){$args+='-RenderOffscreen'}

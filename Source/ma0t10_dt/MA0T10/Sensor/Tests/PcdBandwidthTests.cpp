@@ -44,7 +44,7 @@ bool FPcdBandwidthCodecTest::RunTest(const FString&)
 		if(Read.Num()==3){TestEqual(TEXT("XYZ retained"),Read[0].SensorLocalPositionMeters,Source[0].SensorLocalPositionMeters);if(Profile==EVirtualPcdFieldProfile::Minimal){TestEqual(TEXT("missing intensity defaults0"),Read[0].RawIntensity,0);TestEqual(TEXT("missing confidence defaults1"),Read[0].Confidence,1.f);TestFalse(TEXT("missing ring/index do not claim grid metadata"),Read[0].bHasGridCoord);}}
 		Compressed.Pop();TestFalse(TEXT("truncated compressed block rejected"),FVirtualPcdCodec::Decode(Compressed,B,Error));
 	}
-	FVirtualPcdSendOptions O;TestEqual(TEXT("Full default record33"),FVirtualPcdCodec::BytesPerPoint(O),33);TestFalse(TEXT("compression default remains gated off"),O.bCompressed);
+	FVirtualPcdSendOptions O;TestEqual(TEXT("Full default record33"),FVirtualPcdCodec::BytesPerPoint(O),33);TestFalse(TEXT("standalone/file codec keeps binary default"),O.bCompressed);
 	O.Profile=EVirtualPcdFieldProfile::Compact;TestEqual(TEXT("Compact record24"),FVirtualPcdCodec::BytesPerPoint(O),24);
 	O.Profile=EVirtualPcdFieldProfile::Minimal;TestEqual(TEXT("Minimal record12"),FVirtualPcdCodec::BytesPerPoint(O),12);
 	// Independent fixed PCL-layout vector: XYZ planes for two points followed by
@@ -88,6 +88,14 @@ bool FPcdBandwidthReceiverTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPcdBandwidthDivisorTest,"MA0T10.PcdBandwidth.DivisorAndIsolation",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FPcdBandwidthDivisorTest::RunTest(const FString&)
 {
+	auto* Defaults=NewObject<UVirtualSensorStreamPublisherComponent>();
+	TestEqual(TEXT("new stream follows measured compression policy"),Defaults->GetPcdSendOptions(TEXT("new")).bCompressed,Defaults->bDefaultPcdCompression);
+	TestEqual(TEXT("live default retains Full fields"),Defaults->GetPcdSendOptions(TEXT("new")).Profile,EVirtualPcdFieldProfile::Full);
+	Defaults->bDefaultPcdCompression=true;
+	FVirtualPcdSendOptions Explicit;FString DefaultError;
+	TestTrue(TEXT("explicit user binary choice accepted"),Defaults->SetPcdSendOptions(TEXT("A"),Explicit,false,DefaultError));
+	TestFalse(TEXT("existing explicit binary choice wins over new default"),Defaults->GetPcdSendOptions(TEXT("A")).bCompressed);
+	TestTrue(TEXT("other sensor retains measured default"),Defaults->GetPcdSendOptions(TEXT("B")).bCompressed);
 	for(int32 Divisor:{1,2,4})
 	{
 		auto* P=NewObject<UVirtualSensorStreamPublisherComponent>();P->bAutoAdjustPointCloudSendRate=false;

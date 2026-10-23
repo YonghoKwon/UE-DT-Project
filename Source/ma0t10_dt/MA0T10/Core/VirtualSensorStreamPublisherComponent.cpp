@@ -131,6 +131,8 @@ void UVirtualSensorStreamPublisherComponent::ConfigureStream(const FVirtualSenso
 		Runtime.Config.DeliveryMode != Config.DeliveryMode ||
 		Runtime.Config.PointCloudFilter.Revision != Config.PointCloudFilter.Revision ||
 		Runtime.Config.FrameStride != Config.FrameStride ||
+		Runtime.Config.bOverridePcdSendOptions != Config.bOverridePcdSendOptions ||
+		!(Runtime.Config.PcdSendOptions == Config.PcdSendOptions) ||
 		Runtime.Config.LazCompressorPath != Config.LazCompressorPath ||
 		Runtime.Config.LazCompressorArguments != Config.LazCompressorArguments;
 	// ConfigureStream(false) is also the native UI's user-stop path. Retire
@@ -1077,8 +1079,8 @@ FVirtualPcdSendOptions UVirtualSensorStreamPublisherComponent::GetPcdSendOptions
     if(const auto* O=PcdSendOptionsBySensor.Find(Id))return *O;
     if(const auto* O=PcdSendOptionsBySensor.Find(FString()))return *O;
     FVirtualSensorStreamConfig Config;
-    if(ResolveActiveStreamForSensor(EVirtualSensorStreamKind::PointCloud,Id,Config))return Config.PcdSendOptions;
-    return FVirtualPcdSendOptions();
+    if(ResolveActiveStreamForSensor(EVirtualSensorStreamKind::PointCloud,Id,Config)&&Config.bOverridePcdSendOptions)return Config.PcdSendOptions;
+    FVirtualPcdSendOptions Default;Default.bCompressed=bDefaultPcdCompression;return Default;
 }
 bool UVirtualSensorStreamPublisherComponent::SetPcdSendOptions(const FString& Id,const FVirtualPcdSendOptions& Options,bool All,FString& Error)
 {

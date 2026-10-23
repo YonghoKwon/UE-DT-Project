@@ -29,6 +29,9 @@ public:
 	bool SetPcdSendOptions(const FString& SensorId, const FVirtualPcdSendOptions& Options, bool bApplyToAll, FString& Error);
 	UFUNCTION(BlueprintPure, Category="DigitalTwin|VirtualSensor|PCD")
 	FVirtualPcdSendOptions GetPcdSendOptions(const FString& SensorId) const;
+	/** Measured transmission default. Explicit per-sensor/SaveGame choices win. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DigitalTwin|VirtualSensor|PCD")
+	bool bDefaultPcdCompression = true;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="DigitalTwin|VirtualSensor|PCD")
 	TMap<FString,FVirtualPcdSendOptions> PcdSendOptionsBySensor;
 	UVirtualSensorStreamPublisherComponent();

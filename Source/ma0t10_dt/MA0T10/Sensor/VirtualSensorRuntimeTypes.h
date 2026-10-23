@@ -197,6 +197,10 @@ struct MA0T10_DT_API FVirtualSensorStreamConfig
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualSensor|Stream")
 	FVirtualPointCloudFilterConfig PointCloudFilter;
 
+	/** Explicit live Config override; otherwise the publisher's measured default applies. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DigitalTwin|VirtualSensor|Stream")
+	bool bOverridePcdSendOptions = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DigitalTwin|VirtualSensor|Stream")
 	FVirtualPcdSendOptions PcdSendOptions;
 

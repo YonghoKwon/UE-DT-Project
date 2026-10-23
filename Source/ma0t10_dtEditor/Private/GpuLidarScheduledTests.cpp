@@ -77,7 +77,8 @@ public:
                 if(FieldProfile==TEXT("Compact"))BandwidthOptions.Profile=EVirtualPcdFieldProfile::Compact;
                 else if(FieldProfile==TEXT("Minimal"))BandwidthOptions.Profile=EVirtualPcdFieldProfile::Minimal;
                 BandwidthOptions.bCompressed=FParse::Param(FCommandLine::Get(),TEXT("PcdBandwidthCompressed"));
-                FString OptionError;Test->TestTrue(TEXT("bandwidth fixture sets explicit send options"),Publisher->SetPcdSendOptions(TEXT(""),BandwidthOptions,true,OptionError));
+                if(FParse::Param(FCommandLine::Get(),TEXT("PcdBandwidthDefaults")))BandwidthOptions=Publisher->GetPcdSendOptions(TEXT(""));
+                else {FString OptionError;Test->TestTrue(TEXT("bandwidth fixture sets explicit send options"),Publisher->SetPcdSendOptions(TEXT(""),BandwidthOptions,true,OptionError));}
                 EncodeHandle=Publisher->OnPcdEncoded.AddLambda([this](const FString& Id,int64,float Ms,int32){if(Phase==2)EncodeTimes.FindOrAdd(Id).Add(Ms);});
                 // Use the production normalization/default budgets: PCD binary, FIFO,
                 // stride 1, receipt every frame, 20 retained frames, 80 MiB/s.
