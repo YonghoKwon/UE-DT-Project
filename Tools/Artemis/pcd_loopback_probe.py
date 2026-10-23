@@ -21,19 +21,22 @@ FIELD_TYPES = dict(zip(
     [(4,"F"),(4,"F"),(4,"F"),(2,"U"),(2,"U"),(2,"U"),(1,"U"),(1,"U"),(8,"I"),(1,"U"),(4,"F")]))
 
 
-def decode_lzf(data, expected):
+def decode_lzf(data, expected, *, validate_only=False):
     if not 0 <= expected <= MAX_BODY:
         raise ValueError("LZF output exceeds fixture bound")
     out = bytearray()
+    written = 0
     i = 0
     while i < len(data):
         control = data[i]
         i += 1
         if control < 32:
             n = control + 1
-            if i+n > len(data) or len(out)+n > expected:
+            if i+n > len(data) or written+n > expected:
                 raise ValueError("truncated/overflow LZF literal")
-            out.extend(data[i:i+n])
+            if not validate_only:
+                out.extend(data[i:i+n])
+            written += n
             i += n
         else:
             n = control >> 5
@@ -47,11 +50,14 @@ def decode_lzf(data, expected):
             distance = ((control & 31) << 8) + data[i] + 1
             i += 1
             n += 2
-            if distance > len(out) or len(out)+n > expected:
+            if distance > written or written+n > expected:
                 raise ValueError("invalid LZF reference/output size")
-            block = bytes(out[-distance:])
-            out.extend((block * ((n+distance-1)//distance))[:n])
-    if len(out) != expected:
+            if not validate_only:
+                start = written-distance
+                block = bytes(out[start:start+min(distance, n)])
+                out.extend((block * ((n+len(block)-1)//len(block)))[:n])
+            written += n
+    if written != expected:
         raise ValueError("LZF size mismatch")
     return out
 
@@ -96,7 +102,10 @@ def validate_pcd(body, headers):
         compressed, uncompressed = struct.unpack_from("<II", data)
         if uncompressed != expected or compressed != len(data)-8:
             raise ValueError("LZF size prefix differs")
-        decode_lzf(data[8:], uncompressed)
+        # Identical literal/reference bounds and exact output-size validation.
+        # The probe never consumes point values, so do not allocate/copy SoA.
+        # C++ round-trip/golden tests independently compare every decoded byte.
+        decode_lzf(data[8:], uncompressed, validate_only=True)
     elif len(data) != expected:
         raise ValueError("PCD record length differs")
     if int(headers["point-count"]) != points:
