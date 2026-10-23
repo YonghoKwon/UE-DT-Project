@@ -1,11 +1,14 @@
-param(
+﻿param(
     [string]$Baseline = 'HEAD^',
     [string]$Candidate = 'HEAD',
     [ValidatePattern('^[12](,[12])?$')][string]$Pairs = '1',
     [ValidateSet('Visible', 'Offscreen', 'Both')][string]$Display = 'Visible',
     [ValidateSet('Off', 'ProjectDefault')][string]$RayTracing = 'Off',
     [ValidateRange(1, 10)][int]$Blocks = 3,
-    [ValidateRange(30, 60)][int]$MeasurementSeconds = 60,  # PERF01 instrument clamps to 30..60
+    [ValidateRange(30, 120)][int]$MeasurementSeconds = 60,
+    [ValidateSet('Perf01', 'ScheduledLidar')][string]$Workload = 'Perf01',
+    [ValidateSet('Gpu', 'Cpu')][string]$ScheduledBackend = 'Gpu',
+    [ValidateRange(0, 65535)][int]$ScheduledPcdLoopbackPort = 0,
     [double]$ThresholdPercent = 2.0,
     [string]$EngineRoot = 'C:/Program Files/Epic Games/UE_5.3',
     [string]$ReportRoot = '',
@@ -14,14 +17,21 @@ param(
     [switch]$DryRun
 )
 # QA-02 standard performance gate: archive checkouts of two revisions, the same committed
-# PERF-01 instrument in both, ABAB x Blocks per condition, per-revision run medians.
+# selected instrument in both, ABAB x Blocks per condition, per-revision run medians.
+# ScheduledLidar adds candidate per-device Hz ratios; legacy59FPS is informational.
 # FPS decrease, engine p95 increase and game thread increase are judged separately.
 $ErrorActionPreference = 'Stop'
+. "$PSScriptRoot/PerfRelativeGate.ps1"
+if ($Workload -eq 'Perf01' -and $MeasurementSeconds -gt 60) { throw 'PERF01 measurement remains limited to30..60 seconds' }
+if ($Workload -eq 'ScheduledLidar' -and ($Pairs -ne '1' -or $RayTracing -ne 'ProjectDefault')) { throw 'ScheduledLidar requires -Pairs 1 -RayTracing ProjectDefault; its workload is three LiDARs' }
+if ($ScheduledPcdLoopbackPort -gt 0 -and $ScheduledPcdLoopbackPort -lt 1024) { throw 'PCD requires an unprivileged credential-free loopback port' }
+
 $pairList = @($Pairs -split ',' | ForEach-Object { [int]$_ } | Sort-Object -Unique)
 $root = Split-Path -Parent $PSScriptRoot
-$instrument = 'Source/ma0t10_dtEditor/Private/Perf01AcquisitionTests.cpp'
+$instrument = if ($Workload -eq 'ScheduledLidar') { 'Source/ma0t10_dtEditor/Private/GpuLidarScheduledTests.cpp' } else { 'Source/ma0t10_dtEditor/Private/Perf01AcquisitionTests.cpp' }
 $sessionInstrument = 'Source/ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h'
-$map = 'Content/MA0T10/Maps/Tests/SlabScenarioValidationMap.umap'
+$mapName = if ($Workload -eq 'ScheduledLidar') { 'ShipHatchTestMap' } else { 'SlabScenarioValidationMap' }
+$map = "Content/MA0T10/Maps/Tests/$mapName.umap"
 $editor = "$EngineRoot/Engine/Binaries/Win64/UnrealEditor-Cmd.exe"
 $build = "$EngineRoot/Engine/Build/BatchFiles/Build.bat"
 
@@ -30,48 +40,29 @@ function Get-Git([string[]]$Arguments, [string]$Repo = $root) {
     if ($LASTEXITCODE -ne 0) { throw "git failed: $($Arguments -join ' ')" }
     return ($out -join "`n").Trim()
 }
-function Get-Median([double[]]$Values) {
-    $sorted = @($Values | Sort-Object)
-    if ($sorted.Count -eq 0) { return [double]::NaN }
-    $mid = [int][Math]::Floor($sorted.Count / 2)
-    if ($sorted.Count % 2) { return $sorted[$mid] }
-    return ($sorted[$mid - 1] + $sorted[$mid]) / 2
-}
 function Get-Sha256([string]$Path) { return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
 
 function Get-Verdict([string]$RunFolder, [double]$Threshold) {
     $rows = @(Get-ChildItem -LiteralPath $RunFolder -Filter '*.json' -File | ForEach-Object {
         $data = Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
-        if ($_.BaseName -notmatch '^(?<cond>.+)-block\d+-\d+-(?<rev>[AB])$') { return }
+        if ($_.BaseName -notmatch '^(?<cond>.+)-block(?<block>\d+)-(?<index>\d+)-(?<rev>[AB])$') { return }
         $condition = $Matches.cond; $revision = $Matches.rev
+        $block = [int]$Matches.block; $index = [int]$Matches.index
+        $slotValid = $block -ge 1 -and $block -le $Blocks -and $index -ge 1 -and $index -le 4 -and $revision -eq $(if ($index % 2) { 'A' } else { 'B' })
         $metrics = @([double]$data.average_fps, [double]$data.engine_frame_p95_ms, [double]$data.game_thread_mean_ms)
         $finitePositive = @($metrics | Where-Object { [double]::IsNaN($_) -or [double]::IsInfinity($_) -or $_ -le 0 }).Count -eq 0
-        [PSCustomObject]@{ Condition = $condition; Revision = $revision; Valid = [bool]$data.valid -and $finitePositive; Fps = $metrics[0]; P95 = $metrics[1]; GameThread = $metrics[2]; File = $_.Name }
+        $ratios = @()
+        if ($Workload -eq 'ScheduledLidar') {
+            $ratios = @($data.sensors | ForEach-Object { if ($null -eq $_.acquisition_ratio) { [double]::NaN } else { [double]$_.acquisition_ratio } })
+            $finitePositive = $finitePositive -and $ratios.Count -eq 3
+        }
+        [PSCustomObject]@{ Condition = $condition; Revision = $revision; Valid = [bool]$data.valid -and $finitePositive -and $slotValid; Fps = $metrics[0]; P95 = $metrics[1]; GameThread = $metrics[2]; File = $_.Name; AcquisitionRatios = $ratios }
     })
     if ($rows.Count -eq 0) { throw "No ABAB run JSON in $RunFolder" }
     $conditions = foreach ($group in ($rows | Group-Object Condition)) {
         $a = @($group.Group | Where-Object Revision -eq 'A'); $b = @($group.Group | Where-Object Revision -eq 'B')
-        $invalid = @($group.Group | Where-Object { -not $_.Valid } | ForEach-Object File)
-        $fpsA = Get-Median ($a.Fps); $fpsB = Get-Median ($b.Fps)
-        $p95A = Get-Median ($a.P95); $p95B = Get-Median ($b.P95)
-        $gtA = Get-Median ($a.GameThread); $gtB = Get-Median ($b.GameThread)
-        $fpsDrop = if ($fpsA) { ($fpsA - $fpsB) / $fpsA * 100 } else { [double]::NaN }
-        $p95Rise = if ($p95A) { ($p95B - $p95A) / $p95A * 100 } else { [double]::NaN }
-        $gtRise = if ($gtA) { ($gtB - $gtA) / $gtA * 100 } else { [double]::NaN }
-        $failures = @()
-        $expected = 2 * $Blocks
-        if ($a.Count -ne $expected -or $b.Count -ne $expected) { $failures += "incomplete samples A=$($a.Count) B=$($b.Count), expected=$expected each" }
-        if ($invalid.Count) { $failures += "invalid runs: $($invalid -join ', ')" }
-        if ($fpsDrop -gt $Threshold) { $failures += ('FPS -{0:N3}%' -f $fpsDrop) }
-        if ($p95Rise -gt $Threshold) { $failures += ('engine p95 +{0:N3}%' -f $p95Rise) }
-        if ($gtRise -gt $Threshold) { $failures += ('game thread +{0:N3}%' -f $gtRise) }
-        [PSCustomObject][ordered]@{
-            Condition = $group.Name; SamplesPerRevision = $a.Count
-            FpsA = $fpsA; FpsB = $fpsB; FpsDropPercent = $fpsDrop
-            EngineP95A = $p95A; EngineP95B = $p95B; EngineP95RisePercent = $p95Rise
-            GameThreadA = $gtA; GameThreadB = $gtB; GameThreadRisePercent = $gtRise
-            Pass = ($failures.Count -eq 0); Failures = $failures
-        }
+        $comparison = Get-PerfRelativeComparison -A $a -B $b -Expected (2 * $Blocks) -Threshold $Threshold -RequireAcquisitionRatio:($Workload -eq 'ScheduledLidar')
+        $comparison | Add-Member -NotePropertyName Condition -NotePropertyValue $group.Name -PassThru
     }
     return @($conditions)
 }
@@ -87,6 +78,7 @@ if ($SummarizeOnly) {
 $started = [DateTime]::UtcNow
 $stamp = $started.ToString('yyyyMMddTHHmmssZ')
 if (-not $ReportRoot) { $ReportRoot = Join-Path $root "Saved/Reports/perf/$stamp" }
+$ReportRoot = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ReportRoot)
 $owned = Join-Path $root "Saved/PerfAbab-$stamp-owned"
 $runs = Join-Path $ReportRoot 'runs'
 New-Item -ItemType Directory -Force -Path $runs | Out-Null
@@ -102,7 +94,10 @@ $manifest = [ordered]@{
     Baseline = [ordered]@{ Ref = $Baseline; Commit = $refs.A }; Candidate = [ordered]@{ Ref = $Candidate; Commit = $refs.B }
     DTCore = $dtcore; Instrument = [ordered]@{ Path = $instrument; Sha256 = (Get-Sha256 $instrumentSource) }
     SessionInstrument = [ordered]@{ Path = $sessionInstrument; Sha256 = (Get-Sha256 (Join-Path $root $sessionInstrument)) }
-    Map = '/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap'; Viewport = '1920x1080'; Rhi = 'D3D12'; RayTracing = $RayTracing
+    Workload = $Workload; ScheduledBackend = $ScheduledBackend; ScheduledPcdLoopbackPort = $ScheduledPcdLoopbackPort
+    RelativeGateSha256 = (Get-Sha256 "$PSScriptRoot/PerfRelativeGate.ps1")
+    BackgroundCpuSnapshots = 'runs/<run>.background-cpu.json; informational, not used in verdict'
+    Map = "/Game/MA0T10/Maps/Tests/$mapName"; Viewport = '1920x1080'; Rhi = 'D3D12'; RayTracing = $RayTracing
     Pairs = $pairList; Display = $Display; Blocks = $Blocks; WarmupSeconds = 10; MeasurementSeconds = $MeasurementSeconds
     ThresholdPercent = $ThresholdPercent; Gpu = $gpu; Os = [Environment]::OSVersion.ToString()
     CheckoutRoot = $owned; KeptCheckouts = [bool]$KeepCheckouts; Worktree = (Get-Git @('status', '--porcelain=v1'))
@@ -131,7 +126,7 @@ try {
         $manifest[$label + 'MapSha256'] = Get-Sha256 (Join-Path $target $map)
     }
     # Same fixture workload on both sides, or the gate compares different scenes.
-    if ($manifest.AMapSha256 -ne $manifest.BMapSha256) { throw "SlabScenarioValidationMap differs between baseline and candidate (A=$($manifest.AMapSha256) B=$($manifest.BMapSha256)); measurement refused" }
+    if ($manifest.AMapSha256 -ne $manifest.BMapSha256) { throw "$mapName differs between baseline and candidate (A=$($manifest.AMapSha256) B=$($manifest.BMapSha256)); measurement refused" }
     foreach ($label in 'A', 'B') {
         $target = Join-Path $owned $label
         $log = Join-Path $ReportRoot "$label-editor-build.log"
@@ -140,33 +135,80 @@ try {
     }
     foreach ($pairCount in $pairList) {
         foreach ($offscreen in $displays) {
-            $condition = "${pairCount}pair-" + $(if ($offscreen) { 'offscreen' } else { 'visible' })
+            $condition = $(if ($Workload -eq 'ScheduledLidar') { "lidar3-$ScheduledBackend-pcd$ScheduledPcdLoopbackPort-" } else { "${pairCount}pair-" }) + $(if ($offscreen) { 'offscreen' } else { 'visible' })
             for ($block = 1; $block -le $Blocks; $block++) {
                 $index = 0
                 foreach ($label in 'A', 'B', 'A', 'B') {
                     $index++
                     $name = "$condition-block$block-$index-$label"
                     $json = Join-Path $runs "$name.json"
-                    $arguments = @("`"$owned/$label/ma0t10_dt.uproject`"", '/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap', '-unattended', '-nop4', '-nosplash', '-windowed', '-NoVSync', '-NoSound', '-ResX=1920', '-ResY=1080', '-d3d12', '-Perf01', "-Perf01Pairs=$pairCount", "-Perf01Seconds=$MeasurementSeconds", "`"-Perf01Output=$json`"", "`"-abslog=$runs/$name.log`"", '"-ExecCmds=t.MaxFPS 0,r.VSync 0,r.VSyncEditor 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10.PERF01.AcquisitionAndPreview;Quit"', '"-TestExit=Automation Test Queue Empty"')
+                    if (Test-Path -LiteralPath $json) { throw "Refuse to overwrite run evidence: $json" }
+                    $arguments = @("`"$owned/$label/ma0t10_dt.uproject`"", "/Game/MA0T10/Maps/Tests/$mapName", '-unattended', '-nop4', '-nosplash', '-windowed', '-NoVSync', '-NoSound', '-ResX=1920', '-ResY=1080', '-d3d12', '-Perf01', "-Perf01Pairs=$pairCount", "-Perf01Seconds=$MeasurementSeconds", "`"-Perf01Output=$json`"", "`"-abslog=$runs/$name.log`"", '"-ExecCmds=t.MaxFPS 0,r.VSync 0,r.VSyncEditor 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10.PERF01.AcquisitionAndPreview;Quit"', '"-TestExit=Automation Test Queue Empty"')
+                    if ($Workload -eq 'ScheduledLidar') {
+                        $arguments = @("`"$owned/$label/ma0t10_dt.uproject`"", "/Game/MA0T10/Maps/Tests/$mapName", '-unattended', '-nop4', '-nosplash', '-windowed', '-NoVSync', '-NoSound', '-ResX=1920', '-ResY=1080', '-d3d12', "-GpuLidarMeasurementSeconds=$MeasurementSeconds", "`"-GpuLidarOutput=$json`"", "`"-abslog=$runs/$name.log`"", '"-ExecCmds=t.MaxFPS 60,r.VSync 0,r.VSyncEditor 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0,Automation RunTests MA0T10.GpuLidar.ScheduledThree;Quit"', '"-TestExit=Automation Test Queue Empty"')
+                        if ($label -eq 'A') { $arguments += '-GpuLidarReferenceRun' }
+                        if ($ScheduledBackend -eq 'Cpu') { $arguments += '-GpuLidarCpu' }
+                        if ($ScheduledPcdLoopbackPort) { $arguments += "-GpuLidarPcdLoopbackPort=$ScheduledPcdLoopbackPort" }
+                    }
                     if ($offscreen) { $arguments += '-RenderOffscreen' }
                     if ($RayTracing -eq 'Off') { $arguments += '-noraytracing' }
                     $arguments += @("-Perf01SourceCommit=$($refs[$label])", "-Perf01RunId=$name", "-Perf01InstrumentSha=$($manifest.Instrument.Sha256)", "-Perf01SessionSha=$($manifest.SessionInstrument.Sha256)", "`"-ReportExportPath=$runs/$name.automation`"")
                     $saved = @{}
                     Get-ChildItem Env: | Where-Object Name -like 'MA0T10_*' | ForEach-Object { $saved[$_.Name] = $_.Value; Remove-Item "Env:$($_.Name)" }
                     $env:MA0T10_ACCEPTANCE_RES_X = '1920'; $env:MA0T10_ACCEPTANCE_RES_Y = '1080'
+                    $probe = $null
                     try {
+                        if ($Workload -eq 'ScheduledLidar' -and $ScheduledPcdLoopbackPort) {
+                            # Own one credential-free receiver per run. Frame IDs restart
+                            # with each Editor; separate reports avoid artificial gaps/duplicates.
+                            $probeArgs = @("`"$root/Tools/Artemis/pcd_loopback_probe.py`"", '--port', $ScheduledPcdLoopbackPort, '--report', "`"$runs/$name.receiver.json`"", '--stop-file', "`"$runs/$name.receiver.stop`"")
+                            $probe = Start-Process -FilePath (Get-Command python.exe -ErrorAction Stop).Source -ArgumentList $probeArgs -WindowStyle Hidden -PassThru -RedirectStandardOutput "$runs/$name.receiver.log" -RedirectStandardError "$runs/$name.receiver.stderr.log"
+                            $ready = $false
+                            for ($attempt = 0; $attempt -lt 50; $attempt++) {
+                                if (Test-Path -LiteralPath "$runs/$name.receiver.log") { $ready = [bool](Select-String -LiteralPath "$runs/$name.receiver.log" -SimpleMatch 'PCD loopback ready' -Quiet) }
+                                if ($ready -or $probe.HasExited) { break }
+                                Start-Sleep -Milliseconds 100
+                            }
+                            if (!$ready) { throw "Local PCD receiver not ready; inspect $name.receiver.stderr.log" }
+                        }
+                        $snapshot = [ordered]@{ CapturedUtc = [DateTime]::UtcNow.ToString('o'); Scope = 'before launch; measurement follows10s warmup'; UsedForVerdict = $false; LogicalProcessors = [Environment]::ProcessorCount; ProcessPercentBasis = 'raw multi-core percent; can exceed100'; Error = '' }
+                        try {
+                            $snapshot.TotalCpuPercent = (Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'").PercentProcessorTime
+                            $snapshot.Processes = @(Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Where-Object { $_.Name -notin @('_Total', 'Idle') } | Sort-Object PercentProcessorTime -Descending | Select-Object -First 10 Name, IDProcess, PercentProcessorTime)
+                        } catch { $snapshot.Error = $_.Exception.Message }
+                        $snapshot | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$runs/$name.background-cpu.json" -Encoding UTF8
                         Write-Host "Run $name"
                         $process = Start-Process -FilePath $editor -ArgumentList $arguments -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput "$runs/$name.console.log" -RedirectStandardError "$runs/$name.stderr.log"
                     } finally {
                         Remove-Item Env:MA0T10_ACCEPTANCE_RES_X, Env:MA0T10_ACCEPTANCE_RES_Y -ErrorAction SilentlyContinue
                         foreach ($key in $saved.Keys) { Set-Item "Env:$key" $saved[$key] }
+                        if ($null -ne $probe) {
+                            [IO.File]::WriteAllText("$runs/$name.receiver.stop", '')
+                            if (!$probe.WaitForExit(10000)) { throw "Owned receiver did not stop; PID=$($probe.Id)" }
+                            if ($probe.ExitCode -ne 0) { throw "Owned receiver failed; inspect $name.receiver.stderr.log" }
+                        }
                     }
                     if (-not (Test-Path -LiteralPath $json)) { throw "No measurement for $name (exit $($process.ExitCode))" }
                     $data = Get-Content -LiteralPath $json -Raw -Encoding UTF8 | ConvertFrom-Json
                     Write-Host ('{0}: fps={1:N3} p95={2:N3} gt={3:N3} valid={4}' -f $name, $data.average_fps, $data.engine_frame_p95_ms, $data.game_thread_mean_ms, $data.valid)
                     if ($process.ExitCode -ne 0 -or -not $data.valid) { throw "Invalid run $name" }
                     if ($data.Perf01SourceCommit -ne $refs[$label] -or $data.Perf01RunId -ne $name -or $data.Perf01InstrumentSha -ne $manifest.Instrument.Sha256 -or $data.Perf01SessionSha -ne $manifest.SessionInstrument.Sha256) { throw "Run provenance mismatch: $name" }
-                    if ($data.measurement_seconds -ne $MeasurementSeconds -or $data.warmup_seconds -ne 10 -or $data.pairs -ne $pairCount -or $data.actual_client -ne '1920x1080' -or [bool]$data.render_offscreen -ne $offscreen) { throw "Run workload mismatch: $name" }
+                    if ($data.measurement_seconds -ne $MeasurementSeconds -or $data.warmup_seconds -ne 10 -or $data.actual_client -ne '1920x1080' -or [bool]$data.render_offscreen -ne $offscreen) { throw "Run workload mismatch: $name" }
+                    if ($Workload -eq 'Perf01' -and $data.pairs -ne $pairCount) { throw "Run pair count mismatch: $name" }
+                    if ($Workload -eq 'ScheduledLidar') {
+                        if ($data.sensor_count -ne 3 -or @($data.sensors).Count -ne 3 -or [bool]$data.reference_run -ne ($label -eq 'A')) { throw "Scheduled workload mismatch: $name" }
+                        foreach ($sensor in $data.sensors) {
+                            if ([Math]::Abs($sensor.requested_hz - 20) -gt .001 -or $sensor.horizontal_samples -ne 1024 -or $sensor.vertical_channels -ne 64) { throw "Scheduled density/request mismatch: $name" }
+                        }
+                        if ($ScheduledPcdLoopbackPort) {
+                            $receiver = Get-Content -LiteralPath "$runs/$name.receiver.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+                            if ($receiver.invalid -ne 0 -or @($receiver.errors).Count -ne 0) { throw "External PCD schema/checksum receiver failed: $name" }
+                            foreach ($sensor in $data.sensors) {
+                                $external = $receiver.sensors.PSObject.Properties[$sensor.sensor]
+                                if ($null -eq $external -or $external.Value.frames -le 0 -or $external.Value.duplicates -ne 0 -or $external.Value.gaps -ne 0) { throw "External PCD receive/gap/duplicate check failed: $name" }
+                            }
+                        }
+                    }
                     $csv = "$json.frames.csv"
                     if (-not (Test-Path -LiteralPath $csv) -or ([IO.File]::ReadAllLines($csv).Count - 1) -ne $data.samples) { throw "Raw frame sample count mismatch: $name" }
                     $automationIndex = "$runs/$name.automation/index.json"
