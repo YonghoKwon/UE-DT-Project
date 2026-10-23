@@ -184,8 +184,8 @@ bool UVirtualCameraGroundTruth::Capture(UVirtualCameraCaptureComponent& Source,c
         {
             if(State->IncludeTruth){VirtualSensorTextureReadback::Enqueue(Cmd,*State->Depth,D);if(QueueSemanticNow)VirtualSensorTextureReadback::Enqueue(Cmd,*State->Semantic,S);}
             if(State->Rgb){if(!RgbResource||!RgbResource->GetRenderTargetTexture().IsValid())return;VirtualSensorTextureReadback::Enqueue(Cmd,*State->Rgb,RgbResource->GetRenderTargetTexture());}
-            State->InitialCopiesQueued.store(true,std::memory_order_release);
             if(QueueSemanticNow)State->CopiesQueued.store(true,std::memory_order_release);
+            else State->InitialCopiesQueued.store(true,std::memory_order_release);
         }
     });
     State->Frame->SubmitMs=(FPlatformTime::Seconds()-State->Started)*1000;

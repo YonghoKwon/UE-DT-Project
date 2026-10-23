@@ -18,7 +18,7 @@ public:
     UTextureRenderTarget2D* GetTarget() const;
     /** Capture accepts/fixes a snapshot; an async PSO may defer its one render pass. */
     bool IsCapturePending() const { return bCapturePending; }
-    bool PollPendingCapture();
+    bool PollPendingCapture(bool bUpdateStatus=true);
     void CancelPendingCapture() { bCapturePending=false; }
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     bool bForcePsoPendingForTests = false;

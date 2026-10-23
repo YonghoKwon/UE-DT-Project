@@ -131,3 +131,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level pe
 ```
 
 도구회귀는 기존5합성cohort에 GPU-only조건 성공/3%악화/측정값누락3개를 더해8개이며 실측으로 세지 않는다. WindowsPowerShell5의 단일문자열 native splat 문제는 명시적string[]로 수정했고 초기실패로그를 보존했다. 실측 판정과 커밋은 최신 RESULT/result.json을 따른다.
+
+GT-on/Rev7 최초 전후실측(`0bd709c`,12valid)은 GPU7.387185→7.703027ms(+4.275530%)로2%FAIL이었다. FPS저하.000444%,p95변화0%,GameThread변화-.086816%는 통과했다. 원본을 `gt-on-abab-20261024/initial-failed-summary.json`과verify/20261023T211208936Z에 보존했다. 원인으로 단정하지 않고 warm경로의 proxy체크를 단일순회로 합치고, 원래처럼 상태문자열 조립 전에 ready capture를 제출하며, readyCameraGT의 불필요한 InitialCopiesQueued release-store를 없앴다. 캡처/readback횟수·품질·타임아웃·동결snapshot·cancel/generation정책은 유지한다. Editorbuild/관련15RHI 성공 뒤 같은instrumenthash/조건으로1회재측정하고, 재실패하면 더 변경하지 않고 보고한다.

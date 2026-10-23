@@ -171,6 +171,10 @@ bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, con
     CaptureComponent->FOVAngle = HorizontalFov;
     VirtualSensorCaptureRendering::Prepare(*CaptureComponent, true);
     Scene.GetWorld()->SendAllEndOfFrameUpdates();
+    // Submit a ready render before diagnostic/status string assembly, as in the
+    // original immediate path. Cold PSOs still use the frozen pending snapshot.
+    bCapturePending=true;
+    PollPendingCapture(false);
     Status = FString::Printf(TEXT("GPU 의미 분류: %d개 proxy · 미지원/숨김 %d개 (깊이 불일치=미분류)"), Identities.Num(), Unsupported);
     if(VirtualLidarSemanticDiagnostics::IsEnabled())
     {
@@ -184,12 +188,11 @@ bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, con
         Status+=FString::Printf(TEXT(" [registered=%d visible=%d should_render=%d render_state=%d scene_proxy=%d precaching=%d]"),
             Registered,Visible,Renderable,RenderState,SceneProxy,Precaching);
     }
-    bCapturePending=true;
-    PollPendingCapture();
+    if(!bCapturePending)Status+=TEXT(" · 의미 분류 준비 완료");
     return true;
 }
 
-bool FVirtualLidarSemanticScene::PollPendingCapture()
+bool FVirtualLidarSemanticScene::PollPendingCapture(bool bUpdateStatus)
 {
     if(!bCapturePending)return true;
     // Only the already prepared proxy snapshot is touched here. Never rediscover
@@ -200,17 +203,20 @@ bool FVirtualLidarSemanticScene::PollPendingCapture()
     // Capture already flushed the changed snapshot. PSO completion schedules a
     // render-state refresh; flush it once, only after all PSOs are ready. Repeated
     // scheduler polls must not flush a whole world or rediscover proxy identities.
-    for(const auto* Mesh:PendingProxies)if(Mesh->IsPSOPrecaching())return false;
-    if(!bPendingProxyUpdateSent)
+    bool bMissingProxy=false;
+    for(const auto* Mesh:PendingProxies)
     {
-        bool bMissingProxy=false;
-        for(const auto* Mesh:PendingProxies)bMissingProxy|=Mesh->SceneProxy==nullptr;
-        if(bMissingProxy)Scene.GetWorld()->SendAllEndOfFrameUpdates();
-        bPendingProxyUpdateSent=true;
+        if(Mesh->IsPSOPrecaching())return false;
+        bMissingProxy|=Mesh->SceneProxy==nullptr;
     }
-    for(const auto* Mesh:PendingProxies)if(!Mesh->SceneProxy)return false;
+    if(bMissingProxy)
+    {
+        if(!bPendingProxyUpdateSent)
+        {Scene.GetWorld()->SendAllEndOfFrameUpdates();bPendingProxyUpdateSent=true;}
+        for(const auto* Mesh:PendingProxies)if(!Mesh->SceneProxy)return false;
+    }
     CaptureComponent->CaptureScene();
-    Status+=TEXT(" · 의미 분류 준비 완료");
+    if(bUpdateStatus)Status+=TEXT(" · 의미 분류 준비 완료");
     bCapturePending=false;
     return true;
 }
