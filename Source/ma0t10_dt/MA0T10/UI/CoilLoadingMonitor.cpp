@@ -90,7 +90,7 @@ void UCoilLoadingMonitor::NativeOnInitialized()
     auto* Footer=Card(TEXT("CoilAnalysis"));auto* FB=WidgetTree->ConstructWidget<UVerticalBox>();Footer->SetContent(FB);Metrics=Label(TEXT("질량·하중·KG·횡경사"),13,true);FB->AddChildToVerticalBox(Metrics);
     Comparison=Label(TEXT("해석 / Chaos / LiDAR 대기"),12);FB->AddChildToVerticalBox(Comparison)->SetPadding(FMargin(0,6));auto* WS=WidgetTree->ConstructWidget<UScrollBox>();FB->AddChildToVerticalBox(WS)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     auto* List=WidgetTree->ConstructWidget<UVerticalBox>();WS->AddChild(List);WarningRows=WidgetTree->ConstructWidget<UVerticalBox>();List->AddChildToVerticalBox(WarningRows);
-    auto* DataButton=Button(TEXT("자료 필요 · 펼치기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnDataNeeded));DataNeededLabel=Cast<UTextBlock>(DataButton->GetContent());List->AddChildToVerticalBox(DataButton)->SetPadding(FMargin(0,8));DataRows=WidgetTree->ConstructWidget<UVerticalBox>();List->AddChildToVerticalBox(DataRows);DataRows->SetVisibility(ESlateVisibility::Collapsed);
+    auto* DataButton=Button(TEXT("추가 확인 · 펼치기"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnDataNeeded));DataNeededLabel=Cast<UTextBlock>(DataButton->GetContent());DataNeededLabel->SetAutoWrapText(true);DataButton->SetToolTipText(FText::FromString(CoilLoadingPresentation::UnknownExplanation()));List->AddChildToVerticalBox(DataButton)->SetPadding(FMargin(0,8));DataRows=WidgetTree->ConstructWidget<UVerticalBox>();List->AddChildToVerticalBox(DataRows);DataRows->SetVisibility(ESlateVisibility::Collapsed);
     for(auto* C:{TypeChoice.Get(),InnerChoice.Get(),GearChoice.Get(),MotionChoice.Get(),RowDirection.Get()})C->OnGenerateWidgetEvent.BindDynamic(this,&UCoilLoadingMonitor::ComboEntry);
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -146,17 +146,22 @@ void UCoilLoadingMonitor::Refresh()
     }
     Groups.Sort([](const FGroup& A,const FGroup& B){if(A.Known!=B.Known)return A.Known;return uint8(A.Level)>uint8(B.Level);});
     DangerCount=CautionCount=DataNeededCount=0;CachedWarnings.Reset();WarningRows->ClearChildren();DataRows->ClearChildren();
+    if(DataExpanded())
+    {
+        auto* Explanation=WidgetTree->ConstructWidget<UTextBlock>();Explanation->SetText(FText::FromString(CoilLoadingPresentation::UnknownExplanation()));Explanation->SetAutoWrapText(true);Explanation->SetFont(Style::Font(12,TextScale));Explanation->SetColorAndOpacity(Style::Muted());DataRows->AddChildToVerticalBox(Explanation);
+    }
     for(const auto& G:Groups)
     {
         if(!G.Known)++DataNeededCount;else if(G.Level==CoilLoading::ESeverity::Warning)++DangerCount;else if(G.Level==CoilLoading::ESeverity::Caution)++CautionCount;
         if(!G.Known&&!DataExpanded())continue;
-        FString Text=FString::Printf(TEXT("%s · %s · %s"),!G.Known?TEXT("자료 필요"):G.Level==CoilLoading::ESeverity::Warning?TEXT("위험"):TEXT("주의"),*G.Reason,G.Coils.Num()?*FString::Printf(TEXT("%d개 코일%s"),G.Coils.Num(),G.Coils.Contains(S->Plan().Num())?TEXT(" (다음 포함)"):TEXT("")):TEXT("선박·공통"));
+        FString Text=FString::Printf(TEXT("%s · %s · %s"),!G.Known?TEXT("미확인"):G.Level==CoilLoading::ESeverity::Warning?TEXT("위험"):TEXT("주의"),*G.Reason,G.Coils.Num()?*FString::Printf(TEXT("%d개 코일%s"),G.Coils.Num(),G.Coils.Contains(S->Plan().Num())?TEXT(" (다음 포함)"):TEXT("")):TEXT("선박·공통"));
+        if(!G.Known)Text+=FString(TEXT("\n확인 위치: "))+CoilLoadingPresentation::InputLocation(G.Code);
         if(G.Known&&(G.Value!=0||G.Limit!=0))Text+=FString::Printf(TEXT(" · 최악 %.3f / %.3f"),G.Value,G.Limit);
         auto* B=WidgetTree->ConstructWidget<UCoilLoadingWarningButton>();B->Bind(S,G.Coils);B->SetStyle(Style::QuietButton());auto* T=WidgetTree->ConstructWidget<UTextBlock>();T->SetText(FText::FromString(Text));T->SetAutoWrapText(true);T->SetFont(Style::Font(12));T->SetColorAndOpacity(!G.Known?Style::Muted():G.Level==CoilLoading::ESeverity::Warning?Style::Danger():Style::Warning());B->SetContent(T);
         (G.Known?WarningRows:DataRows)->AddChildToVerticalBox(B);if(G.Known)CachedWarnings+=Text+TEXT("\n");
     }
-    Badge->SetText(FText::FromString(FString::Printf(TEXT("위험 %d · 주의 %d"),DangerCount,CautionCount)));Badge->SetColorAndOpacity(DangerCount?Style::Danger():CautionCount?Style::Warning():DataNeededCount?Style::Muted():Style::Success());
-    DataNeededLabel->SetText(FText::FromString(FString::Printf(TEXT("자료 필요 %d개 원인 · %s"),DataNeededCount,DataExpanded()?TEXT("접기"):TEXT("펼치기"))));PlanView->InvalidateLayoutAndVolatility();
+    Badge->SetText(FText::FromString(CoilLoadingPresentation::IssueSummary(DangerCount,CautionCount,DataNeededCount)));Badge->SetToolTipText(FText::FromString(CoilLoadingPresentation::UnknownExplanation()));Badge->SetColorAndOpacity(DangerCount?Style::Danger():CautionCount?Style::Warning():DataNeededCount?Style::Muted():Style::Success());
+    DataNeededLabel->SetText(FText::FromString(CoilLoadingPresentation::AdditionalChecks(DataNeededCount,DataExpanded())));PlanView->InvalidateLayoutAndVolatility();
 }
 void UCoilLoadingMonitor::OnApply(){ApplyInputs();Refresh();}
 void UCoilLoadingMonitor::OnPlace(){if(!ApplyInputs())return;if(auto* S=Sim.Get())S->PlaceNext();SyncInputs();}

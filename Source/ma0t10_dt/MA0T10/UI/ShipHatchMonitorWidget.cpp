@@ -1,4 +1,5 @@
 #include "ShipHatchMonitorWidget.h"
+#include "ShipHatchMetricPresentation.h"
 #include "ShipHatchViewTransform.h"
 #include "ShipHatchMonitorHost.h"
 #include "SensorOwnedPresentationStyle.h"
@@ -121,9 +122,8 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     ContextText=Label(TEXT("홀드 01 · 철광석 · ML-X + Livox"),Style::LabelSize,false,Style::Muted());Sub->AddChildToHorizontalBox(ContextText)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     UpdatedText=Label(TEXT("마지막 갱신 —"),Style::LabelSize,false,Style::Muted());Sub->AddChildToHorizontalBox(UpdatedText);
     auto* Metrics=WidgetTree->ConstructWidget<UHorizontalBox>();Add(Metrics);
-    const TCHAR* Labels[]={TEXT("남은 적재율"),TEXT("남은 부피 · 모의"),TEXT("최고 높이"),TEXT("평균 높이"),TEXT("최저 높이"),TEXT("측정 불가 비율")};
     for(int32 I=0;I<6;++I)
-    {auto* C=Card(*FString::Printf(TEXT("Metric%d"),I),Style::Section());auto* B=WidgetTree->ConstructWidget<UVerticalBox>();C->SetContent(B);MetricValues.Add(Label(TEXT("—"),Style::TitleSize+Style::Gap,true,I==0?Style::Accent():Style::Text()));B->AddChildToVerticalBox(MetricValues.Last());B->AddChildToVerticalBox(Label(Labels[I],Style::LabelSize,false,Style::Muted()));auto* LayoutSlot=Metrics->AddChildToHorizontalBox(C);LayoutSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LayoutSlot->SetPadding(FMargin(I?Style::Gap:0,0,0,0));}
+    {auto* C=Card(*FString::Printf(TEXT("Metric%d"),I),Style::Section());C->SetToolTipText(FText::FromString(ShipHatchMetricPresentation::Source(I)));auto* B=WidgetTree->ConstructWidget<UVerticalBox>();C->SetContent(B);MetricValues.Add(Label(TEXT("—"),Style::TitleSize+Style::Gap,true,I==0?Style::Accent():Style::Text()));B->AddChildToVerticalBox(MetricValues.Last());B->AddChildToVerticalBox(Label(ShipHatchMetricPresentation::Caption(I),Style::LabelSize,false,Style::Muted()));auto* LayoutSlot=Metrics->AddChildToHorizontalBox(C);LayoutSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LayoutSlot->SetPadding(FMargin(I?Style::Gap:0,0,0,0));}
     auto* Toolbar=Card(TEXT("Hatch3dToolbar"));Add(Toolbar);auto* ToolsBox=WidgetTree->ConstructWidget<UVerticalBox>();Toolbar->SetContent(ToolsBox);
     auto* Modes=WidgetTree->ConstructWidget<UHorizontalBox>();ToolsBox->AddChildToVerticalBox(Modes);
     ViewButtons.Add(Button(TEXT("일반 3D"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnRender)));ViewButtons.Add(Button(TEXT("점군"),GET_FUNCTION_NAME_CHECKED(UShipHatchMonitorWidget,OnPoints)));for(auto B:ViewButtons)Modes->AddChildToHorizontalBox(B)->SetPadding(FMargin(0,0,Style::Gap,0));
@@ -264,7 +264,7 @@ void UShipHatchMonitorWidget::InvalidatePlots()
 void UShipHatchMonitorWidget::Layout()
 {
     if(LayoutSlots.Num()!=9)return;FVector2D Size=GetCachedGeometry().GetLocalSize();if(Size.X<100)Size=UWidgetLayoutLibrary::GetViewportSize(this)/UWidgetLayoutLibrary::GetViewportScale(this);if(Size.Equals(LastLayout,.1))return;LastLayout=Size;for(auto Value:MetricValues)Value->SetFont(Style::Font(Size.X<1500?Style::TitleSize:Style::TitleSize+Style::Gap,FontScale,true));
-    const double Gap=Style::Gap,P=Style::PanelPadding,S=FontScale,Header=76*S,Metrics=72*S,Footer=60*S,DataTop=P+Header+Gap+Metrics+Gap,DataHeight=FMath::Max(120.,Size.Y-DataTop-P-Footer-Gap);
+    const double Gap=Style::Gap,P=Style::PanelPadding,S=FontScale,Header=76*S,Metrics=92*S,Footer=60*S,DataTop=P+Header+Gap+Metrics+Gap,DataHeight=FMath::Max(120.,Size.Y-DataTop-P-Footer-Gap);
     const double Width=Size.X-2*P,Left=bSplit?(Width-Gap)*.62:Width,Right=Width-Left-Gap,RightX=P+Left+Gap;
     auto Set=[&](int32 I,double X,double Y,double W,double H,bool Visible=true){auto* LayoutSlot=LayoutSlots[I].Get();LayoutSlot->SetPosition(FVector2D(X,Y));LayoutSlot->SetSize(FVector2D(W,H));LayoutSlot->Content->SetVisibility(Visible?ESlateVisibility::Visible:ESlateVisibility::Collapsed);};
     Set(1,P,P,Width,Header);Set(2,P,P+Header+Gap,Width,Metrics);const bool Scene=bSplit||ActiveView<2;
