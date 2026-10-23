@@ -751,6 +751,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
 
+UXR-P2a는 감사 C03·D02~D05·T02~T03의 문구·표시 밀도를 기존 L3 UI와 순수 표시 adapter에서 정리한다. 코덱의 영문 필드명·비트/순서/크기·대역폭 계산·전송 분주·저장값·DTCore·기존 열기 경로는 유지한다. layer/allowlist **0→0**이며 순수 로직/문구 자동화 5개를 추가했다. 병렬 worktree에서는 Editor·빌드·RHI·직접 UI·성능을 실행하지 않았으며, [결과·직렬 검증 목록](Saved/Reports/UXR-P2a/RESULT.md)과 result.json의 실제 gate를 따른다.
+
 UXR-P1은 기존 L3 소유 UI·Host와 순수 표시 helper만 변경한다. Workspace의 읽기 전용 점유 사각형과 기존 열기/해결 이동을 사용하며 새 위젯 관리자·DTCore adapter·모듈·자산·저장 형식 변경 없이 layer/allowlist **0→0**이다. 빌드·RHI·직접 UI·성능 통과를 뜻하지 않는다.
 
 PCD-BANDWIDTH-01은 L1 공용 PCD 코덱·전송 옵션/분주와 L2 수신·재생 adapter, L3 기존 소유 데이터 패널·v6 설정을 확장한다. DTCore·모듈·자산·저장 슬롯 변경 없이 layer/allowlist 0→0을 검증한다. 파일 저장은 Full binary를 유지한다.
