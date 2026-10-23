@@ -58,7 +58,7 @@ function Get-Verdict([string]$RunFolder, [double]$Threshold) {
             $ratios = @($data.sensors | ForEach-Object { if ($null -eq $_.acquisition_ratio) { [double]::NaN } else { [double]$_.acquisition_ratio } })
             $finitePositive = $finitePositive -and $ratios.Count -eq 3
         }
-        [PSCustomObject]@{ Condition = $condition; Revision = $revision; Valid = [bool]$data.valid -and $finitePositive -and $slotValid; Fps = $metrics[0]; P95 = $metrics[1]; GameThread = $metrics[2]; File = $_.Name; AcquisitionRatios = $ratios }
+        [PSCustomObject]@{ Condition = $condition; Revision = $revision; Valid = [bool]$data.valid -and $finitePositive -and $slotValid; Fps = $metrics[0]; P95 = $metrics[1]; GameThread = $metrics[2]; Gpu = [double]$data.gpu_frame_mean_ms; Rss = [double]$data.rss_bytes; File = $_.Name; AcquisitionRatios = $ratios }
     })
     if ($rows.Count -eq 0) { throw "No ABAB run JSON in $RunFolder" }
     $conditions = foreach ($group in ($rows | Group-Object Condition)) {

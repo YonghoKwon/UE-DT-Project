@@ -28,6 +28,9 @@ struct FSensorRtRequest
 {
     TArray<FSensorRtMesh> Meshes;
     TArray<FSensorRtRay> Rays;
+    /** Optional RT notification. Enqueue CPU work only; no UObject access or waits.
+     * Called once on terminal readback/failure, omitted on cancellation. */
+    TFunction<void(TArray<FSensorRtHit>&&, const FString&)> OnReadback;
 };
 class MA0T10_DTBOOTSTRAP_API ISensorRtScan
 {

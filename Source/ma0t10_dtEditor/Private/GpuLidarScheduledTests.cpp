@@ -106,7 +106,11 @@ public:
             {
                 A->StopSensor();if(I>=SensorCount)continue;
                 auto* Scan=A->ScanComponent.Get();if(OS1)Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::OusterOS1_64_Rev05);
-                Scan->AcquisitionBackend=FParse::Param(FCommandLine::Get(),TEXT("GpuLidarCpu"))?EVirtualLidarAcquisitionBackend::AccurateCpuTrace:EVirtualLidarAcquisitionBackend::Auto;Scan->ScanInterval=.05f;if(FParse::Param(FCommandLine::Get(),TEXT("GpuLidarTimingTrace")))Scan->StartTimingTraceForTests();A->StartSensor();Sensors.Add(A);
+                Scan->AcquisitionBackend=FParse::Param(FCommandLine::Get(),TEXT("GpuLidarCpu"))?EVirtualLidarAcquisitionBackend::AccurateCpuTrace:EVirtualLidarAcquisitionBackend::Auto;Scan->ScanInterval=.05f;
+#if defined(MA0T10_LIDAR_TIMING_TRACE_AVAILABLE)
+                if(FParse::Param(FCommandLine::Get(),TEXT("GpuLidarTimingTrace")))Scan->StartTimingTraceForTests();
+#endif
+                A->StartSensor();Sensors.Add(A);
             }
             if(!Test->TestEqual(TEXT("requested sensor count is present"),Sensors.Num(),SensorCount))return true;
             Baselines.Init(0,Sensors.Num());
@@ -140,7 +144,7 @@ public:
         const bool ReferenceRun=FParse::Param(FCommandLine::Get(),TEXT("GpuLidarReferenceRun"));
         bool AcquisitionRatioPass=true;
         auto R=MakeShared<FJsonObject>();
-        R->SetStringField(TEXT("acquisition_gate"),TEXT("completed Hz / requested Hz >=0.95 for every sensor; ABAB relative gate evaluated by run_perf_abab.ps1"));
+        R->SetStringField(TEXT("acquisition_gate"),TEXT("completed Hz / requested Hz >=0.99 for every sensor; ABAB relative gate evaluated by run_perf_abab.ps1"));
         R->SetBoolField(TEXT("reference_run"),ReferenceRun);
         R->SetNumberField(TEXT("average_fps"),1000/FMath::Max(.001,Average(Engine)));
         R->SetNumberField(TEXT("measurement_seconds"),FMath::Clamp(MeasurementSeconds,30.0,120.0));
@@ -174,10 +178,12 @@ public:
             const double Ratio=Hz/RequestedHz;
             Row->SetNumberField(TEXT("requested_hz"),RequestedHz);Row->SetNumberField(TEXT("acquisition_ratio"),Ratio);
             Row->SetNumberField(TEXT("missed_requested_slots"),Status.DeadlineMissCount-MissedSlotBaselines[I]);
-            AcquisitionRatioPass&=Ratio>=.95;
-            if(!ReferenceRun)Test->TestTrue(FString::Printf(TEXT("sensor %d acquisition/requested Hz >=0.95 (%.6f)"),I,Ratio),Ratio>=.95);
+            AcquisitionRatioPass&=Ratio>=.99;
+            if(!ReferenceRun)Test->TestTrue(FString::Printf(TEXT("sensor %d acquisition/requested Hz >=0.99 (%.6f)"),I,Ratio),Ratio>=.99);
             if(!Operating)Test->TestEqual(TEXT("active acquisition uses selected collision tracing"),Scan->GetActiveAcquisitionBackend(),FParse::Param(FCommandLine::Get(),TEXT("GpuLidarCpu"))?EVirtualLidarAcquisitionBackend::AccurateCpuTrace:EVirtualLidarAcquisitionBackend::HardwareRayTracing);
             if(!Operating)Test->TestTrue(FString::Printf(TEXT("sensor %d completed acquisition >=10Hz"),I),Hz>=10);
+            if(!ReferenceRun&&!Operating&&!OS1&&SensorCount==3&&MeasurementSeconds>=90)
+                Test->TestTrue(TEXT("90s20Hz request target >=19.9Hz and ratio >=0.995"),Hz>=19.9&&Ratio>=.995);
             if(!Operating&&!OS1&&Scan->DeviceProfile==EVirtualLidarDeviceProfile::OusterOS1_64_Rev7)
             {
                 // Preserve both old assertions verbatim as legacy reference. Gate on
@@ -256,6 +262,7 @@ public:
                     Test->TestEqual(TEXT("default Rev7x3 has no budget warnings during measurement"),PcdBudgetWarningSamples,0);
                 }
             }
+#if defined(MA0T10_LIDAR_TIMING_TRACE_AVAILABLE)
             if(Scan->bTimingTraceForTests)
             {
                 FString TraceOutput;
@@ -269,6 +276,7 @@ public:
                     Test->TestTrue(TEXT("bounded timing trace written"),FFileHelper::SaveStringToFile(Csv,*(TraceOutput+TEXT(".")+Scan->SensorId+TEXT(".timing.csv")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
                 }
             }
+#endif
             AActor* Actor=Sensors[I].Get();if(Actor)Sensors[I]->StopSensor();
         }
         if(PcdPublisher.IsValid())PcdPublisher->OnPcdEncoded.Remove(EncodeHandle);

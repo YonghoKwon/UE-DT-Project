@@ -5,6 +5,7 @@
 #include "Async/Async.h"
 #include "Async/ParallelFor.h"
 #include "Misc/ScopeLock.h"
+#include "HAL/IConsoleManager.h"
 #include <atomic>
 #include <memory>
 
@@ -52,11 +53,14 @@ struct FVirtualLidarSceneQueryJob
  TArray<FVirtualLidarPoint> WorkerPoints;
  TSharedPtr<TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe> PointLease;
  TArray<uint8> RequiresResolve;
- bool bWorkerNormalize=false,WorkerStarted=false,bRollingTimestamps=false,bMultiEcho=false;
+ bool bWorkerNormalize=false,bReadbackNormalize=false,bRollingTimestamps=false,bMultiEcho=false;
+ std::atomic<bool> WorkerStarted{false},ReadbackFailed{false};
+ FString ReadbackFailure;
  float Interval=0;
  std::atomic<bool> WorkerReady{false};
 #if WITH_DEV_AUTOMATION_TESTS
  std::atomic<double> NormalizeFinished{0};
+ std::atomic<double> ReadbackCopied{0};
 #endif
  ~FVirtualLidarSceneQueryJob(){if(PointLease)*PointLease=MoveTemp(WorkerPoints);}
 
@@ -68,6 +72,8 @@ struct FVirtualLidarSceneQueryJob
 };
 namespace
 {
+TAutoConsoleVariable<int32> CVarLidarReadbackNormalize(TEXT("ma0t10.LidarReadbackNormalize"),1,
+ TEXT("Start bounded CPU normalization directly after HWRT readback.0 retains legacy GT polling."));
 void InitializeWorkerPoint(const FVirtualLidarSceneQueryJob& J,int I,FVirtualLidarPoint& P,FVector& Direction,float& Range)
 {
  const int Row=I/J.Width,Col=I%J.Width;
@@ -154,7 +160,25 @@ void UVirtualLidarScanComponent::BeginSceneQueryBatch()
     const float Range=J->Profile==EVirtualLidarDeviceProfile::HesaiXT32&&(Row<8||Row>=24)?FMath::Min(J->Range,5000.f):J->Range;
     Request.Rays[I]={FVector3f(Origin),Range,FVector3f(J->Pose.TransformVectorNoScale(Local).GetSafeNormal()),0};
    }
+   if(J->bWorkerNormalize&&CVarLidarReadbackNormalize.GetValueOnGameThread()!=0)
+   {
+    // Reserve the same single job/point lease before publishing to the RT.
+    J->bReadbackNormalize=true;J->PointLease=MoveTemp(ScenePointLease);J->WorkerPoints=MoveTemp(ScheduledPoints);
+    Request.OnReadback=[J](TArray<FSensorRtHit>&& Hits,const FString& Error)
+    {
+     if(J->Cancelled.load(std::memory_order_acquire))return;
+     if(!Error.IsEmpty()||Hits.Num()!=J->Width*J->Height)
+     {J->ReadbackFailure=Error.IsEmpty()?TEXT("HWRT hit count differs"):Error;J->ReadbackFailed.store(true,std::memory_order_release);return;}
+#if WITH_DEV_AUTOMATION_TESTS
+     J->ReadbackCopied.store(FPlatformTime::Seconds(),std::memory_order_relaxed);
+#endif
+     J->Buffer->Busy.store(true,std::memory_order_release);J->WorkerStarted.store(true,std::memory_order_release);
+     Async(EAsyncExecution::ThreadPool,[J,Hits=MoveTemp(Hits)]() mutable {NormalizeHardware(J,MoveTemp(Hits));});
+    };
+   }
    J->GpuSubmitted=FPlatformTime::Seconds();J->GpuScan=SensorOwnedRayTracing::Submit(MoveTemp(Request));
+   if(!J->GpuScan&&J->bReadbackNormalize)
+   {ScenePointLease=MoveTemp(J->PointLease);ScheduledPoints=MoveTemp(J->WorkerPoints);J->bReadbackNormalize=false;}
   }
   if(J->GpuScan){RuntimeStatus.ActiveAcquisitionBackend=TEXT("hardware_ray_tracing");RuntimeStatus.AcquisitionBackendMessage=TEXT("GPU 광선 측정 · 비동기 결과 처리");}
   else {ActiveAcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;HardwareSurfaceIdentities.Reset();RuntimeStatus.AcquisitionBackendMessage=TEXT("GPU 측정 준비 또는 작업 한도를 사용할 수 없어 CPU로 측정합니다.");}
@@ -166,6 +190,22 @@ bool UVirtualLidarScanComponent::PollSceneQueryBatch()
  auto J=SceneQueryJob;if(!J)return true;
  if(J->Generation!=ScheduledGeneration||J->Cancelled.load(std::memory_order_acquire))return false;
  if(J->ReadyRays.load(std::memory_order_acquire)>ScheduledNextRayIndex)return true;
+ if(J->bReadbackNormalize)
+ {
+  if(J->ReadbackFailed.load(std::memory_order_acquire))
+  {
+   RuntimeStatus.AcquisitionBackendMessage=TEXT("GPU readback failed; CPU fallback: ")+J->ReadbackFailure;
+   ActiveAcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;RuntimeStatus.ActiveAcquisitionBackend=TEXT("snapshot_cpu_bvh");
+   ScenePointLease=MoveTemp(J->PointLease);ScheduledPoints=MoveTemp(J->WorkerPoints);J->GpuScan.Reset();J->bReadbackNormalize=false;
+  }
+  else
+  {
+   if(J->WorkerReady.load(std::memory_order_acquire)){J->ReadyRays.store(J->Width*J->Height,std::memory_order_release);return true;}
+   // Drive the existing nonblocking RT poll until it has dispatched the worker.
+   if(!J->WorkerStarted.load(std::memory_order_acquire)){TArray<FSensorRtHit> Unused;FString Error;J->GpuScan->Poll(Unused,Error);}
+   return false;
+  }
+ }
  if(J->WorkerStarted)
  {
   if(!J->WorkerReady.load(std::memory_order_acquire))return false;
@@ -302,7 +342,11 @@ int32 UVirtualLidarScanComponent::CompleteHardwareNormalizedFrame()
 {
  auto J=SceneQueryJob;if(!J||!J->WorkerStarted||!J->WorkerReady.load(std::memory_order_acquire))return -1;
 #if WITH_DEV_AUTOMATION_TESTS
- if(bTimingTraceForTests)ActiveTimingSampleForTests.Normalized=J->NormalizeFinished.load(std::memory_order_relaxed);
+ if(bTimingTraceForTests)
+ {
+  ActiveTimingSampleForTests.Normalized=J->NormalizeFinished.load(std::memory_order_relaxed);
+  if(J->bReadbackNormalize){ActiveTimingSampleForTests.ReadbackObserved=J->ReadbackCopied.load(std::memory_order_relaxed);ActiveTimingSampleForTests.ReadbackFrame=GFrameCounter;}
+ }
 #endif
  const double Started=FPlatformTime::Seconds();ScheduledPoints=MoveTemp(J->WorkerPoints);ScenePointLease=MoveTemp(J->PointLease);
  TMap<FName,int32> Counts;ScheduledHitPointCount=0;ScheduledSemanticCounts.Reset();

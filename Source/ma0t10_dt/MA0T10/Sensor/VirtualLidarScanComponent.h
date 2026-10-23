@@ -28,6 +28,7 @@ struct FVirtualLidarSceneQueryBuffer;
 struct FVirtualLidarSceneQueryJob;
 struct FVirtualLidarScenePointPool;
 #if WITH_DEV_AUTOMATION_TESTS
+#define MA0T10_LIDAR_TIMING_TRACE_AVAILABLE 1
 struct FVirtualLidarTimingSample
 {
     int64 FrameId=0;

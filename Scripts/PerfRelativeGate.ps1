@@ -36,17 +36,32 @@ function Get-PerfRelativeComparison {
             $ratios = @($row.AcquisitionRatios)
             if (!$ratios.Count) { $failures += "missing acquisition ratios: $($row.File)" }
             foreach ($ratio in $ratios) {
-                if ($null -eq $ratio -or [double]::IsNaN([double]$ratio) -or [double]::IsInfinity([double]$ratio) -or [double]$ratio -lt .95) {
-                    $failures += "acquisition/requested Hz ratio below0.95 or invalid: $($row.File)"
+                if ($null -eq $ratio -or [double]::IsNaN([double]$ratio) -or [double]::IsInfinity([double]$ratio) -or [double]$ratio -lt .99) {
+                    $failures += "acquisition/requested Hz ratio below0.99 or invalid: $($row.File)"
                 }
             }
         }
+    }
+    $gpuA=$null; $gpuB=$null; $gpuRise=$null; $rssA=$null; $rssB=$null; $rssRise=$null
+    if ($RequireAcquisitionRatio) {
+        foreach ($row in @($A)+@($B)) {
+            foreach ($key in 'Gpu','Rss') {
+                $value=[double]$row.$key
+                if ([double]::IsNaN($value) -or [double]::IsInfinity($value) -or $value -le 0) { $failures += "invalid $key metric: $($row.File)" }
+            }
+        }
+        $gpuA=Median @($A | ForEach-Object Gpu); $gpuB=Median @($B | ForEach-Object Gpu)
+        $rssA=Median @($A | ForEach-Object Rss); $rssB=Median @($B | ForEach-Object Rss)
+        if ($gpuA -gt 0) {$gpuRise=($gpuB-$gpuA)/$gpuA*100; if($gpuRise -gt $Threshold){$failures+='GPU mean regression exceeds threshold'}}
+        if ($rssA -gt 0) {$rssRise=($rssB-$rssA)/$rssA*100; if($rssRise -gt $Threshold){$failures+='RSS regression exceeds threshold'}}
     }
     [PSCustomObject][ordered]@{
         SamplesPerRevision = $A.Count
         FpsA = $fpsA; FpsB = $fpsB; FpsDropPercent = $fpsDrop
         EngineP95A = $p95A; EngineP95B = $p95B; EngineP95RisePercent = $p95Rise
         GameThreadA = $gtA; GameThreadB = $gtB; GameThreadRisePercent = $gtRise
+        GpuMeanA=$gpuA; GpuMeanB=$gpuB; GpuRisePercent=$gpuRise
+        RssA=$rssA; RssB=$rssB; RssRisePercent=$rssRise
         Pass = ($failures.Count -eq 0); Failures = @($failures)
     }
 }

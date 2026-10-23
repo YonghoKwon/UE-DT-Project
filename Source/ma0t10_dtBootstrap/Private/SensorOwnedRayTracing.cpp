@@ -125,7 +125,8 @@ public:
     {
         if(Cancelled.exchange(true)||Finished.load(std::memory_order_acquire))return;
         auto Self=AsShared();
-        ENQUEUE_RENDER_COMMAND(RetireSensorRt)([Self](FRHICommandListImmediate& Cmd){RetiredScans.AddUnique(Self);});
+        ENQUEUE_RENDER_COMMAND(RetireSensorRt)([Self](FRHICommandListImmediate& Cmd)
+        {Self->Request.OnReadback=nullptr;RetiredScans.AddUnique(Self);});
     }
     bool CanRetire() const
     {
@@ -135,7 +136,13 @@ public:
         return true;
 #endif
     }
-    void Fail(const TCHAR* Reason){Failure=Reason;Finished.store(true,std::memory_order_release);}
+    void Complete()
+    {
+        auto Notify=MoveTemp(Request.OnReadback);
+        if(Notify&&!Cancelled.load(std::memory_order_acquire))Notify(MoveTemp(Hits),Failure);
+        Finished.store(true,std::memory_order_release);
+    }
+    void Fail(const TCHAR* Reason){Failure=Reason;Complete();}
     bool Poll(TArray<FSensorRtHit>& Out,FString& Error) override
     {
         if(Finished.load(std::memory_order_acquire)){Out=MoveTemp(Hits);Error=Failure;return true;}
@@ -145,7 +152,7 @@ public:
             auto Self=AsShared();
             ENQUEUE_RENDER_COMMAND(PollSensorRt)([Self](FRHICommandListImmediate& Cmd)
             {
-                if(Self->Readback&&Self->Readback->IsReady())
+                if(!Self->Finished.load(std::memory_order_acquire)&&Self->Readback&&Self->Readback->IsReady())
                 {
                     const uint32 Bytes=Self->Request.Rays.Num()*sizeof(FSensorRtHit);
                     if(!Self->Cancelled.load())
@@ -154,7 +161,7 @@ public:
                         if(Data){Self->Hits.SetNumUninitialized(Self->Request.Rays.Num());FMemory::Memcpy(Self->Hits.GetData(),Data,Bytes);Self->Readback->Unlock();}
                         else Self->Failure=TEXT("GPU readback lock failed");
                     }
-                    Self->Finished.store(true,std::memory_order_release);
+                    Self->Complete();
                 }
                 Self->PollQueued.store(false,std::memory_order_release);
             });
