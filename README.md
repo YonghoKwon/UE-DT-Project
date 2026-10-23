@@ -18,6 +18,44 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### ANALYSIS-24 — 게임 실행의 Slab 의미 분류
+
+private semantic scene은 Editor에서는 기존 EditorPreview, `-game`/패키지에서는 GamePreview로 구성한다. cooked 게임에서 PSO 준비 중 실제 proxy가 없는 첫 pass는 완료로 발행하지 않고, 동결한 geometry/identity를 유지해 기존 Poll에서 준비 완료 뒤 한 번 렌더한다. LiDAR main depth와 Camera RGB/depth는 원래 요청의 데이터를 보존하며 Tag·분류 규칙·1cm 대응 기준·PCD 33B/라벨 5B는 유지한다. 명시적 `-LidarSemanticDiagnostics`의 센서·backend별 1회 요약과 `Scripts/audit_lidar_semantics.py --expect-backend 2 --require-slab`로 실제 파일을 대조한다. [직렬 원인 분석·재현](docs/research/ANALYSIS-24-22-serial.md), [실행별 최종 결과·제한](Saved/Reports/ANALYSIS-24-22/RESULT.md)을 따른다.
+
+Runtime `5bf813a`에서 Editor/Development/Shipping 빌드, 관련 D3D12 13개·Python 감사 5개·quick9·layer/guard를 확인했다. 실제 Development/Shipping은 GT-off/on 각3장면 모두 backend2 named Slab1,800점이며 GT-on Camera class2 mask도 각19,257pixels다. Development backend3은 별도3장면 각1,792점으로 확인했다. package 12장면의 PCD body는 기준과 바이트 동일했다. 개인353/보호753파일을 복원·보존하고 package 바이너리는 정리했다. 표준 ABAB·Shipping backend3·#22 직접 UI·회사/소비자 수용은 이 통과에 포함하지 않는다.
+
+독립 리뷰 R1 `cfa61f9`는 semantic PSO 유예1초 초과를 깊이 프레임 미분류 완료로 바꾸고 지속 pending의 프레임별 재대기를 없앴다. 준비 후 현재 snapshot 라벨은 자동 복구한다. pending poll의 world flush도 준비 후 필요한1회로 줄였다. Development/Shipping GT-off/on12장면이 다시 모두 Slab1,800점이며 Camera GT6장면도 각19,257pixels다. startup Error22줄은 수정 전에도 발생한 UE5.3 D3D12 SwapChain4 handled ensure1건의 헤더·스택·빈 줄로 분류했다. 이 R1 시점의 성능 미수행은 아래 재개 단계에서 해소했다.
+
+성능 재개 `7e6e04d`는 `fd5fac1`을 병합했고 README/검증 이력 양쪽 내용을 보존했다. RT on·1920×1080 visible 표준 ABAB12회에서 FPS 저하0.00498%·p95 증가0%·Game Thread 변화-0.03468%로2% gate PASS다. 기본 Rev7×3은90.0063초에 각1,800프레임/19.998605Hz, 요청 비율0.999930, 슬롯 하한1,799를 통과했다. Camera GT on의 동일 메인 off 대조 비용은 Game Thread +1.050ms(+20.61%,1회 관측)다. 현재 Editor 빌드·관련21개·Python5·quick9·layer/guard PASS, 개인 설정372개·보호753개를 복원·대조했다. 현재 SHA의 native 패키징·전체 release·직접 마우스/현장 수용은 별도다. [재개 결과](Saved/Reports/ANALYSIS-24-22/RESULT.md)를 따른다.
+
+GT-on 추가 독립 비교에서는 기존 GT-off ABAB 통과만으로 충분하지 않았다. `0bd709c`는 기존 Perf01/verify에 GT-on·Rev7/HWRT 조건과 GPU2% 판정을 추가했다. fd5fac1 대비 각6회 동일조건 ABAB는 최초 GPU+4.275530%로 실패했다. ready 경로 최소 수정 `9aed4ee` 뒤에도 GPU 7.372320→7.547837ms(+2.380760%)로 **2%FAIL**이며 FPS저하0.001464%·p95증가0%·GameThread변화-0.057428%는 통과했다. 지시에 따라 추가 수정/측정을 중단하고 성능 미달로 merge를 차단한다. 원본24valid·수정소스15RHI 통과·개인372/보호753복원은 [최신 RESULT](Saved/Reports/ANALYSIS-24-22/RESULT.md)를 따른다.
+
+### UXR-H150 — 해치 150% 표시 공간 확보, 독립 검수 대기
+
+해치 모니터의 보조 시점·보기 설정·원료/센서 선택을 기존 인스턴스 그대로 `시점 · 더보기` 드로어로 옮겼다. 지표 카드 여백을 줄이고 숫자를 기본 제목 크기로 맞췄으며, 우측 `홀드 단면 펼치기`로 기존 단면을 열며 접으면 히트맵 공간을 복원한다. 계산·센서·저장값·DTCore·코일 월드는 유지한다.
+
+100/150%×1280×720/1920×1080 실제 D3D12 geometry·PNG에서 기본 접힌 화면의 3D 높이≥45%, 히트맵 실제 plot 폭/우측 카드 폭≥60%를 확인했다. 관련12종(해상도별 총14회)·WBP7 메모리 compile·Editor/Game Development·quick9·layer0→0·guard를 검증했다. 직접 점검·접힌 화면의 비율·단면 펼침 시 공간 공유·초기 실패와 미수행은 [결과](Saved/Reports/UXR-H150/RESULT.md)를 따른다. 브라우저 실행 중이므로 사용자 지시대로 성능 측정을 생략했다.
+
+### UXR-P2b — 글자·해치 보기 직렬 UI 검증, 현장 수용 대기
+
+C02/H01/H03/H04의 동적 행 배율·시점 줄바꿈/접기·한국어 역할/TF·미관측 설명을 정리했다. 직렬 검수에서 배지의 실제 필요 높이와 정지 시 마지막 획득 Hz 표시를 보완했다. 계산·센서 좌표·정책·저장값·DTCore·코일 Slab capability 경계는 유지한다. C04는 이용 빈도 근거가 없어 [문서 제안](docs/research/UXR-P2b/C04-proposal.md)만 유지했다.
+
+코드 `4887653`에서 UE5.3 Development 빌드, 관련22개(신규 단위5 포함), 두 client의 캡처 각2개 및150% anchor 각1개가 모두 Success/0 Fail/0 Skip이다. 실제 D3D12/HWRT·client1280×720/1920×1080·앱 글자100/150% PNG64장/공유1600px JPG64장과 직접 Computer Use4세션35행을 분리했다. WBP7 메모리 compile·quick9·layer/allowlist0→0·guard, 개인 설정43개 복원·보호 해시297개 일치를 확인했다. 성능은 이번 지시의 UI 전용 예외로 생략했으며 전체 release·OS DPI150%·현장 수용은 별도다. [결과·실패 이력·증거 한계](Saved/Reports/UXR-P2b/RESULT.md)를 따른다.
+
+### UXR-P1/P2a — 운전원 표시 개선·직렬 UI 검증
+
+T01/C01/H02/D01과 C03·D02~D05·T02~T03을 기존 L3 UI에서 구현했다. 코일 패널은 소유 센서 도구의 점유 영역을 피하고, 위험·주의 옆에 미확인 사유 수를 표시한다. 해치 지표의 모의/측정 출처, 한국어 운전원 용어·수치별 단위, 짧은 PCD 안내·프레임 전송 간격·추정/실측 대역폭 표시를 적용했다. Slab 기능이 꺼진 월드의 데이터 패널은 수동 송신 점검을 사용하며 신규/재생 카드와 시나리오 경고를 표시하지 않는다. Slab 월드의 기존 흐름, 일반 PCD·파일 저장·기본 정책·저장값·DTCore는 유지한다.
+
+`fe7dda7`에서 관련 UI/RHI 묶음 **28 Success / 0 Fail / 2 opt-in skip**, 별도 두 해상도의 캡처 테스트 **각 3 Success / 0 Fail / 0 Skip**, WBP7 메모리 컴파일·quick9·layer/allowlist0→0·DTCore guard를 확인했다. P1 4개+P2a 5개와 Slab capability 회귀는 실제 실행됐다. 실제 client 1280×720/1920×1080·글자100/150% PNG40장과 공유 JPG40장, 직접 클릭 결과를 분리해 남겼다. 개인 설정43개와 보호 해시297개를 보존했다. 성능은 사용자 승인 UI 전용 예외로 생략했으며 현장 수용·전체 MA0T10 release 통과를 뜻하지 않는다. [현재 결과](Saved/Reports/UXR-P1P2a/RESULT.md), [검증 이력](docs/VALIDATION_HISTORY.md), [감사 범위](docs/research/UXR-AUDIT-1023/RESULT.md)를 따른다.
+
+### LIDAR-WALLCLOCK-28b — wall-clock 획득·직렬 검증
+
+`9588c25`의 1920×1080 visible/D3D12·RT on·OS1-64 Rev7 3대·Full+LZF+1/1에서 센서별 최소 19.994257Hz(요청 대비 0.999712881)를 기록했다. 90초 ABAB×3(A6/B6)는 FPS +2.3469%·engine p95 -12.0994%·GT -29.0969%·GPU 시간 +1.3085%·RSS -0.0034%로 각2% 기준을 통과했다. 같은 SHA의 전체 release 415 Success/41 조건부 skip/0 Fail, 표준 RT on ABAB(FPS -0.0003%·p95 +0.0000%·GT -0.6244%)가 통과했다. skip을 실제 RHI 통과로 세지 않는다.
+
+기존95% 교체는 폐기했다. 새99%·90초19.9Hz/.995 목표에 `ceil(요청Hz×wall초)−2` 완료 하한을 추가해 경계2회 허용을 유지하며 강화했다. 후보18개 센서·실행에서 새 하한≥legacy 하한·실제 완료≥새 하한을 확인했고 legacy assertion은 참고값으로 보존했다. CPU FullSpec 3대의 20Hz 요청 실측 9.911/9.922/10.255Hz는 용량 한계로 기록하며20Hz PASS가 아니다. 기존 모니터는 요청 측정률 미달을5초 완료 횟수로 경고한다. 1/4 분주에서는 자동 송신 제어 생략1회를 획득 누락·설정 분주와 따로 기록했다. [설계·같은 실행 비교표·검증·제한](Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md).
+
+Independent review rework (`10aba1d`): start/stop/restart/rate changes now rebalance every affected equal-rate cohort by SensorId rank/count from the next slot. Original delayed-acquisition counters are preserved; `ExpiredCadenceSlotCount` reports expired slots separately. Sequential-start90s visible RHI: all3 completed1800 frames at19.997992Hz,0expired slots; minimum phase gap0.333333308; multi-admission frames5.851659% (peak2). Related7/0/0 and quick/layer/guard passed. New slot minimum1799 exceeds same-run legacy1786. ABAB was skipped under the explicit review exception: initial simultaneous deadlines/admissions are unchanged in the90s regression. Earlier9588c25 release/perf results above retain their original scope.
+
 ### PCD-BANDWIDTH-01 — 전송 용량 옵션·기본 LZF 적용
 
 Full/Compact/Minimal/Custom·필드 체크·LZF·1/1·1/2·1/4를 LiDAR별/일괄 적용하고 기존 v6 설정을 보존한다. 사용자 결정대로 Full+LZF On+1/1을 유지하며 파일 저장은 Full+binary다. 압축 체크박스 옆과 툴팁에 PCL·프로젝트 수신기·ROS2 브리지 호환 및 자체 서버 압축 해제 지원 확인 안내를 표시한다. 전송 중에는 최근 1초 실제 PCD body 바이트·Hz·payload 압축 절감률과 실측 예산 %를 우선 표시하고, 미전송 상태에서만 **최대 추정**을 표시한다.
@@ -747,6 +785,16 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
 
+UXR-H150은 기존 L3 해치 Widget 내부의 재배치·접기·분할 비율만 바꾼다. layer/allowlist **0→0**, 기존 UDxWidget·selector·분석 인스턴스·L1/L2·DTCore·wire·저장 형식 변경 없음. [검증과 제한](Saved/Reports/UXR-H150/RESULT.md).
+
+DUAL-CAMERA-22는 기존 L3 Monitor에서 주 정답 영상 미준비 시 보조 RGB brush 갱신이 차단되는 조기 반환을 제거했다. 새 회귀는 Editor 모듈과 테스트 전용 friend만 사용하며 layer/allowlist **0→0**, 새 모듈·자산·DTCore·wire·저장 형식 변경은 없다. [기능 검증·직접 점검·성능 미수행](Saved/Reports/DUAL-CAMERA-22/RESULT.md)을 구분한다.
+
+UXR-P2b는 L3 코일/해치 표시와 순수 역할·라벨 배치 helper를 사용한다. 기존 UDxWidget/selector 인스턴스·계산·wire·저장 형식은 유지한다. 배지 높이와 정지 시 캐시 Hz 출처를 보완했고 layer/allowlist **0→0**이다. 코드4887653의 빌드·신규5/관련 UI/RHI·100/150% 캡처·직접 점검, UI 성능 생략 예외와 남은 수용 범위는 [직렬 결과](Saved/Reports/UXR-P2b/RESULT.md)를 따른다.
+
+UXR-P2a는 감사 C03·D02~D05·T02~T03의 문구·표시 밀도를 기존 L3 UI와 순수 표시 adapter에서 정리한다. 코덱의 영문 필드명·비트/순서/크기·대역폭 계산·전송 분주·저장값·DTCore·기존 열기 경로는 유지한다. layer/allowlist **0→0**이며 순수 로직/문구 자동화 5개를 추가했다. 병렬 구현 뒤 메인에서 직렬 빌드·관련 UI/RHI·100/150% 캡처를 검증했다. Slab capability에 따른 표시/수동 점검 경계와 남은 수용 범위는 [직렬 결과](Saved/Reports/UXR-P1P2a/RESULT.md)를 따른다.
+
+UXR-P1은 기존 L3 소유 UI·Host와 순수 표시 helper만 변경한다. Workspace의 읽기 전용 점유 사각형과 기존 열기/해결 이동을 사용하며 새 위젯 관리자·DTCore adapter·모듈·자산·저장 형식 변경 없이 layer/allowlist **0→0**이다. 메인 직렬 단계의 빌드·UI/RHI·캡처 결과와 성능 생략 예외는 [직렬 결과](Saved/Reports/UXR-P1P2a/RESULT.md)를 따른다.
+
 PCD-BANDWIDTH-01은 L1 공용 PCD 코덱·전송 옵션/분주와 L2 수신·재생 adapter, L3 기존 소유 데이터 패널·v6 설정을 확장한다. DTCore·모듈·자산·저장 슬롯 변경 없이 layer/allowlist 0→0을 검증한다. 파일 저장은 Full binary를 유지한다.
 
 FOLLOWUP-28은 기존 L1 송신기/상태와 L3 소유 데이터 패널·상태바만 확장한다. 새 모듈·플러그인·자산·DTCore·wire·SaveGame 형식 변경 없이 layer/allowlist0→0이다.
@@ -834,7 +882,7 @@ AUTO-01은 기존 모듈의 L2 `Scenario/Automation`에서 하위 센서/출력�
 |---|---|
 | VirtualSensorActorBase / Camera·LiDAR Actor | 실행·편집 상태·interaction·외부 프레임 API(`SubmitExternalFrame`) |
 | Capture / Scan / Analysis / Visualization / Export | 측정과 파생 처리 분담 |
-| VirtualSensorSchedulerSubsystem | 자동 작업 분배; 센서 수 기반 60/30 FPS 예산은 지원 보증이 아님 |
+| VirtualSensorSchedulerSubsystem | 자동 작업 분배; LiDAR admission은 pause 제외 wall-clock grid·동일 주기 균등 위상·최대1회/프레임, CPU/HWRT 공통. 센서 수 기반 60/30 FPS 예산은 지원 보증이 아님 |
 | IVirtualSensorAcquisitionBackend | 기존 GPU LiDAR 경계; 아직 Camera/SDK 전체의 범용 확장 계약은 아님 |
 | Output / StreamPublisher / Transport / Recorder / HighThroughputTransport | 프레임 라우팅·직렬화·송수신·기록, Raw TCP STOMP worker |
 | FileSave / PeriodicFileSave | Widget 수명과 독립적인 bounded 파일 작업 |
@@ -1111,7 +1159,7 @@ HATCH-06 추가(사용자2026-10-21): 상단 **그랩 표시**는 기본 꺼짐�
 
 출처: 사용자 2026-10-21, 추가 바닥 노출·선박 형상·실제 크기 요구 포함. 구현 범위와 최종 검증 판정은 [RESULT](Saved/Reports/HATCH-06/RESULT.md)·[DONE](Saved/Reports/HATCH-06/DONE.md)를 따른다. 아래 HATCH-01~05의 수치/캡처는 각 당시 조건이며 HATCH-06 통과로 대신하지 않는다.
 
-기본 측정 구성은 사용자2026-10-21의 명시적 변경에 따라 **붐 끝 Hesai XT32 1대 + 운전실 Livox Mid-360S 2대**다. "현장 모델 확인 필요" 표기를 유지한다. 다른 맵의 센서 기본값은 바꾸지 않는다. 상단의 원료와 붐/좌/우 모델 선택은 즉시 새 획득을 준비하며 하단에 센서별 원료점 수·관측/미관측 비율을 표시한다. 미관측은 FOV·거리·구조 가림·샘플링·검출 누락을 포함한다. 설정은 왼쪽 접이식 드로어이고, 열었을 때 같은 플레이어 뷰를 남은 왼쪽 영역에 배치하므로 오른쪽 상면/단면 카드의 설정에 의한 가림은0px다. 상세 항목은 펼쳐 접근하고 상단 조작은 가로 스크롤한다. **원료 확대 / 하역기 전체 / 현장 조감 / 선박 전체 / 1.8m 기준물 / 수면 표시**로 구도·스케일·수중 선체를 확인한다. 기준물은 기본 꺼짐이며 측정 충돌/SceneCapture에서 제외한다.
+기본 측정 구성은 사용자2026-10-21의 명시적 변경에 따라 **붐 끝 Hesai XT32 1대 + 운전실 Livox Mid-360S 2대**다. "현장 모델 확인 필요" 표기를 유지한다. 다른 맵의 센서 기본값은 바꾸지 않는다. 상단의 원료와 붐/좌/우 모델 선택은 즉시 새 획득을 준비하며 하단에 센서별 원료점 수·관측/미관측 비율을 표시한다. 미관측은 FOV·거리·구조 가림·샘플링·검출 누락을 포함한다. 설정은 왼쪽 접이식 드로어이고, 열었을 때 같은 플레이어 뷰를 남은 왼쪽 영역에 배치하므로 오른쪽 상면/단면 카드의 설정에 의한 가림은0px다. 상세 항목은 펼쳐 접근한다. 상단 시점 버튼은 별도 행에서 줄바꿈하며 원료·센서 선택과 보기 설정은 접기 묶음이다. 세로로 넘친 조작은 같은 툴바 안에서 스크롤한다. **원료 확대 / 하역기 전체 / 현장 조감 / 선박 전체 / 1.8m 기준물 / 수면 표시**로 구도·스케일·수중 선체를 확인한다. 기준물은 기본 꺼짐이며 측정 충돌/SceneCapture에서 제외한다.
 
 선박은 **LOA292m·선폭47m·형심24.7m·흘수18.2m·해치9개**의 대표 케이프사이즈 비례다. 기존 홀드42.3×25.8×22.5m와 개구부20×23m는 유지한다. 선체 외판·선수 벌브·선미·닫힌 주변8개 해치·열린 대상 커버·거주구/연돌·난간/계류·안벽을 절차 생성하며 특정 선박 도면의 복제는 아니다. [한국선급의292×45×24.7m 제원](https://www.krs.co.kr/Eng/Exclusive/Ship_View.aspx?F_ClassNo=0967179&F_IMONo=9503201), [선사 공식292×45m·무크레인 구성](https://www.thenamaris.com/wp-content/uploads/2023/08/Bulk-carriers-List_-5.pdf)을 참고했다. 대상 홀드는 중앙의05다. 대상 연분홍 커버는 ±Y(해측/육측)로 수평 이동하며 주변8개 연분홍 커버는 닫혀 있다. 개구부23m와 양쪽11.5m 열린 패널 정차 여유를 위해 구성 선폭47m를 선택했으며 참고 선박의45m 복제가 아니다. 표준 등록선의 개구부와 기존 시험 개구부 치수는 서로 다르며 실제 선박/하역 성능 인증을 뜻하지 않는다.
 

@@ -1,5 +1,8 @@
-#include "IndustrialLidarProfiles.h"
 #include "VirtualLidarScanComponent.h"
+#include "HAL/IConsoleManager.h"
+#include "IndustrialLidarProfiles.h"
+#include "VirtualLidarSemanticDiagnostics.h"
+#include "Dom/JsonObject.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
 #include "Async/Async.h"
@@ -32,6 +35,12 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "Misc/Crc.h"
 #include <atomic>
+
+namespace
+{
+TAutoConsoleVariable<int32> CVarLidarPhaseSpread(TEXT("ma0t10.LidarPhaseSpread"),1,
+    TEXT("Even automatic same-rate LiDAR phases;0 retains hashed phases. Restart scans after changing."));
+}
 
 
 
@@ -231,8 +240,11 @@ void UVirtualLidarScanComponent::StartScan()
 {
     if (!GetWorld() || ScanInterval <= 0.0f) return;
     GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
-    NextScheduledScanTime = GetWorld()->GetTimeSeconds() + (GetTypeHash(SensorId) % 1000) / 1000.0 * FMath::Max(0.001f, ScanInterval);
-    bDeadlineMissRecordedForActiveAcquisition = false;
+    AutomaticCadenceStartedAt=FPlatformTime::Seconds();bAutomaticCadencePhasePending=true;
+    bAutomaticCadencePhaseEnabled=true;
+    ++AutomaticCadenceGeneration;
+    ScheduledCadence.Start(AutomaticCadenceStartedAt, ScanInterval, (GetTypeHash(SensorId) % 1000) / 1000.0);
+    bSingleScheduledScanRequested = false;
     if (!bRegisteredWithPerformanceSubsystem)
     {
         RuntimeStatus.LastAcquisitionProgressWorldSeconds = -1.0;
@@ -244,9 +256,11 @@ void UVirtualLidarScanComponent::StartScan()
 
 void UVirtualLidarScanComponent::RequestImmediateScheduledScan()
 {
-	if (NextScheduledScanTime >= 0.0 && GetWorld())
+	if (IsScanRunning() && GetWorld())
 	{
-		NextScheduledScanTime = GetWorld()->GetTimeSeconds();
+		ScheduledCadence.RequestImmediate(FPlatformTime::Seconds());
+		bAutomaticCadencePhasePending=false; // Explicit immediate/one-shot keeps its own grid.
+        bAutomaticCadencePhaseEnabled=false;
 	}
 }
 
@@ -417,6 +431,17 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
     for (const auto& Count : SemanticIdCounts)
         if (const auto* Identity = Frame.SemanticIdentities.Find(Count.Key))
             ScheduledSemanticCounts.FindOrAdd(Identity->Label.ToString()) += Count.Value;
+    if(Frame.Request.bRequestSemantics&&!bDepthSemanticDiagnosticIssued&&VirtualLidarSemanticDiagnostics::IsEnabled())
+    {
+        bDepthSemanticDiagnosticIssued=true;
+        auto Report=VirtualLidarSemanticDiagnostics::BuildDepthReport(Frame,GpuDepthPixelIndices,ScheduledPoints);
+        Report->SetBoolField(TEXT("semantic_classification_enabled"),bEnableSemanticClassification);
+        Report->SetBoolField(TEXT("dataset_semantic_demand"),bDatasetSemanticDemand);
+        Report->SetNumberField(TEXT("requested_backend"),int32(AcquisitionBackend));
+        Report->SetNumberField(TEXT("active_backend"),int32(ActiveAcquisitionBackend));
+        VirtualLidarSemanticDiagnostics::Persist(this,SensorId,FrameId+1,ScheduledGeneration,
+            TEXT("gpu_depth_projection"),TEXT("converted"),Report);
+    }
 }
 
 void UVirtualLidarScanComponent::EnsureGpuDepthBeamLookup(const FVirtualLidarDepthAcquisitionFrame& Frame)
@@ -491,14 +516,36 @@ void UVirtualLidarScanComponent::EnsureGpuDepthBeamLookup(const FVirtualLidarDep
     GpuDepthLookupVerticalCalibrationCount = VerticalCalibrationAnglesDegrees.Num();
 }
 
+bool UVirtualLidarScanComponent::UsesAutomaticCadencePhase() const
+{
+    return IsScanRunning() && bAutomaticCadencePhaseEnabled && !bSingleScheduledScanRequested
+        && CVarLidarPhaseSpread.GetValueOnGameThread()!=0 && FMath::IsFinite(ScanInterval) && ScanInterval>0;
+}
+
+void UVirtualLidarScanComponent::ApplyAutomaticCadencePhase(double WallSeconds, double Phase, bool bInitial)
+{
+    const double Interval=FMath::Max(.001,double(ScanInterval));
+    if(bInitial) ScheduledCadence.StartAligned(AutomaticCadenceStartedAt,Interval,Phase);
+    else ScheduledCadence.RephaseNextSlot(WallSeconds,Interval,Phase);
+    bAutomaticCadencePhasePending=false;
+}
+
 void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
 {
     TryStartPendingPayloadBuild();
 #if WITH_DEV_AUTOMATION_TESTS
     if(FreezeAcquisitionForTests)return;
 #endif
-    if (NextScheduledScanTime < 0.0) return;
+    if (!IsScanRunning()) return;
+    const double WallSeconds = FPlatformTime::Seconds();
+    if (GetWorld() && GetWorld()->IsPaused()) { ScheduledCadence.Suspend(WallSeconds); return; }
     const double SafeInterval = FMath::Max(0.001, static_cast<double>(ScanInterval));
+    if(bAutomaticCadencePhasePending)
+    {
+        if(auto* Scheduler=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>():nullptr)
+            Scheduler->RefreshLidarCadencePhases(WallSeconds);
+        bAutomaticCadencePhasePending=false;
+    }
     RuntimeStatus.RequestedAcquisitionRateHz = static_cast<float>(1.0 / SafeInterval);
     RuntimeStatus.RequestedAcquisitionBackend = AcquisitionBackend == EVirtualLidarAcquisitionBackend::Auto
         ? TEXT("auto")
@@ -508,24 +555,31 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
                 ? TEXT("hardware_ray_tracing")
                 : TEXT("accurate_cpu_trace")));
     const bool bAcquisitionInProgress = bScheduledScanInProgress || bGpuDepthScanInProgress;
-    if (bAcquisitionInProgress && NowSeconds >= NextScheduledScanTime)
+#if WITH_DEV_AUTOMATION_TESTS
+    const double TraceDue=ScheduledCadence.GetNextDue();
+    if(bTimingTraceForTests&&bAcquisitionInProgress&&WallSeconds>=TraceDue&&ActiveTimingSampleForTests.LastBusyFrame!=GFrameCounter)
+    {++ActiveTimingSampleForTests.DueBusyFrames;ActiveTimingSampleForTests.LastBusyFrame=GFrameCounter;}
+#endif
+    const auto Decision = ScheduledCadence.Poll(WallSeconds, SafeInterval, GFrameCounter, bAcquisitionInProgress);
+    // Keep the original per-active-acquisition semantics, independently of how
+    // many slots expire (including repeated pre/post completion polls).
+    if (Decision.bDelayedAcquisitionEvent)
     {
-        // Do not move the deadline beyond the active acquisition here. The
-        // scheduler polls completion later in the same Tick; advancing the
-        // deadline first introduced an artificial idle period of one complete
-        // ML-X scan interval. Record the miss once and let the post-poll
-        // PrepareScheduledScan call admit the next coherent capture.
-        if (!bDeadlineMissRecordedForActiveAcquisition)
-        {
-            ++RuntimeStatus.BudgetSkippedAcquisitionFrameCount;
-            ++RuntimeStatus.DeadlineMissCount;
-            bDeadlineMissRecordedForActiveAcquisition = true;
-        }
+        RuntimeStatus.BudgetSkippedAcquisitionFrameCount += RuntimeStatus.BudgetSkippedAcquisitionFrameCount < MAX_int32;
+        RuntimeStatus.DeadlineMissCount += RuntimeStatus.DeadlineMissCount < MAX_int32;
     }
-    if (!bAcquisitionInProgress && NowSeconds >= NextScheduledScanTime)
+    RuntimeStatus.ExpiredCadenceSlotCount += static_cast<int64>(FMath::Min<uint64>(
+        Decision.SkippedSlots, MAX_int64 - RuntimeStatus.ExpiredCadenceSlotCount));
+    if (Decision.bAdmit)
     {
-        do { NextScheduledScanTime += SafeInterval; } while (NextScheduledScanTime <= NowSeconds);
-        bDeadlineMissRecordedForActiveAcquisition = false;
+#if WITH_DEV_AUTOMATION_TESTS
+        if(bTimingTraceForTests){ActiveTimingSampleForTests=FVirtualLidarTimingSample();ActiveTimingSampleForTests.FrameId=FrameId+1;ActiveTimingSampleForTests.Due=TraceDue;ActiveTimingSampleForTests.Admitted=WallSeconds;ActiveTimingSampleForTests.AdmissionFrame=GFrameCounter;}
+#endif
+        if (bSingleScheduledScanRequested)
+        {
+            ScheduledCadence.HoldAdmissions();
+            bSingleScheduledScanRequested = false;
+        }
         ActiveAcquisitionBackend = ResolveAcquisitionBackend(AcquisitionBackendFallbackReason);
         if (ActiveAcquisitionBackend == EVirtualLidarAcquisitionBackend::GpuDepthProjection)
         {
@@ -554,7 +608,7 @@ int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
     }
     if (!bScheduledScanInProgress || MaxRays <= 0 || !GetWorld()) return 0;
     if(ScheduledRayQuery&&!PollSceneQueryBatch())return 0;
-    if(ActiveAcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing){const int32 Completed=CompleteHardwareNormalizedFrame();if(Completed>=0)return Completed;}
+    {const int32 Completed=CompleteHardwareNormalizedFrame();if(Completed>=0)return Completed;}
     const double SceneWorkStarted=ScheduledRayQuery?FPlatformTime::Seconds():0;
     UWorld* World = GetWorld();
     const int32 TotalRays = ScheduledScanWidth * ScheduledScanHeight;

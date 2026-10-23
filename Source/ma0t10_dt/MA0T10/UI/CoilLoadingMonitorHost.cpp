@@ -1,4 +1,6 @@
 #include "CoilLoadingMonitor.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
+#include "Components/PanelWidget.h"
 #include "CoilLoadingPlanProjection.h"
 #include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
@@ -113,6 +115,22 @@ void ACoilLoadingMonitorHost::ShowTools()
 {
     if(!Coordinator)return;if(!Tools){Tools=GetWorld()->SpawnActorDeferred<AVirtualSensorUiHostActor>(AVirtualSensorUiHostActor::StaticClass(),FTransform::Identity,this);Tools->SetFlags(RF_Transient);Tools->SensorManager=Coordinator;Tools->bAutoCreateOnBeginPlay=false;Tools->bAutoCreateToolPanels=false;Tools->FinishSpawning(FTransform::Identity);}
     Tools->CreateAndBindMonitorWidget();Tools->CreateAndBindToolWidgets();
+}
+FVector2D ACoilLoadingMonitorHost::GetToolsInset() const
+{
+    const auto* Workspace=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>():nullptr;
+    if(!Workspace||!Workspace->IsSidebarMode())return FVector2D::ZeroVector;
+    const auto* Navigation=Workspace->GetOwnedNavigation();
+    if(!Navigation)return FVector2D::ZeroVector;
+    // Read the existing ownership/hosting geometry. Never move/recreate tool panels.
+    for(const UWidget* W=Navigation;W;W=W->GetParent())if(!W->IsVisible())return FVector2D::ZeroVector;
+    const auto Rects=Workspace->GetOwnedDiagnosticExclusionRects();
+    if(Rects.Num()<2)return FVector2D::ZeroVector;
+    const double Scale=UWidgetLayoutLibrary::GetViewportScale(this);
+    const FVector2D Viewport=UWidgetLayoutLibrary::GetViewportSize(GetWorld());
+    if(Scale<=0||Viewport.GetMin()<=0)return FVector2D::ZeroVector;
+    // Workspace reports viewport pixels, including Main Canvas rehosting offsets.
+    return FVector2D(FMath::Max(0.,Rects[0].Max.X)/Scale,FMath::Max(0.,Viewport.Y-Rects[1].Min.Y)/Scale);
 }
 void ACoilLoadingMonitorHost::EndPlay(const EEndPlayReason::Type R)
 {

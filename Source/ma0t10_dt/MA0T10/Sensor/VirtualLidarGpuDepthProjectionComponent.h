@@ -43,6 +43,9 @@ public:
 	/** Diagnostic count: staging objects are retained between serial acquisitions. */
 	uint64 GetReadbackAllocationCount() const { return ReadbackAllocationCount; }
     FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    void SetSemanticPsoPendingForTests(bool bPending);
+#endif
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|VirtualLidar|GPU", meta = (ClampMin = "64", ClampMax = "2048"))
 	int32 MaximumCaptureHeight = 1024;
@@ -64,6 +67,12 @@ private:
 	FIntPoint ReadbackDimensions = FIntPoint::ZeroValue;
 	uint64 ReadbackAllocationCount = 0;
 	bool bPendingSemanticReadback = false;
+    // A cold semantic scene gets one bounded grace period. After expiry,
+    // subsequent acquisitions keep depth cadence until semantics become ready.
+    bool bSemanticPsoWaitExpired = false;
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    bool bForceSemanticPsoPendingForTests = false;
+#endif
 	FRenderCommandFence ReadbackSubmissionFence;
 	TUniquePtr<FVirtualLidarSemanticScene> SemanticScene;
 	TMap<int32, FVirtualLidarGpuSemanticIdentity> PendingSemanticIdentities;

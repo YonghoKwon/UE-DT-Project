@@ -228,6 +228,7 @@ private:
 #endif
 	FString CachedPcdPreflight;
 	FString CachedPcdPreflightSummary;
+	FString CachedPcdPreflightShortSummary;
 	FVirtualSensorOutputPreflightResult OwnedPreflightSnapshot;
 	bool bOwnedPreflightSnapshotReady=false;
 	bool bRunResultsExpanded=false;
@@ -269,6 +270,7 @@ private:
     friend class FExport01RhiCommand;
     friend class FUxr15Audit;
     friend class FPcdBandwidthUiRun;
+    friend class FUxrSlabCapabilityIsolation;
     friend class FUxr16Audit;
     friend class FUxr16Integration;
     friend class FUxr15OptionBindingsTest;
@@ -319,6 +321,8 @@ private:
 	void ApplyStreamConfig(EVirtualSensorStreamKind StreamKind, const FString& SensorId, bool bEnabled);
 	TSharedRef<SWidget> BuildLiveStreamTab();
     TSharedRef<SWidget> BuildPcdBandwidthOptions();
+    bool AreOwnedSlabToolsEnabled() const;
+    bool IsOwnedScenarioStreamView() const;
     FVirtualPcdSendOptions ReadPcdBandwidthOptions() const;
     void ApplyPcdBandwidthOptions(const FVirtualPcdSendOptions& Options);
     FText BuildPcdBandwidthEstimate() const;
@@ -327,6 +331,7 @@ private:
     TArray<TSharedPtr<int32>> PcdDivisorChoices;
     mutable double NextPcdBandwidthEstimate=0;
     mutable FText CachedPcdBandwidthEstimate;
+    mutable FText CachedPcdBandwidthDetails, CachedPcdFieldSummary;
 	TSharedRef<SWidget> BuildCaptureTab();
 	TSharedRef<SWidget> BuildExportTab(TSharedPtr<EVirtualSensorExportKind> InitiallySelected);
 	TSharedRef<SWidget> BuildConnectionLogTab();

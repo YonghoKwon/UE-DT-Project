@@ -28,6 +28,7 @@ struct FHatchOrientationProbe
 {
     static void Prepare(UShipHatchMonitorWidget& M)
     {
+        if(!M.bSectionExpanded)M.OnSectionDrawer(); // Exercise the visible section drawer before raster checks.
         auto& S=*M.Simulation;auto& Surface=S.Current;
         FRandomStream R(20261020);const double Peak=16+R.FRand()*.1;
         for(int32 Y=0;Y<=Surface.NY;++Y)for(int32 X=0;X<=Surface.NX;++X)

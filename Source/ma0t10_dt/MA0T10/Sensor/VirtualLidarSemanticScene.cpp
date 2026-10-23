@@ -1,6 +1,7 @@
 #include "VirtualLidarSemanticScene.h"
 #include "VirtualLidarSurfaceResponseComponent.h"
 #include "VirtualLidarScanComponent.h"
+#include "VirtualLidarSemanticDiagnostics.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/TextureRenderTarget2D.h"
@@ -9,8 +10,10 @@
 #include "MaterialShared.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorCaptureRendering.h"
 
+// PreviewScene defaults to editor hit-proxy/world settings even in a game process.
+// The private ID/depth capture must use game construction outside the editor.
 FVirtualLidarSemanticScene::FVirtualLidarSemanticScene()
-    : Scene(FPreviewScene::ConstructionValues().SetCreateDefaultLighting(false).SetCreatePhysicsScene(false).SetTransactional(false).SetForceMipsResident(false))
+    : Scene(FPreviewScene::ConstructionValues().SetEditor(GIsEditor).SetCreateDefaultLighting(false).SetCreatePhysicsScene(false).SetTransactional(false).SetForceMipsResident(false))
 {
     CaptureComponent = NewObject<USceneCaptureComponent2D>();
     CaptureComponent->bCaptureEveryFrame = false;
@@ -38,6 +41,9 @@ bool FVirtualLidarSemanticScene::Capture(UVirtualLidarScanComponent& Scan, const
 
 bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, const FTransform& Pose, float HorizontalFov, int32 Width, int32 Height, TFunctionRef<FName(const UPrimitiveComponent*)> Resolve, bool bRecordActorPaths, TFunction<bool(const UPrimitiveComponent*)> VisibilityFilter, bool bCaptureFidelity)
 {
+    bCapturePending=false;
+    PendingProxies.Reset();
+    bPendingProxyUpdateSent=false;
     auto* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/MA0T10/Sensor/Materials/M_LidarSemanticId.M_LidarSemanticId"));
     if (!Material) { Status = TEXT("GPU 분류 재질 누락: 미분류 (센서 측정 유지)"); return false; }
     if (!World) return false;
@@ -152,6 +158,7 @@ bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, con
         }
         if(bRecordActorPaths){ActorPaths.Add(Entry.Id, Source->GetOwner()->GetPathName());Actors.Add(Entry.Id,Source->GetOwner());}
         Identities.Add(Entry.Id, MoveTemp(Identity));
+        PendingProxies.Add(Entry.Mesh);
     }
     auto* Target = GetTarget();
     if (Target->SizeX != Width || Target->SizeY != Height)
@@ -164,7 +171,52 @@ bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, con
     CaptureComponent->FOVAngle = HorizontalFov;
     VirtualSensorCaptureRendering::Prepare(*CaptureComponent, true);
     Scene.GetWorld()->SendAllEndOfFrameUpdates();
-    CaptureComponent->CaptureScene();
+    // Submit a ready render before diagnostic/status string assembly, as in the
+    // original immediate path. Cold PSOs still use the frozen pending snapshot.
+    bCapturePending=true;
+    PollPendingCapture(false);
     Status = FString::Printf(TEXT("GPU 의미 분류: %d개 proxy · 미지원/숨김 %d개 (깊이 불일치=미분류)"), Identities.Num(), Unsupported);
+    if(VirtualLidarSemanticDiagnostics::IsEnabled())
+    {
+        int32 Registered=0,Visible=0,Renderable=0,RenderState=0,SceneProxy=0,Precaching=0;
+        for(const auto& Pair:Proxies)if(const auto* Mesh=Pair.Value.Mesh)
+        {Registered+=Mesh->IsRegistered();Visible+=Mesh->IsVisible();Renderable+=Mesh->ShouldRender();
+         RenderState+=Mesh->IsRenderStateCreated();SceneProxy+=Mesh->SceneProxy!=nullptr;Precaching+=Mesh->IsPSOPrecaching();}
+        Status+=FString::Printf(TEXT(" [editor=%d source_world=%d capture_world=%d source_feature=%d capture_feature=%d format=%d]"),
+            GIsEditor,int32(World->WorldType),int32(Scene.GetWorld()->WorldType),int32(World->GetFeatureLevel()),
+            int32(Scene.GetWorld()->GetFeatureLevel()),int32(Target->GetFormat()));
+        Status+=FString::Printf(TEXT(" [registered=%d visible=%d should_render=%d render_state=%d scene_proxy=%d precaching=%d]"),
+            Registered,Visible,Renderable,RenderState,SceneProxy,Precaching);
+    }
+    if(!bCapturePending)Status+=TEXT(" · 의미 분류 준비 완료");
+    return true;
+}
+
+bool FVirtualLidarSemanticScene::PollPendingCapture(bool bUpdateStatus)
+{
+    if(!bCapturePending)return true;
+    // Only the already prepared proxy snapshot is touched here. Never rediscover
+    // source components or replace acquisition transforms/identity while waiting.
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    if(bForcePsoPendingForTests)return false;
+#endif
+    // Capture already flushed the changed snapshot. PSO completion schedules a
+    // render-state refresh; flush it once, only after all PSOs are ready. Repeated
+    // scheduler polls must not flush a whole world or rediscover proxy identities.
+    bool bMissingProxy=false;
+    for(const auto* Mesh:PendingProxies)
+    {
+        if(Mesh->IsPSOPrecaching())return false;
+        bMissingProxy|=Mesh->SceneProxy==nullptr;
+    }
+    if(bMissingProxy)
+    {
+        if(!bPendingProxyUpdateSent)
+        {Scene.GetWorld()->SendAllEndOfFrameUpdates();bPendingProxyUpdateSent=true;}
+        for(const auto* Mesh:PendingProxies)if(!Mesh->SceneProxy)return false;
+    }
+    CaptureComponent->CaptureScene();
+    if(bUpdateStatus)Status+=TEXT(" · 의미 분류 준비 완료");
+    bCapturePending=false;
     return true;
 }

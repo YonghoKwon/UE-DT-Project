@@ -25,7 +25,7 @@ class FPcdBandwidthUiRun final:public IAutomationLatentCommand
 {
 	FAutomationTestBase* Test;int32 Phase=0;double Started=FPlatformTime::Seconds(),Ready=0;
 	TUniquePtr<TGuardValue<bool>> Debug;
-	FString Root()const{return FPaths::ProjectSavedDir()/TEXT("Reports/PCD-BANDWIDTH-01/progress");}
+	FString Root()const{FString Path;FParse::Value(FCommandLine::Get(),TEXT("PcdBandwidthUiOutput="),Path);return Path.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/PCD-BANDWIDTH-01/progress"):Path;}
 public:
 	explicit FPcdBandwidthUiRun(FAutomationTestBase* T):Test(T){}
 	bool Update() override

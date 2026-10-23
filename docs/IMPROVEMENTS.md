@@ -4,6 +4,44 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## UXR-H150 — 해치 150% 표시 공간 확보, 독립 검수 대기
+
+해치 모니터의 보조 시점·보기 설정·원료/센서 선택을 기존 인스턴스 그대로 `시점 · 더보기` 드로어로 옮겼다. 지표 카드 여백을 줄이고 숫자를 기본 제목 크기로 맞췄으며, 우측 `홀드 단면 펼치기`로 기존 단면을 열며 접으면 히트맵 공간을 복원한다. 계산·센서·저장값·DTCore·코일 월드는 유지한다.
+
+100/150%×1280×720/1920×1080 실제 D3D12 geometry·PNG에서 기본 접힌 화면의 3D 높이≥45%, 히트맵 실제 plot 폭/우측 카드 폭≥60%를 확인했다. 관련12종(해상도별 총14회)·WBP7 메모리 compile·Editor/Game Development·quick9·layer0→0·guard를 검증했다. 직접 점검·접힌 화면의 비율·단면 펼침 시 공간 공유·초기 실패와 미수행은 [결과](../Saved/Reports/UXR-H150/RESULT.md)를 따른다. 브라우저 실행 중이므로 사용자 지시대로 성능 측정을 생략했다.
+
+## DUAL-CAMERA-22 — 주 정답 영상 미준비 중 보조 RGB 갱신
+
+기준 `a42ab78`에서 일반 RGB 듀얼의 기존 최소 카드·150% 회귀는 통과했다. 주 Camera의 정답 영상이 없는 동안 보조 Camera를 선택·측정하면 보조 RT/JPEG는 양수인데 brush가 null/이전 해상도에 머무는 조건을 재현했다. L3 미리보기의 주 resource 없음 조기 반환만 제거하고 주 image 처리를 조건부로 바꿔 보조 RGB 갱신을 유지한다. 실제 RT 0×0·JPEG 생성 실패나 과거 Slate geometry 회귀를 새로 재현한 것으로 표시하지 않는다.
+
+재발 방지 자동화 `MA0T10.SensorV2.UI.DualCameraPixelsRhi`는 주 영상 미준비, 두 RT의 소유·해상도·brush·양수 geometry, JPEG/레코더, 분할·150%·최소 크기·숨김·재호스팅·선택·해상도 변경을 검사한다. 표시형 기능 검증·직접 조작·로컬 송신과 성능 미수행 범위는 [결과](../Saved/Reports/DUAL-CAMERA-22/RESULT.md)를 따른다. Brave 실행 중이므로 사용자 지시대로 성능을 측정하지 않는다. DTCore 변경 후보는 추가하지 않는다.
+
+## UXR-P2b — 150%·행 재생성·3분할 직렬 UI 검증, 현장 수용 대기
+
+[감사](research/UXR-AUDIT-1023/RESULT.md)의 C02/H01/H03/H04를 기존 L3 UI 안에서 구현했다. 재생성 코일 사유 행은 현재 배율을 사용한다. 해치 시점은 별도 줄바꿈 행, 모델/보기 설정은 접기 묶음으로 나누고 세로 넘침만 스크롤한다. 붐/운전실 좌/우와 획득 Hz를 연결하며 TF 원문은 툴팁·진단에 유지한다. 현장 라벨은 선택 센서 우선·연결선·겹침 회피를 적용하고 공간 부족 시 낮은 우선순위 글자를 생략한다. 미관측 설명과 기존 회색 격자 상세를 가깝게 표시한다.
+
+직렬 검수의 배지 높이 실패를 실제 desired height로 수정했고 정지 시 캐시 Hz를 마지막 획득값으로 명시했다. 코드 `4887653`의 관련22 Success(신규 단위5 포함)·캡처 client별2 Success·150% anchor client별1 Success, 모두0 Fail/0 Skip이다. PNG64/공유 JPG64, 직접4세션35행, WBP7·quick9·layer0→0·guard·개인43개 복원·보호297 해시 일치를 확인했다. 성능은 이번 사용자 지시의 UI 전용 예외로 생략했다. 전체 release·모든 직접 조합·OS DPI150%·현장 수용과 초기 과거 진행 PNG5개 갱신 한계는 [RESULT](../Saved/Reports/UXR-P2b/RESULT.md)를 따른다. C04는 [문서 제안](research/UXR-P2b/C04-proposal.md)만 유지한다. DTCore 변경 후보는 추가하지 않는다.
+
+## UXR-P2a — 문구·밀도 구현·직렬 검증, 현장 수용 대기
+
+[UXR-AUDIT-1023](research/UXR-AUDIT-1023/RESULT.md)의 C03·D02~D05·T02~T03을 적용했다. 코일 번호/내경·수치별 단위·한글 뜻과 약어, PCD 한국어 필드/접힌 상세·짧은 압축 안내·추정/실측 출처·프레임 간격, 화면별 글자 배율·짧은 경고와 `확인` 표기를 정리했다. 원문은 툴팁/상세에 보존한다. 넓은 도구 옆의 코일 버튼은 같은 인스턴스에서 줄바꿈하고 헤더 높이는 실제 내용에 맞추며, 기존 분석 스크롤에 수치·비교 진단도 포함한다.
+
+P1과 통합한 `fe7dda7`에서 신규 순수 테스트9개 및 Slab capability 회귀, 관련 UI/RHI 묶음28 Success/0 Fail/2 opt-in skip, 별도 캡처 각 해상도3 Success/0 Fail/0 Skip, WBP7·quick9·layer/allowlist0→0·guard를 확인했다. 직접 점검과 두 client×글자100/150% PNG40장·공유 JPG40장은 [직렬 결과](../Saved/Reports/UXR-P1P2a/RESULT.md)를 따른다. L1 계산·wire·기본 정책·저장값·DTCore 변경 없음. 성능은 사용자 승인 UI 전용 예외로 생략했다. 전체 release·모든 직접 조합·OS DPI150%·현장 수용은 별도이며 C02/C04/H01/H03/H04는 이번 범위에 포함하지 않는다.
+
+## UXR-P1 — 감사 P1 구현·직렬 검증, 현장 수용 대기
+
+T01/C01/H02/D01의 소유 점유 영역 회피, 미확인 사유 수와 확인 위치, 해치 모의/측정 출처, 전송 상단 점검/기존 해결 이동을 구현했다. 직렬 빌드에서 UE5.3 뷰포트 API의 const 문맥을 같은 World 인자로 수정했다. 사용자 지적에 따라 `AreSlabToolsEnabled()==false`인 월드에서는 데이터/레거시 전송·결과/진단·소유 미리보기의 Slab 전용 표시를 숨기고 `ManualStreamStart`로 점검하며 재생 소유자 준비를 건너뛴다. Slab 월드의 기존 카드·선택·정책과 일반 PCD·저장은 유지한다.
+
+직렬 결과는 위 P2a와 같은 통합 코드/조건이다. 초기 창 드래그 실패는 최대 높이 창에 수직 이동 여지가 없는 fixture에서 재현돼, 기존 resize API로 시험 높이600을 적용했다. 시작점(100,150), 14개 조합, X>50/Y>10 및 capture/release assertion은 유지했고 최종 회귀를 통과했다. 실패 이력·직접 수행/미수행·개인 설정43개 복원·보호 경로297개 해시는 [직렬 결과](../Saved/Reports/UXR-P1P2a/RESULT.md)와 [검증 이력](VALIDATION_HISTORY.md)에 기록한다. DTCore 변경 후보는 추가하지 않는다.
+
+## LIDAR-WALLCLOCK-28b — wall-clock 획득·직렬 검증 완료
+
+자동 획득은 pause 제외 wall-clock 누적 기한·프레임당 최대1회·센서당 in-flight1회를 유지한다. 같은 주기 센서는 공통 grid에 균등 위상을 배치하고, 준비된 readback의 worker 정규화·순수 광선 패킷 병렬 생성·반환 point lease의 worker 정리로 GT 꼬리 지연을 줄였다. 공개 BP·획득 snapshot·PCD33-byte/FIFO/예산은 유지한다.
+
+`9588c25`의 1920×1080 visible/D3D12·RT on·OS1-64 Rev7 3대·Full+LZF+1/1에서 센서별 최소 19.994257Hz(요청 대비 0.999712881)를 기록했다. 90초 ABAB×3(A6/B6)는 FPS +2.3469%·engine p95 -12.0994%·GT -29.0969%·GPU 시간 +1.3085%·RSS -0.0034%로 각2% 기준을 통과했다. 같은 SHA의 전체 release 415 Success/41 조건부 skip/0 Fail, 표준 RT on ABAB(FPS -0.0003%·p95 +0.0000%·GT -0.6244%)가 통과했다. skip을 실제 RHI 통과로 세지 않는다.
+
+기존95% 교체는 폐기했다. 새99%·90초19.9Hz/.995 목표에 `ceil(요청Hz×wall초)−2` 완료 하한을 추가해 경계2회 허용을 유지하며 강화했다. 후보18개 센서·실행에서 새 하한≥legacy 하한·실제 완료≥새 하한을 확인했고 legacy assertion은 참고값으로 보존했다. CPU FullSpec 3대의 20Hz 요청 실측 9.911/9.922/10.255Hz는 용량 한계로 기록하며20Hz PASS가 아니다. 기존 모니터는 요청 측정률 미달을5초 완료 횟수로 경고한다. 1/4 분주에서는 자동 송신 제어 생략1회를 획득 누락·설정 분주와 따로 기록했다. DTCore 변경 후보 없음. [상세 결과](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md).
+
 ## FOLLOWUP-28-26 — 환경 정리 후 FPS 통과, 획득cadence로 통합 gate 차단
 
 독립 리뷰 수정: `f5d5a4e`는 최신 작은 PCD가 이전 큰 FIFO head를 영구 대기시키는 센서 토큰 상한을 수정한다. 해당 센서의 현재 FIFO head 바디까지 상한에 포함하고, 기존 refill 공정성·실제 바이트 차감·전역 버킷·예약 상한은 유지한다. Exact/Wildcard 1.32MB→66KB 회귀는 수정 전2 Fail, 수정 후 모두1.05초 버킷 시간 내 FIFO 송신접수·socket·receipt·외부33-byte/schema/checksum 검증 PASS, overload/교체0이다. `4c24907`은 `-CoilPhotoReport` 별칭을 복원하며 `-CoilReport`가 우선한다. 핵심5 Success, SensorStream/별칭38 Success·6조건부skip·0Fail이다. [증거](../Saved/Reports/FOLLOWUP-28-26/r5/REVIEW-FIX.md).

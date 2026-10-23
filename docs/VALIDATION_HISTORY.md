@@ -6,6 +6,100 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-24 ANALYSIS-24 — GT-on/Rev7 전후 ABAB GPU 재실패, 중단
+
+- 기준fd5fac1440d87a3a48c4aba71814486c1d56874d. 도구0bd709c: Perf01조건GT-on/Rev7/HWRT·의미분류on 및 GPU평균2%옵션 추가, 기존defaults/Scheduled GPU·RSS·Hz gate 유지. 기존5+GPU성공/단독3%악화/누락3개 합성8PASS. 최초nativePSsplat/EOF실패와수정이력 보존. 두revision동일instrument/sessionhash 검증.
+- 최초0bd709c 각6회ABAB12valid: GPU 7.387185→7.703027ms(+4.275530%) FAIL. FPS저하0.000444%·p95증가0%·GT변화-0.086816% PASS. verify/20261023T211208936Z 원본보존.
+- 최소수정9aed4ee: ready proxy검사단일순회, capture를상태문자열조립전제출, readyCameraGT중복InitialCopiesQueued store제거. 캡처/readback횟수·Hz·품질·1초grace/timeout·snapshot/cancel/generation유지. Editorbuild0, 수정소스15RHI Success/0Fail/0Skip 및 소스hash9aed일치, quick9/layer0/guardPASS.
+- 동일조건 재측정12valid: callbackFPS 59.999203→59.998325(저하0.001464%), enginep95 16.666900→16.666900ms(0%), GT 6.639424→6.635611ms(-0.057428%), GPU 7.372320→7.547837ms(+2.380760%) **FAIL2%**. verify/20261023T214539554Z. 두코호트각6A/6B·RTon/1920x1080visible·10초warmup+60초·CameraD455GTon+1Rev7/HWRT/semanticson 고정. 원인확정/인과개선효과를 주장하지 않는다.
+- 지시대로1회최소수정/재측정후추가작업중단. 영상decode재감지0, 환경수치판정미사용. 개인372/보호753복원, 원래SensorMapdirty/untracked4보존, 맵/DTCore수정/송신/외부ACK수용없음. 새SHA패키징/전체release/직접마우스미수행. RESULT/result.jsonperfFAIL·merge_checkBLOCK를 최종판정으로한다. nopush.
+
+## 2026-10-24 ANALYSIS-24 — fd5fac1 병합과 성능 재개 완료
+
+- 기준 `fd5fac1440d87a3a48c4aba71814486c1d56874d`, Runtime merge `7e6e04d856a4dfaac8ad1db34d228ab41a2db60a`; README/history conflict 양쪽 보존, 추가 production/threshold 변경 없음. 최초5회 및 감시924회 영상 디코딩 재감지0; 환경값은 판정 미사용.
+- 표준 `verify.ps1 -Level perf -BaseCommit fd5fac1 -PerfRayTracing ProjectDefault`: visible1920x1080, Camera1+LiDAR1,10초 준비+60초 측정 ABABx3.12/12valid, A/B각6회 중앙값 FPS 59.998622→59.995635(저하0.004979%), enginep95 16.666900→16.666900ms(0%), GameThread 6.569258→6.566979ms(-0.034683%).2%PASS.
+- 기본 Rev7×3/HWRT/1024x64/20Hz, visible90.0062795초: 모두1800frames/19.998605Hz/ratio0.999930248/expiredslots0. 기존19.9Hz/.995 및 canonical ceil(requestHz*wallSeconds)-2 하한1799 PASS. 단일3센서 실행이며18sensor-run cohort 통과로 바꾸지 않았다.
+- CameraGT-on60초와 동일 메인 GT-off대조60초 각1회: GameThread 5.096733→6.147050ms, +1.050317ms(+20.607661%). 옵션on/off 관측이며 코드 전후ABAB2%와 구분한다. GT-on Camera30Hz/LiDAR20Hz, failure/overflow0. fixture송신/녹화off, 전달/ACK수용 아님.
+- 현재SHA Editorbuild0, 관련21Success/0Fail/0Skip (#24RHI14+dual1+H150layout1+P2bpure5), Python5/quick9/layer0→0/guard PASS. UIcapture는 자동이며 직접마우스가 아니다. fresh개인372files/보호753hash 복원; 운영맵 저장/DTCore수정 없음. 현재SHA패키징/전체release/현장 수용 미수행; cfa패키지12scene은 역사 증거로 보존.
+- [RESULT](../Saved/Reports/ANALYSIS-24-22/RESULT.md), `resume-20261024/perf-final.json`, `feature-final.json`, `restoration-and-protection.json`, result.json/merge-check 참조. 소유 perf archive는 표준 스크립트가 정리했고 공유 UBT/DDC는 보존. push 없음.
+
+## 2026-10-24 ANALYSIS-24 R1 — semantic PSO timeout, performance environment pending
+
+- Runtime `cfa61f99493bdf237449ec380ca782d754037f80`: optional semantic PSO timeout completes the original frozen depth frame unclassified; one1s cold grace, no repeated waiting while still pending, current-snapshot semantics recover when ready. Pending proxy list is cached; end-of-frame refresh happens only when PSO completion requires it. Existing explicit Failed-to-CPU fallback remains available for actual depth failure.
+- New real-D3D12 force-pending regression checks60 completed frames at requested20Hz/>=99%, empty semantic pixels/identity while pending, real depth/frame identity, Slab recovery after ready. Initial target-not-yet-created regression failed the existing>=99% semantic accuracy and is preserved; corrected resource-creation grace passes unchanged expectations. Tests/build/package evidence is under `Saved/Reports/ANALYSIS-24-22/review-r1/`.
+- Development/Shipping build+GT-off/on12scenes PASS, namedSlab1800each; GT-on6Camera class2 masks19257each. All12PCD bodies remain byte-identical to the original reference. Python5/quick9/layer0/DTCore guard PASS. Exact committed-SHA related RHI summary follows result.json.
+- Development startup22Error lines all belong to one existing D3D12 SwapChain4 handled ensure at engine line473, frame0: header1+condition1+stack-header1+callstack16+blank3. Same signature exists before fixes in Editor-game; old package raw logs were already deleted, so old native stack equivalence is an explicit limitation. No engine workaround added.
+- Requested RT-on ABAB2%, defaultRev7x3 90svisible requested-Hz/slot floor, and GT-on cost observation NOT_RUN: active Brave GPU video decode1% observed; base-rules prohibits overlapping other GPU work. Pause confirmation pending, browser untouched. No threshold or acquisition gate relaxed; no measured performance acceptance claimed.
+- Personal353 files and protected753 hashes restored/unchanged; owned package binary trees removed, summaries retained. Final restore/schema/merge_check status is in [RESULT](../Saved/Reports/ANALYSIS-24-22/RESULT.md). No push/merge.
+
+## 2026-10-24 UXR-H150 — 해치 150% 레이아웃
+
+- 기준 `6c05f51`, `feat/hatch-150-layout`, DTCore `b2504d1`. 해치 모니터의 보조 시점·보기 설정·원료/센서 선택을 기존 인스턴스 그대로 `시점 · 더보기` 드로어로 옮겼다. 지표 카드 여백과 글자 크기 위계를 줄이고, 우측 `홀드 단면 펼치기`로 기존 단면을 열며 접으면 히트맵 공간을 복원한다. 계산·센서·저장값·DTCore·코일 월드는 유지한다.
+- Editor/Game Development·관련 UI12종 총14회 Success/0Fail/0Skip·WBP7(저장0)·quick9·layer0→0·guard 확인. Computer Use 직접 25행은 `manual/checklist.json`의 실제 조작·기대·결과·WGC 원본을 따른다. 개인 설정/보호 해시 복원과 커밋·merge_check는 [RESULT](../Saved/Reports/UXR-H150/RESULT.md)·result.json을 따른다.
+- 아래 비율은 더보기/단면을 접은 기본 분할 화면의 실제 SceneRect/실제 plot 기준이다. 더보기는 임시 오버레이이며 단면을 펼치면 우측 공간을 나눠 쓴다. 글자 배율과 OS DPI를 구분한다(window DPI1.0, UMG scale은 캡처별 기록).
+
+| 실제 client | 글자 | 3D 높이/client 높이 | 히트맵 plot 폭/카드 폭 |
+|---|---|---|---|
+| 1280×720 | 100% | 62.89% | 83.70% |
+| 1280×720 | 150% | 52.48% | 65.55% |
+| 1920×1080 | 100% | 62.41% | 83.69% |
+| 1920×1080 | 150% | 51.57% | 63.73% |
+
+- 초기1280 히트맵51.75%, 1920 59.75% 미달과 숨김 스크롤 geometry 실패를 보존했다. 드로어 명시 숨김·분할 비율 수정 후 같은45/60 기준으로 재통과했다. 자동화 변수명 shadow 빌드 실패와 이전 테스트 DLL을 사용한 중간 검증은 최종 증거에서 제외했다. 성능은 브라우저 실행 중/UI 전용 사용자 지시로 생략했으며2% 통과를 주장하지 않는다. 전체 release·OS DPI150%·현장 수용은 미수행이다.
+
+## 2026-10-24 DUAL-CAMERA-22 — 보조 RGB 영상 갱신
+
+- 기준 `a42ab78`의 기존 표시형 D3D12 회귀3개는 성공했다. 새 회귀에서 주 Camera는 정답 영상 미준비·정지 상태, 보조 Camera는640×480·유효 frame인데 보조 brush가null/640×360에 머무는2assertion 실패를 확인했다. 일반RGB 듀얼0×0·RT0×0·빈JPEG의 현재 재현과 구분한다.
+- `RefreshImageBrush`의 주 resource 없음 조기 반환을 제거하고 주 image 갱신만 조건부로 처리했다. 같은 테스트·기준을 유지한 수정 후1920×1080 표시형 관련5개 Success/0Fail/0Skip, 두Camera 레코더JPEG·로컬RawTCP JPEG/해상도/checksum 검증 성공이다. 원본 실패·직접 조작·추가 해상도·최종SHA/gate·보호/개인설정 복원은 [RESULT](../Saved/Reports/DUAL-CAMERA-22/RESULT.md)와result.json을 따른다.
+- Brave 실행 중 사용자 지시로 성능측정은미수행이며 기존/자동 로그의FPS를새성능gate로사용하지 않는다. 회사/실장비·외부Broker/업무ACK 수용과구분한다.
+
+## 2026-10-23 LIDAR-WALLCLOCK-28b - independent review fixes
+
+- Code10aba1d: deterministic full-cohort rephase on membership/start-generation/period changes, future-slot application without debt/burst; unchanged simultaneous initial grid preserved. Original DeadlineMiss/BudgetSkipped event semantics restored, separate reflected ExpiredCadenceSlotCount added; all consumers inventoried.
+- Editor build and related D3D12 tests7Success/0Skip/0Fail. Regression covers3sequential orders, stop/restart, same-tick generation changes, mixed rates/period edits, >=1/count-epsilon spacing, unchanged90s simultaneous deadlines/admissions, and event-vs-slot counters. Initial implementation failure remains raw, corrected rerun passes unchanged expectations.
+- Sequential start frames613/634/655; real1920x1080visible RT-on Full+LZF PCD,90.009037s: all3x1800,19.997992Hz,0expired slots; due gaps>=0.333333308, same-frame314/5366=5.851659%, peak2. PCD3x1800 received,0skips/gaps/invalid/delivery errors. New slot minimum1799>=legacy1786; both legacy assertions and new gate pass in this same run.
+- ABAB skipped using explicit review exception, supported by identical simultaneous-start pure regression; no new2%measurement claimed. Prior9588c25 broad release/perf evidence remains historical. quick9/layer0->0/guard PASS. Fresh personal44/44exact restore; protected297unchanged; no maps/assets saved, no push/merge.
+- [RESULT](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md), `review-20261023T123501Z/manifest.json`, result.json and merge-check.json contain scope and limitations.
+
+## 2026-10-23 LIDAR-WALLCLOCK-28b — 직렬 재작업 최종 검증
+
+- 자동 획득은 pause 제외 wall-clock 누적 기한·프레임당 최대1회·센서당 in-flight1회를 유지한다. 같은 주기 센서는 공통 grid에 균등 위상을 배치하고, 준비된 readback의 worker 정규화·순수 광선 패킷 병렬 생성·반환 point lease의 worker 정리로 GT 꼬리 지연을 줄였다. 공개 BP·획득 snapshot·PCD33-byte/FIFO/예산은 유지한다.
+- `9588c25`의 1920×1080 visible/D3D12·RT on·OS1-64 Rev7 3대·Full+LZF+1/1에서 센서별 최소 19.994257Hz(요청 대비 0.999712881)를 기록했다. 90초 ABAB×3(A6/B6)는 FPS +2.3469%·engine p95 -12.0994%·GT -29.0969%·GPU 시간 +1.3085%·RSS -0.0034%로 각2% 기준을 통과했다.
+- 같은 SHA의 전체 release 415 Success/41 조건부 skip/0 Fail, 표준 RT on ABAB(FPS -0.0003%·p95 +0.0000%·GT -0.6244%)가 통과했다. skip을 실제 RHI 통과로 세지 않는다.
+- 기존95% 교체는 폐기했다. 새99%·90초19.9Hz/.995 목표에 `ceil(요청Hz×wall초)−2` 완료 하한을 추가해 경계2회 허용을 유지하며 강화했다. 후보18개 센서·실행에서 새 하한≥legacy 하한·실제 완료≥새 하한을 확인했고 legacy assertion은 참고값으로 보존했다.
+- CPU FullSpec 3대의 20Hz 요청 실측 9.911/9.922/10.255Hz는 용량 한계로 기록하며20Hz PASS가 아니다. 기존 모니터는 요청 측정률 미달을5초 완료 횟수로 경고한다.
+- 기존bfd46d0의 90초 ABAB는 p95+14.167537%로FAIL했고 보존했다. CSV profiler로 GT point storage1.220659→0.000827ms/frame, ray packet2.027379→0.252546ms/frame를 확인했다. 단일 진단을 ABAB PASS로 세지 않았다.
+- identity 테스트는 실제 admission 후 상태를 변경하고, 풀 테스트는 worker 정리 완료 후 동일 주소 재사용을 확인하도록 동기화했다. 기존 transform/label/반사율·weak pointer·보관값·fallback 횟수·정확도·150ms 기준은 유지했다.
+- 새 SHA의 1/2·1/4 실제 GPU RHI에서 획득은 약20Hz, 출력은 약10/5Hz였다. 1/4 운전실 우측의 자동 송신 제어 생략1회·선택 frame_id step8을 별도 기록했고 raw gap을 지우지 않았다. schema/CRC·송신 오류0이며 획득 누락·설정 분주 생략과 구분한다.
+- 개인 설정44개 원본 집합/해시 복원·보호297개 원본 hash 차이0·DTCore b2504d1 clean·layer0→0. SensorTestMap/자산 저장·보호 경로 stage·push/merge 없음. 중단된 release/11-of12 ABAB와 최초95% counterexample는 별도 이력으로 보존한다.
+- [RESULT](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md), result.json 및 merge-check.json을 독립 검수한다. Runtime9588c25 이후 gate 도구·문서 커밋은 Source 동일성으로 구분한다.
+
+## 2026-10-23 LIDAR-WALLCLOCK-28b — 직렬 비교 중단
+
+- 메인 feat/lidar-wallclock-28b에서 시작264d100, origin/master98e2131 병합b090ebe, 충돌은 README/GpuLidarScheduledTests의 양쪽 의도를 보존했다. 측정코드912928e는 기본Full+LZF On·1/1, native LZF 수신기, 분주 진단 선택·기존 대역폭 검사·새 획득비율/legacy 기록을 함께 사용한다. 송신/획득 런타임은 이번 직렬 단계에서 추가 수정하지 않았다.
+- Editor/Game Development build exit0. 새 C++ 가상시계2 Success, PCDBandwidth7 Success/UiRhi1 opt-in skip/0Fail(NullRHI는 순수 로직에만 적용). 합성 PS20 PASS 및 Python receiver3/native 적용3 PASS. UI skip을 실제 RHI 통과로 세지 않는다.
+- 1920×1080 visible/DPI1·실제D3D12/ProjectDefault RT on·3×OS1-64 Rev7 1024×64/20Hz·Full+LZF+1/1·80MiB/s·warmup10초/measure90.002607초. FPS59.098854/engine p9517.716698ms/GT11.675628ms, engine5320프레임,150ms 초과0. 센서 완료1771/1771/1770, Hz19.677208/19.677208/19.666097, 비율0.983860/0.983860/0.983305, 누락슬롯29/29/30이다.
+- legacy FPS3개PASS, cadence 최소floor(5320/3)−2=1771회 대비PASS/PASS/FAIL. 새 비율3개PASS로 기존실패를허용하므로 사용자 "기준 완화로 보이면 멈추고 보고" 지시를 적용했다. 자동화Success/JSON valid=true는 계측 실행 완료일 뿐, 비완화 수용 검사는FAIL이다. ABAB 미수행이므로 전체 새gate PASS를 주장하지 않는다.
+- 추가CPU 실제RHI/전송분주1/2·1/4실측/90초ABAB/표준RT on perf/release 중단·NOT_RUN. 2%악화 여부도 미측정이므로 fallback 적용 근거가 없고 기본 옵션을 임의로 바꾸지 않았다. 기존cadence gate 병행 또는95%교체 수용의 정책 결정이 필요하다. 개인설정44개 원본집합/해시 복원, 보호297개 차이0, 자체 Editor/PIE/loopback 정상종료. [RESULT](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md)와 새 result.json/merge_check를 따른다.
+
+## 2026-10-23 LIDAR-WALLCLOCK-28b — 병렬 구현·빌드 없는 검증
+
+- 기준b4e8327/지정worktree `wt_28b`, DTCore b2504d1 clean. 기존 게임 시간 deadline을 pause 제외 단조 wall-clock grid로 분리하고 CPU/HWRT 공통 최대1admission/엔진프레임·동시1획득·만료슬롯 집계를 구현했다. 같은프레임 재시작·데이터셋 단발 hold/retry를 보존했다.
+- 기존≥59FPS/엔진3프레임 assertion은 원문 수식·이름의 legacy JSON/로그로 보존한다. 새 후보별 획득/요청Hz≥0.95와 같은90초 workload ABAB×3 중앙값 각각2%(FPS/p95/GT)를 함께 판정한다. 배경CPU snapshot은 정보용이다.95% 허용은 사용자 지시의 기대값 교체이며 과거FAIL 재분류/실측PASS를 주장하지 않는다.
+- PowerShell 순수판정14+scheduled summarize cohort6=20 PASS/0FAIL, 기존cohort5 PASS, quick9 Success/0Failed/0Skip, layer 위반0/allowlist0→0, DTCore guard·PS parser3파일·diff check 통과. 합성 테스트와 실제 성능 증거를 구분한다.
+- 가상59/58/45/120FPS의20Hz·jitter/hitch/누락/몰아치기 차단·pause/재시작 C++2테스트는 작성만 했다. Editor/Game 컴파일·C++실행·feature/release·실제90초 CPU/HWRT/PCD·RT on ABAB는 병렬 지시의 금지에 따라 NOT_RUN. 메인 프로세스/화면/GPU/개인설정 조작0, 보호경로 변경0. 최종 커밋·증거·직렬 명령·미수행·merge_check는 [RESULT](../Saved/Reports/LIDAR-WALLCLOCK-28b/RESULT.md) 및 result.json을 따른다.
+
+## 2026-10-24 ANALYSIS-24 — 패키지 Slab 의미 분류 직렬 재현
+
+- 사용자 직렬 지시로 메인 `chore/analysis-24-22`에서 origin/master d2ca1d1을 병합했다. `698a895`에서 헤더/Sampling/SceneQuery conflict를 양쪽 의도대로 해결했고 #28b ray packet 병렬화·readback worker·lease reset을 보존했다. 명시적 diagnostic의 pure metadata snapshot/worker 요약을 기존 GT FileSave로 연결했다.
+- 기준 Editor `-game` 및 실제 Development 패키지는 32,256점 모두 Other1/instance0이었다. snapshot named4/Slab1·ID buffer81,792가 있었지만 depth mismatch32,256이었다. Engine ShouldRender/game-hidden-flags 분기로 editor private world 구성 문제를 확인했다. `efa5848`의 `.SetEditor(GIsEditor)` A/B는 Editor-game을 Slab1,800/mismatch0으로 복구했으나 native package 첫 장면은 계속0이어서 실패를 보존했다.
+- 추가 native 진단은 registered/visible/render_state4이지만 scene_proxy0/PSOPrecaching4, semantic depth1e8cm vs main약1800cm임을 보였다. cooked PSO DelayUntilPSOPrecached가 첫 proxy 생성을 미루는 것이 두 번째 원인이었다. warm 3장면의 이전 코드가0/1800/1800인 사실도 보존했다. `5bf813a`는 동결 geometry/identity/pose를 유지해 기존 Poll에서 PSO 준비 뒤 semantic pass를 한 번 발행한다. 원래 LiDAR depth와 Camera RGB/depth를 보존하고 semantic readback만 보류하며 취소/revision·기존 초기화 deadline을 유지한다. 전역 PSO/CVar·1cm 기준·Tag/ID·wire는 바꾸지 않았다.
+- 최종 같은 Runtime5bf813a Editor Development/Development/Shipping build·cook exit0. D3D12 관련13 Success/실패·skip0(새 diagnostic3·HWRT4·legacy semantic1·CameraGT1·capture lifetime4), Python semantic 감사5, quick9/layer·allowlist0→0/guard가 통과했다. process exit0만으로 수용하지 않고 실제 JSON/backend/label·mask를 대조했다.
+- Development·Shipping 각각 GT-off/on×3장면, 총12개는 첫 장면을 포함해 named Slab각1,800점·instance0=0, GT-on6개 Camera raw class2 mask각19,257pixels였다. 기존 PCD body SHA ac492cd014eee9876035bd9f5b4026506579ce02ecedf175baf6f03ea0b8e16b와12개 모두 동일했다. Development public Actor API HWRT3 별도3장면은각1,792점·mapped Slab1,792·실제 backend3이었다. 두 backend의 샘플링 차이를 loss나 동등 정확도로 해석하지 않는다.
+- 최초 Shipping은 URL map 인자를 무시해 기본 SensorTestMap에서 ID 미발견으로 job실패(프로세스exit0)를 기록했다. 해당 실행의 UserDir/Saved/Config/Windows/Engine.ini만 검증맵으로 지정해 재실행했고 원본 config/맵은 변경하지 않았다. DT_DxLevel 간접 World ref인 TestMap도 cook했다. 초기 서명 정책과 읽기 전용 Python 보조 API 부재 오류는 각각 프로세스 한정 Bypass/지원 API로 바로잡아 별도 보존했다.
+- 개인 설정353파일의 원본 집합/hash·존재 여부를 복원하고 보호753파일 hash동일, 기존 SensorTestMap dirty/untracked 보호 상태를 유지했다. 패키지 root의 절대 경계를 검증하고 소유 archive/staging/user binary 약7.25GB를 정리해 문서/요약JSON만 남겼다. package exe/PCD/label hash·출구·실패·진단 수치는 요약에 보존했다. 소유 프로세스 정상 종료, 서비스/인증/DTCore/운영 자산 변경·push0이다.
+- 표준 ABAB·Shipping backend3·#22 직접 UI·회사/실장비/외부 ACK 수용은 미수행이다. #22 듀얼 표시 코드는 바꾸지 않았다. 로컬 package 의미 분류 gate와 전체 성능/출시 수용을 구분한다. [RESULT](../Saved/Reports/ANALYSIS-24-22/RESULT.md)·[직렬 원인/재현](research/ANALYSIS-24-22-serial.md), 최종 result.json/merge_check 판정을 따른다.
+
 ## 2026-10-22 PR69 — FOLLOWUP 독립 코드 검수6건
 
 - 운전실 LiDAR signed 좌우 장착은 ±1.30m+사용자X보정, 절대오차<=1cm다. 캐빈폭2.4m의 반폭1.20m+외측브래킷0.10m로 산출하며 원래 단방향 하한 검사를 상·하한 검사로 대체했다.
@@ -671,3 +765,38 @@ RSS는 **user accepted unresolved RSS (2026-10-23)**로 #26b에 이관하고 머
 ## 2026-10-23 — MEMORY-TREND-26b 병렬 도구 구현·보존 증거 재분석
 
 기준98e2131/DTCore b2504d1, 지정 wt_26b에서 Editor·UBT·실측·GPU 실행 없이 기존 memory_curve 행/수집 경로를 재사용한 opt-in 30~60분 JSONL 샘플러와 시간 기반 전체/마지막1/3 분석을 추가했다. RSS/Commit/UObject·Default/Platform 상위16태그·GT 샘플 수집/직렬화/write/flush 비용을 저장하며 간격은5~30초다. Python 메모리 분석·기존8MiB 회귀23개 Success/0Fail. 보존 JSON19개 재분석은 원래5쌍의 절대2/4/5·차이3/4 FAIL을 그대로 재현했다. 별도 LLM 진단3곡선의 UObject43181 일정·소유/RHI 자원 동일만으로 무누수를 주장하지 않으며 약90초 곡선은 장시간 판정 데이터 부족이다. 할당자 보존을 잠정1순위로 두되 LLM 디깅 FMallocUnused 감소와 Untracked 증가를 반대 근거로 함께 기록했다. C++ 컴파일·실제 GT 비용/종료·장시간 안정화·제품 성능 수용은 직렬 단계 미수행이며 기존RSS 미해결 수용 결정을 유지한다. [도구·원인 순위·직렬 명령](MEMORY_TREND_26b.md), worktree Saved/Reports/MEMORY-TREND-26b/{RESULT.md,result.json,merge-check.json}에 gate/제한을 남긴다. 보호 경로/DTCore 변경·push/merge없음.
+## 2026-10-23 — UXR-P1/P2a 직렬 통합·Slab UI 격리
+
+- 기준 `origin/master=3cad265f0c11e53512e6a8ffa8de24ae18df50a8`, 검증 코드 `fe7dda7c3872ae47e4fd79bf6b8263abc26feda5`, DTCore `b2504d1` 고정. 메인 `feat/uxr-p2-1023`에서 지정된 master 병합만 수행하고 README/IMPROVEMENTS 충돌은 양쪽 내용 보존으로 해결했다.
+- UE5.3 Development Editor 빌드, P1 4+P2a 5 순수 테스트와 새 Slab capability 회귀를 실제 실행했다. 최종 관련 UI/RHI 묶음28 Success/0 Fail/2 opt-in skip; 별도 캡처 실행은 1280×720/1920×1080 각각3 Success/0 Fail/0 Skip이다. opt-in skip2개 이름은 CoilCaptureRhi/HatchCaptureRhi이며 별도 활성 실행에서 통과했다. 고유 실제 Success 이름은30개다. 전체 MA0T10 release 실행은 아니다.
+- 실제 D3D12·client1280×720/1920×1080·글자100/150% PNG40장과 공유용1600px JPG40장, SHA/맵/DPI/UMG/배율/인스턴스 메타데이터를 남겼다. Windows DPI는1, UMG는 각각0.6660000086/1이었다. 직접 Computer Use는 코일의 Slab UI 미노출·PCD 프로필/분주·배율·사유 읽기·전송 해결 이동과 해치 출처/분할 전환을 확인했다. 원본 PNG·자동 캡처와 직접 마우스 행을 구분한다.
+- 사용자 지적 버그: 꺼진 Slab capability에서도 데이터 패널이 시나리오 점검/재생 UI를 준비하던 누락을 수정했다. 코일 데이터의 Slab 시나리오/재생 문구0을 실제 캡처에서 검사했고, 켜진 월드의 기존 UI 유지 회귀와 Slab 검증맵의 PCD UI를 실행했다. 소유 미리보기 Slab 요약·레거시 전송/실행 진단의 같은 경계를 보완했다. 일반 semantic 분류 ID/legend와 wire는 유지했다.
+- 실패 이력: 최초 P1 const 문맥 컴파일 오류와 신규 fixture의 타입 오류를 수정했다. 초기 RHI 묶음은5 Success/1 Fail였고 단독 드래그 재실행도 실패했다. replay/progress 창이 사용 가능 높이를 채워 Y 이동 범위가 없음을 확인해 기존 resize API로 fixture 높이600을 적용했다. 원래 시작점(100,150)·14개 조합·X>50/Y>10·capture/release 기준은 유지했다. 최종 통합 묶음에서 통과했으며 실패 로그를 보존한다.
+- 표시형 Editor의 초기화 중 LiveCoding.dll 접근 감지/힙 종료1회는 테스트 시작 전 발생했으며 같은 실행의 재시도는 정상 완료됐다. 오프스크린 자동화 시작 시 엔진 SwapChain4 ensure가 기록돼 원문 로그에 보존한다. 최종 자동화 assertion/프로세스 결과와 구분하며 원인을 제품 UI 코드로 확정하지 않는다. 초기 서명 정책/보고 경로/UTF16 메타데이터 처리 오류도 재실행 이력과 분리했다.
+- WBP7 메모리 컴파일(NullRHI, 자산 저장 없음), 새 rendered vocabulary, quick9, layer/allowlist0→0, DTCore guard 통과. 성능은 사용자 승인 UI 전용 예외로 생략했다. 3cad265 대비 production 변경은 L3 UI에 한정되며 acquisition/readback/codec/transport/Slab motion은 변경하지 않았다. 현재2% 성능 gate 통과를 주장하지 않는다.
+- Editor/PIE 정상 종료 뒤 개인 SaveGame/Editor 설정43개를 원본 집합·해시로 복원했고 보호 해시297개가 동일했다. 기존 SensorTestMap 사용자 변경·Config/Game.ini·PixelStreaming·Claude 전용 파일 및 DTCore source/gitlink는 보존했다. 운영맵/WBP 저장·재생성, push·master merge는 하지 않았다.
+- 별도 관찰: 데이터 패널이 닫힌 배치 화면에서는 장비가 표시돼도 툴바에 일반 `장비 선택 필요` 경고가 남는 경우가 있다. 기존 툴바 수동 점검의 대상 목록은 이번 범위에서 바꾸지 않았으며 후속 대상으로 보고한다. 직접 모든 조합·OS DPI150%·외부 수신/업무 ACK·현장 수용은 미수행이다.
+- 상세: [RESULT.md](../Saved/Reports/UXR-P1P2a/RESULT.md), [result.json](../Saved/Reports/UXR-P1P2a/result.json), [merge-check.json](../Saved/Reports/UXR-P1P2a/merge-check.json), `Saved/Reports/UXR-P1P2a/`의 원본 실패/성공·설정 복원 증거.
+
+
+## 2026-10-24 UXR-P2b — 병렬 구현·정적 검증, 직렬 검증 대기
+
+- 지정 worktree `C:\Unreal Projects\wt_uxp2b`, branch `feat/uxr-p2b-1024`, 기준 `d2ca1d1`, 구현 `fadf810`. 시작 index/worktree 변경0. Editor·UBT·GPU·측정·직접 UI·메인 프로세스 조작 없이 수행했다.
+- C02/H01/H03/H04의 L3 표시만 변경했다. C04는 빈도 근거가 없어 [제안](research/UXR-P2b/C04-proposal.md)만 작성했다. 센서/해석 계산·정책·TF/좌표·wire·저장값·DTCore와 코일 Slab capability 경계는 유지했다.
+- `Scripts/verify.ps1 -Level quick -BaseCommit d2ca1d1`: 구현 SHA에서9 Success/0 Fail. 합성 perf-cohort fixture는 측정 결과가 아니다. layer/allowlist0→0·새 위반0, DTCore guard PASS다. 소스 비교8건에서 기존 handler51개·버튼 연결·분석/사유 그룹·파일 동선·TF 원문·기존 reflected 선언을 대조했다.
+- 신규 `MA0T10.UXRP2b` 단위 테스트5개는 작성만 했다. 기존 `ProductPresentationRhi`는 세로 넘침/줄바꿈·실제 글자 높이·selector 인스턴스 유지 검사를 추가했고, `SensorLabelAnchorsRhi`는 한국어 역할과 원문 TF 툴팁을 함께 검사하도록 바꿨다. 기존 위치/좌표/겹침/수치 기준은 완화하지 않았다. 이 테스트들과 빌드·RHI·100/150% 캡처·직접 조작·성능은 **미수행**이다.
+- 개인 설정/SaveGame/창 배치는 미조작이므로 복원 불필요. 보호 대상 tracked185개를 시작/종료 SHA-256으로 대조하고 DTCore gitlink/worktree도 검사한다. 비밀값 사용·출력 없음, push/PR/merge/submodule update 없음.
+- 상세 상태·검사 이력·두 client×글자100/150%의 직렬 장면/테스트명은 [RESULT.md](../Saved/Reports/UXR-P2b/RESULT.md), [result.json](../Saved/Reports/UXR-P2b/result.json), [merge-check.json](../Saved/Reports/UXR-P2b/merge-check.json)을 따른다. 메인에는 허용한 RESULT.md 사본 하나만 남긴다. 이번 결과는 실행/현장 수용 PASS가 아니다.
+
+
+## 2026-10-24 UXR-P2b — 메인 직렬 빌드·캡처·직접 점검
+
+- 메인 `feat/uxr-p2b-1024@edfc473`에서 시작했다. SensorTestMap 사용자 수정과 미추적 CLAUDE/Config/Game.ini/PixelStreaming/IMPROVEMENTS_CLAUDE를 보존했다. 병렬 제한 해제·빌드/실제 UI 허용과 UI 전용 perf 생략은 이번 사용자 지시에 따른다.
+- 추가 코드0ba93a9(배지 높이·opt-in 캡처·HatchReport 출력)와4887653(정지/마지막 획득 표시·실제 running/backend metadata)을 검증했다. 최초 ProductPresentationRhi의 배지 높이6assertion 실패를 실제 desired height로 해결했다. 위치/겹침/1px/1cm 및 기존 계산·정책 기준은 완화하지 않았다.
+- 코드4887653의 UE5.3 Development 빌드 PASS. 관련22 Success/0 Fail/0 Skip(신규 단위5 포함), 두 client별 캡처2 Success/0 Fail/0 Skip와150% SensorLabelAnchorsRhi 각1 Success/0 Fail/0 Skip다. WBP7 메모리 compile(save0), quick9·layer/allowlist0→0·DTCore guard PASS다. 합성 cohort fixture를 실제 성능으로 세지 않았다.
+- 실제 D3D12/HWRT·client1280×720/1920×1080×글자100/150의 PNG64/메타데이터64와1600×900 공유 JPEG64를 남겼다. DPI1, UMG0.6660000086/1, 동일 코드·모니터 인스턴스·revision·cached Hz·실제 running 상태를 기록했다. 정지4장면은3대 running=false와 마지막 획득 표기를 assertion했다.
+- Computer Use 직접4세션35행: 코일100→150→100 및 배치/Undo 재생성·Slab 없는 전송/결과/진단/미리보기, 해치 분할/단일·시점·선택/세로 스크롤·TF tooltip·현장 보기·회색 격자 진단·독립 배율을 확인했다. 원본 WGC는 JPEG35이며 최초 확장자 오표기를 바이트 변경 없는 rename으로 정정했다. 자동 캡처·setup harness를 직접 마우스 통과로 바꾸지 않았다.
+- C04는 빈도 근거가 없어 제안만 유지했다. production 변경은 L3 표시2개 파일이며 DTCore·L0~L2·wire·저장/기본 정책 변경0이다. perf는 사용자 UI 전용 예외 및 브라우저 실행 조건으로 생략했다. 전체 release·OS DPI150%·현장/외부 수신/업무 ACK 수용은 미수행이다.
+- 초기 Hatch07Rhi의 고정 출력 경로를 사전 확인하지 못해 과거 hatch-rviz PNG5개가 갱신됐다. 초기 새 결과는 P2b/serial/hatch-rhi-initial에 보존했고 후속 실행은 -HatchReport로 P2b에 한정했다. 과거 원본5개 복원/동일 해시는 입증하지 못한다. Inspection 원본 및 보호 파일은 변경하지 않았다.
+- Editor/PIE 정상 종료 후 개인 SaveGame/WindowsEditor 설정43개 원본 집합·해시 복원(새 파일 제거0), 보호297개 해시 일치·DTCore b2504d1 gitlink/index/worktree 불변을 확인했다. 보호 경로 stage0, push/PR/merge/submodule update0이다.
+- 상세 [RESULT](../Saved/Reports/UXR-P2b/RESULT.md), [직접 점검표](../Saved/Reports/UXR-P2b/manual/CHECKLIST.md), [result.json](../Saved/Reports/UXR-P2b/result.json), [merge-check](../Saved/Reports/UXR-P2b/merge-check.json). merge_check의 REVIEW는 자동 머지 승인이 아니며 남은 gate와 변경된 테스트의 독립 검수가 필요하다.

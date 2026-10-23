@@ -6,6 +6,9 @@ param(
     [ValidatePattern('^[12](,[12])?$')][string]$PerfPairs = '1',
     [ValidateSet('Visible', 'Offscreen', 'Both')][string]$PerfDisplay = 'Visible',
     [ValidateSet('Off', 'ProjectDefault')][string]$PerfRayTracing = 'Off',
+    [switch]$PerfCameraGroundTruth,
+    [ValidateSet('MLX80Native', 'Rev7')][string]$PerfLidarProfile = 'MLX80Native',
+    [switch]$PerfRequireGpu,
     [ValidateRange(30, 60)][int]$PerfMeasurementSeconds = 60
 )
 $ErrorActionPreference = 'Stop'
@@ -80,7 +83,10 @@ try {
     }
     if ($Level -eq 'perf') {
         Invoke-Step 'perf-abab' {
-            & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/run_perf_abab.ps1" -Baseline $BaseCommit -Candidate HEAD -Pairs $PerfPairs -Display $PerfDisplay -RayTracing $PerfRayTracing -MeasurementSeconds $PerfMeasurementSeconds -EngineRoot $EngineRoot -ReportRoot "$report/perf"
+            [string[]]$conditionArgs=@()
+            if($PerfCameraGroundTruth){$conditionArgs+='-CameraGroundTruth'}
+            if($PerfRequireGpu){$conditionArgs+='-RequireGpu'}
+            & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/run_perf_abab.ps1" -Baseline $BaseCommit -Candidate HEAD -Pairs $PerfPairs -Display $PerfDisplay -RayTracing $PerfRayTracing -LidarProfile $PerfLidarProfile -MeasurementSeconds $PerfMeasurementSeconds -EngineRoot $EngineRoot -ReportRoot "$report/perf" @conditionArgs
             if ($LASTEXITCODE -ne 0) { throw 'Perf ABAB gate failed' }
         }
     }

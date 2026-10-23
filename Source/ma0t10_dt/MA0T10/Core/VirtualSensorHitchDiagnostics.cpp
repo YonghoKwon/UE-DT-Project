@@ -48,6 +48,11 @@ namespace
     }
 }
 bool FVirtualSensorHitchDiagnostics::IsEnabled(){return GSensorHitchEnabled.load(std::memory_order_relaxed);}
+double FVirtualSensorHitchDiagnostics::CurrentFrameSeconds(EVirtualSensorHitchSection Section)
+{
+    const int32 Index=static_cast<int32>(Section);
+    return IsEnabled()&&IsInGameThread()&&Index>=0&&Index<GSensorHitchSectionCount?GSensorHitchSections[Index]:0.0;
+}
 void FVirtualSensorHitchDiagnostics::Start()
 {
     check(IsInGameThread());Stop();GSensorHitchFrames=GSensorHitchCount=0;GSensorHitchMaxFrameMs=0;GSensorHitchPreviousStart=0;FMemory::Memzero(GSensorHitchSections);

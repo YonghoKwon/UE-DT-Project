@@ -39,7 +39,7 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     if(!FMath::IsNearlyEqual(DisplayedFontScale,FontScale))
     {
         DisplayedFontScale=FontScale;
-        OwnedFontScaleText=FText::Format(NSLOCTEXT("SensorToolUiText","BottomFontScale","글자 {0}%"),FText::AsNumber(FMath::RoundToInt(FontScale*100)));
+        OwnedFontScaleText=SensorToolUiText::ToolsFontPercent(FontScale);
     }
     GlobalStatus=FSensorToolGlobalStatus();
     SlabCardTitle=FText::FromString(TEXT("Slab · 대기"));SlabCardAngle=SlabCardOffset=SlabCardMargin=FText::FromString(TEXT("—"));SlabCardProgress=0;
@@ -170,6 +170,7 @@ void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
     else GlobalStatus.Warning=SensorToolUiText::PcdWarning(PcdOverloadSuspended,PcdRateControlled,PcdControlledHz,SendDelayed,!Session.RequiredDataError.IsEmpty());
     if(const auto* T=GetWorld()->GetSubsystem<UAgentTestSetSubsystem>())if(T->HasItems())
         GlobalStatus.TestSet=FText::FromString(FString::Printf(TEXT("테스트셋 %s %d/%d"),T->IsComplete()?TEXT("완료"):T->IsPaused()?TEXT("일시정지"):T->HasBusyWork()?TEXT("대기"):TEXT("진행"),T->Completed(),T->Settings().Target));
+    OwnedWarningSummary=SensorToolUiText::Warning(FText::FromString(SensorToolUiText::StatusWarningSummary(GlobalStatus.Warning.ToString())));
     RefreshActivityChips();
 }
 
@@ -214,14 +215,16 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
         if(Destination==ESensorToolDestination::Scenario&&Workspace()&&!Workspace()->AreSlabToolsEnabled())continue;
         auto Label=[this,I]()
         {
-            switch(I){case 0:return GlobalStatus.Equipment;case 1:return GlobalStatus.Pcd;case 2:return GlobalStatus.Scenario;case 3:return GlobalStatus.Server;default:return SensorToolUiText::Warning(GlobalStatus.Warning);}
+            switch(I){case 0:return GlobalStatus.Equipment;case 1:return GlobalStatus.Pcd;case 2:return GlobalStatus.Scenario;case 3:return GlobalStatus.Server;default:return OwnedWarningSummary;}
         };
         Row->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(I==0?0:4,0,0,0)
         [SNew(SButton).ButtonStyle(I==4?&WarningChip:&Chip).ContentPadding(FMargin(8,3))
           .Visibility_Lambda([this,I](){return I==4&&GlobalStatus.Warning.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;})
-          .ToolTipText_Lambda(Label).OnClicked_Lambda([this,Destination,I](){OpenOwnedDestination(I==4?(GlobalStatus.bConnectionWarning?ESensorToolDestination::ServerSettings:GlobalStatus.bPreflightWarning?ESensorToolDestination::PcdTransfer:Destination):Destination);return FReply::Handled();})
-         [SNew(SBox).MaxDesiredWidth(I==4?340.f:240.f)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
-          .ColorAndOpacity(I==4?FSensorOwnedPresentationStyle::Warning():FSensorOwnedPresentationStyle::Muted())]]];
+          .ToolTipText_Lambda([this,I,Label](){return I==4?SensorToolUiText::Warning(GlobalStatus.Warning):Label();}).OnClicked_Lambda([this,Destination,I](){OpenOwnedDestination(I==4?(GlobalStatus.bConnectionWarning?ESensorToolDestination::ServerSettings:GlobalStatus.bPreflightWarning?ESensorToolDestination::PcdTransfer:Destination):Destination);return FReply::Handled();})
+         [SNew(SHorizontalBox)
+          +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[SNew(SBox).MaxDesiredWidth(I==4?220.f:240.f)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+           .ColorAndOpacity(I==4?FSensorOwnedPresentationStyle::Warning():FSensorOwnedPresentationStyle::Muted())]]
+          +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6,0,0,0)[SNew(STextBlock).Visibility(I==4?EVisibility::Visible:EVisibility::Collapsed).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text(SensorToolUiText::CheckAction()).ColorAndOpacity(FSensorOwnedPresentationStyle::Warning())]]];
     }
     // Off means no activity buttons/font/text attributes in the Slate tree. Rebuild only
     // when the two activity-presence bits change, within the existing 5Hz refresh.
@@ -230,6 +233,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
     DisplayedActivityMask=255;RefreshActivityChips();
     Row->AddSlot().FillWidth(1)[SNullWidget::NullWidget];
     Row->AddSlot().AutoWidth().VAlign(VAlign_Center)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&Chip).HasDownArrow(false)
+      .ToolTipText(SensorToolUiText::ToolsFontHint())
       .OnGetMenuContent_Lambda([this](){return BuildAppearanceMenu();}).ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted())
       .Text_Lambda([this](){return OwnedFontScaleText;})]];
     return Row;
