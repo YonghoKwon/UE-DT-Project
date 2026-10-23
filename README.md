@@ -18,6 +18,12 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### UXR-P1 — 운전원 표시 개선 구현, 직렬 검증 대기
+
+감사 P1 네 건(T01/C01/H02/D01)을 L3 UI에서 구현했다. 기존 Workspace의 실제 점유 영역을 읽어 코일 소유 패널을 배치하고, 위험·주의 옆에 미확인 **사유 수**와 입력 확인 위치를 표시한다. 해치 카드에는 모의값/측정값 출처를 붙이며, 전송 점검 대상·짧은 사유·기존 해결 버튼은 옵션 스크롤 위에 유지한다. 계산·판정·전송 정책·저장값·DTCore·위젯 생성/재호스팅 경로는 유지한다.
+
+측정 없는 승인 worktree에서 quick·layer·DTCore guard와 소스 계약 검사를 수행했다. 순수 로직/문구 자동화 4개는 **작성만 했으며 빌드·실행하지 않았다**. Editor·직접 UI·100/150% 캡처·실제 RHI·성능은 직렬 단계 대기다. [감사 범위](docs/research/UXR-AUDIT-1023/RESULT.md)와 [결과·직렬 검증 목록](Saved/Reports/UXR-P1/RESULT.md)을 따른다.
+
 ### PCD-BANDWIDTH-01 — 전송 용량 옵션·기본 LZF 적용
 
 Full/Compact/Minimal/Custom·필드 체크·LZF·1/1·1/2·1/4를 LiDAR별/일괄 적용하고 기존 v6 설정을 보존한다. 사용자 결정대로 Full+LZF On+1/1을 유지하며 파일 저장은 Full+binary다. 압축 체크박스 옆과 툴팁에 PCL·프로젝트 수신기·ROS2 브리지 호환 및 자체 서버 압축 해제 지원 확인 안내를 표시한다. 전송 중에는 최근 1초 실제 PCD body 바이트·Hz·payload 압축 절감률과 실측 예산 %를 우선 표시하고, 미전송 상태에서만 **최대 추정**을 표시한다.
@@ -744,6 +750,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 - 폴더 이동은 같은 모듈 안의 이동이므로 `/Script/ma0t10_dt` reflection 경로·Blueprint·SaveGame 직렬화에 영향이 없어야 한다. 클래스/구조체/enum 이름·순서·UPROPERTY는 바꾸지 않는다.
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
+
+UXR-P1은 기존 L3 소유 UI·Host와 순수 표시 helper만 변경한다. Workspace의 읽기 전용 점유 사각형과 기존 열기/해결 이동을 사용하며 새 위젯 관리자·DTCore adapter·모듈·자산·저장 형식 변경 없이 layer/allowlist **0→0**이다. 빌드·RHI·직접 UI·성능 통과를 뜻하지 않는다.
 
 PCD-BANDWIDTH-01은 L1 공용 PCD 코덱·전송 옵션/분주와 L2 수신·재생 adapter, L3 기존 소유 데이터 패널·v6 설정을 확장한다. DTCore·모듈·자산·저장 슬롯 변경 없이 layer/allowlist 0→0을 검증한다. 파일 저장은 Full binary를 유지한다.
 

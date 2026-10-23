@@ -4,6 +4,12 @@
 
 [작업 지침](../AGENTS.md) · [현재 기능/사용법](../README.md) · [단계별 로드맵](ROADMAP.md) · [검증 이력](VALIDATION_HISTORY.md)
 
+## UXR-P1 — 감사 P1 네 건 구현, 직렬 검증 대기
+
+[UXR-AUDIT-1023](research/UXR-AUDIT-1023/RESULT.md)의 T01/C01/H02/D01만 구현했다. 센서 도구 점유 영역에 따른 코일 배치, 위험·주의와 미확인 사유 수의 동시 요약/확인 위치, 해치 모의값·측정값 출처, 전송 상단 점검 사유·기존 해결 이동을 적용했다. L3 표시만 변경하며 계산·그룹 집계·차단/전송 정책·기본값·DTCore·위젯 인스턴스 경로는 유지한다. DTCore 변경 후보는 추가하지 않는다.
+
+quick·layer/allowlist0→0·DTCore guard·소스 계약 검사는 통과했다. 순수 로직/문구 자동화 4개는 작성 후 미실행이며, 빌드·실제 RHI·직접 UI·100/150%·ABAB 성능은 지시서의 병렬 실행 금지에 따라 대기한다. 이 항목을 현장 수용 완료로 표시하지 않는다. [결과·직렬 캡처 장면/테스트명](../Saved/Reports/UXR-P1/RESULT.md)을 따른다. 다른 P2/P3 감사 항목은 이번 범위에 포함하지 않는다.
+
 ## FOLLOWUP-28-26 — 환경 정리 후 FPS 통과, 획득cadence로 통합 gate 차단
 
 독립 리뷰 수정: `f5d5a4e`는 최신 작은 PCD가 이전 큰 FIFO head를 영구 대기시키는 센서 토큰 상한을 수정한다. 해당 센서의 현재 FIFO head 바디까지 상한에 포함하고, 기존 refill 공정성·실제 바이트 차감·전역 버킷·예약 상한은 유지한다. Exact/Wildcard 1.32MB→66KB 회귀는 수정 전2 Fail, 수정 후 모두1.05초 버킷 시간 내 FIFO 송신접수·socket·receipt·외부33-byte/schema/checksum 검증 PASS, overload/교체0이다. `4c24907`은 `-CoilPhotoReport` 별칭을 복원하며 `-CoilReport`가 우선한다. 핵심5 Success, SensorStream/별칭38 Success·6조건부skip·0Fail이다. [증거](../Saved/Reports/FOLLOWUP-28-26/r5/REVIEW-FIX.md).
