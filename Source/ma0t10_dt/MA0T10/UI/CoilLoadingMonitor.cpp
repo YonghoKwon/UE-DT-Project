@@ -14,6 +14,7 @@
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/TextBlock.h"
 #include "Components/Button.h"
+#include "Components/ButtonSlot.h"
 #include "Components/Border.h"
 #include "Components/SpinBox.h"
 #include "Components/EditableTextBox.h"
@@ -86,7 +87,8 @@ void UCoilLoadingMonitor::NativeOnInitialized()
     R=Row(HB);AddButton(R,TEXT("전경"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnOverview));AddButton(R,TEXT("홀드 내부"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnInterior));AddButton(R,TEXT("단면"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnSection));AddButton(R,TEXT("2D 상면"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnTop));AddButton(R,TEXT("점군"),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnPoints));
     auto* FontButton=Button(*CoilLoadingPresentation::FontLabel(TextScale),GET_FUNCTION_NAME_CHECKED(UCoilLoadingMonitor,OnFontSize));FontScaleLabel=Cast<UTextBlock>(FontButton->GetContent());FontButton->SetToolTipText(FText::FromString(TEXT("코일 선적 패널 글자만 100/150%로 전환합니다. 센서 도구는 하단의 센서 도구 글자 메뉴에서 별도로 변경하세요.")));R->AddChildToHorizontalBox(FontButton)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     // The same buttons must retain complete labels beside a wide tools sidebar.
-    for(int32 I=0;I<R->GetChildrenCount();++I)if(auto* B=Cast<UButton>(R->GetChildAt(I)))if(auto* T=Cast<UTextBlock>(B->GetContent()))T->SetAutoWrapText(true);
+    for(int32 I=0;I<R->GetChildrenCount();++I)if(auto* B=Cast<UButton>(R->GetChildAt(I)))if(auto* T=Cast<UTextBlock>(B->GetContent()))
+    {T->SetAutoWrapText(true);T->SetJustification(ETextJustify::Center);if(auto* ContentSlot=Cast<UButtonSlot>(T->Slot))ContentSlot->SetHorizontalAlignment(HAlign_Fill);}
     Operation=Label(TEXT("매단 하중 아래 출입 금지 · 빨간 원은 표시용 작업구역"),12);HB->AddChildToVerticalBox(Operation);
     PlotCard=Card(TEXT("CoilPlanCard"));PlanView=WidgetTree->ConstructWidget<UCoilLoadingPlanView>();PlanView->Monitor=this;PlotCard->SetContent(PlanView);PlotCard->SetVisibility(ESlateVisibility::Collapsed);
     auto* Footer=Card(TEXT("CoilAnalysis"));auto* FB=WidgetTree->ConstructWidget<UVerticalBox>();Footer->SetContent(FB);Metrics=Label(TEXT("질량·하중·무게중심 높이(KG)·횡경사"),13,true);
@@ -123,7 +125,9 @@ void UCoilLoadingMonitor::Refresh()
     auto* S=Sim.Get();if(!S||!IsVisible())return;if(LastPlanCount!=S->Plan().Num()){LastPlanCount=S->Plan().Num();SyncInputs();}const FVector2D FullSize=UWidgetLayoutLibrary::GetViewportSize(this)/UWidgetLayoutLibrary::GetViewportScale(this);if(FullSize.X<=0||FullSize.Y<=0)return;
     const FBox2D Area=CoilLoadingPresentation::AvailableArea(FullSize,Host.IsValid()?Host->GetToolsInset():FVector2D::ZeroVector);
     const FVector2D Size=Area.GetSize(),Offset=Area.Min;
-    const double Left=FMath::Min(360.*TextScale,Size.X*.34),X=Left+24,Width=FMath::Max(100.,Size.X-X-12),FooterH=FMath::Clamp(Size.Y*.27,170.,260.),Top=160*TextScale;
+    const double Left=FMath::Min(360.*TextScale,Size.X*.34),X=Left+24,Width=FMath::Max(100.,Size.X-X-12),FooterH=FMath::Clamp(Size.Y*.27,170.,260.);
+    const double HeaderHeight=Slots.IsValidIndex(1)&&Slots[1]->Content?Slots[1]->Content->GetDesiredSize().Y:0.;
+    const double Top=FMath::Max(160.*TextScale,HeaderHeight+24.);
     const FVector2D Positions[]={{12,12},{X,12},{X,Top},{X,Size.Y-FooterH-12}},Sizes[]={{Left,Size.Y-24},{Width,Top-24},{Width,Size.Y-FooterH-Top-24},{Width,FooterH}};
     for(int32 I=0;I<Slots.Num();++I){Slots[I]->SetPosition(Positions[I]+Offset);Slots[I]->SetSize(Sizes[I]);}
     const FVector2D MaskPositions[]={{0,0},{0,Size.Y-FooterH-24},{0,Top},{FullSize.X-12,Top}},MaskSizes[]={{FullSize.X,Top},{FullSize.X,FullSize.Y-Size.Y+FooterH+24},{X+Offset.X,Size.Y-FooterH-Top-24},{12,Size.Y-FooterH-Top-24}};

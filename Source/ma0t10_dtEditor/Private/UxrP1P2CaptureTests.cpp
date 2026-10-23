@@ -122,6 +122,17 @@ class FUxrCaptureCommand final:public IAutomationLatentCommand
         {
             bool Visible=true;for(UWidget* Parent=Label;Parent;Parent=Parent->GetParent())Visible&=Parent->IsVisible();
             if(Visible&&!Label->GetText().IsEmpty())Text.Add(MakeShared<FJsonValueString>(Label->GetText().ToString()));
+            if(!Hatch&&Visible)
+            {
+                auto* Header=Monitor.WidgetTree->FindWidget(TEXT("CoilViewHeader"));bool InHeader=false;
+                for(UWidget* Parent=Label;Parent;Parent=Parent->GetParent())InHeader|=Parent==Header;
+                if(Header&&InHeader)
+                {
+                    const auto& Geometry=Label->GetCachedGeometry();const auto& HeaderGeometry=Header->GetCachedGeometry();
+                    const FVector2D Bottom=HeaderGeometry.AbsoluteToLocal(Geometry.LocalToAbsolute(Geometry.GetLocalSize()));
+                    Test->TestTrue(TEXT("Every visible coil header label stays inside its card: ")+Label->GetText().ToString(),Bottom.Y<=HeaderGeometry.GetLocalSize().Y+1);
+                }
+            }
             if(!Hatch&&Label->GetText().ToString().StartsWith(TEXT("코일 글자")))
             {
                 const FVector2D Actual=Label->GetCachedGeometry().GetLocalSize(),Desired=Label->GetDesiredSize();
