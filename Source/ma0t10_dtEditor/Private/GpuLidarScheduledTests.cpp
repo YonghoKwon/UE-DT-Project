@@ -173,6 +173,9 @@ public:
             Row->SetNumberField(TEXT("horizontal_samples"),Scan->HorizontalSamples);Row->SetNumberField(TEXT("vertical_channels"),Scan->VerticalChannels);Row->SetNumberField(TEXT("frame_count"),Status.FrameId-Baselines[I]);
             Row->SetStringField(TEXT("device_profile"),StaticEnum<EVirtualLidarDeviceProfile>()->GetNameStringByValue(int64(Scan->DeviceProfile)));
             Row->SetNumberField(TEXT("baseline_frame_id"),Baselines[I]);Row->SetNumberField(TEXT("last_frame_id"),Status.FrameId);
+            const auto QueryStats=Scan->GetSceneQueryStatistics();
+            Row->SetNumberField(TEXT("scene_geometry_ms"),QueryStats.X);Row->SetNumberField(TEXT("scene_game_thread_ms"),QueryStats.Y);
+            Row->SetNumberField(TEXT("scene_external_bounds"),QueryStats.Z);Row->SetNumberField(TEXT("scene_fallback_traces"),QueryStats.W);
             Row->SetNumberField(TEXT("acquisition_ms"),Status.LastAcquisitionDurationMs);Rows.Add(MakeShared<FJsonValueObject>(Row));
             const double RequestedHz=1.0/FMath::Max(.001,double(Scan->ScanInterval));
             const double Ratio=Hz/RequestedHz;
