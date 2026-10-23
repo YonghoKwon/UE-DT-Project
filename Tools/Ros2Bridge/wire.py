@@ -8,6 +8,7 @@ import json
 import math
 import re
 import struct
+from pcd_codec import decode_pcd
 
 try:
     import numpy as np  # Installed by ROS base; optional for standalone Windows wire tests.
@@ -176,38 +177,19 @@ def pcd(body, headers):
     checked_body(body, headers)
     if headers.get('schema') != PCD_SCHEMA:
         raise WireError('unknown_schema')
-    stream = io.BytesIO(body)
-    values, meta = {}, None
-    while stream.tell() < 65536:
-        line = stream.readline(65537)
-        if not line or len(line) > 65536:
-            raise WireError('pcd_header')
-        if line.startswith(b'# MA0T10_META '):
-            if meta is not None:
-                raise WireError('duplicate_metadata')
-            meta = json.loads(line[14:])
-        elif not line.startswith(b'#'):
-            parts = line.decode('ascii').split()
-            if parts:
-                if parts[0] in values:
-                    raise WireError('duplicate_header')
-                values[parts[0]] = ' '.join(parts[1:])
-                if parts[0] == 'DATA':
-                    break
-    else:
-        raise WireError('pcd_header_size')
-    if any(values.get(k) != v for k, v in PCD_LAYOUT.items()):
-        raise WireError('pcd_layout')
+    try:
+        parsed = decode_pcd(body, MAX_BODY)
+    except (ValueError, KeyError, TypeError) as error:
+        raise WireError(str(error)) from error
+    meta = parsed.meta
     meta = meta or {}
     if meta and meta.get('schema') != 'virtual-pointcloud.context.v1':
         raise WireError('unknown_context_schema')
     sid, frame, utc = identity(headers, meta)
-    count = integer(values.get('POINTS'), high=MAX_BODY//33)
-    if integer(values.get('WIDTH')) * integer(values.get('HEIGHT'), low=1) != count:
-        raise WireError('pcd_dimensions')
-    data = stream.read()
-    if len(data) != count * 33:
-        raise WireError('pcd_bytes')
+    count = parsed.count
+    # ROS PointField compatibility stays 33 bytes, including the existing int64 split.
+    # The network may omit fields; local normalized defaults are explicit.
+    data = parsed.full_records(MAX_BODY)
     if 'point-count' in headers and integer(headers['point-count']) != count:
         raise WireError('pcd_point_count')
     if np is not None:
