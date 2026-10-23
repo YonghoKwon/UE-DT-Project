@@ -9,8 +9,10 @@
 #include "MaterialShared.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorCaptureRendering.h"
 
+// PreviewScene defaults to editor hit-proxy/world settings even in a game process.
+// The private ID/depth capture must use game construction outside the editor.
 FVirtualLidarSemanticScene::FVirtualLidarSemanticScene()
-    : Scene(FPreviewScene::ConstructionValues().SetCreateDefaultLighting(false).SetCreatePhysicsScene(false).SetTransactional(false).SetForceMipsResident(false))
+    : Scene(FPreviewScene::ConstructionValues().SetEditor(GIsEditor).SetCreateDefaultLighting(false).SetCreatePhysicsScene(false).SetTransactional(false).SetForceMipsResident(false))
 {
     CaptureComponent = NewObject<USceneCaptureComponent2D>();
     CaptureComponent->bCaptureEveryFrame = false;

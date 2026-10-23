@@ -18,6 +18,10 @@
 
 ## 1. 현재 상태 한눈에 보기
 
+### ANALYSIS-24 — 게임 실행의 Slab 의미 분류
+
+private semantic scene은 Editor에서는 기존 EditorPreview, `-game`/패키지에서는 GamePreview로 구성한다. 기본 editor scene 구성이 게임 실행에서 ID/depth 대응을 전부 실패시키던 경로를 수정했으며 Tag·분류 규칙·1cm 대응 기준·PCD 33B/라벨 5B는 유지한다. 명시적 `-LidarSemanticDiagnostics`의 센서·backend별 1회 요약과 `Scripts/audit_lidar_semantics.py --expect-backend 2 --require-slab`로 실제 파일을 대조한다. [직렬 원인 분석·재현](docs/research/ANALYSIS-24-22-serial.md), [실행별 최종 결과·제한](Saved/Reports/ANALYSIS-24-22/RESULT.md)을 따른다.
+
 ### UXR-P1/P2a — 운전원 표시 개선·직렬 UI 검증
 
 T01/C01/H02/D01과 C03·D02~D05·T02~T03을 기존 L3 UI에서 구현했다. 코일 패널은 소유 센서 도구의 점유 영역을 피하고, 위험·주의 옆에 미확인 사유 수를 표시한다. 해치 지표의 모의/측정 출처, 한국어 운전원 용어·수치별 단위, 짧은 PCD 안내·프레임 전송 간격·추정/실측 대역폭 표시를 적용했다. Slab 기능이 꺼진 월드의 데이터 패널은 수동 송신 점검을 사용하며 신규/재생 카드와 시나리오 경고를 표시하지 않는다. Slab 월드의 기존 흐름, 일반 PCD·파일 저장·기본 정책·저장값·DTCore는 유지한다.
