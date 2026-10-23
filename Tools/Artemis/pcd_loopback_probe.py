@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 MAX_BODY = 8 * 1024 * 1024
+NATIVE_LZF_VALIDATOR = None
 # PCD 0.7/PCL field layout. Full remains the default; optional stream profiles
 # select a subset with mandatory XYZ. Storage writers continue using Full.
 FIELD_TYPES = dict(zip(
@@ -24,6 +25,10 @@ FIELD_TYPES = dict(zip(
 def decode_lzf(data, expected, *, validate_only=False):
     if not 0 <= expected <= MAX_BODY:
         raise ValueError("LZF output exceeds fixture bound")
+    if validate_only and NATIVE_LZF_VALIDATOR is not None:
+        if not NATIVE_LZF_VALIDATOR(data, len(data), expected):
+            raise ValueError("invalid LZF literal/reference/output size")
+        return bytearray()
     out = bytearray()
     written = 0
     i = 0
@@ -227,7 +232,14 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=18625)
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--stop-file", type=Path, required=True)
+    parser.add_argument("--native-validator", type=Path)
     options = parser.parse_args()
+    if options.native_validator:
+        import ctypes
+        native_library = ctypes.CDLL(str(options.native_validator.resolve()))
+        NATIVE_LZF_VALIDATOR = native_library.pcd_validate_lzf
+        NATIVE_LZF_VALIDATOR.argtypes = [ctypes.c_char_p, ctypes.c_ulonglong, ctypes.c_ulonglong]
+        NATIVE_LZF_VALIDATOR.restype = ctypes.c_int
     if not 1024 <= options.port <= 65535:
         parser.error("use an unprivileged local port")
     options.report.parent.mkdir(parents=True, exist_ok=True)

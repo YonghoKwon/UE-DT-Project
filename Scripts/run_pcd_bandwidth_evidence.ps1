@@ -17,7 +17,15 @@ if(Test-Path -LiteralPath $stop){throw 'Use a fresh label'}
 $env:MA0T10_ACCEPTANCE_RES_X='1920';$env:MA0T10_ACCEPTANCE_RES_Y='1080'
 $probe=$null
 try{
-    $probeArgs=@((Join-Path $root 'Tools/Artemis/pcd_loopback_probe.py'),'--port',"$Port",'--report',(Join-Path $report 'loopback.json'),'--stop-file',$stop)|ForEach-Object{'"'+$_+'"'}
+    $native=Join-Path $report 'native'
+    New-Item -ItemType Directory -Force -Path $native|Out-Null
+    $nativeSource=Join-Path $root 'Tools/Artemis/lzf_validate.c'
+    $nativeDll=Join-Path $native 'lzf_validate.dll'
+    $vcvars='C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build/vcvars64.bat'
+    $compile='call "'+$vcvars+'" >nul 2>&1 && cl /nologo /LD /O2 "'+$nativeSource+'" /Fo"'+$native+'/lzf_validate.obj" /link /OUT:"'+$nativeDll+'" /IMPLIB:"'+$native+'/lzf_validate.lib" 2>&1'
+    & cmd.exe /d /s /c $compile *> "$native/build.log"
+    if($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $nativeDll)){throw 'Native fixture validator build failed'}
+    $probeArgs=@((Join-Path $root 'Tools/Artemis/pcd_loopback_probe.py'),'--port',"$Port",'--report',(Join-Path $report 'loopback.json'),'--stop-file',$stop,'--native-validator',$nativeDll)|ForEach-Object{'"'+$_+'"'}
     $probe=Start-Process python -ArgumentList $probeArgs -WindowStyle Hidden -PassThru -RedirectStandardOutput "$report/probe.log" -RedirectStandardError "$report/probe-stderr.log"
     $deadline=[DateTime]::UtcNow.AddSeconds(10)
     while(!(Test-Path -LiteralPath "$report/loopback.json")){
