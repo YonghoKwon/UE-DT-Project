@@ -131,6 +131,8 @@ void UVirtualSensorStreamPublisherComponent::ConfigureStream(const FVirtualSenso
 		Runtime.Config.DeliveryMode != Config.DeliveryMode ||
 		Runtime.Config.PointCloudFilter.Revision != Config.PointCloudFilter.Revision ||
 		Runtime.Config.FrameStride != Config.FrameStride ||
+		Runtime.Config.bOverridePcdSendOptions != Config.bOverridePcdSendOptions ||
+		!(Runtime.Config.PcdSendOptions == Config.PcdSendOptions) ||
 		Runtime.Config.LazCompressorPath != Config.LazCompressorPath ||
 		Runtime.Config.LazCompressorArguments != Config.LazCompressorArguments;
 	// ConfigureStream(false) is also the native UI's user-stop path. Retire
@@ -636,6 +638,8 @@ bool UVirtualSensorStreamPublisherComponent::TrySubmitHighThroughput(
 	UVirtualSensorHighThroughputTransportSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
 	FVirtualSensorBinaryFrame Frame;
 	Frame.StreamKind = Message.StreamKind;
+	Frame.PcdOriginalPointBytes=Message.PcdOriginalPointBytes;
+	Frame.PcdEncodedPointBytes=Message.PcdEncodedPointBytes;
 	Frame.SensorId = Message.SensorId;
 	Frame.FrameId = Message.FrameId;
 	Frame.TimestampUtc = Message.TimestampUtc;
@@ -1070,4 +1074,30 @@ void UVirtualSensorStreamPublisherComponent::SubmitImuBatch(const FString& Id,in
         FVirtualSensorFrameEnvelope F;F.SensorId=Id;F.FrameId=Batch;F.TimestampUtc=Utc;F.JsonPayload=MakeShared<const FString,ESPMode::ThreadSafe>(Json);
         QueueFrameForRuntime(Key,*R,F);break;
     }
+}
+
+FVirtualPcdSendOptions UVirtualSensorStreamPublisherComponent::GetPcdSendOptions(const FString& Id) const
+{
+    if(const auto* O=PcdSendOptionsBySensor.Find(Id))return *O;
+    if(const auto* O=PcdSendOptionsBySensor.Find(FString()))return *O;
+    FVirtualSensorStreamConfig Config;
+    if(ResolveActiveStreamForSensor(EVirtualSensorStreamKind::PointCloud,Id,Config)&&Config.bOverridePcdSendOptions)return Config.PcdSendOptions;
+    FVirtualPcdSendOptions Default;Default.bCompressed=bDefaultPcdCompression;return Default;
+}
+bool UVirtualSensorStreamPublisherComponent::SetPcdSendOptions(const FString& Id,const FVirtualPcdSendOptions& Options,bool All,FString& Error)
+{
+    Error.Reset();
+    if(!All&&Id.IsEmpty()){Error=TEXT("Select a LiDAR first");return false;}
+    // Accepted FIFO work drains under its original configuration. Never flush it to apply a UI option.
+    for(const auto& Pair:StreamRuntimes)
+    {
+        const auto& R=Pair.Value;
+        if(R.Config.StreamKind!=EVirtualSensorStreamKind::PointCloud||(!All&&!R.Config.SensorId.IsEmpty()&&R.Config.SensorId!=Id))continue;
+        if(R.bSerializationInFlight||!R.PendingFrameQueue.IsEmpty()||!R.PreparedMessageQueue.IsEmpty()||R.PreparedMessage.IsSet())
+        {Error=TEXT("Stop PCD and wait for pending output to drain before changing bandwidth options");return false;}
+    }
+    if(All)PcdSendOptionsBySensor.Reset();
+    PcdSendOptionsBySensor.Add(All?FString():Id,Options);
+    for(auto& Pair:StreamRuntimes)for(auto& Seq:Pair.Value.SensorSequences)if(All||Seq.Key==Id)Seq.Value.InputCount=0;
+    OnStreamConfigurationChanged.Broadcast();return true;
 }

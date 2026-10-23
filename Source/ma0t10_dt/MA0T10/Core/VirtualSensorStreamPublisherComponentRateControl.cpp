@@ -108,7 +108,7 @@ bool UVirtualSensorStreamPublisherComponent::OmitPointCloudForRateControl(const 
     auto& Sequence=R.SensorSequences.FindChecked(Frame.SensorId);
     if(Frame.RequestedAcquisitionIntervalSeconds>0)
     {
-        const double Period=Frame.RequestedAcquisitionIntervalSeconds;
+        const double Period=Frame.RequestedAcquisitionIntervalSeconds*GetPcdSendOptions(Frame.SensorId).Divisor();
         // This is an explicit configuration hint, not callback pacing. Even a
         // 0.05 -> 0.06 change should immediately reclaim the available margin.
         if(Sequence.InputPeriod>0&&Period>Sequence.InputPeriod+1e-6)

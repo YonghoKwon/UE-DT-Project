@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "VirtualPcdBandwidthMetrics.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorStreamReceiverTypes.h"
@@ -85,6 +86,7 @@ struct MA0T10_DT_API FVirtualSensorBinaryFrame
 {
 	// Process-local ownership token; never serialized into STOMP or PCD.
 	uint64 ManagedRunGeneration = 0;
+	int64 PcdOriginalPointBytes = 0, PcdEncodedPointBytes = 0;
 	EVirtualSensorStreamKind StreamKind = EVirtualSensorStreamKind::LidarPayload;
 	FString SensorId;
 	int64 FrameId = 0;
@@ -188,6 +190,7 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualSensor|Transport")
 	TArray<FVirtualSensorStreamTelemetry> GetStreamTelemetry() const;
+	FVirtualPcdBandwidthSample GetRecentPcdBandwidth(const FString& SensorId, double Now) const;
 	void ConfigureReceiver(const FVirtualSensorReceiveSelection& Selection);
 	FVirtualSensorReceiveEvent OnReceived;
 	FVirtualSensorTransportObservationEvent OnTransportObservation;
@@ -213,6 +216,7 @@ private:
 	void DrainWorkerEvents();
 	FVirtualSensorHighThroughputTransportWorker* Worker = nullptr;
 	TMap<FString, FVirtualSensorStreamTelemetry> TelemetryByKey;
+	TMap<FString, FVirtualPcdBandwidthWindow> PcdBandwidthBySensor;
 	FVirtualSensorHighThroughputProfile ActiveProfile;
 	void LogDiagnostic(int32 Kind,const FString& Message);
 	double NextDiagnosticLogSeconds[4]={};

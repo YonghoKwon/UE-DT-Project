@@ -23,6 +23,17 @@ class MA0T10_DT_API UVirtualSensorStreamPublisherComponent : public UActorCompon
 
 public:
 	FSimpleMulticastDelegate OnStreamConfigurationChanged;
+	DECLARE_MULTICAST_DELEGATE_FourParams(FPcdEncoded,const FString&,int64,float,int32);
+	FPcdEncoded OnPcdEncoded;
+	UFUNCTION(BlueprintCallable, Category="DigitalTwin|VirtualSensor|PCD")
+	bool SetPcdSendOptions(const FString& SensorId, const FVirtualPcdSendOptions& Options, bool bApplyToAll, FString& Error);
+	UFUNCTION(BlueprintPure, Category="DigitalTwin|VirtualSensor|PCD")
+	FVirtualPcdSendOptions GetPcdSendOptions(const FString& SensorId) const;
+	/** Measured transmission default. Explicit per-sensor/SaveGame choices win. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="DigitalTwin|VirtualSensor|PCD")
+	bool bDefaultPcdCompression = true;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="DigitalTwin|VirtualSensor|PCD")
+	TMap<FString,FVirtualPcdSendOptions> PcdSendOptionsBySensor;
 	UVirtualSensorStreamPublisherComponent();
 
 	virtual void BeginPlay() override;
@@ -145,6 +156,7 @@ private:
     friend struct FPointCloudOverloadTestAccess;
     friend struct FPcdRateControlTestAccess;
     friend struct FPcdFairBudgetTestAccess;
+    friend struct FPcdBandwidthTestAccess;
     friend class FUxr15OptionBindingsTest;
 #endif
 	friend class FSensorPlacementGateTest;
@@ -165,6 +177,7 @@ private:
 		FString BinarySchema;
 		FString BinaryContentType;
 		int32 ByteCount = 0;
+		int64 PcdOriginalPointBytes = 0, PcdEncodedPointBytes = 0;
 		int32 ConfigRevision = 0;
 		int32 RetryAttempt = 0;
 		bool bBinaryPcd = false;
@@ -209,7 +222,7 @@ private:
 		bool bHasInputFrameInSegment=false;
 		struct FSensorSequence
 		{
-			FString Segment;int64 Frame=0;bool bHave=false;
+			FString Segment;int64 Frame=0,InputCount=0;bool bHave=false;
 			double LastInputSeconds=0,InputPeriod=0,AdmissionCredit=0;
 			// Measured encoded body, including the header; no second point scan.
 			double FrameBytes=0,FairBytesPerSecond=0,BandwidthTokens=0,BandwidthUpdated=0;
