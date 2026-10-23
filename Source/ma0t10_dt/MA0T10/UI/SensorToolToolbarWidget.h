@@ -62,6 +62,7 @@ private:
 	TSharedRef<SWidget> BuildEquipmentLabel(TWeakObjectPtr<AVirtualSensorActorBase> Actor);
 	FSensorToolGlobalStatus GlobalStatus;
 	FText OwnedFontScaleText;
+	FText OwnedWarningSummary;
 	float DisplayedFontScale=-1.f;
 	double NextStatusRefresh=-1;
 	double ServerDisconnectedSince=-1;

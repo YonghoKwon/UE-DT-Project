@@ -8,6 +8,7 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorResourceDiagnostics.h"
 #include "VirtualLidarFidelity.h"
 #include "VirtualLidarPointModel.h"
+#include "VirtualLidarCadence.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorRayQuery.h"
 #include "VirtualLidarScanComponent.generated.h"
 
@@ -27,6 +28,16 @@ struct FVirtualLidarSceneQueryBuffer;
 struct FVirtualLidarSceneQueryJob;
 struct FVirtualLidarScenePointPool;
 struct FSensorRtHit;
+#if WITH_DEV_AUTOMATION_TESTS
+#define MA0T10_LIDAR_TIMING_TRACE_AVAILABLE 1
+struct FVirtualLidarTimingSample
+{
+    int64 FrameId=0;
+    double Due=0,Admitted=0,ReadbackObserved=0,Normalized=0,Completed=0;
+    uint64 AdmissionFrame=0,ReadbackFrame=0,CompletionFrame=0,LastBusyFrame=MAX_uint64;
+    int32 DueBusyFrames=0;
+};
+#endif
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnVirtualLidarDerivedFrameCompletedNative,const FVirtualSensorFrameEnvelope&);
 DECLARE_MULTICAST_DELEGATE_FourParams(FOnVirtualLidarCompatibilityRequestCompletedNative,const FString&,bool,const FVirtualSensorFrameEnvelope&,const FString&);
 
@@ -150,6 +161,7 @@ public:
     FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     uint64 GetScenePointPoolFallbacksForTesting() const { return ScenePointPoolFallbacksForTesting; }
+    bool WaitForScenePointPoolCleanupForTesting() const;
 #endif
     UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="DigitalTwin|VirtualLidar|Output")
     EVirtualLidarCompatibilityOutputPolicy CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::LegacyAlways;
@@ -183,6 +195,18 @@ public:
     // Automatic scan entry points used by UVirtualSensorSchedulerSubsystem.
     // ScanAndSend remains the synchronous one-shot compatibility API.
     void PrepareScheduledScan(double NowSeconds);
+#if WITH_DEV_AUTOMATION_TESTS
+    void StartTimingTraceForTests() { bTimingTraceForTests=true; TimingSamplesForTests.Reset(); TimingSamplesForTests.Reserve(4096); }
+    const TArray<FVirtualLidarTimingSample>& GetTimingTraceForTests() const { return TimingSamplesForTests; }
+    bool bTimingTraceForTests=false;
+    FVirtualLidarTimingSample ActiveTimingSampleForTests;
+    TArray<FVirtualLidarTimingSample> TimingSamplesForTests;
+#endif
+    bool UsesAutomaticCadencePhase() const;
+    uint64 GetAutomaticCadenceGeneration() const { return AutomaticCadenceGeneration; }
+    void ApplyAutomaticCadencePhase(double WallSeconds, double Phase, bool bInitial);
+    void SuspendScheduledScanCadence(double WallSeconds) { ScheduledCadence.Suspend(WallSeconds); }
+    uint64 GetScheduledMissedSlotCount() const { return ScheduledCadence.GetSkippedSlots(); }
     int32 ProcessScheduledScanChunk(int32 MaxRays);
 	void RequestImmediateScheduledScan();
     void SetInteractivePreviewMode(bool bEnabled, bool bSuppressDerivedOutput = true);
@@ -365,7 +389,7 @@ public:
     const FVirtualSensorRuntimeStatus& GetRuntimeStatus() const { return RuntimeStatus; }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar")
-    bool IsScanRunning() const { return NextScheduledScanTime >= 0.0; }
+    bool IsScanRunning() const { return ScheduledCadence.IsRunning(); }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|VirtualLidar|SlabAnalysis")
     const FVirtualLidarSlabAnalysisResult& GetLastSlabAnalysis() const { return LastSlabAnalysis; }
@@ -798,7 +822,12 @@ private:
     UPROPERTY(Transient)
     TObjectPtr<UInstancedStaticMeshComponent> PointCloudPreviewComponent;
 
-    double NextScheduledScanTime = -1.0;
+    FVirtualLidarCadence ScheduledCadence;
+    bool bAutomaticCadencePhasePending = false;
+    bool bAutomaticCadencePhaseEnabled = false;
+    uint64 AutomaticCadenceGeneration = 0;
+    double AutomaticCadenceStartedAt = 0;
+    bool bSingleScheduledScanRequested = false;
     double ScheduledScanStartTime = -1.0;
 	FVirtualSensorAcquisitionContext ScheduledSlabContext;
     double LastScheduledCompletionTime = -1.0;
@@ -817,7 +846,6 @@ private:
     FString GpuPreviewFallbackReason;
     bool bScheduledScanInProgress = false;
     bool bGpuDepthScanInProgress = false;
-    bool bDeadlineMissRecordedForActiveAcquisition = false;
     bool bScheduledPayloadBuildInFlight = false;
     FVirtualLidarCompatibilityOutputStatus CompatibilityStatus;
     TMap<FString,TWeakObjectPtr<UObject>> CompatibilityConsumers;

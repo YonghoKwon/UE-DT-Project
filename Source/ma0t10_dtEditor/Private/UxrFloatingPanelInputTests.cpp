@@ -53,7 +53,13 @@ public:
         if(Phase==1)
         {
             // Let mode/font/layout restoration finish before fixing the start pose.
+            // A full-height replay/progress window has no vertical travel range.
+            // Use the existing resize API to leave room for the same routed drag;
+            // keep the original start position and both movement assertions.
+            const FVector2D Size=Panel->GetEffectivePanelSize();
+            Panel->SetPanelExpandedSize(FVector2D(Size.X,FMath::Min(Size.Y,600.)),false);
             Panel->SetWorkspacePosition(FVector2D(100,150));
+            Test->AddInfo(FString::Printf(TEXT("drag fixture size=%s viewport=%s"),*Panel->GetEffectivePanelSize().ToString(),*Panel->GetPanelLayoutViewport().ToString()));
             Next=FPlatformTime::Seconds()+.3;Phase=2;return false;
         }
         if(Phase==2)

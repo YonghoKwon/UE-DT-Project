@@ -79,6 +79,25 @@ namespace SensorToolUiText
         if(Reason.Contains(TEXT("수집 설정")))return LOCTEXT("EquipmentSettingsRequired", "장비 설정을 읽을 수 없습니다 · 센서 상세 설정에서 확인하세요").ToString();
         return UserReason(Reason);
     }
+    // Short titles for the transfer check card only. Raw reasons stay in details.
+    inline FString PreflightShortReason(const FString& Reason)
+    {
+        if(Reason.Contains(TEXT("STOMP 전송 모드")))return TEXT("방식 확인 필요");
+        if(Reason.Contains(TEXT("STOMP")))return TEXT("서버 연결 설정 필요");
+        if(Reason.Contains(TEXT("PCD Topic")))return TEXT("PCD 출력 주소 필요");
+        if(Reason.Contains(TEXT("Camera Topic")))return TEXT("Camera 이미지 출력 주소 필요");
+        if(Reason.Contains(TEXT("LiDAR Topic")))return TEXT("LiDAR 정보 출력 주소 필요");
+        if(Reason.Contains(TEXT("Broker URL")))return TEXT("서버 주소 필요");
+        if(Reason.Contains(TEXT("Coordinator")))return TEXT("장비 연결 확인 필요");
+        if(Reason.Contains(TEXT("중복 SensorId")))return TEXT("장비 ID 중복");
+        if(Reason.Contains(TEXT("선택 센서 없음"))||Reason.Contains(TEXT("대상 SensorId 없음")))return TEXT("장비 선택 필요");
+        if(Reason.Contains(TEXT("LiDAR가 없")))return TEXT("전송할 LiDAR 필요");
+        if(Reason.Contains(TEXT("Camera가 없")))return TEXT("전송할 Camera 필요");
+        if(Reason.Contains(TEXT("측정 주기")))return TEXT("측정 주기 확인 필요");
+        if(Reason.Contains(TEXT("수집 설정")))return TEXT("센서 상세 설정 확인 필요");
+        if(Reason.Contains(TEXT("PCD 전송 1/1")))return TEXT("PCD 전송 간격 확인 필요");
+        return PreflightReason(Reason);
+    }
     inline FText Advanced() { return LOCTEXT("Advanced", "고급"); }
     inline FText Ready() { return LOCTEXT("Ready", "준비됨"); }
     inline FString OutputSummary(bool Pcd,bool Camera,bool Lidar)
@@ -179,7 +198,23 @@ namespace SensorToolUiText
         return RequiredError?TransferCheck():FText::GetEmpty();
     }
     inline FText Warning(const FText& Reason) { return FText::Format(LOCTEXT("Warning", "⚠ {0}"), Reason); }
+    // Status-strip title only. Keep the original reason for the tooltip and existing destination.
+    inline FString StatusWarningSummary(const FString& Reason)
+    {
+        if(Reason.IsEmpty())return Reason;
+        if(Reason.Contains(TEXT("전송할 장비를")))return TEXT("장비 선택 필요");
+        if(Reason.Contains(TEXT("장비 없음")))return TEXT("장비 추가 필요");
+        if(Reason.Contains(TEXT("전송 방식이 맞지"))||Reason.Contains(TEXT("STOMP 전송 모드")))return TEXT("연결 방식 확인 필요");
+        if(Reason.StartsWith(TEXT("PCD 필요 ")))return TEXT("PCD 필요량·예산 확인");
+        if(Reason.Contains(TEXT("PCD 전송에는 서버")))return TEXT("서버 연결 설정 필요");
+        FString Title=PreflightShortReason(Reason),First;
+        if(Title.Split(TEXT(" · "),&First,nullptr))return First;
+        return Title;
+    }
+    inline FText CheckAction() { return LOCTEXT("CheckAction", "확인 ›"); }
     inline FText FontPercent(float Scale) { return FText::Format(LOCTEXT("FontPercent", "글자 {0}%"), FMath::RoundToInt(Scale * 100)); }
+    inline FText ToolsFontPercent(float Scale) { return FText::Format(LOCTEXT("ToolsFontPercent", "센서 도구 글자 {0}%"), FMath::RoundToInt(Scale * 100)); }
+    inline FText ToolsFontHint() { return LOCTEXT("ToolsFontHint", "센서 도구 글자만 변경합니다. 코일·해치 모니터는 각 화면에서 별도로 변경하세요."); }
     inline FText ResetUi() { return LOCTEXT("ResetUi", "센서 도구 UI 초기화"); }
 #undef LOCTEXT_NAMESPACE
 }

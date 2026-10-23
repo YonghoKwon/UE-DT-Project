@@ -213,7 +213,7 @@ TSharedRef<SWidget> USensorToolToolbarWidget::BuildAppearanceMenu()
 		Menu->AddSlot().AutoHeight().Padding(0,4)[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::Button())
 		 .OnClicked_Lambda([this,Scale](){if(auto* W=Workspace())W->SetOwnedPanelFontScale(Scale);FSlateApplication::Get().DismissAllMenus();return FReply::Handled();})
 		 [SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Text())
-		  .Text(SensorToolUiText::FontPercent(Scale))]];
+		  .Text(SensorToolUiText::ToolsFontPercent(Scale)).ToolTipText(SensorToolUiText::ToolsFontHint())]];
 	Menu->AddSlot().AutoHeight().Padding(0,8,0,0)[SNew(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::Button())
 	 .OnClicked_Lambda([this](){if(auto* W=Workspace())W->ResetOwnedWorkspaceLayout();FSlateApplication::Get().DismissAllMenus();return FReply::Handled();})
 	 [SNew(STextBlock).Font_Lambda([this](){return ToolFont();}).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted()).Text(SensorToolUiText::ResetUi())]];

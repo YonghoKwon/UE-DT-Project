@@ -138,6 +138,27 @@ void UVirtualSensorSchedulerSubsystem::UnregisterLidar(UVirtualLidarScanComponen
     NextLidarIndex = Lidars.Num() > 0 ? NextLidarIndex % Lidars.Num() : 0;
 }
 
+void UVirtualSensorSchedulerSubsystem::RefreshLidarCadencePhases(double WallSeconds)
+{
+    CadenceMembers.Reset();
+    for(const auto& Entry:Lidars)
+        if(auto* Lidar=Entry.Get(); Lidar && Lidar->UsesAutomaticCadencePhase()) CadenceMembers.Add(Lidar);
+    CadenceMembers.Sort([](const UVirtualLidarScanComponent& A,const UVirtualLidarScanComponent& B)
+    {
+        const int32 Order=A.SensorId.Compare(B.SensorId,ESearchCase::CaseSensitive);
+        return Order<0 || (Order==0 && A.GetUniqueID()<B.GetUniqueID());
+    });
+    CadenceMembership.clear();
+    for(const auto* Lidar:CadenceMembers)
+        CadenceMembership.push_back({Lidar->GetUniqueID(),Lidar->GetAutomaticCadenceGeneration(),double(Lidar->ScanInterval)});
+    // One shared clock observation for the entire changed cohort; unaffected
+    // rates retain their deadlines. No scans, waits or metadata changes here.
+    for(const auto& Assignment:CadenceCohort.Update(CadenceMembership))
+        for(auto* Lidar:CadenceMembers)
+            if(Lidar->GetUniqueID()==Assignment.Key)
+                Lidar->ApplyAutomaticCadencePhase(WallSeconds,Assignment.Phase,Assignment.bInitial);
+}
+
 void UVirtualSensorSchedulerSubsystem::SetPreferredCamera(UVirtualCameraCaptureComponent* Camera)
 {
     PreferredCamera = Camera;
@@ -190,6 +211,9 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
     if (GetWorld() && GetWorld()->IsPaused())
     {
         CompactRegistrations();
+        const double WallSeconds = FPlatformTime::Seconds();
+        for (const auto& Lidar : Lidars)
+            if (Lidar.IsValid()) Lidar->SuspendScheduledScanCadence(WallSeconds);
         RefreshTelemetry(0.0f);
         return; // Diagnostics may tick while paused, acquisition must not.
     }
@@ -262,6 +286,7 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
         }
     }
 
+    RefreshLidarCadencePhases(FPlatformTime::Seconds());
     for (const TWeakObjectPtr<UVirtualLidarScanComponent>& Lidar : Lidars)
     {
         if (Lidar.IsValid()) Lidar->PrepareScheduledScan(NowSeconds);
@@ -302,9 +327,9 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
 
     // A GPU acquisition can complete inside ProcessScheduledScanChunk after
     // the pre-pass has already observed it as in-flight. Re-run only the cheap
-    // admission step so a due ML-X frame starts in this Tick instead of idling
-    // for another complete 0.05-second period. No additional scan is queued;
-    // every component still permits exactly one acquisition in flight.
+    // admission step so a due frame starts in this Tick. The component keeps
+    // one acquisition in flight and admits at most once per engine frame,
+    // including across these two passes. Expired wall-clock slots are counted.
     for (const TWeakObjectPtr<UVirtualLidarScanComponent>& Lidar : Lidars)
     {
         if (Lidar.IsValid()) Lidar->PrepareScheduledScan(NowSeconds);
@@ -371,7 +396,7 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
             if (!Lidar.IsValid()) continue;
             const FVirtualSensorRuntimeStatus& Status = Lidar->GetRuntimeStatus();
             UE_LOG(LogTemp, Display,
-                TEXT("[VirtualSensorPerfSensor] kind=Lidar sensorId=%s horizontal=%d vertical=%d rays=%d requestedHz=%.2f acquisitionHz=%.2f outputHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d deadlineMiss=%d budgetSkipped=%d failedAcquisition=%d queueOverflow=%d backend=%s"),
+                TEXT("[VirtualSensorPerfSensor] kind=Lidar sensorId=%s horizontal=%d vertical=%d rays=%d requestedHz=%.2f acquisitionHz=%.2f outputHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d deadlineMiss=%d budgetSkipped=%d failedAcquisition=%d queueOverflow=%d expiredCadenceSlots=%lld backend=%s"),
                 *Lidar->SensorId,
                 Lidar->HorizontalSamples,
                 Lidar->VerticalChannels,
@@ -389,6 +414,7 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
                 Status.BudgetSkippedAcquisitionFrameCount,
                 Status.FailedAcquisitionFrameCount,
                 Status.QueueOverflowCount,
+                Status.ExpiredCadenceSlotCount,
                 *Status.ActiveAcquisitionBackend);
         }
     }
@@ -647,6 +673,7 @@ void UVirtualSensorSchedulerSubsystem::RefreshTelemetry(float WorkMs)
     Telemetry.DroppedAcquisitionFrameCount = 0;
     Telemetry.DroppedDerivedFrameCount = 0;
     Telemetry.BudgetSkippedAcquisitionFrameCount = 0;
+    Telemetry.ExpiredCadenceSlotCount = 0;
     Telemetry.FailedAcquisitionFrameCount = 0;
     Telemetry.QueueOverflowCount = 0;
     Telemetry.SensorRates.Reset();
@@ -670,6 +697,7 @@ void UVirtualSensorSchedulerSubsystem::RefreshTelemetry(float WorkMs)
         Telemetry.DroppedAcquisitionFrameCount += Status.DroppedAcquisitionFrameCount;
         Telemetry.DroppedDerivedFrameCount += Status.DroppedDerivedFrameCount;
         Telemetry.BudgetSkippedAcquisitionFrameCount += Status.BudgetSkippedAcquisitionFrameCount;
+        Telemetry.ExpiredCadenceSlotCount += Status.ExpiredCadenceSlotCount;
         Telemetry.FailedAcquisitionFrameCount += Status.FailedAcquisitionFrameCount;
         Telemetry.QueueOverflowCount += Status.QueueOverflowCount;
     };

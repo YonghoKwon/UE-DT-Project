@@ -164,12 +164,12 @@ bool FPcdBandwidthLiveDisplayTest::RunTest(const FString&)
  View.ActiveCount=3;View.Selected.Frames=20;View.Selected.BodyBytes=10*1048576;
  for(int I=0;I<3;++I){auto Device=View.Selected;Device.OriginalPointBytes=20*1048576;Device.EncodedPointBytes=10*1048576;View.Total.Add(Device);}
  Text=View.Text().ToString();
- TestTrue(TEXT("active UI prioritizes real recent bytes/Hz and weighted compression"),Text.Contains(TEXT("최근 1초 실측"))&&Text.Contains(TEXT("20.0 Hz"))&&Text.Contains(TEXT("30.00 MiB/s / 251.7 Mbps"))&&Text.Contains(TEXT("37.5%"))&&Text.Contains(TEXT("50.0%")));
+ TestTrue(TEXT("active UI prioritizes real recent bytes/Hz and weighted compression"),Text.Contains(TEXT("최근 1초 실측"))&&Text.Contains(TEXT("20.0 Hz"))&&Text.Contains(TEXT("30.00 MiB/s (251.7 Mbps)"))&&Text.Contains(TEXT("37.5%"))&&Text.Contains(TEXT("50.0%")));
  TestFalse(TEXT("active actual budget never uses uncompressed spec112.5%"),Text.Contains(TEXT("112.5%"))||Text.Contains(TEXT("최대 추정")));
  View.Selected={};View.Total={};Text=View.Text().ToString();
- TestTrue(TEXT("active idle interval shows zero actual without estimate fallback"),Text.Contains(TEXT("0.0 Hz"))&&Text.Contains(TEXT("예산 0.0%")));
+ TestTrue(TEXT("active idle interval shows zero actual without estimate fallback"),Text.Contains(TEXT("0.0 Hz"))&&Text.Contains(TEXT("MiB/s · 0.0%")));
  View.UnmeasuredCount=1;Text=View.Text().ToString();
- TestFalse(TEXT("unsupported backend does not assert an actual budget percent"),Text.Contains(TEXT("예산 0.0%")));
+ TestFalse(TEXT("unsupported backend does not assert an actual budget percent"),Text.Contains(TEXT("MiB/s · 0.0%")));
  FVirtualPcdBandwidthWindow Overflow;
  for(int I=0;I<513;++I)Overflow.Record(10.,1,2,1);
  TestFalse(TEXT("bounded history reports loss instead of silent undercount"),Overflow.Read(10.).bComplete);

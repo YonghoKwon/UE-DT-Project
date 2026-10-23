@@ -9,4 +9,5 @@ struct FVirtualPcdBandwidthPresentation
  double SelectedMaximum=0, TotalMaximum=0, BudgetMiB=80;
  FVirtualPcdBandwidthSample Selected, Total;
  MA0T10_DT_API FText Text() const;
+ MA0T10_DT_API FText Details() const;
 };

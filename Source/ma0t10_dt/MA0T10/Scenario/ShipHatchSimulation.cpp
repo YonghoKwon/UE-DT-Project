@@ -404,6 +404,10 @@ void AShipHatchSimulation::ConfigureSensors()
             L.Z=Self->Current.Height(L.X,L.Y);P.WorldLocation=Self->GetActorTransform().TransformPosition(L*100);
             if(L.Z<=1.e-4)P.SemanticLabel=TEXT("HatchHold");
         });
+        // Geometry and preview are GT-owned. For an unchanged surface the
+        // per-point adapter is identity; avoid copying point/tag arrays at5Hz.
+        A->VisualizationComponent->SetPointPreviewTransformNeeded([Weak](double AcquisitionStart)
+        {const auto* Self=Weak.Get();return Self&&AcquisitionStart<Self->LastGeometryEdit;});
         if(Scan->SemanticClassRules.Num()!=4||Scan->SemanticClassRules[0].Label!=TEXT("HatchCargo"))
         {
             Scan->SemanticClassRules.Reset();
