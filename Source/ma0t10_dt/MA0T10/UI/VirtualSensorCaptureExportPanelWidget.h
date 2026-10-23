@@ -270,6 +270,7 @@ private:
     friend class FExport01RhiCommand;
     friend class FUxr15Audit;
     friend class FPcdBandwidthUiRun;
+    friend class FUxrSlabCapabilityIsolation;
     friend class FUxr16Audit;
     friend class FUxr16Integration;
     friend class FUxr15OptionBindingsTest;
@@ -320,6 +321,8 @@ private:
 	void ApplyStreamConfig(EVirtualSensorStreamKind StreamKind, const FString& SensorId, bool bEnabled);
 	TSharedRef<SWidget> BuildLiveStreamTab();
     TSharedRef<SWidget> BuildPcdBandwidthOptions();
+    bool AreOwnedSlabToolsEnabled() const;
+    bool IsOwnedScenarioStreamView() const;
     FVirtualPcdSendOptions ReadPcdBandwidthOptions() const;
     void ApplyPcdBandwidthOptions(const FVirtualPcdSendOptions& Options);
     FText BuildPcdBandwidthEstimate() const;

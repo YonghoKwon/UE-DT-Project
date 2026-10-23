@@ -161,6 +161,7 @@ FString UVirtualSensorMonitorPanelWidget::GetPreviewPolicySummaryText() const
 
 FString UVirtualSensorMonitorPanelWidget::GetSlabAnalysisSummaryText() const
 {
+    if(const auto* Workspace=GetToolWorkspace())if(!Workspace->AreSlabToolsEnabled())return FString();
     if (!LidarComp)
     {
         return TEXT("Slab: unavailable");

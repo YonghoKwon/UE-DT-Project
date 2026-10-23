@@ -8,6 +8,7 @@
 #include "SensorOwnedPresentationStyle.h"
 #include "VirtualSensorMonitorPanelWidget.h"
 #include "VirtualSensorUiPreferences.h"
+#include "VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPeriodicFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
@@ -31,6 +32,14 @@
 
 int32 UVirtualSensorCaptureExportPanelWidget::ResolveOwnedTabIndex(EVirtualSensorCaptureExportTab Tab)
 { return Tab==EVirtualSensorCaptureExportTab::LiveStream?0:Tab==EVirtualSensorCaptureExportTab::ConnectionLog?3:2; }
+bool UVirtualSensorCaptureExportPanelWidget::AreOwnedSlabToolsEnabled() const
+{
+    const auto* Workspace=GetToolWorkspace();
+    if(!Workspace&&GetWorld())Workspace=GetWorld()->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
+    return !Workspace||Workspace->AreSlabToolsEnabled();
+}
+bool UVirtualSensorCaptureExportPanelWidget::IsOwnedScenarioStreamView() const
+{ return AreOwnedSlabToolsEnabled()&&bOwnedScenarioStreamView; }
 FString UVirtualSensorCaptureExportPanelWidget::GetPcdPreflightText() const
 {
     // Explicit legacy API requests still receive details, without formatting hidden Slate text.
@@ -43,7 +52,7 @@ FString UVirtualSensorCaptureExportPanelWidget::GetVisiblePcdBlockingReason() co
 void UVirtualSensorCaptureExportPanelWidget::InitializeOwnedEntryView(EVirtualSensorCaptureExportTab PreviousTab)
 {
 	if(!IsWorkspaceOwned())return;
-	if(!bOwnedEntryInitialized){ActiveTab=EVirtualSensorCaptureExportTab::LiveStream;bOwnedScenarioStreamView=true;bOwnedEntryInitialized=true;}
+	if(!bOwnedEntryInitialized){ActiveTab=EVirtualSensorCaptureExportTab::LiveStream;bOwnedScenarioStreamView=AreOwnedSlabToolsEnabled();bOwnedDirectExpanded=!AreOwnedSlabToolsEnabled();bOwnedEntryInitialized=true;}
 	else ActiveTab=PreviousTab;
 }
 
@@ -59,11 +68,11 @@ void UVirtualSensorCaptureExportPanelWidget::OpenOwnedTab(ESensorOwnedDataTab Ta
     SetActiveTab(Tab==ESensorOwnedDataTab::Transfer?EVirtualSensorCaptureExportTab::LiveStream:
         Tab==ESensorOwnedDataTab::FileSave?EVirtualSensorCaptureExportTab::Capture:EVirtualSensorCaptureExportTab::ConnectionLog);
     OwnedTab=Tab;
-    if(Tab==ESensorOwnedDataTab::Transfer)if(auto* W=GetToolWorkspace())W->EnsureOwnedReplayPanel();
-    bRunResultsExpanded=Tab==ESensorOwnedDataTab::Results;
+    if(Tab==ESensorOwnedDataTab::Transfer&&AreOwnedSlabToolsEnabled())if(auto* W=GetToolWorkspace())W->EnsureOwnedReplayPanel();
+    bRunResultsExpanded=Tab==ESensorOwnedDataTab::Results&&AreOwnedSlabToolsEnabled();
     bOwnedServerExpanded=Tab==ESensorOwnedDataTab::ServerConnection;
     bOwnedReceiverExpanded=false;bOwnedTransportLogExpanded=false;
-    if(WidgetTree&&WidgetTree->RootWidget)SetScenarioRunResultsExpanded(Tab==ESensorOwnedDataTab::Results);
+    if(WidgetTree&&WidgetTree->RootWidget)SetScenarioRunResultsExpanded(bRunResultsExpanded);
     LastNativeStatusRefreshSeconds=-1;
     CachedRunResultsRevision=-1;
 }
@@ -229,12 +238,13 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
     }
     if(OwnedTab==ESensorOwnedDataTab::Transfer)
     {
-        if(!bOwnedReplayOwnerRequested)if(auto* W=GetToolWorkspace())bOwnedReplayOwnerRequested=W->EnsureOwnedReplayPanel();
+        const bool ScenarioView=IsOwnedScenarioStreamView();
+        if(AreOwnedSlabToolsEnabled()&&!bOwnedReplayOwnerRequested)if(auto* W=GetToolWorkspace())bOwnedReplayOwnerRequested=W->EnsureOwnedReplayPanel();
         TArray<FString> Targets;
         auto Outputs=FVirtualSlabSensorOutputSelection();
         FSlabExecutionOptions Options;
         bool MissingOwner=false;
-        if(bOwnedScenarioStreamView)
+        if(ScenarioView)
         {
             if(bOwnedReplayPreflight)
             {
@@ -251,13 +261,13 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
             const auto* Publisher=SensorManager?SensorManager->StreamPublisherComponent.Get():nullptr;
             if(Publisher&&Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,Id))Outputs=FVirtualSlabSensorOutputSelection::ObservationOnly();
         }
-        const auto Check=UVirtualSensorOutputPreflight::InspectForPresentation(this,Outputs,Targets,bOwnedScenarioStreamView?EVirtualSensorPreflightPurpose::ScenarioTransition:EVirtualSensorPreflightPurpose::ManualStreamStart,bOwnedPreflightExpanded,0,bOwnedScenarioStreamView&&Options.Policy==ESlabExecutionPolicy::RequireData);
+        const auto Check=UVirtualSensorOutputPreflight::InspectForPresentation(this,Outputs,Targets,ScenarioView?EVirtualSensorPreflightPurpose::ScenarioTransition:EVirtualSensorPreflightPurpose::ManualStreamStart,bOwnedPreflightExpanded,0,ScenarioView&&Options.Policy==ESlabExecutionPolicy::RequireData);
         OwnedPreflightSnapshot=Check;bOwnedPreflightSnapshotReady=true;
         if(bOwnedPreflightExpanded)CachedPcdPreflight=Check.Summary;
         OwnedPreflightFix=0;
         FString ShortReason;
         if(MissingOwner){CachedPcdPreflightSummary=TEXT("시나리오 연결을 확인하세요");OwnedPreflightFix=3;}
-        else if(bOwnedScenarioStreamView&&!Outputs.HasAnyOutput())
+        else if(ScenarioView&&!Outputs.HasAnyOutput())
         {CachedPcdPreflightSummary=Options.Policy==ESlabExecutionPolicy::RequireData?TEXT("출력을 선택하세요 · 연결 확인 후 시작에는 출력이 필요합니다"):TEXT("준비됨 · 관찰 전용");OwnedPreflightFix=4;}
         else if(!Check.BlockingReasons.IsEmpty())
         {
@@ -266,7 +276,7 @@ void UVirtualSensorCaptureExportPanelWidget::TickOwnedUi(double Now)
             ShortReason=SensorToolUiText::PreflightShortReason(Reason);
             OwnedPreflightFix=Reason.Contains(TEXT("없"))||Reason.Contains(TEXT("중복"))?1:Reason.Contains(TEXT("주기"))||Reason.Contains(TEXT("수집 설정"))?2:0;
         }
-        else if(Check.bSessionBusy&&bOwnedScenarioStreamView){CachedPcdPreflightSummary=TEXT("현재 실행을 마친 뒤 시작하세요");OwnedPreflightFix=3;}
+        else if(Check.bSessionBusy&&ScenarioView){CachedPcdPreflightSummary=TEXT("현재 실행을 마친 뒤 시작하세요");OwnedPreflightFix=3;}
         else if(!Check.bTransportConnected&&Outputs.HasAnyOutput())CachedPcdPreflightSummary=TEXT("서버 연결을 확인하세요");
         else {CachedPcdPreflightSummary=SensorToolUiText::Ready().ToString();OwnedPreflightFix=-1;}
         CachedPcdPreflightShortSummary=ShortReason.IsEmpty()?CachedPcdPreflightSummary:MoveTemp(ShortReason);
@@ -401,7 +411,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
         .OnCheckStateChanged_Lambda([this,I](ECheckBoxState){bOwnedScenarioStreamView=I!=2;bOwnedReplayPreflight=I==1;LastNativeStatusRefreshSeconds=-1;})
         [SNewSensorTool(STextBlock).Justification(ETextJustify::Center).Text(Targets[I])]];
     return SNew(SVerticalBox)
-        +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SVerticalBox)
+        +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SVerticalBox).Visibility_Lambda([this](){return AreOwnedSlabToolsEnabled()?EVisibility::Visible:EVisibility::Collapsed;})
             +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Text(SensorToolUiText::PreflightTarget())]
             +SVerticalBox::Slot().AutoHeight().Padding(0,4,0,0)[Checks]]
         +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ToolTipText_Lambda([this](){return FText::FromString(CachedPcdPreflightSummary);}).Text_Lambda([this](){return FText::FromString(CachedPcdPreflightShortSummary);})]
@@ -413,12 +423,12 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
             .OnAreaExpansionChanged_Lambda([this](bool Open){bOwnedPreflightExpanded=Open;LastNativeStatusRefreshSeconds=-1;})
             .HeaderContent()[SNewSensorTool(STextBlock).Text(SensorToolUiText::PreflightDetails())]
             .BodyContent()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(CachedPcdPreflight);})]]
-        +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
+        +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SNew(SExpandableArea).InitiallyCollapsed(!bOwnedDirectExpanded)
             .OnAreaExpansionChanged_Lambda([this](bool Open){bOwnedDirectExpanded=Open;LastNativeStatusRefreshSeconds=-1;})
-            .HeaderContent()[SNewSensorTool(STextBlock).Text(SensorToolUiText::DirectTransfer())]
+            .HeaderContent()[SNewSensorTool(STextBlock).Text_Lambda([this](){return AreOwnedSlabToolsEnabled()?SensorToolUiText::DirectTransfer():LOCTEXT("ManualPcdTransfer","PCD 직접 전송");})]
             .BodyContent()[Direct]]
         +SVerticalBox::Slot().AutoHeight().Padding(0,8)[BuildPcdBandwidthOptions()]
-        +SVerticalBox::Slot().AutoHeight()[SNew(SHorizontalBox)+SHorizontalBox::Slot().FillWidth(1)[Column(false)]+SHorizontalBox::Slot().FillWidth(1).Padding(8,0,0,0)[Column(true)]]
+        +SVerticalBox::Slot().AutoHeight()[SNew(SHorizontalBox).Visibility_Lambda([this](){return AreOwnedSlabToolsEnabled()?EVisibility::Visible:EVisibility::Collapsed;})+SHorizontalBox::Slot().FillWidth(1)[Column(false)]+SHorizontalBox::Slot().FillWidth(1).Padding(8,0,0,0)[Column(true)]]
 	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
 	  .OnAreaExpansionChanged_Lambda([this](bool Open){bWorkspaceLiveDetails=Open;LastNativeStatusRefreshSeconds=-1;})
 	  .HeaderContent()[SNewSensorTool(STextBlock).Text(SensorToolUiText::Advanced())]
@@ -492,7 +502,10 @@ void UVirtualSensorCaptureExportPanelWidget::OpenOwnedConnectionSection(bool Dia
 
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedResultsTab()
 {
-    return SNew(SScrollBox)+SScrollBox::Slot()[BuildRunResultsContent()];
+    return SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
+        +SVerticalBox::Slot().AutoHeight()[SNew(SBox).Visibility_Lambda([this](){return AreOwnedSlabToolsEnabled()?EVisibility::Visible:EVisibility::Collapsed;})[BuildRunResultsContent()]]
+        +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Visibility_Lambda([this](){return AreOwnedSlabToolsEnabled()?EVisibility::Collapsed:EVisibility::Visible;})
+            .Text(LOCTEXT("ManualResultsHelp","전송 상태는 진단에서, 저장 파일은 파일 저장 화면에서 확인하세요."))]];
 }
 
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedConnectionTab()
@@ -520,8 +533,8 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedConnection
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedDiagnosticsTab()
 {
     return SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
-        +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).Text(LOCTEXT("SelectResult","실행 선택은 결과 탭에서")).OnClicked_Lambda([this](){OpenOwnedTab(ESensorOwnedDataTab::Results);return FReply::Handled();})]
-        +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true)
+        +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).Visibility_Lambda([this](){return AreOwnedSlabToolsEnabled()?EVisibility::Visible:EVisibility::Collapsed;}).Text(LOCTEXT("SelectResult","실행 선택은 결과 탭에서")).OnClicked_Lambda([this](){OpenOwnedTab(ESensorOwnedDataTab::Results);return FReply::Handled();})]
+        +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true).Visibility_Lambda([this](){return AreOwnedSlabToolsEnabled()?EVisibility::Visible:EVisibility::Collapsed;})
             .OnAreaExpansionChanged_Lambda([this](bool Open){bOwnedRunDiagnosticsExpanded=Open;CachedRunResultsRevision=-1;LastNativeStatusRefreshSeconds=-1;})
             .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("RunDiagnostics","선택 실행 · 단계별 집계·종료 snapshot·receipt"))]
             .BodyContent()[SNew(SVerticalBox)

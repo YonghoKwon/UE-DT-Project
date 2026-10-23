@@ -36,6 +36,14 @@
 namespace
 {
 FString UxrCaptureRoot(){return FPaths::ProjectSavedDir()/TEXT("Reports/UXR-P1P2a");}
+void UxrVisibleSlateText(const TSharedRef<SWidget>& Widget,TArray<FString>& Text)
+{
+    FSlateAttributeMetaData::UpdateOnlyVisibilityAttributes(Widget.Get(),FSlateAttributeMetaData::EInvalidationPermission::AllowInvalidation);
+    if(!Widget->GetVisibility().IsVisible())return;
+    FSlateAttributeMetaData::UpdateExceptVisibilityAttributes(Widget.Get(),FSlateAttributeMetaData::EInvalidationPermission::AllowInvalidation);
+    if(Widget->GetType()==TEXT("STextBlock"))Text.Add(StaticCastSharedRef<STextBlock>(Widget)->GetText().ToString());
+    auto* Children=Widget->GetChildren();for(int32 I=0;I<Children->Num();++I)UxrVisibleSlateText(Children->GetChildAt(I),Text);
+}
 bool UxrHasText(const TSharedRef<SWidget>& W,const FString& Prefix)
 {
     FSlateAttributeMetaData::UpdateExceptVisibilityAttributes(W.Get(),FSlateAttributeMetaData::EInvalidationPermission::AllowInvalidation);
@@ -87,6 +95,7 @@ class FUxrCaptureCommand final:public IAutomationLatentCommand
         Test->TestTrue(TEXT("Capture does not recreate the monitor instance"),OriginalMonitor.Get()==&Monitor);
         auto* Workspace=W.GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
         Meta->SetNumberField(TEXT("tools_font_scale"),Workspace->GetOwnedPanelFontScale());Meta->SetBoolField(TEXT("sidebar_wide"),Workspace->IsSidebarWide());
+        Meta->SetBoolField(TEXT("slab_tools_enabled"),Workspace->AreSlabToolsEnabled());
         Meta->SetBoolField(TEXT("same_navigation_instance"),!OriginalNavigation.IsValid()||OriginalNavigation==Workspace->GetOwnedNavigation());
         if(!Hatch)
         {
@@ -96,6 +105,17 @@ class FUxrCaptureCommand final:public IAutomationLatentCommand
             const auto Inset=Host->GetToolsInset();Meta->SetNumberField(TEXT("tools_inset_left_ui"),Inset.X);Meta->SetNumberField(TEXT("tools_inset_bottom_ui"),Inset.Y);
             if(auto* Card=Monitor.WidgetTree->FindWidget(TEXT("CoilWorkflow")))if(auto* Slot=Cast<UCanvasPanelSlot>(Card->Slot))
             {Meta->SetNumberField(TEXT("coil_card_left_ui"),Slot->GetPosition().X);Test->TestTrue(TEXT("Coil controls remain to the right of the owned rail/sidebar"),Slot->GetPosition().X+1>=Inset.X);}
+            if(auto* Data=Workspace->GetOwnedPanel(ESensorToolPanelRole::Data))if(Data->IsVisible()&&!Data->IsPanelCollapsed())
+            {
+                TArray<FString> Labels;UxrVisibleSlateText(Data->TakeWidget(),Labels);TArray<TSharedPtr<FJsonValue>> Values;
+                for(const auto& Label:Labels){Values.Add(MakeShared<FJsonValueString>(Label));Test->TestFalse(TEXT("Actual coil data viewport has no Slab scenario/replay labels: ")+Label,Label.Contains(TEXT("Slab"))||Label.Contains(TEXT("시나리오"))||Label.Contains(TEXT("재생")));}
+                Meta->SetArrayField(TEXT("visible_data_text"),Values);
+            }
+            if(const auto* Navigation=Cast<USensorToolToolbarWidget>(Workspace->GetOwnedNavigation()))
+            {
+                const auto& Status=Navigation->GetGlobalStatus();Meta->SetStringField(TEXT("warning"),Status.Warning.ToString());
+                Test->TestTrue(TEXT("Actual coil status strip contains no scenario state or warning"),Status.Scenario.IsEmpty()&&!Status.Warning.ToString().Contains(TEXT("시나리오")));
+            }
         }
         TArray<TSharedPtr<FJsonValue>> Text;TArray<UWidget*> Widgets;Monitor.WidgetTree->GetAllWidgets(Widgets);
         for(auto* Item:Widgets)if(auto* Label=Cast<UTextBlock>(Item))
