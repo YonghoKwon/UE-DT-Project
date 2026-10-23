@@ -6,6 +6,15 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-10-24 ANALYSIS-24 R1 — semantic PSO timeout, performance environment pending
+
+- Runtime `cfa61f99493bdf237449ec380ca782d754037f80`: optional semantic PSO timeout completes the original frozen depth frame unclassified; one1s cold grace, no repeated waiting while still pending, current-snapshot semantics recover when ready. Pending proxy list is cached; end-of-frame refresh happens only when PSO completion requires it. Existing explicit Failed-to-CPU fallback remains available for actual depth failure.
+- New real-D3D12 force-pending regression checks60 completed frames at requested20Hz/>=99%, empty semantic pixels/identity while pending, real depth/frame identity, Slab recovery after ready. Initial target-not-yet-created regression failed the existing>=99% semantic accuracy and is preserved; corrected resource-creation grace passes unchanged expectations. Tests/build/package evidence is under `Saved/Reports/ANALYSIS-24-22/review-r1/`.
+- Development/Shipping build+GT-off/on12scenes PASS, namedSlab1800each; GT-on6Camera class2 masks19257each. All12PCD bodies remain byte-identical to the original reference. Python5/quick9/layer0/DTCore guard PASS. Exact committed-SHA related RHI summary follows result.json.
+- Development startup22Error lines all belong to one existing D3D12 SwapChain4 handled ensure at engine line473, frame0: header1+condition1+stack-header1+callstack16+blank3. Same signature exists before fixes in Editor-game; old package raw logs were already deleted, so old native stack equivalence is an explicit limitation. No engine workaround added.
+- Requested RT-on ABAB2%, defaultRev7x3 90svisible requested-Hz/slot floor, and GT-on cost observation NOT_RUN: active Brave GPU video decode1% observed; base-rules prohibits overlapping other GPU work. Pause confirmation pending, browser untouched. No threshold or acquisition gate relaxed; no measured performance acceptance claimed.
+- Personal353 files and protected753 hashes restored/unchanged; owned package binary trees removed, summaries retained. Final restore/schema/merge_check status is in [RESULT](../Saved/Reports/ANALYSIS-24-22/RESULT.md). No push/merge.
+
 ## 2026-10-23 LIDAR-WALLCLOCK-28b - independent review fixes
 
 - Code10aba1d: deterministic full-cohort rephase on membership/start-generation/period changes, future-slot application without debt/burst; unchanged simultaneous initial grid preserved. Original DeadlineMiss/BudgetSkipped event semantics restored, separate reflected ExpiredCadenceSlotCount added; all consumers inventoried.

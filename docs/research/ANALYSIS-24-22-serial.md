@@ -105,3 +105,9 @@ PSO가 1초 내 준비되지 않으면 frozen semantic identities를 지우고 s
 `MA0T10.LidarRegression.SemanticPsoTimeoutRecoveryRhi`는 component 단위 강제 pending seam(Shipping에는 컴파일되지 않음)으로 실제 D3D12 depth/readback을 검사한다. 최초 유예 종료 후60개 깊이 프레임, requested20Hz 대비>=99%, 빈 semantic pixels/identities, 불변 frame ID, ready 전환 뒤 실제 Slab 픽셀/identity 복구를 검사한다. 첫 실행은19.996390Hz였다. pure mock 성공이나 CPU fallback을 GPU 완료로 세지 않는다.
 
 private scene은 snapshot 변경 때 한번 flush하고, pending poll에는 cached proxy list의 PSO readiness만 확인한다. PSO 완료 task가 render state dirty를 설정한 뒤 필요한 refresh만 한 번 더 flush한다(UE5.3 PrimitiveComponent.cpp:4497–4556). 매 poll world flush/TMap 순회는 제거했다. 표준 RT-on ABAB 및 default Rev7x3 90초 visible 결과와 startup Error 분류는 RESULT/result.json의 같은 source SHA 증거를 따른다.
+
+startup Error22줄은 수정 전 Editor-game reference와 R1 Development GT-off/on에서 모두 frame0의 `SwapChain4.GetReference()` handled ensure1건(헤더1/조건1/스택헤더1/콜스택16/빈줄3)으로 설명됐다. UE5.3 `WindowsD3D12Viewport.cpp`의 `RenderOffScreen` swapchain 생략 분기(생성자), `EnsureColorSpace` line473을 대조했으며 엔진은 바꾸지 않았다. 기존 native package raw log는 정리돼 직접 stack 재비교가 불가능한 한계가 있다. 이번 native 재현에는 별도의 센서/semantic startup 오류가 없었고 22줄을 오류0으로 숨기지 않았다.
+
+R1 성능 gate는 **미수행**이다. Brave 프로세스의 GPU VideoDecode 사용1%를 여러 번 확인해 base-rules의 다른 GPU 작업 중 측정 금지에 따라 시작하지 않았다. 영상 중지 확인 질문은 대기 중이며 브라우저를 조작하지 않았다. 조건 해제 후 `Scripts/verify.ps1 -Level perf -BaseCommit d2ca1d1 -PerfRayTracing ProjectDefault` 및 `Saved/Reports/ANALYSIS-24-22/review-r1/run-runtime-perf.ps1`로 default Rev7x3 90초 visible/GT-on 60초 visible을 수행해야 한다. 새 성능 값·GT 증가·2% 통과·slot gate 통과를 주장하지 않는다. 전체 release suite, Shipping HWRT3, #22 UI/회사 수용도 기존처럼 별도다.
+
+R1 최종 코드 근거(`Source/ma0t10_dt/MA0T10/` 기준): `Sensor/VirtualLidarGpuDepthProjectionComponent.cpp:167,177,183,268`(유예·미분류·깊이완료), `Sensor/VirtualLidarSemanticScene.cpp:192,203,208`(준비만 poll/조건부1회 flush), `Sensor/VirtualLidarScanComponentAcquisition.cpp:194,199`(기존 Failed fallback), `Sensor/Tests/LidarSemanticPsoTimeoutTests.cpp:60,67,73`(유예/60frame/복구 검사).

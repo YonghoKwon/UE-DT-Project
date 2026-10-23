@@ -24,6 +24,8 @@ private semantic scene은 Editor에서는 기존 EditorPreview, `-game`/패키�
 
 Runtime `5bf813a`에서 Editor/Development/Shipping 빌드, 관련 D3D12 13개·Python 감사 5개·quick9·layer/guard를 확인했다. 실제 Development/Shipping은 GT-off/on 각3장면 모두 backend2 named Slab1,800점이며 GT-on Camera class2 mask도 각19,257pixels다. Development backend3은 별도3장면 각1,792점으로 확인했다. package 12장면의 PCD body는 기준과 바이트 동일했다. 개인353/보호753파일을 복원·보존하고 package 바이너리는 정리했다. 표준 ABAB·Shipping backend3·#22 직접 UI·회사/소비자 수용은 이 통과에 포함하지 않는다.
 
+독립 리뷰 R1 `cfa61f9`는 semantic PSO 유예1초 초과를 깊이 프레임 미분류 완료로 바꾸고 지속 pending의 프레임별 재대기를 없앴다. 준비 후 현재 snapshot 라벨은 자동 복구한다. pending poll의 world flush도 준비 후 필요한1회로 줄였다. Development/Shipping GT-off/on12장면이 다시 모두 Slab1,800점이며 Camera GT6장면도 각19,257pixels다. startup Error22줄은 수정 전에도 발생한 UE5.3 D3D12 SwapChain4 handled ensure1건의 헤더·스택·빈 줄로 분류했다. 요청한 RT-on ABAB/Rev7x3 90초 visible/GT-on 비용 측정은 별도 GPU 영상 작업 때문에 미수행이며 승인 예외나 통과로 처리하지 않았다.
+
 ### UXR-P1/P2a — 운전원 표시 개선·직렬 UI 검증
 
 T01/C01/H02/D01과 C03·D02~D05·T02~T03을 기존 L3 UI에서 구현했다. 코일 패널은 소유 센서 도구의 점유 영역을 피하고, 위험·주의 옆에 미확인 사유 수를 표시한다. 해치 지표의 모의/측정 출처, 한국어 운전원 용어·수치별 단위, 짧은 PCD 안내·프레임 전송 간격·추정/실측 대역폭 표시를 적용했다. Slab 기능이 꺼진 월드의 데이터 패널은 수동 송신 점검을 사용하며 신규/재생 카드와 시나리오 경고를 표시하지 않는다. Slab 월드의 기존 흐름, 일반 PCD·파일 저장·기본 정책·저장값·DTCore는 유지한다.
