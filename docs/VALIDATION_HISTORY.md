@@ -810,3 +810,13 @@ PCD-on 3대 Rev7/1024×64/20Hz 요청·ShipHatchTestMap·1920×1080 offscreen/D3
 부분 시료 RSS+78.210938/Commit+145.613281MiB; 기술적 전체 기울기74.1580/100.6083MiB/시간, 부분 끝1/3은147.8141/292.7480이다. UObject46515→46363, 꼬리 기울기0; 해치 Cook/RayTree/Update 증가0. Untracked+90.613137/FMAllocUnused+26.079243/RHIMisc+6.287968MiB로 native 미계측/보존 후보를 좁히되 누수/수정을 확정하지 않는다. GT 샘플 비용 평균1.900630/최대3.695302ms(327개), 합계621.506080ms이며 2% 성능gate가 아니다. 종료 구간 admission skip/gap8/8/9와 in-flight 경계1도 별도 기록한다. encode/delivery/invalid/overload0, 사용자의 기존 RSS 미해결 수용 결정은 유지한다.
 
 자기 Editor/PIE 정상 종료 확인, 개인44파일 원본집합/SHA256 복원·보호481파일 일치·DTCore clean. SensorTestMap 사용자 변경/Config/Game.ini/PixelStreaming/Claude 메모 보존, 보호 stage0, 추가 GPU 실행·push/PR 없음. 상세·증거는 [가이드](MEMORY_TREND_26b.md)와 Saved/Reports/MEMORY-TREND-26b/serial-20261023T233614Z/, 현재 RESULT.md/result.json/merge-check.json을 따른다. 영상 디코딩 없는 환경에서 새 디렉터리의 완결 재실행이 필요하다.
+
+## 2026-10-24 — MEMORY-TREND-26b soak2 완결 실측·RSS 재실패
+
+기준4419436/측정ce456eb/DTCore b2504d1. PCD-on Rev7×3/1024×64/요청20Hz/실제HWRT·ShipHatchTestMap·1920×1080 offscreen/D3D12/RT ProjectDefault·font100%·미리보기12000·17회+35초·Full 압축/FIFO/80MiB/s·무자격loopback에서 idle1803.398414초/361표본, 디깅1802.161642초/360표본/880편집17복원을 완료했다.24실행1473환경표본의video decode최대0%, 모든원본소스/자산616개동일이다. 두 판정은 누수 의심: 꼬리RSS55.323762/27.268472·Commit39.806653/11.192892MiB/시간, UObject꼬리0개/시간이다. 부분 시료를 합치지 않았다.
+
+원래35초+90초·50/0회·PCD-off·audit/-llm 플래그 없음·기본allocator/trim/drain·AB/BA/AB/BA/AB5쌍을 같은8MiB로 비교했다. raw/retained절대·차이1~4쌍FAIL, Commit절대·차이5쌍모두FAIL. 디깅raw중앙값18.160156MiB, 최대차이21.960938MiB. 기존RSS실패와 user accepted unresolved RSS (2026-10-23)를 유지한다. Untracked/allocator-unused/RHIMisc와 CustomName 증가 및 UObject/해치태그의 작은 변화를 근거로 native/보존을 우선추적하되 확정누수·수정완료로 표시하지 않는다. native allocation stack 미확보로 제품 메모리 수정0이다.
+
+별도60초cost probe는 장시간1800~3600초조건을 바꾸지 않는다. LLM/3HWRT/PCD/UI/준비동일·sampler만off/on·ABAB3블록각6개에서 FPS58.653270→58.714336(+0.104114%), framep9519.822351→19.567300(-1.286687%), GT10.355657→10.281637(-0.714777%)로2%PASS. 획득률candidate전센서≥99%·engine/GT/callback150ms도유지했다. 표준PERF01/회사수용/메모리실패대체아님이다. Editor빌드3exit0, 실제자동화20Success/5Fail/0Skip(모두RSS계열assertion), Python23·합성판정7은별도PASS. NullRHI계약1개를RHI통과로세지않는다.
+
+자기Editor/PIE종료, 개인44원본집합/SHA256복원·보호481파일일치·새파일제거0·사용자SensorTestMap/Config/PixelStreaming/Claude메모보존·보호stage0. 측정후문서만갱신했다. [설계/수치](MEMORY_TREND_26b.md), [RESULT](../Saved/Reports/MEMORY-TREND-26b/soak2/RESULT.md), result.json/merge-check.json 및 모든원본/곡선은Saved/Reports/MEMORY-TREND-26b/soak2/에 있다. push/PR/merge/submodule update0이다.

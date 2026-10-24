@@ -66,7 +66,7 @@ T01/C01/H02/D01의 소유 점유 영역 회피, 미확인 사유 수와 확인 �
 
 기본Rev7×3/GPU/RT on/35초+90초/50회−0회 교차5쌍: 절대3쌍·차이2쌍 실패,기능오류0. 디깅RSS 중앙값+10.43MiB/최대raw차이+17.67MiB. CPU/LLM/Binned2 진단과 두 미채택 후보는 [원문](../Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md)에 구분한다. 기본Mimalloc 상세dump미구현,소유버퍼·RHI수량 불변만으로 무누수를 입증하지 않는다. 두 후보는 원복하고 editor-only계측만 남겼다. 약90분 조사 후 검증된 수정안 없음으로 인계하며 기준·횟수·기본정책을 완화하지 않는다.
 
-MEMORY-TREND-26b 직렬(2026-10-24): master `08c7ab5` 통합·Editor 빌드·C++ 계약 및 PCD 관련 회귀 통과. PCD-on 대조는 영상 디코딩1% 감지로 약27분15초에서 취소하여 장시간 판정 **데이터 부족**이다. 부분 자료의 Untracked/allocator-unused 증가만으로 누수/수정을 확정하지 않는다. 반복 디깅·원래 RSS5쌍·off/on 오버헤드는 미수행이며 기존 RSS FAIL/미해결 수용 결정은 유지한다. [부분 수치·환경 중단·재실행 조건](MEMORY_TREND_26b.md).
+MEMORY-TREND-26b soak2(2026-10-24): 기준4419436/코드ce456eb, PCD-on idle/디깅 각30분 완결·디깅880회/복원17회, 디코딩 감지0이다. 둘 다 누수 의심이며 UObject 꼬리 기울기0만으로 무누수를 주장하지 않는다. 샘플러·LLM audit·PCD를 끈 원래 RSS5쌍도 raw/retained4쌍·Commit5쌍 FAIL로 재현했다. off/on ABAB3블록2%는PASS이나 메모리 실패를 대체하지 않는다. native/allocator/렌더링 귀속이 미확정이라 제품 메모리 수정은 하지 않았다. [전체 수치·후속 귀속 범위](MEMORY_TREND_26b.md)·[결과](../Saved/Reports/MEMORY-TREND-26b/soak2/RESULT.md).
 
 ## FOLLOWUP-28 — Rev7×3 PCD 송신 공정성
 

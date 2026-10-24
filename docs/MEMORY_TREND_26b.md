@@ -1,6 +1,6 @@
 # MEMORY-TREND-26b — 장시간 RSS 진단과 직렬 실행 계획
 
-생성 2026-10-23, 병렬 기준 `98e2131`, DTCore `b2504d1`. 2026-10-24 직렬 기준은 `08c7ab5`이며 `1fab745`에서 master를 병합하고 양쪽 검증 이력을 보존했다. 측정 코드는 `a897c43`이다. **기존 RSS 실패는 미해결**이다. 아래 병렬 증거 재분석과 새 직렬 부분 실측을 구분한다. Editor 빌드는 성공했으나 장시간 대조는 영상 디코딩 감지로 중단되어 완료 수용 자료가 아니다.
+생성 2026-10-23, DTCore `b2504d1`. 최신 soak2는 기준 `4419436`, 측정 코드 `ce456eb`이며 PCD-on idle/디깅 각30분과 원래 RSS5쌍, 샘플러 off/on 비교를 완료했다. **RSS 실패는 미해결**이다. 아래 병렬 재분석, `a897c43`의 영상 감지 중단 자료, 완결된 soak2를 각각 구분한다. 과거 부분 자료를 새 곡선에 이어 붙이지 않았다.
 
 ## 저장 방식과 비용
 
@@ -95,4 +95,73 @@ python Scripts/reanalyze_hatch_memory.py 'C:/Unreal Projects/ma0t10_dt/Saved/Rep
 - 샘플 GT 비용327개 평균 **1.900630ms**, 최대 **3.695302ms**, 합계621.506080ms. 실제 수집/JSON/write/flush 비용이며 off/on 교차2% 성능 gate는 아니다. 종료 당시 admission skip 및 내부 gap은센서별8/8/9로 함께 남긴다(encode/delivery/invalid/overload/duplicate0). in-flight 경계 때문에 한 센서의 receipt가 측정 submit보다1개 많다. 무손실/완료 수신 수용으로 표시하지 않는다.
 - 시작 전 개인44파일 백업 후 원본 집합·SHA256 복원, 보호481파일 일치. 새 개인 파일 제거0. 사용자 SensorTestMap 변경·DTCore b2504d1·Config/Game.ini·PixelStreaming·Claude 메모는 보존했다. 초기 D3D12 시작의 SwapChain4 ensure도 원문에 남기며 무오류 실행으로 숨기지 않는다.
 
-다음 필요한 검증은 영상 디코딩 없는 환경에서 새 디렉터리의 완결 대조/디깅 및 원래 RSS5쌍이다. 이번 중단 자료를 이어 붙이거나 원래 8MiB 기준을 완화하지 않는다.
+위 기록은 첫 직렬 시도의 부분 자료다. 후속 soak2는 별도 새 경로에서 아래와 같이 수행했으며 원래8MiB 기준은 유지했다.
+
+## 2026-10-24 soak2 완결 결과
+
+원본은 `Saved/Reports/MEMORY-TREND-26b/soak2/`이다. `long-idle`/`long-dig`의 JSONL·분석, `gpu-default-five-pairs`의10개 원본, `sampler-cost`의12개 원본과 비교표, 환경 스냅샷·SHA·복원 증거를 보존한다. [곡선](../Saved/Reports/MEMORY-TREND-26b/soak2/memory-curves.png)과 [전체 결과](../Saved/Reports/MEMORY-TREND-26b/soak2/RESULT.md)를 함께 본다.
+
+### 조건과 완료 범위
+
+- 기준4419436/코드ce456eb/DTCore b2504d1, 같은 Source/asset616개 해시. Rev7×3/1024×64/요청20Hz/실제HWRT·ShipHatchTestMap·1920×1080 offscreen·D3D12/RT ProjectDefault·font100%·12,000점/센서·17회+35초 준비·기본Mimalloc이다. PCD-on 장시간/비용 비교는 Full 압축/FIFO/80MiB/s 및 무자격 loopback receipt+echo를 사용한다. 원래 RSS5쌍은 PCD-off·audit/-llm 플래그 없음·90초·50회/0회다.
+- 모든24실행과1473개 실행 중 환경 표본에서 video decode 최대0%. 사전3회 검사·브라우저/미디어 process 이름/PID 스냅샷도 각 실행에 남겼다. user 앱/설정/영상 재생을 조작하지 않았다.
+- C++ 순수 계약1 Success(NullRHI), 장시간2 Success, 원래 RSS 대조5 Success/디깅5 Fail, 실제 off/on12 Success로 합계 **20 Success/5 Fail/0 Skip**다. 모든 Fail은 원래 메모리 assertion이며 다른 오류 assertion은0이다. 합성 판정 fixture7개와 Python23개는 실제 RHI 실행 수에 넣지 않는다.
+
+### 장시간 추이
+
+| 지표 | idle | 반복 디깅 |
+|---|---:|---:|
+| 실제 관찰초/표본 | 1803.3984/361 | 1802.1616/360 |
+| 편집/복원 | 0/0 | 880/17 |
+| 판정 | 누수 의심 | 누수 의심 |
+| RSS 전체/끝1/3 MiB/시간 | 112.6106/55.3238 | 71.1334/27.2685 |
+| Commit 전체/끝1/3 MiB/시간 | 119.0330/39.8067 | 36.1616/11.1929 |
+| 최종−첫 RSS/Commit MiB | 61.1328/62.2852 | 68.9063/140.9883 |
+| UObject | 46470→46318 | 46470→46318 |
+| UObject 끝1/3 개/시간 | 0 | 0 |
+| 샘플 GT 평균/최대 ms | 1.676281/6.827902 | 1.590465/4.502002 |
+
+두 실행 모두 complete=true, 모든 표본에 실제HWRT3개를 확인했다. RSS/Commit의 완만한 증가와 큰 회수 변동이 공존한다. 양의 꼬리 기울기가 사전 진단8MiB/시간 한도를 넘어 보수적으로 누수 의심으로 분류한다. 확정 누수나 제품 수용 판정은 아니다.
+
+### 원래 RSS5쌍 — 기준 유지
+
+| 쌍 | 디깅 RSS MiB | 대조 RSS MiB | 차이 MiB | 디깅 Commit MiB | Commit 차이 MiB |
+|---|---:|---:|---:|---:|---:|
+| 1 | 16.554688 | 7.101563 | 9.453125 | 88.355469 | 89.199219 |
+| 2 | 24.265625 | 12.632813 | 11.632813 | 94.402344 | 83.210938 |
+| 3 | 29.304688 | 7.343750 | 21.960938 | 131.785156 | 128.652344 |
+| 4 | 18.160156 | 8.503906 | 9.656250 | 95.015625 | 98.015625 |
+| 5 | 0.554688 | 18.921875 | -18.367188 | 97.644531 | 89.687500 |
+
+raw/retained RSS 절대·차이 모두1~4쌍 FAIL, Commit 절대·차이는5쌍 모두 FAIL이다. 디깅 raw RSS 중앙값18.160156MiB, 최대차이21.960938MiB다. 순서는 AB/BA/AB/BA/AB이며 threshold8MiB·35초 준비·90초·50회·0회·기본 allocator·trim/drain 방식을 바꾸지 않았다. 차이 통과가 절대 실패를 대체하지 않는다. 샘플러/audit/PCD 없는 조건에서도 실패해 새 샘플러나 PCD만의 원인으로 귀속할 수 없다.
+
+### 샘플러 off/on 상대 비용
+
+`MemoryCostOff`/`MemoryCostOn`은 별도 opt-in `HATCH26.MemorySamplerOverheadRhi`의60초 비용 probe다. **장시간 관찰의1800~3600초 제한은 그대로**다. 양쪽에서 LLM·3HWRT 센서·PCD·UI·준비 조건을 같게 두고 수집기 호출만 끈다. Off는 표본0개, On은5초 간격 표본12개이며 frame/GT 통계와 시작/끝 backend를 기록한다. C++에서 engine/GT/callback150ms 한도를 검사하고, 비교기는 모든 candidate 센서의 획득률≥요청의99%를 확인한다.
+
+ABAB3블록/Off6개/On6개를 공통 [상대 판정 함수](../Scripts/PerfRelativeGate.ps1)로 비교했다.
+
+| 지표 중앙값 | Off | On | 변화 |
+|---|---:|---:|---:|
+| 평균FPS | 58.653270 | 58.714336 | +0.104114% |
+| engine frame p95 ms | 19.822351 | 19.567300 | -1.286687% |
+| GT 평균 ms | 10.355657 | 10.281637 | -0.714777% |
+
+세 항목 모두 증가2% 기준 PASS다. 실행 변동 안의 관측 결과이며 샘플러가 성능을 개선한다고 주장하지 않는다. 실제 획득률·backend·complete·소스/조건 일치까지 확인한 이3LiDAR PCD fixture의 수집 비용 결과다. project-wide PERF01/표준1Camera+1LiDAR/회사 수용이나 RSS 실패를 대신하지 않는다. [비교기](../Scripts/compare_memory_sampler_cost.ps1)와 [합성 검증](../Scripts/test_memory_sampler_cost.ps1)은 누락·회귀·조건 불일치·decoder·0Hz·잘못된 backend를 거부한다.
+
+### 증가원 후보와 한계
+
+| 근거 | idle 전후 MiB | 디깅 전후 MiB |
+|---|---:|---:|
+| Untracked | +37.359064 | +106.422850 |
+| FMallocUnused | +14.797312 | +15.335067 |
+| RHIMisc | +4.074730 | +4.403003 |
+| UObject 태그 | -0.204820 | -0.204820 |
+| Hatch/CargoCook | 0 | +0.664513 |
+| Hatch/RayTree | -0.000374 | +0.000374 |
+
+끝1/3에서 RHIMisc는18.6834/14.4294MiB/시간, CustomName은23.7840/28.4160MiB/시간의 증가를 보였다. 계층 태그를 합산하거나 process aggregate를 독립 원인으로 세지 않는다. UObject 수·해치 소유 태그의 큰 누적 증가보다 native 미계측/RHI·명령/할당자 보존을 우선 추적한다. CargoCook의 작은 증가를 전체 Process 증가의 설명으로 확대하지 않는다. PCD나 새 수집기가 없는 원래 조건도 실패하므로 그것들만의 문제는 아니다.
+
+실제 누수와 allocator/driver 보존을 나눌 allocation stack·native heap 귀속은 확보하지 못했다. 비용 probe60초는 장시간 sampler-off 메모리 추이를 증명하지도 않는다. **근거가 충분하지 않아 제품 메모리 수정은 하지 않았다.** 다음 필요한 작업은 동일 조건의 native allocation 귀속이다. 기존 `user accepted unresolved RSS (2026-10-23)`와 원래/새 FAIL을 함께 유지한다.
+
+개인44파일 원본 집합/SHA 복원·보호481파일 일치·측정 source/asset616개 일치를 확인했다. 사용자 SensorTestMap 변경과 비추적 보호 파일은 그대로이며 전체 worktree clean으로 표현하지 않는다. DTCore/gitlink·자산·Config/Game.ini·PixelStreaming·Claude 메모는 stage/변경하지 않았고 push/PR/merge도 하지 않았다.
