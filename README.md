@@ -94,6 +94,8 @@ MEMORY-TREND-26c(기준 `3ed0367`): Scheduler 주기 로그를 기본 억제하�
 
 26d(기준 `1c19ebb`): 엔진 Editor PDB의 실제 소스 줄과 game PDB 일치를 검증하고 패키지20분 trace를 분석했다. RHIMisc 유력 기여를 D3D12 query 배열(+2.32MiB/2개)·상한이 있는 crash-event 문자열 캐시로 좁혔다. 프로젝트 버퍼의 무제한 보유와 원래 무추적RSS+50/Commit+19 전체 귀속은 미확정이다. GPU alias 집계·game 엔진 소스 줄 한계는 분리하며 제품 수정/안정화 완료로 표시하지 않는다. [콜스택·검증·완화 제안](docs/MEMORY_ATTRIBUTION_26d.md)·[결과](Saved/Reports/MEMORY-ATTRIBUTION-26d/RESULT.md).
 
+26e(기준 `15326e6`, Runtime `eb4d515`): 해치 분석·지형 생성·저장 PCD 미리보기의 큰 future 결과를 복사 없이 한 번 이동하며 Pending 무효화와 버퍼 capacity를 검증했다. package20분 trace2회·비추적60분은 모두 누수 의심이고, 비추적 꼬리는 RSS+17.50/Commit+13.84/RHIMisc+11.81MiB/h다. D3D12 query·상한 있는 profiler cache·PCD encode가 반복된 양의 스택이며 전체 RSS 귀속은 미해결이다. 기존 HATCH06 픽셀 실패는 기준에서도 재현됐고 RT on ABAB1블록은 GPU mean+2.4487%로 FAIL이다. 기준 완화/추가 제품 기본값 변경 없이 보고했다. [변경·비교·한계](docs/MEMORY_OBSERVATION_26e.md)·[결과](Saved/Reports/MEMORY-26e/RESULT.md).
+
 ### FOLLOWUP-28 PCD 송신 예산·공정성
 
 기본 Ouster OS1-64 Rev7 3대(1024×64·20Hz 요청)에 센서별 토큰 버킷과 프레임 크기를 반영한 균등 Hz 상한을 적용한다. 기본 송신 예산은80MiB/s(사용자 승인2026-10-23)이며 PCD33-byte·승인FIFO·기본출력과 전역128MiB/스트림64MiB 예약 상한은 유지한다. `데이터 → 전송 → 고급 → PCD 예산`에서 현재 세션 예산을 바꾸며, 필요/예산 MiB/s와 최근 약1초의 실제 송신Hz를 표시한다. 저장 형식은 바꾸지 않는다.
