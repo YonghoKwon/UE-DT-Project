@@ -55,6 +55,8 @@ class FPerf01AcquisitionCommand : public IAutomationLatentCommand
     friend struct FPerf01ReportProbe;
     FAutomationTestBase* Test;
     double Created=FPlatformTime::Seconds(),Started=0,Last=0,LastRate=0,MeasurementStart=0;
+    double NextCancelPoll=0;
+    FString CancelFile;
     int32 Pairs=1,Duration=60;
     TArray<TWeakObjectPtr<AVirtualSensorActorBase>> Sensors;
     TArray<double> Wall,Engine,Game,Gpu,RateSums;
@@ -92,6 +94,7 @@ public:
         FParse::Value(FCommandLine::Get(),TEXT("Perf01Pairs="),Pairs);
         FParse::Value(FCommandLine::Get(),TEXT("Perf01Seconds="),Duration);
         FParse::Value(FCommandLine::Get(),TEXT("Perf01Output="),Output);
+        FParse::Value(FCommandLine::Get(),TEXT("Perf01CancelFile="),CancelFile);
         Pairs=FMath::Clamp(Pairs,1,2);Duration=FMath::Clamp(Duration,30,60);
         bCameraTruthPerformance=FParse::Param(FCommandLine::Get(),TEXT("CameraTruthPerformance"));
         FParse::Value(FCommandLine::Get(),TEXT("Perf01LidarProfile="),LidarProfile);
@@ -114,6 +117,11 @@ public:
     {
         if(LidarProfile!=TEXT("MLX80Native")&&LidarProfile!=TEXT("Rev7")){Test->AddError(TEXT("Unsupported PERF01 LiDAR profile"));return true;}
         const double Now=FPlatformTime::Seconds();
+        if(!CancelFile.IsEmpty()&&Now>=NextCancelPoll)
+        {
+            NextCancelPoll=Now+1;
+            if(IFileManager::Get().FileExists(*CancelFile)){Phase=TEXT("cancelled");Test->AddError(TEXT("PERF-01 cancelled by environment monitor"));return true;}
+        }
         if(Now-Created>Duration+70){Test->AddError(TEXT("PERF-01 timeout"));return true;}
         UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();
         if(MeasurementStart&&(!World||!World->GetGameViewport()||!World->GetGameViewport()->Viewport
