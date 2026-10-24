@@ -128,7 +128,8 @@ bool Process(const FString& Input,UE::Trace::IAnalyzer& Analyzer,const TCHAR* La
     while(Worker.IsActive())
     {
         double Now=FPlatformTime::Seconds();if(Now-Start>3600||FPlatformMemory::GetStats().UsedPhysical>24ull*1024*1024*1024){Worker.Stop();Worker.Wait();return false;}
-        if(Now>=Next){Next=Now+15;UE_LOG(LogTemp,Display,TEXT("[MemoryStream] %s elapsed %.0fs RSS %.2fGiB"),Label,Now-Start,FPlatformMemory::GetStats().UsedPhysical/double(1ull<<30));if(FCString::Strcmp(Label,TEXT("live-only"))==0){const auto& L=static_cast<FLive&>(Analyzer);UE_LOG(LogTemp,Display,TEXT("[MemoryStream] marker %.3f / %.3f events %llu"),L.Time,L.TargetB,L.Events);}}FPlatformProcess::Sleep(.1f);
+        // The analyzer runs on its worker. Read its counters only after Wait().
+        if(Now>=Next){Next=Now+15;UE_LOG(LogTemp,Display,TEXT("[MemoryStream] %s elapsed %.0fs RSS %.2fGiB"),Label,Now-Start,FPlatformMemory::GetStats().UsedPhysical/double(1ull<<30));}FPlatformProcess::Sleep(.1f);
     }
     Worker.Wait();return true;
 }
