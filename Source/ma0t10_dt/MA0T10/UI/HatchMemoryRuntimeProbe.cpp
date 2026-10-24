@@ -153,7 +153,10 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
             if(Llm){auto& L=FLowLevelMemTracker::Get();L.GetTrackedTagsNamesWithAmount(DefaultTags,ELLMTracker::Default,ELLMTagSet::None);L.GetTrackedTagsNamesWithAmount(PlatformTags,ELLMTracker::Platform,ELLMTagSet::None);}
 #endif
             auto Watched=MakeShared<FJsonObject>();
-            for(const TCHAR* Name:{TEXT("Physics"),TEXT("ChaosTrimesh"),TEXT("UObject"),TEXT("UI"),TEXT("RHIMisc"),TEXT("Textures"),TEXT("FMallocUnused"),TEXT("Hatch/CargoCook"),TEXT("Hatch/RayTree"),TEXT("Hatch/CargoUpdate"),TEXT("Untracked"),TEXT("TrackedTotal"),TEXT("Total"),TEXT("FMalloc")})
+            // Match the Editor row's fixed ten counters, including zero tags.
+            for(const TCHAR* Name:{TEXT("Physics"),TEXT("ChaosTrimesh"),TEXT("UObject"),TEXT("UI"),TEXT("RHIMisc"),TEXT("Textures"),TEXT("FMallocUnused"),TEXT("Hatch/CargoCook"),TEXT("Hatch/RayTree"),TEXT("Hatch/CargoUpdate")})
+                Watched->SetNumberField(Name,double(DefaultTags.FindRef(FName(Name))));
+            for(const TCHAR* Name:{TEXT("Untracked"),TEXT("TrackedTotal"),TEXT("Total"),TEXT("FMalloc")})
                 if(const auto* V=DefaultTags.Find(FName(Name)))Watched->SetNumberField(Name,double(*V));
             R->SetObjectField(TEXT("llm_default"),Watched);R->SetObjectField(TEXT("llm_default_top"),Top(DefaultTags));R->SetObjectField(TEXT("llm_platform_top"),Top(PlatformTags));
             R->SetObjectField(TEXT("pcd"),Pcd());auto Sensors=MakeShared<FJsonObject>();
