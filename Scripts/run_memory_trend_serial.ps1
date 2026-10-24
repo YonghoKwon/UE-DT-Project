@@ -6,6 +6,7 @@ param(
     [ValidateRange(1024,65535)][int]$Port=18626,
     [switch]$WithoutPcd,
     [switch]$MemoryAudit,
+    [switch]$SchedulerTelemetry,
     [ValidateRange(600,1200)][int]$InvestigationSeconds=900,
     [ValidateSet('Reference','LidarOff','PcdOff','PreviewOff','Cpu')][string]$MemoryCut='Reference',
     [switch]$MemoryTrace
@@ -64,6 +65,7 @@ try {
     if($MemoryTrace){$runArgs+=@('-MemoryTraceFile',(Join-Path $ReportRoot 'memory.utrace'))}
     if(!$WithoutPcd){$runArgs+=@('-MemoryPcdLoopbackPort',"$Port")}
     if($MemoryAudit){$runArgs+='-MemoryAudit'}
+    if($SchedulerTelemetry){$runArgs+='-SchedulerTelemetry'}
     $quoted=@($runArgs|ForEach-Object{'"'+$_+'"'})
     $runner=Start-Process powershell -ArgumentList $quoted -WindowStyle Hidden -PassThru -RedirectStandardOutput "$ReportRoot/runner.log" -RedirectStandardError "$ReportRoot/runner-stderr.log"
     $null=$runner.Handle

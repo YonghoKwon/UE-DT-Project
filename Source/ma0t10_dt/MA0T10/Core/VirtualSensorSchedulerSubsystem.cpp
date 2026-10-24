@@ -12,6 +12,11 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 
+// Periodic telemetry is opt-in: -LogCmds="LogVirtualSensorTelemetry Verbose"
+// or `log LogVirtualSensorTelemetry Verbose` at runtime. State/warning logs
+// keep their existing category and verbosity.
+DEFINE_LOG_CATEGORY_STATIC(LogVirtualSensorTelemetry, Log, All);
+
 bool UVirtualSensorSchedulerSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
     const UWorld* World = Cast<UWorld>(Outer);
@@ -342,12 +347,15 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
     {
         TelemetryLogAccumulator = FMath::Fmod(TelemetryLogAccumulator, 1.0f);
         RefreshFrameStatistics();
+        // UI/benchmark telemetry still refreshes every second with logging off.
+        // Avoid string formatting and the per-sensor log walk when suppressed.
+        if (!UE_LOG_ACTIVE(LogVirtualSensorTelemetry, Verbose)) return;
         const auto EffectiveHz = [this](const FString& Kind, const FString& Id)
         {
             const auto* Rate = Telemetry.SensorRates.FindByPredicate([&](const FVirtualSensorRateDiagnostic& R) { return R.SensorKind == Kind && R.SensorId == Id; });
             return Rate ? Rate->EffectiveHz : 0.0f;
         };
-        UE_LOG(LogTemp, Display,
+        UE_LOG(LogVirtualSensorTelemetry, Verbose,
             TEXT("[VirtualSensorPerf] targetFps=%d camera=%d lidar=%d averageFps=%.2f onePercentLowFps=%.2f p95FrameMs=%.2f schedulerMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d bestEffort=%d budgetSkipped=%d failedAcquisition=%d queueOverflow=%d minCameraHz=%.2f minLidarHz=%.2f"),
             Telemetry.TargetFps,
             Telemetry.ActiveCameraCount,
@@ -371,7 +379,7 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
         {
             if (!Camera.IsValid()) continue;
             const FVirtualSensorRuntimeStatus& Status = Camera->GetRuntimeStatus();
-            UE_LOG(LogTemp, Display,
+            UE_LOG(LogVirtualSensorTelemetry, Verbose,
                 TEXT("[VirtualSensorPerfSensor] kind=Camera sensorId=%s width=%d height=%d requestedHz=%.2f acquisitionHz=%.2f outputHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d deadlineMiss=%d budgetSkipped=%d failedAcquisition=%d queueOverflow=%d backend=%s"),
                 *Camera->SensorId,
                 Camera->CaptureResolution.X,
@@ -395,7 +403,7 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
         {
             if (!Lidar.IsValid()) continue;
             const FVirtualSensorRuntimeStatus& Status = Lidar->GetRuntimeStatus();
-            UE_LOG(LogTemp, Display,
+            UE_LOG(LogVirtualSensorTelemetry, Verbose,
                 TEXT("[VirtualSensorPerfSensor] kind=Lidar sensorId=%s horizontal=%d vertical=%d rays=%d requestedHz=%.2f acquisitionHz=%.2f outputHz=%.2f acquisitionMs=%.2f postMs=%.2f pendingAcquisition=%d pendingDerived=%d droppedAcquisition=%d droppedDerived=%d deadlineMiss=%d budgetSkipped=%d failedAcquisition=%d queueOverflow=%d expiredCadenceSlots=%lld backend=%s"),
                 *Lidar->SensorId,
                 Lidar->HorizontalSamples,

@@ -13,6 +13,7 @@ param(
     [ValidateSet(100,150)][int]$FontPercent=100,
     [ValidateSet(0,1)][int]$DigView=1,
     [switch]$MemoryAudit,
+    [switch]$SchedulerTelemetry,
     [switch]$MemoryDeepReport,
     [switch]$FullRhiDrain=$true,
     [switch]$Visible,
@@ -49,7 +50,7 @@ $sourceCommit=(& git -C $root rev-parse HEAD) -join ''
     Get-ChildItem -LiteralPath "$root/Source" -File -Recurse | ForEach-Object {$sourceHashes[$_.FullName.Substring($root.Length+1)]=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash}
     $sourceHashes['Content/MA0T10/Hatch/Materials/M_HatchCargo.uasset']=(Get-FileHash -LiteralPath "$root/Content/MA0T10/Hatch/Materials/M_HatchCargo.uasset" -Algorithm SHA256).Hash
     if($trend){foreach($relative in @('ma0t10_dt.uproject','Content/MA0T10/Maps/Tests/ShipHatchTestMap.umap')){$sourceHashes[$relative]=(Get-FileHash -LiteralPath (Join-Path $root $relative) -Algorithm SHA256).Hash}}
-    @{Commit=$sourceCommit; Mode=$Mode; SourceHashes=$sourceHashes; FontPercent=$FontPercent; Width=$Width; Height=$Height; MemoryWarmupSeconds=$MemoryWarmupSeconds; MatchedMemorySeconds=$MatchedMemorySeconds; MemoryAudit=([bool]$MemoryAudit -or $trend); MemoryTrendSeconds=$MemoryTrendSeconds; MemorySampleSeconds=$MemorySampleSeconds; DiagnosticOnly=$trend; FullRhiDrain=([bool]$FullRhiDrain -and !$trend); WorldTraceReference=[bool]$WorldTraceReference; CpuReference=[bool]$CpuReference; FastCaptureOnly=[bool]$FastCaptures; Visible=[bool]$Visible; Submodule=((& git -C "$root/Plugins/DTCore" rev-parse HEAD) -join '')} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$ReportRoot/source-manifest.json" -Encoding UTF8
+    @{Commit=$sourceCommit; Mode=$Mode; SourceHashes=$sourceHashes; FontPercent=$FontPercent; Width=$Width; Height=$Height; MemoryWarmupSeconds=$MemoryWarmupSeconds; MatchedMemorySeconds=$MatchedMemorySeconds; MemoryAudit=([bool]$MemoryAudit -or $trend); SchedulerTelemetry=[bool]$SchedulerTelemetry; MemoryTrendSeconds=$MemoryTrendSeconds; MemorySampleSeconds=$MemorySampleSeconds; DiagnosticOnly=$trend; FullRhiDrain=([bool]$FullRhiDrain -and !$trend); WorldTraceReference=[bool]$WorldTraceReference; CpuReference=[bool]$CpuReference; FastCaptureOnly=[bool]$FastCaptures; Visible=[bool]$Visible; Submodule=((& git -C "$root/Plugins/DTCore" rev-parse HEAD) -join '')} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$ReportRoot/source-manifest.json" -Encoding UTF8
     if($cost){
         $record=Get-Content -Raw -Encoding UTF8 -LiteralPath "$ReportRoot/source-manifest.json"|ConvertFrom-Json
         $record.MemoryTrendSeconds=60
@@ -87,6 +88,7 @@ try {
     if($FastCaptures){if($Mode -ne 'Industrial'){throw 'FastCaptures is only a capture validation mode, not a performance gate'};$hatchArgs+='-Hatch06Fast'}
     if($Mode -in @('Manual','OrientationManual','IndustrialManual')){$hatchArgs+='-HatchManual'}else{$hatchArgs+='-unattended'}
     if($MemoryAudit){$hatchArgs+='-HatchMemoryAudit'}
+    if($SchedulerTelemetry){$hatchArgs+='-LogCmds=LogVirtualSensorTelemetry Verbose'}
     if($MemoryDeepReport){if(!$MemoryAudit){throw 'MemoryDeepReport requires MemoryAudit'};$hatchArgs+='-HatchMemoryDeepReport'}
     if(($MemoryAudit -and $Mode -like 'Dig*') -or $trend){$hatchArgs+='-llm'}
     if($trend){$hatchArgs+=@('-HatchMemoryTrend',('-HatchMemoryTrendSeconds='+$MemoryTrendSeconds.ToString([Globalization.CultureInfo]::InvariantCulture)),('-HatchMemorySampleSeconds='+$MemorySampleSeconds.ToString([Globalization.CultureInfo]::InvariantCulture)))}

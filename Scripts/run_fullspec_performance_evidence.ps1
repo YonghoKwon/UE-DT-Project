@@ -65,6 +65,7 @@ if (-not $SkipLaunch) {
         "-VirtualSensorPerfLidarProfile=$LidarProfile",
         "-VirtualSensorPerfLidarAcquisition=$LidarAcquisition",
         "-VirtualSensorPerfWarmupSeconds=$WarmupSeconds",
+        '-LogCmds="LogVirtualSensorTelemetry Verbose"',
         "-abslog=`"$LogPath`""
     )
     $process = Start-Process -FilePath $editorPath -ArgumentList $arguments -PassThru -WindowStyle Hidden
