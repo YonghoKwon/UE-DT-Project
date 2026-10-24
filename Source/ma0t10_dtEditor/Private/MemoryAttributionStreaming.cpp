@@ -173,8 +173,14 @@ int32 ExportStreamingMemory(const FString& Input,const FString& Output,double Of
         if(SymbolsReady)
         {
             alignas(16) uint8 Buffer[sizeof(SYMBOL_INFOW)+2048*sizeof(WCHAR)]={};auto* S=(SYMBOL_INFOW*)Buffer;S->SizeOfStruct=sizeof(SYMBOL_INFOW);S->MaxNameLen=2048;DWORD64 Displacement=0;
-            if(SymFromAddrW(Token,Address,&Displacement,S)){J->SetStringField(TEXT("symbol"),FString(S->NameLen,S->Name));J->SetStringField(TEXT("resolution"),TEXT("Ok"));}
-            IMAGEHLP_LINEW64 L{};L.SizeOfStruct=sizeof(L);DWORD D=0;if(SymGetLineFromAddrW64(Token,Address,&D,&L)){J->SetStringField(TEXT("file"),L.FileName?L.FileName:TEXT(""));J->SetNumberField(TEXT("line"),L.LineNumber);}
+            IMAGEHLP_MODULEW64 M{};M.SizeOfStruct=sizeof(M);bool Pdb=false;
+            if(SymFromAddrW(Token,Address,&Displacement,S))
+            {
+                Pdb=SymGetModuleInfoW64(Token,Address,&M)&&(M.SymType==SymPdb||M.SymType==SymDia);
+                if(Pdb){J->SetStringField(TEXT("symbol"),FString(S->NameLen,S->Name));J->SetStringField(TEXT("resolution"),TEXT("PDB"));}
+                else{J->SetStringField(TEXT("export_nearest_approximation"),FString(S->NameLen,S->Name));J->SetStringField(TEXT("resolution"),TEXT("Exports only; use module+offset"));}
+            }
+            IMAGEHLP_LINEW64 L{};L.SizeOfStruct=sizeof(L);DWORD D=0;if(Pdb&&SymGetLineFromAddrW64(Token,Address,&D,&L)){J->SetStringField(TEXT("file"),L.FileName?L.FileName:TEXT(""));J->SetNumberField(TEXT("line"),L.LineNumber);}
         }
 #endif
         FrameCache.Add(Address,J);return TSharedPtr<FJsonObject>(J);
