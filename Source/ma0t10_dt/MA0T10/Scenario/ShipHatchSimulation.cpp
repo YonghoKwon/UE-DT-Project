@@ -1,4 +1,5 @@
 #include "ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/Contracts/ConsumeReadyFuture.h"
 #include "ProceduralMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
@@ -142,7 +143,7 @@ void AShipHatchSimulation::StartGeneration()
 void AShipHatchSimulation::PollGeneration()
 {
     if(!Generation.IsReady())return;
-    auto Result=Generation.Get();
+    auto Result=MA0T10::ConsumeReadyFuture(Generation);
     GenerationShape=MoveTemp(Result.Shape);
     if(bPending){RecycledHeights=MoveTemp(Result.Surface.Heights);StartGeneration();return;}
     GetWorldTimerManager().ClearTimer(PollTimer);

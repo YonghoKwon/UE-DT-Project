@@ -1,4 +1,5 @@
 #include "AgentTestSetPcdPreview.h"
+#include "ma0t10_dt/MA0T10/Contracts/ConsumeReadyFuture.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualPcdCodec.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
@@ -65,7 +66,7 @@ void FAgentTestSetPcdPreview::Start(UWorld* World,const FAgentTestSetItem& Item,
 }
 void FAgentTestSetPcdPreview::Pump(UWorld* World)
 {
-    if(Read.IsValid()&&Read.IsReady()){Ready=Read.Get();Read=TFuture<FTestSetPcdFrame>();}
+    if(Read.IsValid()&&Read.IsReady()){Ready=MA0T10::ConsumeReadyFuture(Read);}
     if(!View.Playing||!Ready.IsSet())return;
     auto& Frame=Ready.GetValue();
     if(!Frame.Error.IsEmpty()){View.Playing=false;View.Loading=false;View.Message=Frame.Error;Ready.Reset();return;}

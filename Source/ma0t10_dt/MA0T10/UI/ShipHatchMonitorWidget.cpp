@@ -1,4 +1,5 @@
 #include "ShipHatchMonitorWidget.h"
+#include "ma0t10_dt/MA0T10/Contracts/ConsumeReadyFuture.h"
 #include "ShipHatchMetricPresentation.h"
 #include "ShipHatchLabelPresentation.h"
 #include "ShipHatchViewTransform.h"
@@ -46,6 +47,11 @@ struct FShipHatchMonitorWork
 {
     struct FResult
     {
+        FResult() = default;
+        FResult(FResult&&) = default;
+        FResult& operator=(FResult&&) = default;
+        FResult(const FResult&) = delete;
+        FResult& operator=(const FResult&) = delete;
         ShipHatch::FAnalysis Analysis;
         TArray<ShipHatch::FObservation> Observations;
         TArray<ShipHatch::FObservation> ComparisonScratch;
@@ -69,6 +75,72 @@ struct FShipHatchMonitorWork
     TArray<ShipHatch::FSectionSample> SectionSamples;
     TArray<uint8> CoverageMask;
 };
+
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+#include "Misc/AutomationTest.h"
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchFutureConsumeTest,"MA0T10.Hatch.AnalysisFutureConsumesBuffers",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FHatchFutureConsumeTest::RunTest(const FString&)
+{
+    FShipHatchMonitorWork Work;
+    FShipHatchMonitorWork::FResult Result;
+    Result.Revision=42;Result.CabRevision=17;Result.Cell=1;
+    Result.Comparison=TEXT("unchanged result");
+    Result.Observations.Reserve(120000);
+    Result.Observations.Add({FVector(0,0,2),FName(TEXT("HatchCargo"))});
+    Result.ComparisonScratch.Reserve(65536);
+    Result.ComparisonScratch.Add(Result.Observations[0]);
+    ShipHatch::AnalyzeInto(Result.Settings,Result.Cell,Result.Observations,Result.Analysis);
+    ShipHatch::AnalyzeInto(Result.Settings,Result.Cell,Result.ComparisonScratch,Result.ComparisonAnalysis);
+    const auto Expected=ShipHatch::Analyze(Result.Settings,Result.Cell,Result.Observations);
+    const auto* Observations=Result.Observations.GetData();const int32 ObservationCapacity=Result.Observations.Max();
+    const auto* Comparison=Result.ComparisonScratch.GetData();const int32 ComparisonCapacity=Result.ComparisonScratch.Max();
+    const auto* Cells=Result.Analysis.Cells.GetData();const int32 CellCapacity=Result.Analysis.Cells.Max();
+    const auto* ComparisonCells=Result.ComparisonAnalysis.Cells.GetData();
+    for(int32 Pass=0;Pass<3;++Pass)
+    {
+        TPromise<FShipHatchMonitorWork::FResult> Promise;
+        Work.Pending=Promise.GetFuture();
+        TestTrue(TEXT("pending valid before completion"),Work.Pending.IsValid());
+        TestFalse(TEXT("pending is not ready before completion"),Work.Pending.IsReady());
+        Promise.SetValue(MoveTemp(Result));
+        TestTrue(TEXT("completed future ready"),Work.Pending.IsReady());
+        Result=MA0T10::ConsumeReadyFuture(Work.Pending);
+        TestFalse(TEXT("consumption invalidates pending even without new sensor frames"),Work.Pending.IsValid());
+        TestFalse(TEXT("consumed pending cannot enter ready branch again"),Work.Pending.IsReady());
+        TestTrue(TEXT("observation allocation transferred"),Result.Observations.GetData()==Observations);
+        TestEqual(TEXT("observation capacity retained"),Result.Observations.Max(),ObservationCapacity);
+        TestTrue(TEXT("comparison allocation transferred"),Result.ComparisonScratch.GetData()==Comparison);
+        TestEqual(TEXT("comparison capacity retained"),Result.ComparisonScratch.Max(),ComparisonCapacity);
+        TestTrue(TEXT("analysis allocation transferred"),Result.Analysis.Cells.GetData()==Cells);
+        TestEqual(TEXT("analysis capacity retained"),Result.Analysis.Cells.Max(),CellCapacity);
+        TestTrue(TEXT("comparison analysis transferred"),Result.ComparisonAnalysis.Cells.GetData()==ComparisonCells);
+        TestEqual(TEXT("revision unchanged"),Result.Revision,uint64(42));
+        TestEqual(TEXT("cab revision unchanged"),Result.CabRevision,uint64(17));
+        TestEqual(TEXT("comparison unchanged"),Result.Comparison,FString(TEXT("unchanged result")));
+        TestEqual(TEXT("analysis mean identical"),Result.Analysis.Mean,Expected.Mean);
+        TestEqual(TEXT("analysis coverage identical"),Result.Analysis.Coverage,Expected.Coverage);
+        TestEqual(TEXT("analysis cell count identical"),Result.Analysis.Cells.Num(),Expected.Cells.Num());
+        for(int32 I=0;I<Expected.Cells.Num();++I)
+        {
+            TestEqual(TEXT("cell count identical"),Result.Analysis.Cells[I].Count,Expected.Cells[I].Count);
+            TestEqual(TEXT("cell sum identical"),Result.Analysis.Cells[I].Sum,Expected.Cells[I].Sum);
+        }
+        // Same bounded scratch route as RefreshAnalysis, including discarded
+        // revisions: reset must retain allocation for the next worker.
+        Work.ObservationScratch=MoveTemp(Result.Observations);
+        Work.ComparisonScratch=MoveTemp(Result.ComparisonScratch);
+        Work.ComparisonAnalysis=MoveTemp(Result.ComparisonAnalysis);
+        Work.AnalysisScratch=MoveTemp(Result.Analysis);
+        Work.ObservationScratch.Reset();Work.ObservationScratch.Add({FVector(0,0,2),FName(TEXT("HatchCargo"))});
+        Result.Observations=MoveTemp(Work.ObservationScratch);
+        Result.ComparisonScratch=MoveTemp(Work.ComparisonScratch);
+        Result.ComparisonAnalysis=MoveTemp(Work.ComparisonAnalysis);
+        Result.Analysis=MoveTemp(Work.AnalysisScratch);
+    }
+    return true;
+}
+#endif
+
 void UShipHatchDetailsSection::InitializeSection(UButton* Header,UVerticalBox* Content,bool Expanded)
 {Body=Content;AddChildToVerticalBox(Header);AddChildToVerticalBox(Content);Body->SetVisibility(Expanded?ESlateVisibility::Visible:ESlateVisibility::Collapsed);Header->OnClicked.AddDynamic(this,&UShipHatchDetailsSection::Toggle);}
 void UShipHatchDetailsSection::Toggle()
@@ -486,7 +558,7 @@ void UShipHatchMonitorWidget::RefreshAnalysis()
 {
     auto* S=Simulation.Get();if(!S||!Work)return;
     if(Work->Pending.IsValid())
-    {if(!Work->Pending.IsReady())return;auto R=Work->Pending.Get();Work->ObservationScratch=MoveTemp(R.Observations);Work->ComparisonScratch=MoveTemp(R.ComparisonScratch);Work->ComparisonAnalysis=MoveTemp(R.ComparisonAnalysis);if(R.Revision==S->Revision()&&R.CabRevision==S->CabRevision()&&R.Cell==CellSize)
+    {if(!Work->Pending.IsReady())return;auto R=MA0T10::ConsumeReadyFuture(Work->Pending);Work->ObservationScratch=MoveTemp(R.Observations);Work->ComparisonScratch=MoveTemp(R.ComparisonScratch);Work->ComparisonAnalysis=MoveTemp(R.ComparisonAnalysis);if(R.Revision==S->Revision()&&R.CabRevision==S->CabRevision()&&R.Cell==CellSize)
      {Work->AnalysisScratch=MoveTemp(Work->Current.Analysis);Work->Current=MoveTemp(R);if(CoverageText)CoverageText->SetText(FText::FromString(Work->Current.Comparison));const auto& A=Work->Current.Analysis;++AnalysisBuilds;const FString Values[]={FString::Printf(TEXT("%.1f %%"),S->Surface().Fill),FString::Printf(TEXT("%.0f m³"),S->Surface().Volume),FString::Printf(TEXT("%.2f m"),A.Max),FString::Printf(TEXT("%.2f m"),A.Mean),FString::Printf(TEXT("%.2f m"),A.Min),FString::Printf(TEXT("%.1f %%"),(1-A.Coverage)*100)};for(int32 I=0;I<MetricValues.Num();++I)MetricValues[I]->SetText(FText::FromString(Values[I]));FillBadge->SetText(FText::FromString(Values[0]));UpdatedText->SetText(FText::FromString(TEXT("마지막 갱신  ")+FDateTime::Now().ToString(TEXT("%H:%M:%S"))));InvalidatePlots();}else Work->AnalysisScratch=MoveTemp(R.Analysis);}
     const int64 M=S->bMLX&&S->MLX?S->MLX->ScanComponent->GetRuntimeStatus().FrameId:-1,L=S->bLivox&&S->Livox?S->Livox->ScanComponent->GetRuntimeStatus().FrameId:-1;const int64 C=S->SensorEnabled(2)&&S->CabRight?S->CabRight->ScanComponent->GetRuntimeStatus().FrameId:-1;if(M==LastMLX&&L==LastLivox&&C==LastCabRight)return;LastMLX=M;LastLivox=L;LastCabRight=C;
     auto Points=MoveTemp(Work->ObservationScratch);S->CollectObservations(Points);const auto Settings=S->Surface().Settings;const auto Pose=S->GetActorTransform();const double Cell=CellSize;const uint64 Revision=S->Revision(),CabRevision=S->CabRevision();
