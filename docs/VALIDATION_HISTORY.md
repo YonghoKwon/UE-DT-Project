@@ -800,3 +800,13 @@ RSS는 **user accepted unresolved RSS (2026-10-23)**로 #26b에 이관하고 머
 - 초기 Hatch07Rhi의 고정 출력 경로를 사전 확인하지 못해 과거 hatch-rviz PNG5개가 갱신됐다. 초기 새 결과는 P2b/serial/hatch-rhi-initial에 보존했고 후속 실행은 -HatchReport로 P2b에 한정했다. 과거 원본5개 복원/동일 해시는 입증하지 못한다. Inspection 원본 및 보호 파일은 변경하지 않았다.
 - Editor/PIE 정상 종료 후 개인 SaveGame/WindowsEditor 설정43개 원본 집합·해시 복원(새 파일 제거0), 보호297개 해시 일치·DTCore b2504d1 gitlink/index/worktree 불변을 확인했다. 보호 경로 stage0, push/PR/merge/submodule update0이다.
 - 상세 [RESULT](../Saved/Reports/UXR-P2b/RESULT.md), [직접 점검표](../Saved/Reports/UXR-P2b/manual/CHECKLIST.md), [result.json](../Saved/Reports/UXR-P2b/result.json), [merge-check](../Saved/Reports/UXR-P2b/merge-check.json). merge_check의 REVIEW는 자동 머지 승인이 아니며 남은 gate와 변경된 테스트의 독립 검수가 필요하다.
+
+## 2026-10-24 — MEMORY-TREND-26b 직렬: 영상 디코딩 감지로 장시간 중단
+
+기준08c7ab5/DTCore b2504d1, 1fab745에서 master를 병합하고 VALIDATION_HISTORY 양쪽 기록을 보존했다. a897c43은 진단용 기존 Raw TCP publisher의 PCD loopback·5초 NVIDIA decoder 감시·취소 경로·C++ 샘플러 계약을 추가한다. Editor Development 빌드3회 exit0, C++ 계약1 Success(NullRHI), PCD 관련8 Success(D3D12), 90.7208초 실제 HWRT/PCD 대조1 Success, Python23 Success다. 측정 C++ 소스 bytes와 테스트 소스는 동일하다. 초기 wrapper의 null ExitCode 및 실측 전 Saved driver 경로 정규식 오류는 원문을 보존하고 보정했다. 원래 RSS 기준은 완화하지 않았다.
+
+PCD-on 3대 Rev7/1024×64/20Hz 요청·ShipHatchTestMap·1920×1080 offscreen/D3D12/RT ProjectDefault·기본 압축/FIFO/80MiB/s·17회+35초 준비·5초 표본 대조는 2026-10-24 00:20:18.0819251UTC(09:20:18KST) video decode1%를 감지해 취소했다. 관찰1634.9836초/327표본/complete=false, 자동화는 취소 Error로Fail1이며 분석은 데이터 부족(exit2)이다. 반복 디깅·원래 90초 RSS5쌍·off/on 비교는 시작하지 않았고 안정화/수용PASS로 표시하지 않는다. 초기 D3D12 SwapChain4 ensure도 보존한다.
+
+부분 시료 RSS+78.210938/Commit+145.613281MiB; 기술적 전체 기울기74.1580/100.6083MiB/시간, 부분 끝1/3은147.8141/292.7480이다. UObject46515→46363, 꼬리 기울기0; 해치 Cook/RayTree/Update 증가0. Untracked+90.613137/FMAllocUnused+26.079243/RHIMisc+6.287968MiB로 native 미계측/보존 후보를 좁히되 누수/수정을 확정하지 않는다. GT 샘플 비용 평균1.900630/최대3.695302ms(327개), 합계621.506080ms이며 2% 성능gate가 아니다. 종료 구간 admission skip/gap8/8/9와 in-flight 경계1도 별도 기록한다. encode/delivery/invalid/overload0, 사용자의 기존 RSS 미해결 수용 결정은 유지한다.
+
+자기 Editor/PIE 정상 종료 확인, 개인44파일 원본집합/SHA256 복원·보호481파일 일치·DTCore clean. SensorTestMap 사용자 변경/Config/Game.ini/PixelStreaming/Claude 메모 보존, 보호 stage0, 추가 GPU 실행·push/PR 없음. 상세·증거는 [가이드](MEMORY_TREND_26b.md)와 Saved/Reports/MEMORY-TREND-26b/serial-20261023T233614Z/, 현재 RESULT.md/result.json/merge-check.json을 따른다. 영상 디코딩 없는 환경에서 새 디렉터리의 완결 재실행이 필요하다.

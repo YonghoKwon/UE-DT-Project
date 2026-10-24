@@ -1,6 +1,6 @@
 # MEMORY-TREND-26b — 장시간 RSS 진단과 직렬 실행 계획
 
-2026-10-23, 기준 `98e2131`, DTCore `b2504d1`. 이 문서는 #26b의 계측·분석 도구와 후속 실행 계획이다. **기존 RSS 실패는 미해결**이다. 이번 병렬 worktree에서는 Editor/UBT/실측/GPU를 실행하지 않았다. C++ 컴파일·실제 샘플러 비용·30~60분 추이는 직렬 단계에서 확인해야 한다.
+생성 2026-10-23, 병렬 기준 `98e2131`, DTCore `b2504d1`. 2026-10-24 직렬 기준은 `08c7ab5`이며 `1fab745`에서 master를 병합하고 양쪽 검증 이력을 보존했다. 측정 코드는 `a897c43`이다. **기존 RSS 실패는 미해결**이다. 아래 병렬 증거 재분석과 새 직렬 부분 실측을 구분한다. Editor 빌드는 성공했으나 장시간 대조는 영상 디코딩 감지로 중단되어 완료 수용 자료가 아니다.
 
 ## 저장 방식과 비용
 
@@ -51,17 +51,20 @@
 
 별도 Binned2 진단은 raw RSS +13.457031MiB, allocator OS allocation +2.617187MiB여서 노출된 allocator 통계만으로 전체를 설명하지 못했다. 이는 보존된 Markdown 요약 근거이며 원시 allocator log 재검증은 불가능하다. 기본 Mimalloc은 변경하지 않는다. 태그 재사용/CPU scratch 후보의 원래 절대 RSS 실패와 원복 사실도 유지한다.
 
-## 직렬 실행 계획 — 이번 병렬 작업에서는 실행 금지
+## 직렬 실행 계획 — 2026-10-24 승인, 영상 디코딩 없는 환경 필수
 
-다른 Editor/빌드/측정이 끝난 뒤 통합한 동일 SHA와 DTCore에서 수행한다. 먼저 Editor Development를 정상 빌드하고 기존 Dig 관련 회귀를 확인한다. 아래 두 프로세스는 **순서대로** 실행하며, 사용자의 개인 SaveGame/Editor 설정 파일 집합과 해시를 실행 직전에 백업하고 완료/오류 시 복원한다. 실행기는 환경변수만 복원하므로 개인 파일 백업·복원은 직렬 담당자의 책임이다. 맵은 저장하지 않는다.
+다른 Editor/빌드/측정이 끝난 뒤 통합한 동일 SHA와 DTCore에서 수행한다. 먼저 Editor Development를 정상 빌드하고 관련 회귀를 확인한다. 아래 두 프로세스는 **순서대로** 실행하며, 개인 SaveGame/Editor 설정 파일 집합과 해시를 실행 직전에 백업하고 완료/오류 시 복원한다. 개인 파일 복원은 호출자의 책임이다. 맵은 저장하지 않는다. [직렬 실행기](../Scripts/run_memory_trend_serial.ps1)는 세 번의 사전 GPU decoder 검사와 실행 중5초 감시, 브라우저/미디어 프로세스 이름·PID 스냅샷을 기록한다(제목/URL/명령줄은 기록하지 않는다). 감지 시 취소 파일로 정상 PIE 종료하고 실패/미완료 자료를 보존한다. 사용자 지시대로 그 후 측정은 자동 재시작하지 않는다.
+
+실행기는 기존 Raw TCP transport/publisher를 사용하는 진단용 PCD loopback을 연결한다. 기본 Full 프로필·압축 On·80MiB/s·FIFO·33-byte 레코드 계약을 유지하며 자격증명은 비운다. Native LZF 검증 DLL을 사용하고 loopback의 개별 frame 목록은0개로 제한해 장시간에는 누적 카운터만 기록한다. DLL은 기존 `Tools/Artemis/lzf_validate.c`를 빌드한 결과이며 Saved 아래에만 둔다. 원래 #26 조건 비교는 `Dig`/`DigIdle -WithoutPcd`(35초+90초·50회/0회 교차5쌍)로 별도 실행하며 새 PCD-on 장시간 자료와 합치지 않는다.
 
 고정 조건: `/Game/MA0T10/Maps/Tests/ShipHatchTestMap`, Rev7×3/1024×64/요청20Hz, Auto→실제 HWRT, D3D12/ProjectDefault RT on, 1920×1080 오프스크린, font100%, 12,000점/센서, view1, 공유17회+35초 준비, 5초 샘플, 기본 Mimalloc, 출력/PCD 정책 동일. 실제 backend·센서 수/프레임 전진·출력 상태는 원본/로그로 확인하며 fallback 실행을 HWRT 결과로 세지 않는다. source-manifest와 summary에 실제 클릭/복원 수 및 시간·비용을 남긴다.
 
 ```powershell
-# 직렬 담당자가 통합/빌드한 checkout에서만 실행한다. 총 관찰 약 60분(각 30분).
+# 영상 없는 환경을 확인하고 개인 설정을 백업한 뒤 새 경로에서만 재실행한다.
 $trendRoot = 'Saved/Reports/MEMORY-TREND-26b/serial-' + (Get-Date -Format yyyyMMddTHHmmss)
-powershell -NoProfile -File Scripts/run_hatch_validation.ps1 -Mode MemoryTrendIdle -Sensors 3 -MemoryWarmupSeconds 35 -DigView 1 -MemoryTrendSeconds 1800 -MemorySampleSeconds 5 -ReportRoot "$trendRoot/idle"
-powershell -NoProfile -File Scripts/run_hatch_validation.ps1 -Mode MemoryTrendDig -Sensors 3 -MemoryWarmupSeconds 35 -DigView 1 -MemoryTrendSeconds 1800 -MemorySampleSeconds 5 -ReportRoot "$trendRoot/dig"
+$validator = 'Saved/Reports/MEMORY-TREND-26b/serial-20261023T233614Z/native/lzf_validate.dll'
+powershell -NoProfile -File Scripts/run_memory_trend_serial.ps1 -Mode MemoryTrendIdle -ReportRoot "$trendRoot/idle" -NativeValidator $validator -Seconds 1800
+powershell -NoProfile -File Scripts/run_memory_trend_serial.ps1 -Mode MemoryTrendDig -ReportRoot "$trendRoot/dig" -NativeValidator $validator -Seconds 1800
 python Scripts/analyze_memory_trend.py "$trendRoot/idle/memory-trend.jsonl" --output "$trendRoot/idle/analysis.json"
 python Scripts/analyze_memory_trend.py "$trendRoot/dig/memory-trend.jsonl" --output "$trendRoot/dig/analysis.json"
 ```
@@ -78,3 +81,18 @@ python Scripts/reanalyze_hatch_memory.py 'C:/Unreal Projects/ma0t10_dt/Saved/Rep
 ```
 
 단위 테스트는 선형 증가·초기 증가 후 plateau·Commit/UObject/태그만 증가·경과시간/간격·불완전 파일·누락/비정상 수치·상위 태그 관측 누락·CLI 판정과 비용 집계를 검사한다. UE 컴파일, 수명/중단 동작과 실제 파일 I/O 비용은 이 테스트의 증명 범위 밖이다.
+
+## 2026-10-24 직렬 부분 결과와 중단
+
+원본: `Saved/Reports/MEMORY-TREND-26b/serial-20261023T233614Z/`.
+
+- Editor Development 빌드3회 exit0. C++ `HATCH26.MemorySamplerContract` 1 Success(NullRHI·행/태그 상한/중복 샘플 억제/미완료 footer 계약), D3D12 `MA0T10.PcdBandwidth` 8 Success, 실제 HWRT+PCD `HATCH03.IdleMemoryControlRhi` 1 Success다. Python 회귀23 Success도 유지한다. 테스트한 C++ 소스 bytes는 최종 측정 커밋과 동일하다.
+- 90.7208초 PCD qualification은 센서별1800/1800/1799프레임의 input/serialize/submit/receipt/내부 수신 일치, 구간 gap/invalid/오류0이다. 초기 wrapper의 null ExitCode 보고 오류는 실제 자동화 Success 원문과 별도 audit로 구분했고 process handle 유지 수정 및 기대 exit7 fixture를 검증했다. 처음 기록을 덮어쓰지 않았다.
+- PCD-on 대조에서 **2026-10-24 00:20:18.0819251 UTC(09:20:18 KST), NVIDIA video decoder 1%**를 감지해 취소했다. 전역 GPU counter 근거이며 재생 프로세스 귀속은 확정하지 않는다. 사용자 앱을 닫거나 조작하지 않았다. 최초3회 사전 검사 및 그 전 감시 표본은0이었다. 취소 후 Editor/PIE가 종료됐고 반복 디깅·원래 RSS5쌍은 시작하지 않았다.
+- 관찰1634.9836초, 표본327개(마지막 표본1632.7974초), footer `complete=false`, 실제 자동화는 취소 사유로 Fail1이다. **분석 판정 데이터 부족(exit2)**: 30분 미달·꼬리 구간10분 미달·미완료다. 안정화/누수 의심 완료 판정이나 수용 PASS로 바꾸지 않는다.
+- 모든 표본의 세 센서 backend는 HWRT다. RSS 최종−첫 표본 +78.210938MiB, Commit +145.613281MiB. 기술적 OLS는 전체 RSS74.1580/Commit100.6083MiB/시간, 부분 마지막1/3(약9분) RSS147.8141/Commit292.7480MiB/시간이다. 미완료·환경 중단 시료의 기술적 수치이며 장시간 누수율로 확정하지 않는다.
+- UObject는46515→46363(꼬리 기울기0개/시간). 고정 해치 Cook/RayTree/Update 태그 증가0, UObject 태그−0.204820MiB다. Default `Untracked` +90.613137MiB, `FMallocUnused` +26.079243MiB, `RHIMisc` +6.287968MiB다. 계층 태그는 합산하지 않는다. 우선 후보는 공통 측정/송신/RHI의 native 미계측 증가와 allocator 보존이며, 디깅을 하지 않은 실행이므로 디깅 고유 증가를 귀속할 수 없다. 실제 누수와 보존의 분리는 미완료다. 근거가 불충분해 제품 메모리 수정은 하지 않았다.
+- 샘플 GT 비용327개 평균 **1.900630ms**, 최대 **3.695302ms**, 합계621.506080ms. 실제 수집/JSON/write/flush 비용이며 off/on 교차2% 성능 gate는 아니다. 종료 당시 admission skip 및 내부 gap은센서별8/8/9로 함께 남긴다(encode/delivery/invalid/overload/duplicate0). in-flight 경계 때문에 한 센서의 receipt가 측정 submit보다1개 많다. 무손실/완료 수신 수용으로 표시하지 않는다.
+- 시작 전 개인44파일 백업 후 원본 집합·SHA256 복원, 보호481파일 일치. 새 개인 파일 제거0. 사용자 SensorTestMap 변경·DTCore b2504d1·Config/Game.ini·PixelStreaming·Claude 메모는 보존했다. 초기 D3D12 시작의 SwapChain4 ensure도 원문에 남기며 무오류 실행으로 숨기지 않는다.
+
+다음 필요한 검증은 영상 디코딩 없는 환경에서 새 디렉터리의 완결 대조/디깅 및 원래 RSS5쌍이다. 이번 중단 자료를 이어 붙이거나 원래 8MiB 기준을 완화하지 않는다.

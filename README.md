@@ -86,7 +86,7 @@ Acceptance/Variants/Presentation 테스트의 공통 루트는 `Saved/Reports/CO
 
 사용자는2026-10-23에 미해결 RSS를 수용하고 머지 진행을 승인했다. 기본 Rev7×3·GPU/RT on·35초 준비/90초·50회−0회 교차5쌍의 원래 절대8MiB 및 별도차이8MiB는 FAIL이다. 절대3쌍/차이2쌍 실패, 디깅RSS 중앙값+10.43MiB/최대raw차이+17.67MiB다. 약90분 조사에서 두 할당 재사용 후보는 개선을 입증하지 못해 원복했으며 완전 귀속·검증된 수정안은 미확보다. #26b는 같은 기준·횟수·기본 allocator로 원인을 추적하는 후속이며 완료로 표시하지 않는다. [증거·한계](Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md).
 
-MEMORY-TREND-26b: 기존 `memory_curve`를 재사용하는 5~30초 간격 RSS/Commit/UObject/LLM 상위 태그 JSONL 샘플러와 시간 기울기 분석 도구를 추가했다. 보존 JSON 재분석은 기존 실패를 유지하며 90초 곡선은 장시간 판정에 데이터 부족이다. 병렬 작업의 C++ 빌드·실제 비용·30~60분 실행은 미수행이다. [도구·원인 후보·직렬 실행 계획](docs/MEMORY_TREND_26b.md).
+MEMORY-TREND-26b: `08c7ab5` 통합 후 Editor 빌드·C++ 샘플러 계약·관련 PCD 회귀를 검증했다. 2026-10-24 PCD-on 대조는 영상 디코딩1% 감지로 약27분15초/327표본에서 정상 취소했으며 **데이터 부족**이다. 샘플 GT 평균1.9006ms/최대3.6953ms는 부분 관측값이며 2% 오버헤드 수용을 뜻하지 않는다. 반복 디깅·원래 RSS5쌍은 미수행이고 기존 RSS 미해결/FAIL을 유지한다. [상세·중단 증거·재실행 조건](docs/MEMORY_TREND_26b.md).
 
 ### FOLLOWUP-28 PCD 송신 예산·공정성
 
