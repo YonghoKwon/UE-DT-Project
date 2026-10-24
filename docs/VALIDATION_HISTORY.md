@@ -810,3 +810,27 @@ PCD-on 3대 Rev7/1024×64/20Hz 요청·ShipHatchTestMap·1920×1080 offscreen/D3
 부분 시료 RSS+78.210938/Commit+145.613281MiB; 기술적 전체 기울기74.1580/100.6083MiB/시간, 부분 끝1/3은147.8141/292.7480이다. UObject46515→46363, 꼬리 기울기0; 해치 Cook/RayTree/Update 증가0. Untracked+90.613137/FMAllocUnused+26.079243/RHIMisc+6.287968MiB로 native 미계측/보존 후보를 좁히되 누수/수정을 확정하지 않는다. GT 샘플 비용 평균1.900630/최대3.695302ms(327개), 합계621.506080ms이며 2% 성능gate가 아니다. 종료 구간 admission skip/gap8/8/9와 in-flight 경계1도 별도 기록한다. encode/delivery/invalid/overload0, 사용자의 기존 RSS 미해결 수용 결정은 유지한다.
 
 자기 Editor/PIE 정상 종료 확인, 개인44파일 원본집합/SHA256 복원·보호481파일 일치·DTCore clean. SensorTestMap 사용자 변경/Config/Game.ini/PixelStreaming/Claude 메모 보존, 보호 stage0, 추가 GPU 실행·push/PR 없음. 상세·증거는 [가이드](MEMORY_TREND_26b.md)와 Saved/Reports/MEMORY-TREND-26b/serial-20261023T233614Z/, 현재 RESULT.md/result.json/merge-check.json을 따른다. 영상 디코딩 없는 환경에서 새 디렉터리의 완결 재실행이 필요하다.
+
+## 2026-10-24 — MEMORY-TREND-26b soak2 완결 실측·RSS 재실패
+
+기준4419436/측정ce456eb/DTCore b2504d1. PCD-on Rev7×3/1024×64/요청20Hz/실제HWRT·ShipHatchTestMap·1920×1080 offscreen/D3D12/RT ProjectDefault·font100%·미리보기12000·17회+35초·Full 압축/FIFO/80MiB/s·무자격loopback에서 idle1803.398414초/361표본, 디깅1802.161642초/360표본/880편집17복원을 완료했다.24실행1473환경표본의video decode최대0%, 모든원본소스/자산616개동일이다. 두 판정은 누수 의심: 꼬리RSS55.323762/27.268472·Commit39.806653/11.192892MiB/시간, UObject꼬리0개/시간이다. 부분 시료를 합치지 않았다.
+
+원래35초+90초·50/0회·PCD-off·audit/-llm 플래그 없음·기본allocator/trim/drain·AB/BA/AB/BA/AB5쌍을 같은8MiB로 비교했다. raw/retained절대·차이1~4쌍FAIL, Commit절대·차이5쌍모두FAIL. 디깅raw중앙값18.160156MiB, 최대차이21.960938MiB. 기존RSS실패와 user accepted unresolved RSS (2026-10-23)를 유지한다. Untracked/allocator-unused/RHIMisc와 CustomName 증가 및 UObject/해치태그의 작은 변화를 근거로 native/보존을 우선추적하되 확정누수·수정완료로 표시하지 않는다. native allocation stack 미확보로 제품 메모리 수정0이다.
+
+별도60초cost probe는 장시간1800~3600초조건을 바꾸지 않는다. LLM/3HWRT/PCD/UI/준비동일·sampler만off/on·ABAB3블록각6개에서 FPS58.653270→58.714336(+0.104114%), framep9519.822351→19.567300(-1.286687%), GT10.355657→10.281637(-0.714777%)로2%PASS. 획득률candidate전센서≥99%·engine/GT/callback150ms도유지했다. 표준PERF01/회사수용/메모리실패대체아님이다. Editor빌드3exit0, 실제자동화20Success/5Fail/0Skip(모두RSS계열assertion), Python23·합성판정7은별도PASS. NullRHI계약1개를RHI통과로세지않는다.
+
+자기Editor/PIE종료, 개인44원본집합/SHA256복원·보호481파일일치·새파일제거0·사용자SensorTestMap/Config/PixelStreaming/Claude메모보존·보호stage0. 측정후문서만갱신했다. [설계/수치](MEMORY_TREND_26b.md), [RESULT](../Saved/Reports/MEMORY-TREND-26b/soak2/RESULT.md), result.json/merge-check.json 및 모든원본/곡선은Saved/Reports/MEMORY-TREND-26b/soak2/에 있다. push/PR/merge/submodule update0이다.
+
+## 2026-10-24 — MEMORY-TREND-26b allocation 귀속·분리 진단
+
+기준a64dcc8/실측f1236f6/DTCore b2504d1, branch chore/memory-soak-26b. Editor 전용 allocation commandlet과 opt-in 진단을 추가했다. 실제 idle trace15분 및 무추적 reference/LiDAR-off/PCD-off/preview-off/CPU 각15분을 완료했다. 공통 Rev7×3/1024×64/요청20Hz·ShipHatchTestMap·1920×1080 offscreen·D3D12/RT ProjectDefault·font100%·12,000점·17회+35초·Mimalloc·Full 압축PCD/FIFO/80MiB/s/무자격loopback이며 cut만 구분했다.6실행1,181환경표본 video decode최대0%, 사용자 앱/재생/GPU 설정 조작0이다.
+
+각181표본/약901~902초의 끝1/3 RSS/Commit MiB/시간은 trace151.7403/201.3868, reference68.9470/57.9358, LiDAR-off10.5744/8.0965, PCD-off117.4440/157.9105, preview-off−98.3977/−114.5310, CPU−143.0827/−131.7701이다. UObject 꼬리0. 모든 진단은 누수 의심이며 preview-off/CPU는 LLM 태그 증가가 사유다. preview-off는 world point cloud만 비활성(모든 표본0점), camera/point-only view는 유지했다. CPU는 실제backend1/9.530~10.035Hz로 reference19.997~20.000Hz보다 처리량이 적어 인과 혼입이 있다. 원래RSS8MiB/5쌍 및 기본 장시간30분 기준은 변경하지 않았고 별도15분 진단으로 표시했다.
+
+UE5.3 memory preset과 bookmark로40.36GiB trace를 기록했다. BEGIN+300초와 END 전398.4194893→1000.3226227초의 live allocation을 비교했다. 기본 TraceServices 전체 이력 분석은48GiB RAM 상한으로 중단(exit2). 대안 live-only TraceAnalysis 두 pass는5,151,729,524events/RSS약2.24GiB로 요약을 완료했다.30초 calibration에서 builtin/streaming CPU 결합 bytes/count가 두 시점 모두 정확히 일치하고4,718,608bytes canary를 식별했으며 hash 변경 전후 모든 heap totals도 일치했다. user/backing 분할의 heap-mark 차이·nested heap8/16bit 차이는 제한이다. 짧은 builtin의 startup event 오류(exit1) 및 주 streaming의 병행 AssetRegistry 임시 cache 쓰기 오류(exit1)는 원문에 보존했고 깨끗한 CLI통과로 세지 않았다.
+
+CPU user net+5.9233MiB/count−18,700, CPU backing net+13.2852MiB/count동일1,596, GPU user net−4.1890MiB/count−7이다. heap을 합산하지 않는다. 프로젝트 PDB에서 관측 배열복사+4.5982MiB/1개, ray배열+4MiB/2개, hit배열+2MiB/1개의 두 시점 차이를 식별했다. Scheduler 진단 UE_LOG line370/398에서602/1,806개와375,610/1,434,624bytes가 늘어나 매초 global1+sensor3개의 engine/automation 이력 보관 기여를 지지한다. untracked 전체나 버퍼의 무제한 누적은 미입증이다. 엔진 PDB 없는 프레임은 Unknown/module+offset으로 남기고 nearest export 이름을 실제 함수로 사용하지 않았다. 상위50개 CSV·보정요약·원래 fallback 출력도 보존했다. 이후 offline 심볼 정책/worker progress 읽기 보정은 빌드 검증했으며 원시 trace 삭제 후 재분석했다고 주장하지 않는다.
+
+진단 자동화9 Success/0 Fail/0 Skip(NullRHI 계약1, trace probe2, 실측6), Editor Development 최종 빌드exit0, layer allowlist0→0·DTCore guard PASS다. 샘플 GT 평균/최대ms는 trace4.3590/11.6862·reference2.2764/6.5371·LiDAR-off1.6307/8.2747·PCD-off1.6056/4.4492·preview-off2.1190/6.5182·CPU2.1719/6.9785다. 진단/샘플 비용을 ABAB2%로 세지 않는다. 프로젝트 제품 누수 확정이 없어 Runtime 수정0, 조건부 수정 후 기울기/ABAB 및 새 원래RSS5쌍은 미수행이다. 이전soak2 FAIL/비용PASS는 해당SHA의 과거 근거로만 유지한다. allocator/엔진/드라이버 단독 원인도 확정하지 않는다.
+
+trace/cache51,244,618,731bytes와 복사심볼12개를 요약/calibration/해시 보존 후 정리했다. 자기Editor/PIE 종료·개인44 원본집합/SHA256복원·보호481 불변을 확인했다. 초기 SensorTestMap 사용자 변경/비추적 보호파일과DTCore gitlink/worktree를 보존했다. push/PR/merge/submodule update0. [상세/재현/제한](MEMORY_TREND_26b.md#2026-10-24-allocation-귀속과-분리-실험), [RESULT](../Saved/Reports/MEMORY-TREND-26b/attribution/RESULT.md), result.json/merge-check.json 및 요약/로그는Saved/Reports/MEMORY-TREND-26b/attribution/에 있다. 기존 user accepted unresolved RSS (2026-10-23) 결정과 미해결 상태는 유지한다.

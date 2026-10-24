@@ -14,6 +14,8 @@ public class ma0t10_dtEditor : ModuleRules
         PrivateDependencyModuleNames.Add("JsonUtilities");
         PrivateDependencyModuleNames.Add("Stomp");
         PrivateDependencyModuleNames.AddRange(new[] { "RHI", "RenderCore" });
+        PrivateDependencyModuleNames.AddRange(new[] { "TraceServices", "TraceAnalysis" });
+        if (Target.Platform == UnrealTargetPlatform.Win64) PublicSystemLibraries.Add("dbghelp.lib");
         PrivateDependencyModuleNames.AddRange(new[] { "BlueprintGraph", "UMGEditor", "KismetCompiler" });
 
         PublicDependencyModuleNames.AddRange(new string[]

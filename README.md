@@ -86,7 +86,9 @@ Acceptance/Variants/Presentation 테스트의 공통 루트는 `Saved/Reports/CO
 
 사용자는2026-10-23에 미해결 RSS를 수용하고 머지 진행을 승인했다. 기본 Rev7×3·GPU/RT on·35초 준비/90초·50회−0회 교차5쌍의 원래 절대8MiB 및 별도차이8MiB는 FAIL이다. 절대3쌍/차이2쌍 실패, 디깅RSS 중앙값+10.43MiB/최대raw차이+17.67MiB다. 약90분 조사에서 두 할당 재사용 후보는 개선을 입증하지 못해 원복했으며 완전 귀속·검증된 수정안은 미확보다. #26b는 같은 기준·횟수·기본 allocator로 원인을 추적하는 후속이며 완료로 표시하지 않는다. [증거·한계](Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md).
 
-MEMORY-TREND-26b: `08c7ab5` 통합 후 Editor 빌드·C++ 샘플러 계약·관련 PCD 회귀를 검증했다. 2026-10-24 PCD-on 대조는 영상 디코딩1% 감지로 약27분15초/327표본에서 정상 취소했으며 **데이터 부족**이다. 샘플 GT 평균1.9006ms/최대3.6953ms는 부분 관측값이며 2% 오버헤드 수용을 뜻하지 않는다. 반복 디깅·원래 RSS5쌍은 미수행이고 기존 RSS 미해결/FAIL을 유지한다. [상세·중단 증거·재실행 조건](docs/MEMORY_TREND_26b.md).
+MEMORY-TREND-26b soak2: 기준 `4419436`, 측정 코드 `ce456eb`. 영상 디코딩 없이 PCD-on idle/디깅 각30분을 완료했으며 둘 다 **누수 의심**이다. 마지막1/3 RSS 기울기55.32/27.27MiB/시간, UObject 기울기0이다. 원래 RSS5쌍은 raw/retained 절대·차이4쌍, Commit5쌍 FAIL이며 원인 미확정/미해결을 유지한다. 별도 샘플러 off/on ABAB×3(각6개)은 FPS/p95/GT 증가2% 기준PASS다. [상세·근거·범위](docs/MEMORY_TREND_26b.md)·[결과](Saved/Reports/MEMORY-TREND-26b/soak2/RESULT.md).
+
+후속 allocation 귀속(기준 `a64dcc8`, 실측 `f1236f6`): idle trace15분과 reference/LiDAR-off/PCD-off/preview-off/CPU 각15분을 완료했다. RSS 꼬리 기울기는 무추적 reference +68.95, LiDAR-off +10.57, PCD-off +117.44, preview-off −98.40, CPU −143.08MiB/시간이다. 후자 둘도 LLM 태그 증가로 진단은 누수 의심이며 CPU는 실제9.53~10.04Hz로 처리량 차이가 있다. 추적한 live allocation에서 진단 로그 보관 기여와 관측/ray/hit 버퍼의 두 시점 차이를 확인했으나 전체 native 증가의 누수/보존 구분은 미확정이다. 제품 메모리 수정0, 기존RSS FAIL 유지. [상위50개 경로·교차 검증·한계](docs/MEMORY_TREND_26b.md#2026-10-24-allocation-귀속과-분리-실험)·[결과](Saved/Reports/MEMORY-TREND-26b/attribution/RESULT.md).
 
 ### FOLLOWUP-28 PCD 송신 예산·공정성
 
