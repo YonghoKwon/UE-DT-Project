@@ -45,7 +45,7 @@ try {
         if($probe.HasExited -or [DateTime]::UtcNow -gt $ready){throw 'Loopback fixture did not become ready'}
         Start-Sleep -Milliseconds 200
     }
-    $arguments=@('/Game/MA0T10/Maps/Tests/ShipHatchTestMap','-d3d12','-llm','-nosound','-unattended','-nop4','-nosplash','-windowed','-RenderOffscreen','-ResX=1920','-ResY=1080',
+    $arguments=@('/Game/MA0T10/Maps/Tests/ShipHatchTestMap','-d3d12','-llm','-nosound','-unattended','-nop4','-nosplash','-windowed','-RenderOffscreen','-ForceRes','-ResX=1920','-ResY=1080',
         '-ExecCmds=t.MaxFPS 60,r.VSync 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0',
         "-UserDir=$ReportRoot/user","-HatchMemoryRuntimeReport=$ReportRoot","-HatchMemoryRuntimeSeconds=$Seconds",'-HatchMemorySampleSeconds=5',
         "-HatchMemoryPcdLoopbackPort=$Port","-HatchMemoryCancelFile=$cancel","-HatchSourceCommit=$source","-abslog=$ReportRoot/game.log")|ForEach-Object{'"'+$_+'"'}

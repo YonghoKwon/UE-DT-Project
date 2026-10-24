@@ -5,16 +5,19 @@
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "EngineUtils.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
 #include "HAL/FileManager.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/PlatformMemory.h"
 #include "HAL/PlatformMisc.h"
+#include "HAL/MemoryBase.h"
 #include "Json.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Tickable.h"
+#include "RenderingThread.h"
 #include "UObject/UObjectArray.h"
 #include "UnrealClient.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
@@ -94,6 +97,13 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         R->SetNumberField(TEXT("sampler_total_gt_ms"),CostSum);R->SetNumberField(TEXT("sampler_max_gt_ms"),CostMax);
         const bool Saved=Write(R);if(File){Failed=!File->Close()||Failed;File.Reset();}
         if(!Saved){FString Text;FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Text));IFileManager::Get().MakeDirectory(*Directory,true);FFileHelper::SaveStringToFile(Text,*(Directory/TEXT("probe-error.json")));}
+        // The observation/footer is complete. Quiesce only this diagnostic's
+        // world/output before engine PreExit tears down scene-view delegates.
+        // No stop/drain cost enters memory samples or their GT cost values.
+        if(Host.IsValid()&&Host->Simulation)for(int32 I=0;I<3;++I)if(auto* A=Host->Simulation->SensorAt(I))A->StopSensor();
+        if(Publisher.IsValid())Publisher->StopAllStreams(TEXT("*"));
+        if(World.IsValid())if(auto* View=World->GetGameViewport())View->bDisableWorldRendering=true;
+        FlushRenderingCommands();
         FPlatformMisc::RequestExitWithStatus(false,Complete&&!Failed&&Saved?0:2);
     }
     bool ConfigurePcd(AShipHatchSimulation& S)
@@ -126,6 +136,9 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         R->SetBoolField(TEXT("sampler_enabled"),true);R->SetBoolField(TEXT("pcd_loopback"),true);R->SetBoolField(TEXT("pcd_default_compressed"),Publisher->GetPcdSendOptions(TEXT("")).bCompressed);
         R->SetStringField(TEXT("workload"),TEXT("packaged idle;17 public Dig near-surface ray cycles with fresh analysis, restore,35s warmup; no Editor automation history"));
         R->SetStringField(TEXT("source_commit"),SourceCommit);R->SetStringField(TEXT("started_utc"),FDateTime::UtcNow().ToIso8601());
+        R->SetStringField(TEXT("allocator"),GMalloc->GetDescriptiveName());
+        if(Host.IsValid()&&Host->Monitor)R->SetNumberField(TEXT("font_percent"),Host->Monitor->GetFontScale()*100);
+        if(World.IsValid())R->SetNumberField(TEXT("umg_viewport_scale"),UWidgetLayoutLibrary::GetViewportScale(World.Get()));
         R->SetStringField(TEXT("configuration"),
 #if UE_BUILD_SHIPPING
             TEXT("Shipping")
@@ -135,8 +148,9 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         );
         R->SetStringField(TEXT("uobject_method"),TEXT("GUObjectArray occupied slots; pending GC included"));
         R->SetStringField(TEXT("cost_method"),TEXT("previous_sample_total_gt_ms includes collection, JSON, write/flush and destruction; header/footer excluded"));
-        if(World.IsValid())if(auto* V=World->GetGameViewport();V&&V->Viewport){const auto Size=V->Viewport->GetSizeXY();R->SetNumberField(TEXT("viewport_x"),Size.X);R->SetNumberField(TEXT("viewport_y"),Size.Y);if(Size!=FIntPoint(1920,1080))return false;}
-        if(!Write(R))return false;
+        bool ViewportValid=false;
+        if(World.IsValid())if(auto* V=World->GetGameViewport();V&&V->Viewport){const auto Size=V->Viewport->GetSizeXY();R->SetNumberField(TEXT("viewport_x"),Size.X);R->SetNumberField(TEXT("viewport_y"),Size.Y);ViewportValid=Size==FIntPoint(1920,1080);}
+        if(!Write(R)||!ViewportValid)return false;
         for(const auto& Status:Publisher->GetStreamStatuses())if(Status.StreamKind==EVirtualSensorStreamKind::PointCloud)PcdBefore.Add(Status.SensorId,Status);
         for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))FramesBefore.Add(A->GetSensorId(),A->ScanComponent->GetRuntimeStatus().FrameId);
         Started=FPlatformTime::Seconds();return true;
