@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('Runtime','Captures','Performance','Manual','Presentation','MemoryControl','Dig','DigCaptures','DigIdle','MemoryTrendDig','MemoryTrendIdle','Feedback','FeedbackCaptures','OrientationCaptures','Orientation','OrientationManual','Industrial','IndustrialManual','Grab','Overlay','Query','Quality','CornerCaptures','Showcase')][string]$Mode='Runtime',
+    [ValidateSet('Runtime','Captures','Performance','Manual','Presentation','MemoryControl','Dig','DigCaptures','DigIdle','MemoryTrendDig','MemoryTrendIdle','MemoryCostOff','MemoryCostOn','Feedback','FeedbackCaptures','OrientationCaptures','Orientation','OrientationManual','Industrial','IndustrialManual','Grab','Overlay','Query','Quality','CornerCaptures','Showcase')][string]$Mode='Runtime',
     [ValidateRange(1,3)][int]$Sensors=2,
     [string]$EngineRoot='C:/Program Files/Epic Games/UE_5.3',
     [string]$ReportRoot='',
@@ -31,7 +31,8 @@ if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction Sile
 if($PresentationCaptures -and $Mode -ne 'Showcase'){throw 'PresentationCaptures requires Showcase'}
 if($WorldTraceReference -and $Mode -ne 'Performance'){throw 'WorldTraceReference is a diagnostic Performance comparison only'}
 if($MatchedMemorySeconds -gt 0 -and $Mode -notin @('Dig','DigIdle')){throw 'MatchedMemorySeconds requires Dig or DigIdle'}
-$trend=$Mode -in @('MemoryTrendDig','MemoryTrendIdle')
+$cost=$Mode -in @('MemoryCostOff','MemoryCostOn')
+$trend=($Mode -in @('MemoryTrendDig','MemoryTrendIdle')) -or $cost
 if($trend -and ($MemoryDeepReport -or $CpuReference)){throw 'Default memory trend excludes deep reports and CPU overrides; keep attribution runs separate'}
 if($trend -and !$ReportRoot){$ReportRoot=Join-Path $root ('Saved/Reports/MEMORY-TREND-26b/runs/'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ'))}
 if(!$ReportRoot){$group=if($Mode -like 'Industrial*' -or $Mode -in @('Grab','Overlay','Query')){'HATCH-06'}elseif($Mode -like 'Orientation*'){'HATCH-05'}elseif($Mode -like 'Feedback*'){'HATCH-04'}elseif($Mode -like 'Dig*'){'HATCH-03'}else{'HATCH-02'};$ReportRoot=Join-Path $root ("Saved/Reports/$group/runs/"+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))}
@@ -45,9 +46,17 @@ $sourceCommit=(& git -C $root rev-parse HEAD) -join ''
     $sourceHashes['Content/MA0T10/Hatch/Materials/M_HatchCargo.uasset']=(Get-FileHash -LiteralPath "$root/Content/MA0T10/Hatch/Materials/M_HatchCargo.uasset" -Algorithm SHA256).Hash
     if($trend){foreach($relative in @('ma0t10_dt.uproject','Content/MA0T10/Maps/Tests/ShipHatchTestMap.umap')){$sourceHashes[$relative]=(Get-FileHash -LiteralPath (Join-Path $root $relative) -Algorithm SHA256).Hash}}
     @{Commit=$sourceCommit; Mode=$Mode; SourceHashes=$sourceHashes; FontPercent=$FontPercent; Width=$Width; Height=$Height; MemoryWarmupSeconds=$MemoryWarmupSeconds; MatchedMemorySeconds=$MatchedMemorySeconds; MemoryAudit=([bool]$MemoryAudit -or $trend); MemoryTrendSeconds=$MemoryTrendSeconds; MemorySampleSeconds=$MemorySampleSeconds; DiagnosticOnly=$trend; FullRhiDrain=([bool]$FullRhiDrain -and !$trend); WorldTraceReference=[bool]$WorldTraceReference; CpuReference=[bool]$CpuReference; FastCaptureOnly=[bool]$FastCaptures; Visible=[bool]$Visible; Submodule=((& git -C "$root/Plugins/DTCore" rev-parse HEAD) -join '')} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$ReportRoot/source-manifest.json" -Encoding UTF8
+    if($cost){
+        $record=Get-Content -Raw -Encoding UTF8 -LiteralPath "$ReportRoot/source-manifest.json"|ConvertFrom-Json
+        $record.MemoryTrendSeconds=60
+        $record|Add-Member -NotePropertyName CostProbe -NotePropertyValue $true
+        $record|Add-Member -NotePropertyName SamplerEnabled -NotePropertyValue ($Mode -ne 'MemoryCostOff')
+        $record|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 -LiteralPath "$ReportRoot/source-manifest.json"
+    }
 }
 $test=switch($Mode){'Showcase'{'HATCH06.ShowcaseCapturesRhi'} 'CornerCaptures'{'HATCH06.CornerCapturesRhi'} 'Quality'{'HATCH06.ModelQualityRhi'} 'Query'{'HATCH06.SceneQueriesRhi'} 'Overlay'{'HATCH06.OverlayAndModelRhi'} 'Grab'{'HATCH06.GrabPresentationRhi'} 'Industrial'{'HATCH06.AcceptanceRhi'} 'IndustrialManual'{'HATCH06.AcceptanceRhi'} 'OrientationManual'{'MA0T10.Hatch.ViewOrientationRhi'} 'Orientation'{'MA0T10.Hatch.ViewOrientationRhi'} 'OrientationCaptures'{'HATCH05.CapturesRhi'} 'Feedback'{'MA0T10.Hatch.UserFeedbackRhi'} 'FeedbackCaptures'{'HATCH04.CapturesRhi'} 'DigIdle'{'HATCH03.IdleMemoryControlRhi'} 'Dig'{'HATCH03.DigRuntimeRhi'} 'DigCaptures'{'HATCH03.DigCaptureRhi'} 'Captures'{'HATCH01.CaptureRhi'} 'Performance'{'HATCH01.PerformanceRhi'} 'Presentation'{'MA0T10.Hatch.ProductPresentationRhi'} 'MemoryControl'{'HATCH02.IdleMemoryControlRhi'} default{'HATCH01.RuntimeRhi'}}
 if($trend){$test=if($Mode -eq 'MemoryTrendDig'){'HATCH26.MemoryTrendDigRhi'}else{'HATCH26.MemoryTrendIdleRhi'}}
+if($cost){$test='HATCH26.MemorySamplerOverheadRhi'}
 $priorX=$env:MA0T10_ACCEPTANCE_RES_X;$priorY=$env:MA0T10_ACCEPTANCE_RES_Y
 try {
     $env:MA0T10_ACCEPTANCE_RES_X=[string]$Width;$env:MA0T10_ACCEPTANCE_RES_Y=[string]$Height
@@ -68,6 +77,7 @@ try {
     if($MemoryDeepReport){if(!$MemoryAudit){throw 'MemoryDeepReport requires MemoryAudit'};$hatchArgs+='-HatchMemoryDeepReport'}
     if(($MemoryAudit -and $Mode -like 'Dig*') -or $trend){$hatchArgs+='-llm'}
     if($trend){$hatchArgs+=@('-HatchMemoryTrend',('-HatchMemoryTrendSeconds='+$MemoryTrendSeconds.ToString([Globalization.CultureInfo]::InvariantCulture)),('-HatchMemorySampleSeconds='+$MemorySampleSeconds.ToString([Globalization.CultureInfo]::InvariantCulture)))}
+    if($cost){$hatchArgs+='-HatchMemoryCostProbe';if($Mode -eq 'MemoryCostOff'){$hatchArgs+='-HatchMemorySamplerDisabled'}}
     if($MemoryPcdLoopbackPort){$hatchArgs+="-HatchMemoryPcdLoopbackPort=$MemoryPcdLoopbackPort"}
     if($MemoryCancelFile){$hatchArgs+="-HatchMemoryCancelFile=$([IO.Path]::GetFullPath($MemoryCancelFile))"}
     if($FullRhiDrain -and !$trend){$hatchArgs+='-HatchFullRhiDrain'}

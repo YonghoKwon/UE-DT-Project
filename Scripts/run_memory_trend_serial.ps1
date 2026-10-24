@@ -1,5 +1,5 @@
 param(
-    [Parameter(Mandatory=$true)][ValidateSet('MemoryTrendIdle','MemoryTrendDig','Dig','DigIdle')][string]$Mode,
+    [Parameter(Mandatory=$true)][ValidateSet('MemoryTrendIdle','MemoryTrendDig','MemoryCostOff','MemoryCostOn','Dig','DigIdle')][string]$Mode,
     [Parameter(Mandatory=$true)][string]$ReportRoot,
     [Parameter(Mandatory=$true)][string]$NativeValidator,
     [ValidateRange(1800,3600)][int]$Seconds=1800,
@@ -53,7 +53,7 @@ try {
         }
     }
     $runArgs=@('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $PSScriptRoot 'run_hatch_validation.ps1'),'-Mode',$Mode,'-Sensors','3','-MemoryWarmupSeconds','35','-DigView','1','-ReportRoot',$ReportRoot,'-MemoryCancelFile',$cancel)
-    if($Mode -like 'MemoryTrend*'){$runArgs+=@('-MemoryTrendSeconds',"$Seconds",'-MemorySampleSeconds','5')}else{$runArgs+=@('-MatchedMemorySeconds','90')}
+    if($Mode -like 'MemoryTrend*'){$runArgs+=@('-MemoryTrendSeconds',"$Seconds",'-MemorySampleSeconds','5')}elseif($Mode -notlike 'MemoryCost*'){$runArgs+=@('-MatchedMemorySeconds','90')}
     if(!$WithoutPcd){$runArgs+=@('-MemoryPcdLoopbackPort',"$Port")}
     if($MemoryAudit){$runArgs+='-MemoryAudit'}
     $quoted=@($runArgs|ForEach-Object{'"'+$_+'"'})
