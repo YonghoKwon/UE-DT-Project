@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('Runtime','Captures','Performance','Manual','Presentation','MemoryControl','Dig','DigCaptures','DigIdle','MemoryTrendDig','MemoryTrendIdle','MemoryCostOff','MemoryCostOn','Feedback','FeedbackCaptures','OrientationCaptures','Orientation','OrientationManual','Industrial','IndustrialManual','Grab','Overlay','Query','Quality','CornerCaptures','Showcase')][string]$Mode='Runtime',
+    [ValidateSet('Runtime','Captures','Performance','Manual','Presentation','MemoryControl','Dig','DigCaptures','DigIdle','MemoryTrendDig','MemoryTrendIdle','MemoryCostOff','MemoryCostOn','MemoryInvestigate','MemoryTraceProbe','Feedback','FeedbackCaptures','OrientationCaptures','Orientation','OrientationManual','Industrial','IndustrialManual','Grab','Overlay','Query','Quality','CornerCaptures','Showcase')][string]$Mode='Runtime',
     [ValidateRange(1,3)][int]$Sensors=2,
     [string]$EngineRoot='C:/Program Files/Epic Games/UE_5.3',
     [string]$ReportRoot='',
@@ -23,7 +23,10 @@ param(
     [ValidateRange(1800,3600)][double]$MemoryTrendSeconds=1800,
     [ValidateRange(5,30)][double]$MemorySampleSeconds=5,
     [ValidateRange(0,65535)][int]$MemoryPcdLoopbackPort=0,
-    [string]$MemoryCancelFile=''
+    [string]$MemoryCancelFile='',
+    [ValidateRange(600,1200)][int]$InvestigationSeconds=900,
+    [ValidateSet('Reference','LidarOff','PcdOff','PreviewOff','Cpu')][string]$MemoryCut='Reference',
+    [string]$MemoryTraceFile=''
 )
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
@@ -32,8 +35,9 @@ if($PresentationCaptures -and $Mode -ne 'Showcase'){throw 'PresentationCaptures 
 if($WorldTraceReference -and $Mode -ne 'Performance'){throw 'WorldTraceReference is a diagnostic Performance comparison only'}
 if($MatchedMemorySeconds -gt 0 -and $Mode -notin @('Dig','DigIdle')){throw 'MatchedMemorySeconds requires Dig or DigIdle'}
 $cost=$Mode -in @('MemoryCostOff','MemoryCostOn')
-$trend=($Mode -in @('MemoryTrendDig','MemoryTrendIdle')) -or $cost
-if($trend -and ($MemoryDeepReport -or $CpuReference)){throw 'Default memory trend excludes deep reports and CPU overrides; keep attribution runs separate'}
+$investigation=$Mode -in @('MemoryInvestigate','MemoryTraceProbe')
+$trend=($Mode -in @('MemoryTrendDig','MemoryTrendIdle')) -or $cost -or $investigation
+if($trend -and ($MemoryDeepReport -or ($CpuReference -and !($investigation -and $MemoryCut -eq 'Cpu')))){throw 'Default memory trend excludes deep reports and CPU overrides; keep attribution runs separate'}
 if($trend -and !$ReportRoot){$ReportRoot=Join-Path $root ('Saved/Reports/MEMORY-TREND-26b/runs/'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ'))}
 if(!$ReportRoot){$group=if($Mode -like 'Industrial*' -or $Mode -in @('Grab','Overlay','Query')){'HATCH-06'}elseif($Mode -like 'Orientation*'){'HATCH-05'}elseif($Mode -like 'Feedback*'){'HATCH-04'}elseif($Mode -like 'Dig*'){'HATCH-03'}else{'HATCH-02'};$ReportRoot=Join-Path $root ("Saved/Reports/$group/runs/"+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))}
 $ReportRoot=[IO.Path]::GetFullPath($ReportRoot)
@@ -53,10 +57,19 @@ $sourceCommit=(& git -C $root rev-parse HEAD) -join ''
         $record|Add-Member -NotePropertyName SamplerEnabled -NotePropertyValue ($Mode -ne 'MemoryCostOff')
         $record|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 -LiteralPath "$ReportRoot/source-manifest.json"
     }
+    if($investigation){
+        $record=Get-Content -Raw -Encoding UTF8 -LiteralPath "$ReportRoot/source-manifest.json"|ConvertFrom-Json
+        $record.MemoryTrendSeconds=if($Mode -eq 'MemoryTraceProbe'){30}else{$InvestigationSeconds}
+        $record|Add-Member -NotePropertyName Investigation -NotePropertyValue $true
+        $record|Add-Member -NotePropertyName Cut -NotePropertyValue $MemoryCut
+        $record|Add-Member -NotePropertyName MemoryTraceFile -NotePropertyValue $MemoryTraceFile
+        $record|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 -LiteralPath "$ReportRoot/source-manifest.json"
+    }
 }
 $test=switch($Mode){'Showcase'{'HATCH06.ShowcaseCapturesRhi'} 'CornerCaptures'{'HATCH06.CornerCapturesRhi'} 'Quality'{'HATCH06.ModelQualityRhi'} 'Query'{'HATCH06.SceneQueriesRhi'} 'Overlay'{'HATCH06.OverlayAndModelRhi'} 'Grab'{'HATCH06.GrabPresentationRhi'} 'Industrial'{'HATCH06.AcceptanceRhi'} 'IndustrialManual'{'HATCH06.AcceptanceRhi'} 'OrientationManual'{'MA0T10.Hatch.ViewOrientationRhi'} 'Orientation'{'MA0T10.Hatch.ViewOrientationRhi'} 'OrientationCaptures'{'HATCH05.CapturesRhi'} 'Feedback'{'MA0T10.Hatch.UserFeedbackRhi'} 'FeedbackCaptures'{'HATCH04.CapturesRhi'} 'DigIdle'{'HATCH03.IdleMemoryControlRhi'} 'Dig'{'HATCH03.DigRuntimeRhi'} 'DigCaptures'{'HATCH03.DigCaptureRhi'} 'Captures'{'HATCH01.CaptureRhi'} 'Performance'{'HATCH01.PerformanceRhi'} 'Presentation'{'MA0T10.Hatch.ProductPresentationRhi'} 'MemoryControl'{'HATCH02.IdleMemoryControlRhi'} default{'HATCH01.RuntimeRhi'}}
 if($trend){$test=if($Mode -eq 'MemoryTrendDig'){'HATCH26.MemoryTrendDigRhi'}else{'HATCH26.MemoryTrendIdleRhi'}}
 if($cost){$test='HATCH26.MemorySamplerOverheadRhi'}
+if($investigation){$test=if($Mode -eq 'MemoryTraceProbe'){'HATCH26.MemoryTraceProbeRhi'}else{'HATCH26.MemoryInvestigationRhi'}}
 $priorX=$env:MA0T10_ACCEPTANCE_RES_X;$priorY=$env:MA0T10_ACCEPTANCE_RES_Y
 try {
     $env:MA0T10_ACCEPTANCE_RES_X=[string]$Width;$env:MA0T10_ACCEPTANCE_RES_Y=[string]$Height
@@ -78,6 +91,8 @@ try {
     if(($MemoryAudit -and $Mode -like 'Dig*') -or $trend){$hatchArgs+='-llm'}
     if($trend){$hatchArgs+=@('-HatchMemoryTrend',('-HatchMemoryTrendSeconds='+$MemoryTrendSeconds.ToString([Globalization.CultureInfo]::InvariantCulture)),('-HatchMemorySampleSeconds='+$MemorySampleSeconds.ToString([Globalization.CultureInfo]::InvariantCulture)))}
     if($cost){$hatchArgs+='-HatchMemoryCostProbe';if($Mode -eq 'MemoryCostOff'){$hatchArgs+='-HatchMemorySamplerDisabled'}}
+    if($investigation){$hatchArgs+=@('-HatchMemoryInvestigate',"-HatchMemoryInvestigationSeconds=$InvestigationSeconds","-HatchMemoryCut=$MemoryCut");if($Mode -eq 'MemoryTraceProbe'){$hatchArgs+='-HatchMemoryTraceProbe'}}
+    if($MemoryTraceFile){$hatchArgs+=@('-trace=memory,bookmark',"-tracefile=$([IO.Path]::GetFullPath($MemoryTraceFile))")}
     if($MemoryPcdLoopbackPort){$hatchArgs+="-HatchMemoryPcdLoopbackPort=$MemoryPcdLoopbackPort"}
     if($MemoryCancelFile){$hatchArgs+="-HatchMemoryCancelFile=$([IO.Path]::GetFullPath($MemoryCancelFile))"}
     if($FullRhiDrain -and !$trend){$hatchArgs+='-HatchFullRhiDrain'}

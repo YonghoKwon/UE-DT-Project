@@ -33,6 +33,7 @@
 #include "RenderingThread.h"
 #include "RHICommandList.h"
 #include "UObject/UObjectArray.h"
+#include "ProfilingDebugging/MiscTrace.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 
@@ -195,6 +196,9 @@ class FHatchDig final:public IAutomationLatentCommand
     // Opt-in diagnostic path only. No per-frame history, forced GC/trim, RHI
     // drain or LLM UpdateStatsPerFrame inside the long observation window.
     bool Trend=false,TrendLlm=false,TrendFailed=false,CostProbe=false,SamplerDisabled=false;double TrendSeconds=1800,TrendInterval=5,TrendLast=-1,TrendCost=0,TrendCostSum=0,TrendCostMax=0;
+    bool Investigation=false,InvestigationProbe=false;FString InvestigationCut=TEXT("Reference");
+    TArray<uint8> TraceCanary;
+    static FORCENOINLINE void ResizeTraceCanary(TArray<uint8>& Bytes,int32 Size){Bytes.SetNumZeroed(Size);}
     int32 TrendSamples=0,TrendRestores=0;TUniquePtr<FArchive> TrendFile;
     TMap<FName,uint64> TrendDefaultTags,TrendPlatformTags;
     TWeakObjectPtr<UVirtualSensorStreamPublisherComponent> MemoryPublisher;
@@ -235,7 +239,7 @@ class FHatchDig final:public IAutomationLatentCommand
             Row->SetNumberField(TEXT("invalid"),S.ConsumerValidationFailureCount-B.ConsumerValidationFailureCount);Row->SetNumberField(TEXT("gaps"),S.ConsumerFrameGapCount-B.ConsumerFrameGapCount);
             Row->SetNumberField(TEXT("duplicates"),S.ConsumerDuplicateCount-B.ConsumerDuplicateCount);Row->SetNumberField(TEXT("overloads"),S.OverloadCount-B.OverloadCount);
             Row->SetNumberField(TEXT("rate_control_skipped"),S.RateControlSkippedFrameCount-B.RateControlSkippedFrameCount);Row->SetBoolField(TEXT("processing"),S.bProcessing);Row->SetNumberField(TEXT("budget_mib_s"),S.PcdBudgetMiBPerSecond);
-            if(Check)
+            if(Check&&!(Investigation&&InvestigationCut==TEXT("LidarOff")))
             {
                 Test->TestTrue(TEXT("memory workload actually submits and receives PCD"),S.SubmittedFrameCount>B.SubmittedFrameCount&&S.ConsumerReceivedCount>B.ConsumerReceivedCount);
                 Test->TestEqual(TEXT("memory PCD invalid payload count"),S.ConsumerValidationFailureCount-B.ConsumerValidationFailureCount,int64(0));
@@ -282,6 +286,7 @@ class FHatchDig final:public IAutomationLatentCommand
         auto Meta=MakeShared<FJsonObject>();Meta->SetStringField(TEXT("type"),TEXT("metadata"));Meta->SetNumberField(TEXT("schema_version"),1);
         Meta->SetStringField(TEXT("row_contract"),TEXT("memory_curve"));Meta->SetBoolField(TEXT("diagnostic_only"),true);Meta->SetNumberField(TEXT("requested_seconds"),TrendSeconds);Meta->SetNumberField(TEXT("interval_seconds"),TrendInterval);
         Meta->SetBoolField(TEXT("cost_probe"),CostProbe);Meta->SetBoolField(TEXT("sampler_enabled"),!SamplerDisabled);Meta->SetBoolField(TEXT("llm_enabled"),TrendLlm);
+        Meta->SetBoolField(TEXT("investigation"),Investigation);Meta->SetBoolField(TEXT("investigation_probe"),InvestigationProbe);Meta->SetStringField(TEXT("cut"),InvestigationCut);
         Meta->SetBoolField(TEXT("pcd_loopback"),MemoryPcdPort!=0);Meta->SetBoolField(TEXT("pcd_default_compressed"),MemoryPublisher.IsValid()?MemoryPublisher->GetPcdSendOptions(TEXT("")).bCompressed:false);
         Meta->SetStringField(TEXT("workload"),IdleControl?TEXT("idle-after-shared-warmup"):TEXT("dig-every-2s-restore-every-50"));
         Meta->SetStringField(TEXT("started_utc"),FDateTime::UtcNow().ToIso8601());FString Source;FParse::Value(FCommandLine::Get(),TEXT("HatchSourceCommit="),Source);Meta->SetStringField(TEXT("source_commit"),Source);
@@ -454,20 +459,21 @@ class FHatchDig final:public IAutomationLatentCommand
         return Accepted;
     }
 public:
-    FHatchDig(FAutomationTestBase* T,bool C,bool Idle=false,bool LongTrend=false,bool Cost=false):Test(T),Captures(C),IdleControl(Idle),Trend(LongTrend),CostProbe(Cost){FParse::Value(FCommandLine::Get(),TEXT("HatchDigView="),MeasuredView);MeasuredView=MeasuredView==0?0:1;FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryWindowSeconds="),MatchedMemorySeconds);
+    FHatchDig(FAutomationTestBase* T,bool C,bool Idle=false,bool LongTrend=false,bool Cost=false,bool Investigate=false,bool Probe=false):Test(T),Captures(C),IdleControl(Idle),Trend(LongTrend),CostProbe(Cost),Investigation(Investigate),InvestigationProbe(Probe){FParse::Value(FCommandLine::Get(),TEXT("HatchDigView="),MeasuredView);MeasuredView=MeasuredView==0?0:1;FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryWindowSeconds="),MatchedMemorySeconds);
         FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryPcdLoopbackPort="),MemoryPcdPort);FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryCancelFile="),MemoryCancelFile);
         if(Trend){FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryTrendSeconds="),TrendSeconds);FParse::Value(FCommandLine::Get(),TEXT("HatchMemorySampleSeconds="),TrendInterval);}
         if(CostProbe){TrendSeconds=60;SamplerDisabled=FParse::Param(FCommandLine::Get(),TEXT("HatchMemorySamplerDisabled"));}
+        if(Investigation){FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryInvestigationSeconds="),TrendSeconds);FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryCut="),InvestigationCut);if(InvestigationProbe)TrendSeconds=30;}
 #if RHI_ENABLE_RESOURCE_INFO
         RhiTracking=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit"));
 #endif
     }
     bool Update() override
     {
-        if(Trend&&(!FMath::IsFinite(TrendSeconds)||!FMath::IsFinite(TrendInterval)||(CostProbe?TrendSeconds!=60:(TrendSeconds<1800||TrendSeconds>3600))||TrendInterval<5||TrendInterval>30))
+        if(Trend&&(!FMath::IsFinite(TrendSeconds)||!FMath::IsFinite(TrendInterval)||(CostProbe?TrendSeconds!=60:Investigation?(InvestigationProbe?TrendSeconds!=30:(TrendSeconds<600||TrendSeconds>1200)):(TrendSeconds<1800||TrendSeconds>3600))||TrendInterval<5||TrendInterval>30))
         {Test->AddError(TEXT("Memory trend requires 1800..3600 seconds and 5..30 second samples"));return true;}
         const double Now=FPlatformTime::Seconds();if(Now-Started>(Trend?TrendSeconds+600:600)){if(TrendFile)TrendFinish(false);Test->AddError(TEXT("HATCH-03 timeout"));return true;}
-        if(!MemoryCancelFile.IsEmpty()&&Now>=NextCancelPoll){NextCancelPoll=Now+1;if(IFileManager::Get().FileExists(*MemoryCancelFile)){Test->AddError(TEXT("memory run cancelled by environment monitor"));if(TrendFile)TrendFinish(false);return true;}}
+        if(!MemoryCancelFile.IsEmpty()&&Now>=NextCancelPoll){NextCancelPoll=Now+1;if(IFileManager::Get().FileExists(*MemoryCancelFile)){TRACE_BOOKMARK(TEXT("MEMORY26B_CANCEL"));Test->AddError(TEXT("memory run cancelled by environment monitor"));if(TrendFile)TrendFinish(false);return true;}}
         if(TrendFailed){TrendFinish(false);return true;}
         UWorld* W=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)W=C.World();
         if(!W||!FinalAcceptanceViewportReady(W))return false;AShipHatchMonitorHost* H=nullptr;
@@ -519,12 +525,26 @@ public:
             {
                 int32 Warmup=35;FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryWarmup="),Warmup);
                 if(Now-Changed<Warmup||M.AnalysisBuilds<WarmBuilds+5)return false;
+                if(Investigation)
+                {
+                    if(InvestigationCut==TEXT("LidarOff"))Stop(S);
+                    else if(InvestigationCut==TEXT("PreviewOff"))M.SelectView(0);
+                    else if(InvestigationCut!=TEXT("Reference")&&InvestigationCut!=TEXT("PcdOff")&&InvestigationCut!=TEXT("Cpu")){Test->AddError(TEXT("unknown memory isolation cut"));return true;}
+                    Changed=Now;Phase=41;return false;
+                }
                 if(!TrendBegin()){Test->AddError(TEXT("Memory trend output could not be created"));return true;}
                 PcdBaseline();MeasureStart=FPlatformTime::Seconds();LastWall=MeasureStart;LastEngine=GFrameCounter;CurvePoint(0,&S);Changed=MeasureStart;Phase=60;return false;
             }
             if(!MemoryPrimed){MemoryCurve.Reserve(64);MeasureStart=Now;CurvePoint(-1);MemoryCurve.Reset();MemoryDetails(TEXT("priming"),S);if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDeepReport")))GEngine->Exec(W,TEXT("memreport -full"));MemoryPrimed=true;}
             int32 Warmup=35;FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryWarmup="),Warmup);
             if(Now-Changed<Warmup||M.AnalysisBuilds<WarmBuilds+5)return false;Stop(S);Changed=Now;Phase=5;return false;
+        }
+        if(Phase==41)
+        {
+            if(Now-Changed<2)return false;
+            if(InvestigationCut==TEXT("PreviewOff"))for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))Test->TestEqual(TEXT("isolation disables point preview"),A->VisualizationComponent->GetVisiblePointCount(),0);
+            if(!TrendBegin()){Test->AddError(TEXT("Memory investigation output failed"));return true;}
+            PcdBaseline();MeasureStart=FPlatformTime::Seconds();LastWall=MeasureStart;LastEngine=GFrameCounter;TRACE_BOOKMARK(TEXT("MEMORY26B_BEGIN"));CurvePoint(0,&S);Changed=MeasureStart;Phase=60;return false;
         }
         if(Phase==5)
         {
@@ -548,11 +568,13 @@ public:
         }
         if(Phase==60)
         {
+            if(InvestigationProbe&&Now-MeasureStart>=2){const int32 Wanted=Now-MeasureStart>=10?4*1024*1024:1024*1024;if(TraceCanary.Num()!=Wanted)ResizeTraceCanary(TraceCanary,Wanted);}
             if(CostProbe&&GFrameCounter!=LastEngine){Engine.Add(W->GetDeltaSeconds()*1000);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));Wall.Add((Now-LastWall)*1000);LastWall=Now;LastEngine=GFrameCounter;}
             CurvePoint(Clicks,&S);
             if(CostProbe?Now-MeasureStart>=60:TrendLast-MeasureStart>=TrendSeconds)
             {
-                for(auto* A:{S.MLX.Get(),S.Livox.Get(),S.CabRight.Get()})if(A)Test->TestTrue(TEXT("long memory trend retains sensor acquisition"),A->IsSensorRunning());
+                if(Investigation){TRACE_BOOKMARK(TEXT("MEMORY26B_END"));}
+                for(auto* A:{S.MLX.Get(),S.Livox.Get(),S.CabRight.Get()})if(A)Test->TestEqual(TEXT("memory run expected sensor running state"),A->IsSensorRunning(),!(Investigation&&InvestigationCut==TEXT("LidarOff")));
                 if(!IdleControl)Test->TestTrue(TEXT("long memory trend completed repeated edit/restore workload"),Clicks>=50&&TrendRestores>0);
                 Test->TestTrue(TEXT("long memory trend summary saved"),TrendFinish(!TrendFailed&&!Test->HasAnyErrors()));return true;
             }
@@ -745,4 +767,10 @@ bool FHatchMemoryTrendIdle::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchMemorySamplerOverhead,"HATCH26.MemorySamplerOverheadRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FHatchMemorySamplerOverhead::RunTest(const FString&)
 {if(!FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryCostProbe"))){AddInfo(TEXT("[OPT-IN SKIP] requires -HatchMemoryCostProbe; separate60s overhead diagnostic"));return true;}if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchDig(this,false,true,true,true));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchMemoryInvestigation,"HATCH26.MemoryInvestigationRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FHatchMemoryInvestigation::RunTest(const FString&)
+{if(!FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryInvestigate"))){AddInfo(TEXT("[OPT-IN SKIP] requires -HatchMemoryInvestigate;10..20minute attribution"));return true;}if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchDig(this,false,true,true,false,true,false));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchMemoryTraceProbe,"HATCH26.MemoryTraceProbeRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FHatchMemoryTraceProbe::RunTest(const FString&)
+{if(!FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryTraceProbe"))){AddInfo(TEXT("[OPT-IN SKIP] requires -HatchMemoryTraceProbe;30s instrumentation check only"));return true;}if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchDig(this,false,true,true,false,true,true));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
 #endif

@@ -1,15 +1,20 @@
 param(
-    [Parameter(Mandatory=$true)][ValidateSet('MemoryTrendIdle','MemoryTrendDig','MemoryCostOff','MemoryCostOn','Dig','DigIdle')][string]$Mode,
+    [Parameter(Mandatory=$true)][ValidateSet('MemoryTrendIdle','MemoryTrendDig','MemoryCostOff','MemoryCostOn','MemoryInvestigate','MemoryTraceProbe','Dig','DigIdle')][string]$Mode,
     [Parameter(Mandatory=$true)][string]$ReportRoot,
     [Parameter(Mandatory=$true)][string]$NativeValidator,
     [ValidateRange(1800,3600)][int]$Seconds=1800,
     [ValidateRange(1024,65535)][int]$Port=18626,
     [switch]$WithoutPcd,
-    [switch]$MemoryAudit
+    [switch]$MemoryAudit,
+    [ValidateRange(600,1200)][int]$InvestigationSeconds=900,
+    [ValidateSet('Reference','LidarOff','PcdOff','PreviewOff','Cpu')][string]$MemoryCut='Reference',
+    [switch]$MemoryTrace
 )
 # One owned Editor/loopback pair. No credentials, GPU configuration or user apps are changed.
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
+$investigation=$Mode -in @('MemoryInvestigate','MemoryTraceProbe')
+if($investigation -and $MemoryCut -eq 'PcdOff'){$WithoutPcd=$true}
 $ReportRoot=[IO.Path]::GetFullPath($ReportRoot)
 if(Test-Path -LiteralPath $ReportRoot){throw 'Use a fresh report directory'}
 if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole,ShaderCompileWorker -ErrorAction SilentlyContinue){throw 'Other Unreal work is active'}
@@ -28,6 +33,7 @@ function Environment-Sample {
         @{index=[int]$v[0];name=$v[1];driver=$v[2];total_mib=[double]$v[3];used_mib=[double]$v[4];gpu_percent=[double]$v[5];video_decode_percent=[double]$v[6]}
     })
     $row=@{utc=[DateTime]::UtcNow.ToString('o');gpus=$gpus;monitor_wall_ms=$watch.Elapsed.TotalMilliseconds}
+    if($MemoryTrace){$file=Join-Path $ReportRoot 'memory.utrace';if(Test-Path -LiteralPath $file){$row.trace_bytes=(Get-Item -LiteralPath $file).Length;if($row.trace_bytes -gt 100GB -or (Get-PSDrive -Name ([IO.Path]::GetPathRoot($ReportRoot).Substring(0,1))).Free -lt 50GB){throw 'Trace size/free-space safety limit reached'}}}
     $loopback=Join-Path $ReportRoot 'loopback.json'
     if(Test-Path -LiteralPath $loopback){try{$data=Get-Content -Raw -Encoding UTF8 -LiteralPath $loopback|ConvertFrom-Json;$row.external_received=$data.sensors;$row.external_invalid=$data.invalid}catch{$row.external_snapshot_pending=$true}}
     $row|ConvertTo-Json -Depth 8 -Compress|Add-Content -Encoding UTF8 -LiteralPath $environmentLog
@@ -53,7 +59,9 @@ try {
         }
     }
     $runArgs=@('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $PSScriptRoot 'run_hatch_validation.ps1'),'-Mode',$Mode,'-Sensors','3','-MemoryWarmupSeconds','35','-DigView','1','-ReportRoot',$ReportRoot,'-MemoryCancelFile',$cancel)
-    if($Mode -like 'MemoryTrend*'){$runArgs+=@('-MemoryTrendSeconds',"$Seconds",'-MemorySampleSeconds','5')}elseif($Mode -notlike 'MemoryCost*'){$runArgs+=@('-MatchedMemorySeconds','90')}
+    if($Mode -like 'MemoryTrend*'){$runArgs+=@('-MemoryTrendSeconds',"$Seconds",'-MemorySampleSeconds','5')}elseif(!$investigation -and $Mode -notlike 'MemoryCost*'){$runArgs+=@('-MatchedMemorySeconds','90')}
+    if($investigation){$runArgs+=@('-InvestigationSeconds',"$InvestigationSeconds",'-MemoryCut',$MemoryCut);if($MemoryCut -eq 'Cpu'){$runArgs+='-CpuReference'}}
+    if($MemoryTrace){$runArgs+=@('-MemoryTraceFile',(Join-Path $ReportRoot 'memory.utrace'))}
     if(!$WithoutPcd){$runArgs+=@('-MemoryPcdLoopbackPort',"$Port")}
     if($MemoryAudit){$runArgs+='-MemoryAudit'}
     $quoted=@($runArgs|ForEach-Object{'"'+$_+'"'})

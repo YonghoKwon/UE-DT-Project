@@ -14,6 +14,7 @@ public class ma0t10_dtEditor : ModuleRules
         PrivateDependencyModuleNames.Add("JsonUtilities");
         PrivateDependencyModuleNames.Add("Stomp");
         PrivateDependencyModuleNames.AddRange(new[] { "RHI", "RenderCore" });
+        PrivateDependencyModuleNames.AddRange(new[] { "TraceServices", "TraceAnalysis" });
         PrivateDependencyModuleNames.AddRange(new[] { "BlueprintGraph", "UMGEditor", "KismetCompiler" });
 
         PublicDependencyModuleNames.AddRange(new string[]
