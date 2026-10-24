@@ -1,4 +1,5 @@
 #include "MemoryAttributionCommandlet.h"
+#include "MemoryAttributionStreaming.h"
 
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
@@ -57,6 +58,7 @@ int32 UMemoryAttributionCommandlet::Main(const FString& Params)
     FString Input,Output;double Offset=300;int32 Top=50;
     FParse::Value(*Params,TEXT("InputTrace="),Input);FParse::Value(*Params,TEXT("OutputReport="),Output);FParse::Value(*Params,TEXT("CompareOffset="),Offset);FParse::Value(*Params,TEXT("Top="),Top);
     if(Input.IsEmpty()||Output.IsEmpty()||Offset<=0||Top<1||Top>200){UE_LOG(LogTemp,Error,TEXT("InputTrace/OutputReport and positive CompareOffset required"));return 2;}
+    if(FParse::Param(*Params,TEXT("Streaming"))){FString Cache;FParse::Value(*Params,TEXT("SymbolCache="),Cache);return ExportStreamingMemory(Input,Output,Offset,Top,Cache);}
     auto& Module=FModuleManager::LoadModuleChecked<ITraceServicesModule>(TEXT("TraceServices"));
     Module.GetModuleService()->SetModuleEnabled(FName(TEXT("TraceModule_Memory")),true);
     UE_LOG(LogTemp,Display,TEXT("[MemoryAttribution] analyzing trace"));
