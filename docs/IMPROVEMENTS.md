@@ -68,6 +68,8 @@ T01/C01/H02/D01의 소유 점유 영역 회피, 미확인 사유 수와 확인 �
 
 MEMORY-TREND-26b soak2(2026-10-24): 기준4419436/코드ce456eb, PCD-on idle/디깅 각30분 완결·디깅880회/복원17회, 디코딩 감지0이다. 둘 다 누수 의심이며 UObject 꼬리 기울기0만으로 무누수를 주장하지 않는다. 샘플러·LLM audit·PCD를 끈 원래 RSS5쌍도 raw/retained4쌍·Commit5쌍 FAIL로 재현했다. off/on ABAB3블록2%는PASS이나 메모리 실패를 대체하지 않는다. native/allocator/렌더링 귀속이 미확정이라 제품 메모리 수정은 하지 않았다. [전체 수치·후속 귀속 범위](MEMORY_TREND_26b.md)·[결과](../Saved/Reports/MEMORY-TREND-26b/soak2/RESULT.md).
 
+allocation 후속(기준a64dcc8/실측f1236f6): idle trace15분과4개 cut 및 무추적 reference 각15분을 완료했다. LiDAR-off에서 증가가 크게 줄고 PCD-off에서도 증가가 지속되며, preview-off/CPU의 RSS 감소만으로는 계속 증가한 LLM 태그를 해소하지 못했다. 로그 보관 기여와 in-flight 후보 버퍼를 식별했으나 프로젝트 버퍼의 무제한 누적 또는 엔진/드라이버 단독 원인은 확정하지 못했다. 제품 수정0·기존RSS 미해결을 유지한다. [상위 allocation·분리 조건·심볼/처리량 한계](MEMORY_TREND_26b.md#2026-10-24-allocation-귀속과-분리-실험)·[결과](../Saved/Reports/MEMORY-TREND-26b/attribution/RESULT.md).
+
 ## FOLLOWUP-28 — Rev7×3 PCD 송신 공정성
 
 2026-10-23 사용자 승인으로 기본PCD 예산64→80MiB/s를 적용했다. 새 기본값은 공통상수로 관리하며 지정된 기존값·저장형식·PCD33-byte·승인FIFO·기본출력·예약상한을 보존한다. 기본 Rev7×3·90초 표시형 localhost의 각19.695/19.684/19.672Hz/편차0.022Hz로 각19Hz 목표를 충족했다. 필요75.942MiB/s이며 필요>예산 경고0, 송신 생략0,150ms 초과0이다. 최초 오프스크린의 기존 획득cadence3FAIL은 보존하고 표시형에서 같은 assertion까지통과했다. [측정·한계](../Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md)·[UI](../Saved/Reports/FOLLOWUP-28-26/r4/manual/CHECKLIST.md).
