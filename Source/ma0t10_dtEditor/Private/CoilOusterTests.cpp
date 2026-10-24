@@ -30,7 +30,7 @@ bool HasModel(UCoilLoadingMonitor& M,const FString& Model,const FString& Rate)
 }
 class FCoilOusterDefaults final:public IAutomationLatentCommand
 {
-    FAutomationTestBase* Test;double Start=FPlatformTime::Seconds();
+    FAutomationTestBase* Test;double Start=FPlatformTime::Seconds();bool Stopped=false;
 public:
     explicit FCoilOusterDefaults(FAutomationTestBase* T):Test(T){}
     bool Update() override
@@ -40,6 +40,11 @@ public:
         for(TActorIterator<ACoilLoadingMonitorHost> H(C.World());H;++H)if(H->Simulation&&H->Monitor&&H->Coordinator&&H->Simulation->Lidar)
         {
             auto& S=*H->Simulation;auto* Sensor=S.Lidar.Get();auto* Scan=Sensor->ScanComponent.Get();
+            if(Stopped)
+            {
+                FString DrainReason;
+                if(!Sensor->CanEditSensorConfiguration(DrainReason)||!Sensor->CanEditSensorPlacement(DrainReason))return false;
+            }
             FVirtualSensorEditableState State;Sensor->ReadEditableState(State);
             Test->TestEqual(TEXT("new coil default is Rev7"),int32(State.LidarProfile),int32(EVirtualLidarDeviceProfile::OusterOS1_64_Rev7));
             Test->TestEqual(TEXT("default quality remains full spec"),int32(State.SimulationQuality),int32(EVirtualSensorSimulationQuality::FullSpec));
@@ -49,8 +54,9 @@ public:
             Test->TestTrue(TEXT("UI shows actual selected model and rate"),HasModel(*H->Monitor,TEXT("Ouster OS1-64 Rev7"),TEXT("/ 20 Hz")));
             Test->TestTrue(TEXT("single-return full33-byte upper bound including all rays fits80MiB/s"),1024.*64.*33.*20./(1024.*1024.)<80.);
             auto* Publisher=H->Coordinator->StreamPublisherComponent.Get();const auto Config=Publisher->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud,Sensor->GetSensorId());
-            Test->TestTrue(TEXT("PCD stays on, binary and connected-no-loss"),Config.bEnabled&&Config.PointCloudFormat==EVirtualPointCloudStreamFormat::PCD&&Config.PcdDataMode==EVirtualPcdDataMode::Binary&&Config.DeliveryMode==EVirtualPointCloudDeliveryMode::ConnectedNoLoss);
-            Publisher->StopAllStreams(Sensor->GetSensorId());Sensor->StopSensor();FString Error;
+            if(!Stopped)Test->TestTrue(TEXT("PCD stays on, binary and connected-no-loss"),Config.bEnabled&&Config.PointCloudFormat==EVirtualPointCloudStreamFormat::PCD&&Config.PcdDataMode==EVirtualPcdDataMode::Binary&&Config.DeliveryMode==EVirtualPointCloudDeliveryMode::ConnectedNoLoss);
+            Publisher->StopAllStreams(Sensor->GetSensorId());Sensor->StopSensor();
+            if(!Stopped){Stopped=true;return false;}FString Error;
             State.LidarProfile=EVirtualLidarDeviceProfile::HesaiXT32;FVirtualSensorEditableState Applied;
             Test->TestTrue(TEXT("explicit legacy profile remains selectable"),Sensor->ApplyProfileAndSimulationQuality(State,Applied,Error));Sensor->ReadEditableState(State);State.LidarScanInterval=.1f;State.MaxPreviewPoints=1111;
             Test->TestTrue(TEXT("explicit saved custom values accepted"),Sensor->ApplyEditableState(State,Error));
@@ -60,7 +66,7 @@ public:
             auto& Entry=D.Sensors.AddDefaulted_GetRef();Entry.ActorPath=UVirtualSensorLayoutSubsystem::CanonicalActorPath(Sensor);Entry.State=State;
             FString Json;FJsonObjectConverter::UStructToJsonObjectString(D,Json);const FString Path=Dir/(FMD5::HashAnsiString(*(D.MapPackage+TEXT("|")+D.Name.ToLower()))+TEXT(".layout.v1.json"));Test->TestTrue(TEXT("save explicit profile fixture"),FFileHelper::SaveStringToFile(Json,*Path));
             State.LidarProfile=EVirtualLidarDeviceProfile::OusterOS1_64_Rev7;Test->TestTrue(TEXT("change live profile before restore"),Sensor->ApplyProfileAndSimulationQuality(State,Applied,Error));
-            const FString Id=Layout->PreviewLayoutRestore(D.Name);Test->TestEqual(TEXT("actual layout loader accepts legacy selected profile"),int32(Layout->GetOperationStatus(Id).State),int32(EVirtualSensorLayoutOperation::ReadyToApply));
+            const FString Id=Layout->PreviewLayoutRestore(D.Name);Test->AddInfo(TEXT("layout restore preview: ")+Layout->GetOperationStatus(Id).Message);Test->TestEqual(TEXT("actual layout loader accepts legacy selected profile"),int32(Layout->GetOperationStatus(Id).State),int32(EVirtualSensorLayoutOperation::ReadyToApply));
             Test->TestTrue(TEXT("actual layout restore"),Layout->ApplyLayoutRestore(Id,Error));
             S.Settings.LOA+=.1;S.RefreshPreview();Sensor->ReadEditableState(State);
             Test->TestTrue(TEXT("default never overwrites explicit restored profile or custom fields during scene rebuild"),State.LidarProfile==EVirtualLidarDeviceProfile::HesaiXT32&&FMath::IsNearlyEqual(State.LidarScanInterval,.1f)&&State.MaxPreviewPoints==1111);
