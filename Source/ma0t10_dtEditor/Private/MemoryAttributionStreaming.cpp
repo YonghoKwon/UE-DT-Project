@@ -5,6 +5,8 @@
 #include "Json.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "Trace/Analyzer.h"
 #include "Trace/Analysis.h"
 #include "Trace/DataStream.h"
@@ -57,19 +59,52 @@ using FTotals=FMap64<FStat>;
 struct FLinear {uint64 Size=0;TSet<uint64> Children;};
 struct FLive final:UE::Trace::IAnalyzer
 {
-    const FInventory& Inventory;FMap64<FActive> Normal,Backing;std::map<uint64,FLinear> Linear;
+    using FHeapList=TArray<FActive,TInlineAllocator<2>>;
+    const FInventory& Inventory;FMap64<FActive> Normal;FMap64<FHeapList> Backing;std::map<uint64,FLinear> Linear;
     FTotals Totals,A,B;double TargetA,TargetB,Time=0,ActualA=-1,ActualB=-1;uint8 Shift=0;bool Init=false;
-    uint64 Events=0,MissingBefore=0,MissingWindow=0,Duplicates=0,ImplicitFrees=0;
+    uint64 Events=0,MissingBefore=0,MissingWindow=0,Duplicates=0,ImplicitFrees=0,ImplicitHeapFrees=0,OverlappingHeapMarks=0;
     uint64 LastKey=0;FActive LastValue;bool LastUsed=false;
+    FString DebugPrefix;uint16 CurrentRoute=0;TMap<uint16,int64> MissingRoutes;
     FLive(const FInventory& I,double T1,double T2):Inventory(I),TargetA(T1),TargetB(T2){}
     static uint64 GroupKey(const FActive& X){return (uint64(X.Stack)<<24)|(uint64(X.Group)<<1)|uint64(X.IsHeap);}
     static uint64 PtrKey(uint8 Root,uint64 Address){return (uint64(Root)<<56)|Address;}
     void Add(const FActive& X,int Sign){auto& S=Totals.FindOrAdd(GroupKey(X));S.Bytes+=int64(X.Size)*Sign;S.Count+=Sign;}
-    void Missing(){if(Time<TargetA)++MissingBefore;else if(Time<=TargetB)++MissingWindow;}
+    void Missing(){if(Time<TargetA)++MissingBefore;else if(Time<=TargetB){++MissingWindow;++MissingRoutes.FindOrAdd(CurrentRoute);}}
+    void DebugDump(const TCHAR* Label)
+    {
+        if(DebugPrefix.IsEmpty())return;FString Text=TEXT("address,group,is_heap,size,stack,start,end\n");
+        auto Row=[&Text](uint64 Key,const FActive& X){Text.Appendf(TEXT("0x%llx,%u,%u,%llu,%u,0,0\n"),Key&0x00ffffffffffffffull,X.Group,uint32(X.IsHeap),X.Size,X.Stack);};
+        for(const auto& P:Normal)Row(P.Key,P.Value);for(const auto& P:Backing)for(const auto& X:P.Value)Row(P.Key,X);
+        FFileHelper::SaveStringToFile(Text,*(DebugPrefix+Label+TEXT(".csv")));
+    }
+    bool PopHeap(uint64 Key,FActive& Out)
+    {
+        auto* List=Backing.Find(Key);if(!List||List->IsEmpty())return false;
+        // UE5.3 FHeapAllocs supports overlapping heap allocations at one
+        // address and removes the last added entry, not a unique-address map.
+        Out=List->Pop(false);if(List->IsEmpty())Backing.Remove(Key);return true;
+    }
+    bool PopNormal(uint64 Key,FActive& Out)
+    {
+        return Normal.RemoveAndCopyValue(Key,Out);
+    }
     void FreeNormal(uint64 Key,bool TouchOwner=true)
     {
-        FActive X;if(!Normal.RemoveAndCopyValue(Key,X)){Missing();return;}Add(X,-1);
-        if(TouchOwner&&X.Owner){auto I=Linear.find(X.Owner);if(I!=Linear.end())I->second.Children.Remove(Key);}
+        FActive X;if(!PopNormal(Key,X))
+        {
+            // UE5.3 EditFree implicitly unmarks a still-marked heap allocation
+            // before freeing it. Binned2 uses this path for OS backing pages.
+            if(!PopHeap(Key,X)){Missing();return;}
+            Add(X,-1);ReleaseLinear(Key);++ImplicitHeapFrees;return;
+        }
+        Add(X,-1);
+        if(TouchOwner&&X.Owner){auto I=Linear.find(X.Owner);const auto* Remaining=Normal.Find(Key);if(I!=Linear.end()&&(!Remaining||Remaining->Owner!=X.Owner))I->second.Children.Remove(Key);}
+    }
+    void ReleaseLinear(uint64 Key)
+    {
+        auto I=Linear.find(Key);if(I==Linear.end())return;
+        for(uint64 Child:I->second.Children)while(Normal.Contains(Child)){FreeNormal(Child,false);++ImplicitFrees;}
+        Linear.erase(I);
     }
     void FlushLast()
     {
@@ -84,7 +119,7 @@ struct FLive final:UE::Trace::IAnalyzer
     }
     virtual bool OnEvent(uint16 Route,EStyle,const FOnEventContext& C) override
     {
-        ++Events;const auto& E=C.EventData;
+        ++Events;CurrentRoute=Route;const auto& E=C.EventData;
         if(Route==0){Init=E.GetValue<uint32>("Version")==2;Shift=E.GetValue<uint8>("SizeShift");return Init;}
         if(!Init)return true;
         if(LastUsed&&(Route==4||Route==5||Route==6||Route==9||Route==10)){const uint64 P=E.GetValue<uint64>("Address");const uint8 H=E.GetValue<uint8>("RootHeap",Route==6?1:0);if(P&&P<(1ull<<56)&&PtrKey(H,P)==LastKey){LastUsed=false;return true;}}
@@ -92,8 +127,8 @@ struct FLive final:UE::Trace::IAnalyzer
         if(Route==11)
         {
             const double Next=C.EventTime.AsSeconds(E.GetValue<uint64>("Cycle"));
-            if(ActualA<0&&Next>TargetA){A=Totals;ActualA=Time;}
-            if(ActualB<0&&Next>TargetB){B=Totals;ActualB=Time;return false;}
+            if(ActualA<0&&Next>TargetA){A=Totals;ActualA=Time;DebugDump(TEXT(".A"));}
+            if(ActualB<0&&Next>TargetB){B=Totals;ActualB=Time;DebugDump(TEXT(".B"));return false;}
             Time=Next;return true;
         }
         const uint64 Address=E.GetValue<uint64>("Address");if(!Address||Address>=(1ull<<56))return true;
@@ -109,13 +144,13 @@ struct FLive final:UE::Trace::IAnalyzer
         const uint32 Stack=E.GetValue<uint32>("CallstackId",0);
         if(Route==12)
         {
-            FActive X;if(!Normal.RemoveAndCopyValue(Key,X)){Missing();return true;}Add(X,-1);X.Owner=0;X.IsHeap=true;X.Group=Heap;if(Stack)X.Stack=Stack;Backing.Add(Key,X);Add(X,1);
+            FActive X;if(!PopNormal(Key,X)){Missing();return true;}Add(X,-1);X.Owner=0;X.IsHeap=true;X.Group=Heap;if(Stack)X.Stack=Stack;auto& List=Backing.FindOrAdd(Key);if(List.Num())++OverlappingHeapMarks;List.Add(X);Add(X,1);
             const auto* H=Inventory.Heaps.Find(Heap);if(H&&(H->Flags&2))Linear[Key].Size=X.Size;
         }
         if(Route==13)
         {
-            FActive X;if(!Backing.RemoveAndCopyValue(Key,X)){Missing();return true;}Add(X,-1);
-            auto I=Linear.find(Key);if(I!=Linear.end()){for(uint64 Child:I->second.Children)if(Normal.Contains(Child)){FreeNormal(Child,false);++ImplicitFrees;}Linear.erase(I);}
+            FActive X;if(!PopHeap(Key,X)){Missing();return true;}Add(X,-1);
+            ReleaseLinear(Key);
             // UE5.3 reallocation after heap-unmark preserves the original allocation stack.
             X.IsHeap=false;X.Group=ParentRoot;Normal.Add(Key,X);Add(X,1);
         }
@@ -141,10 +176,14 @@ int32 ExportStreamingMemory(const FString& Input,const FString& Output,double Of
     if(!Process(Input,Inventory,TEXT("inventory")))return 2;Inventory.Finish();
     if(Inventory.Begin<0||Inventory.End<=Inventory.Begin+Offset)return 2;
     FLive Live(Inventory,Inventory.Begin+Offset,Inventory.End-.001);
+    if(FParse::Param(FCommandLine::Get(),TEXT("MemoryDebugLive")))Live.DebugPrefix=Output;
     if(!Process(Input,Live,TEXT("live-only"))||Live.ActualA<0||Live.ActualB<0)return 2;
     auto R=MakeShared<FJsonObject>();R->SetBoolField(TEXT("Valid"),true);R->SetBoolField(TEXT("streaming"),true);R->SetStringField(TEXT("input_trace"),Input);
     R->SetNumberField(TEXT("snapshot_a"),Live.TargetA);R->SetNumberField(TEXT("snapshot_b"),Live.TargetB);R->SetNumberField(TEXT("snapshot_a_last_marker"),Live.ActualA);R->SetNumberField(TEXT("snapshot_b_last_marker"),Live.ActualB);
     R->SetNumberField(TEXT("events"),double(Live.Events));R->SetNumberField(TEXT("unmatched_before_a"),double(Live.MissingBefore));R->SetNumberField(TEXT("unmatched_window"),double(Live.MissingWindow));R->SetNumberField(TEXT("duplicate_allocs"),double(Live.Duplicates));R->SetNumberField(TEXT("implicit_linear_frees"),double(Live.ImplicitFrees));
+    R->SetNumberField(TEXT("implicit_heap_frees"),double(Live.ImplicitHeapFrees));
+    R->SetNumberField(TEXT("overlapping_heap_marks"),double(Live.OverlappingHeapMarks));
+    auto MissingJson=MakeShared<FJsonObject>();for(const auto& P:Live.MissingRoutes)MissingJson->SetNumberField(FString::FromInt(P.Key),double(P.Value));R->SetObjectField(TEXT("unmatched_window_routes"),MissingJson);
     R->SetStringField(TEXT("method"),TEXT("UE5.3 TraceAnalysis two passes: metadata, then current live allocation maps only. Memory marker timestamps follow UE5.3 allocation analyzer; sample at last marker not later than target. CPU user/backing/GPU/nested heaps separate; no cross-heap sums."));
     struct FRow{uint64 Key;FStat A,B;int64 Delta;};TSet<uint64> Keys;for(const auto& P:Live.A)Keys.Add(P.Key);for(const auto& P:Live.B)Keys.Add(P.Key);
     TArray<FRow> Rows;TMap<uint32,TArray<int64>> Totals;
@@ -177,19 +216,27 @@ int32 ExportStreamingMemory(const FString& Input,const FString& Output,double Of
             IMAGEHLP_MODULEW64 M{};M.SizeOfStruct=sizeof(M);bool Pdb=false;
             if(SymFromAddrW(Token,Address,&Displacement,S))
             {
-                Pdb=SymGetModuleInfoW64(Token,Address,&M)&&(M.SymType==SymPdb||M.SymType==SymDia);
+                Pdb=SymGetModuleInfoW64(Token,Address,&M)&&(M.SymType==SymPdb||M.SymType==SymDia)&&!M.PdbUnmatched&&!(S->Flags&SYMFLAG_EXPORT);
+                J->SetNumberField(TEXT("symbol_flags"),S->Flags);J->SetNumberField(TEXT("symbol_displacement"),double(Displacement));
                 if(Pdb){J->SetStringField(TEXT("symbol"),FString(S->NameLen,S->Name));J->SetStringField(TEXT("resolution"),TEXT("PDB"));}
                 else{J->SetStringField(TEXT("export_nearest_approximation"),FString(S->NameLen,S->Name));J->SetStringField(TEXT("resolution"),TEXT("Exports only; use module+offset"));}
             }
             IMAGEHLP_LINEW64 L{};L.SizeOfStruct=sizeof(L);DWORD D=0;if(Pdb&&SymGetLineFromAddrW64(Token,Address,&D,&L)){J->SetStringField(TEXT("file"),L.FileName?L.FileName:TEXT(""));J->SetNumberField(TEXT("line"),L.LineNumber);}
         }
 #endif
+        // A monolithic packaged exe contains both project and engine code.
+        // The exe filename is not evidence of project ownership.
+        FString SourceFile;J->TryGetStringField(TEXT("file"),SourceFile);SourceFile.ReplaceInline(TEXT("\\"),TEXT("/"));
+        const bool ProjectSource=SourceFile.Contains(TEXT("/Source/ma0t10_dt/"))||SourceFile.Contains(TEXT("/Source/ma0t10_dtEditor/"))||SourceFile.Contains(TEXT("/Source/ma0t10_dtBootstrap/"));
+        const bool EngineSource=SourceFile.Contains(TEXT("/Engine/Source/"));
+        const bool ProjectDll=Name.StartsWith(TEXT("UnrealEditor-ma0t10_dt"));
+        J->SetStringField(TEXT("source_origin"),ProjectSource?TEXT("project"):EngineSource?TEXT("engine"):ProjectDll?TEXT("project-module"):TEXT("unknown"));
         FrameCache.Add(Address,J);return TSharedPtr<FJsonObject>(J);
     };
     auto Convert=[&](const FRow& X)
     {
         auto J=MakeShared<FJsonObject>();const uint32 Stack=uint32(X.Key>>24);J->SetNumberField(TEXT("stack_id"),Stack);J->SetNumberField(TEXT("root_heap"),uint16((X.Key>>1)&65535));J->SetBoolField(TEXT("is_heap"),(X.Key&1)!=0);J->SetNumberField(TEXT("before_bytes"),double(X.A.Bytes));J->SetNumberField(TEXT("after_bytes"),double(X.B.Bytes));J->SetNumberField(TEXT("delta_bytes"),double(X.Delta));J->SetNumberField(TEXT("count_delta"),double(X.B.Count-X.A.Count));
-        TArray<TSharedPtr<FJsonValue>> Frames;bool Project=false;if(const auto* Addresses=Inventory.Stacks.Find(Stack))for(uint64 Address:*Addresses){auto F=Frame(Address);Project|=F->GetStringField(TEXT("module")).Contains(TEXT("ma0t10_dt"));Frames.Add(MakeShared<FJsonValueObject>(F));}J->SetArrayField(TEXT("frames"),Frames);J->SetBoolField(TEXT("has_project_frame"),Project);return MakeShared<FJsonValueObject>(J);
+        TArray<TSharedPtr<FJsonValue>> Frames;bool Project=false;if(const auto* Addresses=Inventory.Stacks.Find(Stack))for(uint64 Address:*Addresses){auto F=Frame(Address);Project|=F->GetStringField(TEXT("source_origin")).StartsWith(TEXT("project"));Frames.Add(MakeShared<FJsonValueObject>(F));}J->SetArrayField(TEXT("frames"),Frames);J->SetBoolField(TEXT("has_project_frame"),Project);return MakeShared<FJsonValueObject>(J);
     };
     TArray<TSharedPtr<FJsonValue>> Growth,Decline,Cpu,CpuHeap,Gpu,Modules,HeapSpecs;
     for(const auto& X:Rows)if(X.Delta>0)
@@ -198,10 +245,17 @@ int32 ExportStreamingMemory(const FString& Input,const FString& Output,double Of
         if(Heap==0&&!IsHeap&&Cpu.Num()<Top)Cpu.Add(Convert(X));if(Heap==0&&IsHeap&&CpuHeap.Num()<Top)CpuHeap.Add(Convert(X));if(Heap==1&&!IsHeap&&Gpu.Num()<Top)Gpu.Add(Convert(X));
     }
     for(int32 I=Rows.Num()-1;I>=0&&Decline.Num()<Top;--I)if(Rows[I].Delta<0)Decline.Add(Convert(Rows[I]));
-    for(const auto& I:Inventory.Images){auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("name"),FPaths::GetCleanFilename(I.File));J->SetStringField(TEXT("base"),FString::Printf(TEXT("0x%llx"),I.Base));J->SetNumberField(TEXT("size"),I.Size);J->SetStringField(TEXT("status"),I.Symbols?TEXT("Loaded/deferred"):TEXT("Not loaded"));Modules.Add(MakeShared<FJsonValueObject>(J));}
+    for(const auto& I:Inventory.Images)
+    {
+        auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("name"),FPaths::GetCleanFilename(I.File));J->SetStringField(TEXT("base"),FString::Printf(TEXT("0x%llx"),I.Base));J->SetNumberField(TEXT("size"),I.Size);J->SetStringField(TEXT("status"),I.Symbols?TEXT("Loaded/deferred"):TEXT("Not loaded"));
+#if PLATFORM_WINDOWS
+        IMAGEHLP_MODULEW64 M{};M.SizeOfStruct=sizeof(M);if(SymbolsReady&&SymGetModuleInfoW64(Token,I.Base,&M)){J->SetNumberField(TEXT("sym_type"),int32(M.SymType));J->SetStringField(TEXT("loaded_pdb"),M.LoadedPdbName);J->SetBoolField(TEXT("pdb_matched"),(M.SymType==SymPdb||M.SymType==SymDia)&&!M.PdbUnmatched);J->SetBoolField(TEXT("line_numbers"),M.LineNumbers!=0);}
+#endif
+        Modules.Add(MakeShared<FJsonValueObject>(J));
+    }
     for(const auto& P:Inventory.Heaps){auto J=MakeShared<FJsonObject>();J->SetNumberField(TEXT("id"),P.Key);J->SetNumberField(TEXT("parent"),P.Value.Parent);J->SetStringField(TEXT("name"),P.Value.Name);HeapSpecs.Add(MakeShared<FJsonValueObject>(J));}
     R->SetArrayField(TEXT("top_growth"),Growth);R->SetArrayField(TEXT("top_decline"),Decline);R->SetArrayField(TEXT("cpu_user_growth"),Cpu);R->SetArrayField(TEXT("cpu_backing_growth"),CpuHeap);R->SetArrayField(TEXT("gpu_user_growth"),Gpu);R->SetArrayField(TEXT("modules"),Modules);R->SetArrayField(TEXT("heap_specs"),HeapSpecs);
-    R->SetStringField(TEXT("limits"),TEXT("Live-only parser requires companion calibration cross-validation; unmatched events and unsupported symbols preserved. No inference of leak from one in-flight snapshot. Native code outside emitted trace coverage is not accounted."));
+    R->SetStringField(TEXT("limits"),TEXT("Companion calibration validates CPU combined bytes/count only. GPU normal-address alias/duplicate events do not reconcile with UE5.3 provider recent-cache/address-map retention; GPU deltas are an unvalidated unique-address view, not physical GPU/leak evidence. Historical user/backing flags can differ. Unmatched events/symbol gaps and native emitter coverage limits remain. A live snapshot alone does not prove a leak."));
 #if PLATFORM_WINDOWS
     if(SymbolsReady)SymCleanup(Token);
 #endif

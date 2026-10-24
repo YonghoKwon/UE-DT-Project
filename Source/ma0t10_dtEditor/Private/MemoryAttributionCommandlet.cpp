@@ -22,7 +22,7 @@ namespace
 {
 struct FLiveStack { int64 Bytes=0,Count=0;uint32 Stack=0;uint8 Heap=0;bool HeapAllocation=false; };
 using FSnapshot=TMap<uint64,FLiveStack>;
-bool Snapshot(const TraceServices::IAllocationsProvider& Provider,double At,FSnapshot& Out)
+bool Snapshot(const TraceServices::IAllocationsProvider& Provider,double At,FSnapshot& Out,FString* Debug=nullptr)
 {
     TraceServices::IAllocationsProvider::FQueryParams P{};P.Rule=TraceServices::IAllocationsProvider::EQueryRule::aAf;P.TimeA=At;
     TraceServices::IAllocationsProvider::FQueryHandle Query;
@@ -43,6 +43,7 @@ bool Snapshot(const TraceServices::IAllocationsProvider& Provider,double At,FSna
                 const auto* A=Page->Get(I);const uint32 Stack=A->GetCallstackId();const uint8 Heap=uint8(A->GetRootHeap());const bool IsHeap=A->IsHeap();
                 const uint64 Key=(uint64(Stack)<<16)|(uint64(Heap)<<1)|uint64(IsHeap);auto& S=Out.FindOrAdd(Key);
                 S.Stack=Stack;S.Heap=Heap;S.HeapAllocation=IsHeap;S.Bytes+=int64(A->GetSize());++S.Count;
+                if(Debug)Debug->Appendf(TEXT("0x%llx,%u,%u,%llu,%u,%.9f,%.9f\n"),A->GetAddress(),Heap,uint32(IsHeap),A->GetSize(),Stack,A->GetStartTime(),A->GetEndTime());
             }
             Page=Status.NextResult();
         }
@@ -79,8 +80,9 @@ int32 UMemoryAttributionCommandlet::Main(const FString& Params)
     }
     if(!Alloc||!Stacks||Begin<0||End<=Begin+Offset){UE_LOG(LogTemp,Error,TEXT("Memory providers or valid measurement bookmarks absent: begin=%.3f end=%.3f"),Begin,End);return 2;}
     {TraceServices::FProviderReadScopeLock Lock(*Alloc);if(!Alloc->IsInitialized()||Alloc->GetTimelineNumPoints()==0){UE_LOG(LogTemp,Error,TEXT("Allocation channel is empty"));return 2;}}
-    FSnapshot Before,After;
-    if(!Snapshot(*Alloc,Begin+Offset,Before)||!Snapshot(*Alloc,End-.001,After)){UE_LOG(LogTemp,Error,TEXT("Live allocation query failed"));return 2;}
+    FSnapshot Before,After;const bool Debug=FParse::Param(*Params,TEXT("MemoryDebugLive"));FString DebugA=TEXT("address,group,is_heap,size,stack,start,end\n"),DebugB=DebugA;
+    if(!Snapshot(*Alloc,Begin+Offset,Before,Debug?&DebugA:nullptr)||!Snapshot(*Alloc,End-.001,After,Debug?&DebugB:nullptr)){UE_LOG(LogTemp,Error,TEXT("Live allocation query failed"));return 2;}
+    if(Debug){FFileHelper::SaveStringToFile(DebugA,*(Output+TEXT(".A.csv")));FFileHelper::SaveStringToFile(DebugB,*(Output+TEXT(".B.csv")));}
     struct FDiff {uint64 Key=0;FLiveStack A,B;int64 Delta=0;};TArray<FDiff> Rows;TSet<uint64> Keys;
     for(const auto& P:Before)Keys.Add(P.Key);for(const auto& P:After)Keys.Add(P.Key);
     TMap<uint32,TArray<int64>> Totals;

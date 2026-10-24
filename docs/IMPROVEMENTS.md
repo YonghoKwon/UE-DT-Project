@@ -72,6 +72,8 @@ allocation 후속(기준a64dcc8/실측f1236f6): idle trace15분과4개 cut 및 �
 
 26c(기준3ed0367): Scheduler 주기 요약을 기본Verbose 억제로 전환했고 기존문자열/통계·상태/경고는 보존했다. 기본0줄·명시opt-in1+3줄, 자동화Info3,792개 제거를 확인했다. Editor15분 전후와 Development package60분은 모두 누수 의심(package꼬리RSS50.17/Commit18.68MiB/h·UObject0)이다. Shipping은 별도실험시작맵으로30초/정상종료를 확인했다. allocator/실제Hz/사전준비 차이를 분리하며 기존8MiB/5쌍 FAIL은 해결로 바꾸지 않는다. [전체조건·한계·최종gate](MEMORY_TREND_26c.md)·[결과](../Saved/Reports/MEMORY-TREND-26c/RESULT.md).
 
+26d(기준1c19ebb): 새엔진PDB로Editorprivate줄정보·gamePDBpublic/project심볼을검증하고 package20분trace의CPU콜스택을추출했다. D3D12 query-family배열/10,000개한도crash-event캐시가RHIMisc유력경로다. 기존분석기의겹친heap처리를보정해CPU합계를대조했지만GPUalias집계는미검증이다. 원래+50/+19전체귀속·프로젝트누수는미확정,제품수정/기준완화0. 조건부60분/ABAB재회귀는미수행이다. [근거·한계·완화제안](MEMORY_ATTRIBUTION_26d.md)·[결과](../Saved/Reports/MEMORY-ATTRIBUTION-26d/RESULT.md).
+
 ## FOLLOWUP-28 — Rev7×3 PCD 송신 공정성
 
 2026-10-23 사용자 승인으로 기본PCD 예산64→80MiB/s를 적용했다. 새 기본값은 공통상수로 관리하며 지정된 기존값·저장형식·PCD33-byte·승인FIFO·기본출력·예약상한을 보존한다. 기본 Rev7×3·90초 표시형 localhost의 각19.695/19.684/19.672Hz/편차0.022Hz로 각19Hz 목표를 충족했다. 필요75.942MiB/s이며 필요>예산 경고0, 송신 생략0,150ms 초과0이다. 최초 오프스크린의 기존 획득cadence3FAIL은 보존하고 표시형에서 같은 assertion까지통과했다. [측정·한계](../Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md)·[UI](../Saved/Reports/FOLLOWUP-28-26/r4/manual/CHECKLIST.md).
