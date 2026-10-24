@@ -114,6 +114,10 @@ MEMORY-TREND-26c(기준 `3ed0367`): Scheduler 주기 로그를 기본 억제하�
 
 검증 조건·성공/실패·skip·직접 UI·제한과 설정 복원은 [result.json](Saved/Reports/HATCH07-COIL02/result.json), [검증 이력](docs/VALIDATION_HISTORY.md#2026-10-23-hatch-07--coil-02)을 따른다. PCD 송신 예산/성능은 #28 범위다.
 
+### COIL-OUSTER 코일 기본 LiDAR
+
+사용자 결정2026-10-25에 따라 코일 출하부두의 신규 센서는 원료 하역과 같은 **Ouster OS1-64 Rev7 / FullSpec / 1024×64·20Hz**를 기본으로 생성한다. ID는 `os_lidar_coil_quay`다. 기존 저장 배치의 명시 프로필·사용자 설정은 덮어쓰지 않으며 UI 모델/목표Hz도 현재 선택을 표시한다. 기본 단일 반환의 Full PCD 본문 상한은41.25MiB/s+헤더로80MiB/s 예산 이내다. 명시적 dual 반환은 다른 조건이다. [보존 범위·계산·검증 근거](docs/research/COIL-OUSTER-basis.md), [실측·캡처·RT on ABAB](Saved/Reports/COIL-OUSTER/RESULT.md)를 따른다. 직전 ID 작업에서 확인한 실제 기본 프로필 차이는 이 항목에서 해소한다.
+
 ### CRANE-31e 사진에 보이는 상부·붐 밑면 부재
 
 ref1/ref4/ref6의 전경 상부 경사관1개와 붐 밑면의 횡관3개·대각관3개를 기존 표시 전용 경로에 보강했다. 보이지 않는 반대편 경사관과 가려진 뿌리 쪽 격자는 추가하지 않는다. [부재별 사진 위치·치수 가정](docs/research/CRANE-31e-basis.md)을 따르며 구조 강도/인증 형상으로 취급하지 않는다. 기존 주 다리·충돌·센서 측정·knee strut 금지 검사는 유지한다. 같은 구도의 전후1600px JPG, RT on 표준/코일 장면 ABAB2%의 실제 수행·수치와 직접 UI 제한은 [RESULT](Saved/Reports/CRANE-31e/RESULT.md)/[result.json](Saved/Reports/CRANE-31e/result.json)을 따른다.

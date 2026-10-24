@@ -137,7 +137,9 @@ void UCoilLoadingMonitor::Refresh()
     if(!S->LastPlanSavePath.IsEmpty()&&S->LastPlanSavePath!=LastShownPlanPath){LastShownPlanPath=S->LastPlanSavePath;FileInput->SetText(FText::FromString(LastShownPlanPath));}
     Operation->SetText(FText::FromString(S->Status+FString::Printf(TEXT(" · 화물창 %.2f m × %.2f m / 개구 %.2f m × %.2f m"),S->Settings.HoldLength,S->Settings.HoldWidth,S->Settings.OpeningLength,S->Settings.OpeningWidth)));
     const auto& R=S->Analysis();const auto& P=S->Physics();const auto Runtime=S->Lidar?S->Lidar->GetSensorRuntimeStatus():FVirtualSensorRuntimeStatus();
-    Comparison->SetText(FText::FromString(CoilLoadingPresentation::ComparisonSummary(P.State,P.MaxDisplacement,P.MaxRotationDegrees,Runtime.MeasuredAcquisitionRateHz,S->FittedCoilCount,S->bLidarCompared,S->LidarDeviationP95,S->LidarFitResidualP95)));
+    const auto* Scan=S->Lidar?S->Lidar->ScanComponent.Get():nullptr;
+    const FString DeviceLabel=Scan?Scan->GetDeviceSpec().Manufacturer+TEXT(" ")+Scan->GetDeviceSpec().Model:FString();
+    Comparison->SetText(FText::FromString(CoilLoadingPresentation::ComparisonSummary(P.State,P.MaxDisplacement,P.MaxRotationDegrees,Runtime.MeasuredAcquisitionRateHz,S->FittedCoilCount,S->bLidarCompared,S->LidarDeviationP95,S->LidarFitResidualP95,DeviceLabel,Scan&&Scan->ScanInterval>0?1./Scan->ScanInterval:0.)));
     Comparison->SetToolTipText(FText::FromString(FString::Printf(TEXT("측정 방식(backend): %s\n중심 편차 p95·표면 잔차는 LiDAR 코일 맞춤 비교 진단입니다. 점/방향 부족 시 비교 불가로 표시합니다."),*Runtime.ActiveAcquisitionBackend)));
     if(LastRevision==S->Revision())return;LastRevision=S->Revision();
     Heading->SetText(FText::FromString(FString::Printf(TEXT("%d단 · %d열 · %d번 / 배치 %d개"),S->NextTier,S->NextRow,S->NextColumn,S->Plan().Num())));
