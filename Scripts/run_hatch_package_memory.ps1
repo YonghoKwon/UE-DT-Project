@@ -2,13 +2,18 @@ param(
     [Parameter(Mandatory=$true)][string]$Executable,
     [Parameter(Mandatory=$true)][string]$ReportRoot,
     [Parameter(Mandatory=$true)][string]$NativeValidator,
-    [ValidateSet(30,1800,3600)][int]$Seconds=3600,
+    [ValidateSet(30,900,1200,1800,3600)][int]$Seconds=3600,
+    [switch]$Investigation,
+    [switch]$MemoryTrace,
+    [switch]$TraceCanary,
     [ValidateRange(1024,65535)][int]$Port=18626
 )
 # Owned standalone game/loopback only. User apps, broker settings and maps are
 # never changed. A30s run qualifies the diagnostic; it is not a soak verdict.
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
+if(($Seconds -in @(900,1200)) -ne [bool]$Investigation){throw '900/1200s require explicit Investigation; ordinary30s/1800..3600s modes remain unchanged'}
+if($TraceCanary -and (!$MemoryTrace -or $Seconds -ne 30)){throw 'TraceCanary requires the separate30s memory-trace calibration'}
 $ReportRoot=[IO.Path]::GetFullPath($ReportRoot)
 $Executable=(Resolve-Path -LiteralPath $Executable).Path
 $NativeValidator=(Resolve-Path -LiteralPath $NativeValidator).Path
@@ -27,6 +32,7 @@ function Environment-Sample {
         if($v.Count -ne 7 -or $v[6] -notmatch '^\d+(\.\d+)?$'){throw 'Unavailable video decoder counter'}
         @{index=[int]$v[0];name=$v[1];driver=$v[2];total_mib=[double]$v[3];used_mib=[double]$v[4];gpu_percent=[double]$v[5];video_decode_percent=[double]$v[6]}
     })
+    if($MemoryTrace){$trace=Join-Path $ReportRoot 'memory.utrace';if(Test-Path -LiteralPath $trace){if((Get-Item -LiteralPath $trace).Length -gt 100GB -or (Get-PSDrive -Name ([IO.Path]::GetPathRoot($ReportRoot).Substring(0,1))).Free -lt 50GB){throw 'Trace size/free-space safety limit reached'}}}
     @{utc=[DateTime]::UtcNow.ToString('o');gpus=$gpus;monitor_wall_ms=$watch.Elapsed.TotalMilliseconds}|ConvertTo-Json -Depth 5 -Compress|Add-Content -Encoding UTF8 -LiteralPath "$ReportRoot/environment.jsonl"
     return @($gpus|Where-Object{$_.video_decode_percent -gt 0}).Count -gt 0
 }
@@ -48,7 +54,11 @@ try {
     $arguments=@('/Game/MA0T10/Maps/Tests/ShipHatchTestMap','-d3d12','-llm','-nosound','-unattended','-nop4','-nosplash','-windowed','-RenderOffscreen','-ForceRes','-ResX=1920','-ResY=1080',
         '-ExecCmds=t.MaxFPS 60,r.VSync 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0',
         "-UserDir=$ReportRoot/user","-HatchMemoryRuntimeReport=$ReportRoot","-HatchMemoryRuntimeSeconds=$Seconds",'-HatchMemorySampleSeconds=5',
-        "-HatchMemoryPcdLoopbackPort=$Port","-HatchMemoryCancelFile=$cancel","-HatchSourceCommit=$source","-abslog=$ReportRoot/game.log")|ForEach-Object{'"'+$_+'"'}
+        "-HatchMemoryPcdLoopbackPort=$Port","-HatchMemoryCancelFile=$cancel","-HatchSourceCommit=$source","-abslog=$ReportRoot/game.log")
+    if($Investigation){$arguments+='-HatchMemoryInvestigation'}
+    if($MemoryTrace){$arguments+=@('-trace=memory,bookmark',"-tracefile=$ReportRoot/memory.utrace")}
+    if($TraceCanary){$arguments+='-HatchMemoryTraceCanary'}
+    $arguments=@($arguments|ForEach-Object{'"'+$_+'"'})
     $game=Start-Process -FilePath $Executable -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$ReportRoot/console.log" -RedirectStandardError "$ReportRoot/stderr.log"
     $null=$game.Handle;$deadline=[DateTime]::UtcNow.AddSeconds($Seconds+900)
     while(!$game.HasExited){

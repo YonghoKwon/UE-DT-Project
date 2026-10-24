@@ -18,6 +18,7 @@
 #include "Misc/Paths.h"
 #include "Tickable.h"
 #include "RenderingThread.h"
+#include "ProfilingDebugging/MiscTrace.h"
 #include "UObject/UObjectArray.h"
 #include "UnrealClient.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
@@ -45,6 +46,10 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
     double Seconds=3600, Interval=5, PreviousCost=0, CostSum=0, CostMax=0;
     int32 Port=0, Phase=0, WarmEdits=0, Samples=0;
     bool Finished=false, Failed=false, Llm=false;
+    bool Investigation=false, TraceCanaryEnabled=false;
+    int32 CanaryStage=0;
+    TArray<uint8> TraceCanary;
+    static FORCENOINLINE void ResizeMemoryTraceCanary(TArray<uint8>& Bytes,int32 Size){Bytes.SetNumZeroed(Size);}
 
     bool Write(const TSharedRef<FJsonObject>& Row)
     {
@@ -91,6 +96,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         if(Finished)return;Finished=true;
         auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("type"),TEXT("summary"));R->SetObjectField(TEXT("pcd"),Pcd(Complete));
         R->SetStringField(TEXT("reason"),Reason);R->SetBoolField(TEXT("complete"),Complete&&!Failed);R->SetBoolField(TEXT("diagnostic_only"),true);
+        if(Complete&&!Failed){TRACE_BOOKMARK(TEXT("MEMORY26B_END"));}else{TRACE_BOOKMARK(TEXT("MEMORY26B_CANCEL"));}
         R->SetNumberField(TEXT("sample_count"),Samples);R->SetNumberField(TEXT("measurement_seconds"),Started?FPlatformTime::Seconds()-Started:0);
         R->SetNumberField(TEXT("clicks"),0);R->SetNumberField(TEXT("restores"),0);R->SetNumberField(TEXT("warm_edits"),WarmEdits);
         R->SetBoolField(TEXT("llm_enabled"),Llm);R->SetNumberField(TEXT("last_sample_total_gt_ms"),PreviousCost);
@@ -133,6 +139,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("type"),TEXT("metadata"));R->SetNumberField(TEXT("schema_version"),1);
         R->SetStringField(TEXT("row_contract"),TEXT("memory_curve"));R->SetBoolField(TEXT("diagnostic_only"),true);
         R->SetNumberField(TEXT("requested_seconds"),Seconds);R->SetNumberField(TEXT("interval_seconds"),Interval);R->SetBoolField(TEXT("llm_enabled"),Llm);
+        R->SetBoolField(TEXT("investigation"),Investigation);R->SetBoolField(TEXT("trace_canary"),TraceCanaryEnabled);R->SetStringField(TEXT("trace_bookmarks"),TEXT("MEMORY26B_BEGIN/END; shared allocation-query contract"));
         R->SetBoolField(TEXT("sampler_enabled"),true);R->SetBoolField(TEXT("pcd_loopback"),true);R->SetBoolField(TEXT("pcd_default_compressed"),Publisher->GetPcdSendOptions(TEXT("")).bCompressed);
         R->SetStringField(TEXT("workload"),TEXT("packaged idle;17 public Dig near-surface ray cycles with fresh analysis, restore,35s warmup; no Editor automation history"));
         R->SetStringField(TEXT("source_commit"),SourceCommit);R->SetStringField(TEXT("started_utc"),FDateTime::UtcNow().ToIso8601());
@@ -153,7 +160,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         if(!Write(R)||!ViewportValid)return false;
         for(const auto& Status:Publisher->GetStreamStatuses())if(Status.StreamKind==EVirtualSensorStreamKind::PointCloud)PcdBefore.Add(Status.SensorId,Status);
         for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))FramesBefore.Add(A->GetSensorId(),A->ScanComponent->GetRuntimeStatus().FrameId);
-        Started=FPlatformTime::Seconds();return true;
+        Started=FPlatformTime::Seconds();TRACE_BOOKMARK(TEXT("MEMORY26B_BEGIN"));return true;
     }
     void Sample(AShipHatchSimulation& S)
     {
@@ -196,7 +203,9 @@ public:
         FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryRuntimeSeconds="),Seconds);FParse::Value(FCommandLine::Get(),TEXT("HatchMemorySampleSeconds="),Interval);
         FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryPcdLoopbackPort="),Port);FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryCancelFile="),CancelFile);
         FParse::Value(FCommandLine::Get(),TEXT("HatchSourceCommit="),SourceCommit);
-        Failed=!FMath::IsFinite(Seconds)||!FMath::IsFinite(Interval)||(Seconds!=30&&(Seconds<1800||Seconds>3600))||Interval<5||Interval>30||Port<1024||Port>65535;
+        Investigation=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryInvestigation"));TraceCanaryEnabled=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryTraceCanary"));
+        const bool ValidDuration=Investigation?(Seconds>=900&&Seconds<=1200):(Seconds==30||(Seconds>=1800&&Seconds<=3600));
+        Failed=!FMath::IsFinite(Seconds)||!FMath::IsFinite(Interval)||!ValidDuration||(TraceCanaryEnabled&&Seconds!=30)||Interval<5||Interval>30||Port<1024||Port>65535;
     }
     TStatId GetStatId() const override {RETURN_QUICK_DECLARE_CYCLE_STAT(FHatchMemoryRuntimeProbe,STATGROUP_Tickables);}
     ETickableTickType GetTickableTickType() const override {return ETickableTickType::Always;}
@@ -240,6 +249,11 @@ public:
         }
         // The measured idle sampler does not require analysis completion: a
         // stalled measurement/analysis cannot silently suppress memory samples.
+        if(Phase==3&&TraceCanaryEnabled)
+        {
+            if(CanaryStage==0&&Now-Started>=2){ResizeMemoryTraceCanary(TraceCanary,1024*1024);CanaryStage=1;}
+            if(CanaryStage==1&&Now-Started>=10){ResizeMemoryTraceCanary(TraceCanary,4*1024*1024);CanaryStage=2;}
+        }
         if(Phase==3&&Now-LastSample>=Interval)
         {
             Sample(*S);if(Now-Started>=Seconds)

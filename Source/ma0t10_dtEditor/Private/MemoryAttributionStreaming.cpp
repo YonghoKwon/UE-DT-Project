@@ -177,19 +177,27 @@ int32 ExportStreamingMemory(const FString& Input,const FString& Output,double Of
             IMAGEHLP_MODULEW64 M{};M.SizeOfStruct=sizeof(M);bool Pdb=false;
             if(SymFromAddrW(Token,Address,&Displacement,S))
             {
-                Pdb=SymGetModuleInfoW64(Token,Address,&M)&&(M.SymType==SymPdb||M.SymType==SymDia);
+                Pdb=SymGetModuleInfoW64(Token,Address,&M)&&(M.SymType==SymPdb||M.SymType==SymDia)&&!M.PdbUnmatched&&!(S->Flags&SYMFLAG_EXPORT);
+                J->SetNumberField(TEXT("symbol_flags"),S->Flags);J->SetNumberField(TEXT("symbol_displacement"),double(Displacement));
                 if(Pdb){J->SetStringField(TEXT("symbol"),FString(S->NameLen,S->Name));J->SetStringField(TEXT("resolution"),TEXT("PDB"));}
                 else{J->SetStringField(TEXT("export_nearest_approximation"),FString(S->NameLen,S->Name));J->SetStringField(TEXT("resolution"),TEXT("Exports only; use module+offset"));}
             }
             IMAGEHLP_LINEW64 L{};L.SizeOfStruct=sizeof(L);DWORD D=0;if(Pdb&&SymGetLineFromAddrW64(Token,Address,&D,&L)){J->SetStringField(TEXT("file"),L.FileName?L.FileName:TEXT(""));J->SetNumberField(TEXT("line"),L.LineNumber);}
         }
 #endif
+        // A monolithic packaged exe contains both project and engine code.
+        // The exe filename is not evidence of project ownership.
+        FString SourceFile;J->TryGetStringField(TEXT("file"),SourceFile);SourceFile.ReplaceInline(TEXT("\\"),TEXT("/"));
+        const bool ProjectSource=SourceFile.Contains(TEXT("/Source/ma0t10_dt/"))||SourceFile.Contains(TEXT("/Source/ma0t10_dtEditor/"));
+        const bool EngineSource=SourceFile.Contains(TEXT("/Engine/Source/"));
+        const bool ProjectDll=Name.StartsWith(TEXT("UnrealEditor-ma0t10_dt"));
+        J->SetStringField(TEXT("source_origin"),ProjectSource?TEXT("project"):EngineSource?TEXT("engine"):ProjectDll?TEXT("project-module"):TEXT("unknown"));
         FrameCache.Add(Address,J);return TSharedPtr<FJsonObject>(J);
     };
     auto Convert=[&](const FRow& X)
     {
         auto J=MakeShared<FJsonObject>();const uint32 Stack=uint32(X.Key>>24);J->SetNumberField(TEXT("stack_id"),Stack);J->SetNumberField(TEXT("root_heap"),uint16((X.Key>>1)&65535));J->SetBoolField(TEXT("is_heap"),(X.Key&1)!=0);J->SetNumberField(TEXT("before_bytes"),double(X.A.Bytes));J->SetNumberField(TEXT("after_bytes"),double(X.B.Bytes));J->SetNumberField(TEXT("delta_bytes"),double(X.Delta));J->SetNumberField(TEXT("count_delta"),double(X.B.Count-X.A.Count));
-        TArray<TSharedPtr<FJsonValue>> Frames;bool Project=false;if(const auto* Addresses=Inventory.Stacks.Find(Stack))for(uint64 Address:*Addresses){auto F=Frame(Address);Project|=F->GetStringField(TEXT("module")).Contains(TEXT("ma0t10_dt"));Frames.Add(MakeShared<FJsonValueObject>(F));}J->SetArrayField(TEXT("frames"),Frames);J->SetBoolField(TEXT("has_project_frame"),Project);return MakeShared<FJsonValueObject>(J);
+        TArray<TSharedPtr<FJsonValue>> Frames;bool Project=false;if(const auto* Addresses=Inventory.Stacks.Find(Stack))for(uint64 Address:*Addresses){auto F=Frame(Address);Project|=F->GetStringField(TEXT("source_origin")).StartsWith(TEXT("project"));Frames.Add(MakeShared<FJsonValueObject>(F));}J->SetArrayField(TEXT("frames"),Frames);J->SetBoolField(TEXT("has_project_frame"),Project);return MakeShared<FJsonValueObject>(J);
     };
     TArray<TSharedPtr<FJsonValue>> Growth,Decline,Cpu,CpuHeap,Gpu,Modules,HeapSpecs;
     for(const auto& X:Rows)if(X.Delta>0)
@@ -198,7 +206,14 @@ int32 ExportStreamingMemory(const FString& Input,const FString& Output,double Of
         if(Heap==0&&!IsHeap&&Cpu.Num()<Top)Cpu.Add(Convert(X));if(Heap==0&&IsHeap&&CpuHeap.Num()<Top)CpuHeap.Add(Convert(X));if(Heap==1&&!IsHeap&&Gpu.Num()<Top)Gpu.Add(Convert(X));
     }
     for(int32 I=Rows.Num()-1;I>=0&&Decline.Num()<Top;--I)if(Rows[I].Delta<0)Decline.Add(Convert(Rows[I]));
-    for(const auto& I:Inventory.Images){auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("name"),FPaths::GetCleanFilename(I.File));J->SetStringField(TEXT("base"),FString::Printf(TEXT("0x%llx"),I.Base));J->SetNumberField(TEXT("size"),I.Size);J->SetStringField(TEXT("status"),I.Symbols?TEXT("Loaded/deferred"):TEXT("Not loaded"));Modules.Add(MakeShared<FJsonValueObject>(J));}
+    for(const auto& I:Inventory.Images)
+    {
+        auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("name"),FPaths::GetCleanFilename(I.File));J->SetStringField(TEXT("base"),FString::Printf(TEXT("0x%llx"),I.Base));J->SetNumberField(TEXT("size"),I.Size);J->SetStringField(TEXT("status"),I.Symbols?TEXT("Loaded/deferred"):TEXT("Not loaded"));
+#if PLATFORM_WINDOWS
+        IMAGEHLP_MODULEW64 M{};M.SizeOfStruct=sizeof(M);if(SymbolsReady&&SymGetModuleInfoW64(Token,I.Base,&M)){J->SetNumberField(TEXT("sym_type"),int32(M.SymType));J->SetStringField(TEXT("loaded_pdb"),M.LoadedPdbName);J->SetBoolField(TEXT("pdb_matched"),(M.SymType==SymPdb||M.SymType==SymDia)&&!M.PdbUnmatched);J->SetBoolField(TEXT("line_numbers"),M.LineNumbers!=0);}
+#endif
+        Modules.Add(MakeShared<FJsonValueObject>(J));
+    }
     for(const auto& P:Inventory.Heaps){auto J=MakeShared<FJsonObject>();J->SetNumberField(TEXT("id"),P.Key);J->SetNumberField(TEXT("parent"),P.Value.Parent);J->SetStringField(TEXT("name"),P.Value.Name);HeapSpecs.Add(MakeShared<FJsonValueObject>(J));}
     R->SetArrayField(TEXT("top_growth"),Growth);R->SetArrayField(TEXT("top_decline"),Decline);R->SetArrayField(TEXT("cpu_user_growth"),Cpu);R->SetArrayField(TEXT("cpu_backing_growth"),CpuHeap);R->SetArrayField(TEXT("gpu_user_growth"),Gpu);R->SetArrayField(TEXT("modules"),Modules);R->SetArrayField(TEXT("heap_specs"),HeapSpecs);
     R->SetStringField(TEXT("limits"),TEXT("Live-only parser requires companion calibration cross-validation; unmatched events and unsupported symbols preserved. No inference of leak from one in-flight snapshot. Native code outside emitted trace coverage is not accounted."));
