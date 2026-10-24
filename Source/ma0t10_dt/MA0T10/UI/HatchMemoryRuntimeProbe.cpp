@@ -236,11 +236,11 @@ public:
         }
     }
 };
-TUniquePtr<FHatchMemoryRuntimeProbe> Probe;
+TUniquePtr<FHatchMemoryRuntimeProbe> HatchMemoryProbe;
 }
 
 void StartHatchMemoryRuntimeProbe()
 {
-    FString Directory;if(FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryRuntimeReport="),Directory)&&!Directory.IsEmpty())Probe=MakeUnique<FHatchMemoryRuntimeProbe>(MoveTemp(Directory));
+    FString Directory;if(FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryRuntimeReport="),Directory)&&!Directory.IsEmpty())HatchMemoryProbe=MakeUnique<FHatchMemoryRuntimeProbe>(MoveTemp(Directory));
 }
-void StopHatchMemoryRuntimeProbe(){Probe.Reset();}
+void StopHatchMemoryRuntimeProbe(){HatchMemoryProbe.Reset();}
