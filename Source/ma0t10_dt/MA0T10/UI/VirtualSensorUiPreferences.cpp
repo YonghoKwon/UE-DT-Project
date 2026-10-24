@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
@@ -16,9 +17,14 @@ UVirtualSensorUiPreferencesSaveGame* UVirtualSensorUiPreferencesSaveGame::LoadOr
 {
     const auto LoadSlot = [](const FString& Name) -> UVirtualSensorUiPreferencesSaveGame*
     {
-        return UGameplayStatics::DoesSaveGameExist(Name, UserIndex)
+        auto* Loaded=UGameplayStatics::DoesSaveGameExist(Name, UserIndex)
             ? Cast<UVirtualSensorUiPreferencesSaveGame>(UGameplayStatics::LoadGameFromSlot(Name, UserIndex))
             : nullptr;
+        if(Loaded)
+        {
+            VirtualSensorIdentity::MigrateCoilQuayKey(Loaded->PcdSendOptionsBySensor);
+        }
+        return Loaded;
     };
 
     if (UVirtualSensorUiPreferencesSaveGame* Loaded = LoadSlot(SlotName))

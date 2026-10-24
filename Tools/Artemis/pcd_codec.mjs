@@ -4,6 +4,10 @@ const sizes = [4,4,4,2,2,2,1,1,8,1,4];
 const types = 'F F F U U U U U I U F'.split(' ');
 const limit = 64 * 1024 * 1024;
 
+export function canonicalSensorId(id) {
+  return id === 'Coil.Quay.XT32' ? 'os_lidar_coil_quay' : id;
+}
+
 export function decodeLzf(data, expected, materialize = true) {
   if (!Number.isSafeInteger(expected) || expected < 0 || expected > limit) throw Error('LZF size');
   const out = materialize ? Buffer.allocUnsafe(expected) : null;
@@ -33,12 +37,17 @@ export function decodeLzf(data, expected, materialize = true) {
 export function parsePcd(body, { materialize = true } = {}) {
   if (!Buffer.isBuffer(body) || body.length > limit) throw Error('PCD size');
   const header = new Map();
-  let offset = 0, found = false;
+  let offset = 0, found = false, metadata = null;
   while (offset < Math.min(body.length, 65536)) {
     const end = body.indexOf(10, offset);
     if (end < 0 || end >= 65536) throw Error('PCD header');
     const line = body.subarray(offset, end).toString('utf8').trim();
     offset = end + 1;
+    if (line.startsWith('# MA0T10_META ')) {
+      if (metadata !== null) throw Error('duplicate PCD metadata');
+      metadata = JSON.parse(line.slice(14));
+      if (typeof metadata.sensor_id === 'string') metadata.sensor_id = canonicalSensorId(metadata.sensor_id);
+    }
     if (!line || line.startsWith('#')) continue;
     const [key, ...values] = line.split(/\s+/);
     if (header.has(key)) throw Error('duplicate PCD header');
@@ -74,5 +83,5 @@ export function parsePcd(body, { materialize = true } = {}) {
       fields.forEach((_,f)=>{const bytes=size[f]*count[f];for(let p=0;p<points;p++)soa.copy(records,p*step+offsets[f],plane+p*bytes,plane+(p+1)*bytes);plane+=points*bytes;});
     }
   }
-  return {points,step,fields,offsets,records,mode,payloadOffset:offset,headerText:body.subarray(0,offset).toString('utf8')};
+  return {points,step,fields,offsets,records,mode,metadata,payloadOffset:offset,headerText:body.subarray(0,offset).toString('utf8')};
 }

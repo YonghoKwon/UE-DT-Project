@@ -114,6 +114,10 @@ MEMORY-TREND-26c(기준 `3ed0367`): Scheduler 주기 로그를 기본 억제하�
 
 검증 조건·성공/실패·skip·직접 UI·제한과 설정 복원은 [result.json](Saved/Reports/HATCH07-COIL02/result.json), [검증 이력](docs/VALIDATION_HISTORY.md#2026-10-23-hatch-07--coil-02)을 따른다. PCD 송신 예산/성능은 #28 범위다.
 
+### COIL-LIDAR-ID 출하부두 센서 식별자
+
+코일 출하부두 LiDAR의 역할 ID는 `os_lidar_coil_quay`다. 옛 `Coil.Quay.XT32`는 배치·저장 위치·SaveGame의 센서별 PCD 옵션·녹화·PCD 수신에서 읽기 별칭으로 받는다. 기존 파일은 읽기만으로 다시 저장하지 않으며 새 ID와 옛 ID가 같은 배치에 있으면 중복으로 거절한다. 토픽·33-byte PCD 레코드·슬롯/버전은 유지하지만 새 프레임의 `sensor-id`/`x-sensor-id`, JSON `sensorId`, PCD 메타 `sensor_id`는 새 ID를 쓴다. 서버가 ID를 필터링하면 새 역할 ID를 허용해야 한다. 서버/현장 수용은 로컬 회귀와 별도다. [검증·기본 프로필 확인](Saved/Reports/COIL-LIDAR-ID/RESULT.md).
+
 ### COIL-01d 주 다리·수평 강관·저각 비교
 
 #31d는 ref6의 해측 주 다리를 하부/상부 두 구간으로 구성하고 상부 횡경사 약20.1°를 선택했다. 사진 후보3종과 부재별 근거는 [근거표](docs/research/COIL-01d-basis.md)를 따른다. 굵은 수평 강관4단·소수 대각재로 바꾸고 반복된 작은 X 격자를 제거했다. 기존 하부 knee strut 금지 검사는 유지한다. 크레인 근접 프리셋은 안벽 위1.8m·가로72° 저각이며 선박/붐이 화면 왼쪽이다. 반경·양정·적재 판정 기준은 유지하고 주 다리 단순 충돌만 형상에 맞춘다.

@@ -1,4 +1,5 @@
 #include "VirtualLidarSensorActor.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 
 #include "Components/ArrowComponent.h"
@@ -105,8 +106,11 @@ void AVirtualLidarSensorActor::PostEditChangeProperty(FPropertyChangedEvent& Eve
     Super::PostEditChangeProperty(Event);
 }
 #endif
-bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableState& State, FString& OutError)
+bool AVirtualLidarSensorActor::ApplyEditableState(const FVirtualSensorEditableState& RequestedState, FString& OutError)
 {
+    FVirtualSensorEditableState State=RequestedState;
+    State.SensorId=VirtualSensorIdentity::Canonical(State.SensorId);
+    State.OriginalSensorId=VirtualSensorIdentity::Canonical(State.OriginalSensorId);
     FVirtualSensorHitchScope HitchScope(EVirtualSensorHitchSection::SensorApply);
     if (!ValidateEditableState(State, OutError))
     {

@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { parsePcd } from './pcd_codec.mjs';
+import { parsePcd, canonicalSensorId } from './pcd_codec.mjs';
 
 const args = new Map();
 for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i], process.argv[i + 1]);
@@ -182,7 +182,7 @@ function validateBinaryPcd(headers, body) {
         if (checks.coordinatePose) embeddedPose = { positionWorldM: position, sensorToWorldM: matrix };
       }
       checks.embeddedMetadata = metadataLines.length === 1 && meta.schema === 'virtual-pointcloud.context.v1' &&
-        meta.sensor_id === (headers['sensor-id'] ?? headers['x-sensor-id']) &&
+        canonicalSensorId(meta.sensor_id) === canonicalSensorId(headers['sensor-id'] ?? headers['x-sensor-id']) &&
         meta.sensor_frame_id === (headers['frame-id'] ?? headers['x-frame-id']);
       if (requiredSlabRuns > 0) checks.embeddedSlab = meta.run_uuid === headers['x-run-uuid'] &&
         meta.mtl_no === headers['x-mtl-no'] && meta.frame_no === headers['x-slab-frame-no'] &&
@@ -390,7 +390,7 @@ socket.addEventListener('message', async event => {
         acquisitionUtc: parsed.headers['timestamp-utc'] ?? parsed.headers['x-utc'] ?? '',
         destination,
         requestId: parsed.headers['x-request-id'] ?? parsed.headers['request-id'] ?? '',
-        sensorId: parsed.headers['x-sensor-id'] ?? parsed.headers['sensor-id'] ?? '',
+        sensorId: canonicalSensorId(parsed.headers['x-sensor-id'] ?? parsed.headers['sensor-id'] ?? ''),
         sensorType: parsed.headers['x-sensor-type'] ?? '',
         dataKind: parsed.headers['x-data-kind'] ?? '',
         frameId: parsed.headers['x-frame-id'] ?? parsed.headers['frame-id'] ?? '',

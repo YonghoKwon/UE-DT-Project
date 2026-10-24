@@ -89,6 +89,10 @@ allocation 후속(기준a64dcc8/실측f1236f6): idle trace15분과4개 cut 및 �
 검수 추가: 측면/해치 하향/상부 사선 근접 프리셋, 기본 Grab/Trolley TF·상자, 순수 센서 RGB와 원료 보라 높이 옵션을 반영한다. 코일의 Slab 진행·재생·차트 생성뿐 아니라 공통 시나리오 메뉴·사행 상태 카드·상태 칩도 숨기며 숨긴 Slab 조회/문자열 조립을 멈춘다. [비교 캡처](../Saved/Reports/HATCH07-COIL02/progress/hatch-rviz-compare.png)는 현장 실측 TF 정합이나 실제 스캔 복원 증거가 아니다.
 
 
+## COIL-LIDAR-ID — 출하부두 역할 ID·읽기 호환
+
+`Coil.Quay.XT32`를 `os_lidar_coil_quay`로 정리하고 기존 배치·저장 위치·SaveGame PCD 옵션·녹화·PCD 메타를 읽는 경계에서 별칭을 적용한다. 토픽과 PCD 레코드는 유지하며 새 송신 ID의 서버 필터 영향·실제 기본 프로필과 캡처 프로필의 차이는 [결과](../Saved/Reports/COIL-LIDAR-ID/RESULT.md)에 기록한다. 수행/실패/미수행은 같은 폴더의 result.json을 따른다.
+
 ## COIL-01d — 주 다리·수평 강관·저각 비교
 
 #31d: 해측 주 다리2구간/상부20.1°, 굵은 수평 강관4단과 사진의 소수 대각재, 주 다리→붐 연결과 저각 카메라를 반영한다. [부재별 근거·후보·예비안](research/COIL-01d-basis.md), [결과](../Saved/Reports/COIL-01d/RESULT.md)를 따른다. 실제 구조 인증 각도는 미확인이고 반경·양정·적재 판정 기준은 유지한다. release/RT on ABAB2%/layer0/복원은 최종 result.json으로 보고한다.

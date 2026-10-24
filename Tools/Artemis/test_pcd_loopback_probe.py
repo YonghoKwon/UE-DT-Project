@@ -4,10 +4,15 @@ import random
 import struct
 import unittest
 
-from pcd_loopback_probe import FIELD_TYPES, decode_lzf, validate_pcd
+from pcd_loopback_probe import FIELD_TYPES, decode_lzf, validate_pcd, canonical_sensor_id
 
 
 class PcdLoopbackTests(unittest.TestCase):
+    def test_legacy_coil_sensor_identity(self):
+        self.assertEqual(canonical_sensor_id("Coil.Quay.XT32"), "os_lidar_coil_quay")
+        self.assertEqual(canonical_sensor_id("os_lidar_coil_quay"), "os_lidar_coil_quay")
+        self.assertEqual(canonical_sensor_id("Coil.Quay.XT32.custom"), "Coil.Quay.XT32.custom")
+
     def test_profiles_and_encodings(self):
         for names in (list(FIELD_TYPES), "x y z intensity ring time_offset_ns".split(),
                       "x y z".split(), "x y z confidence".split()):

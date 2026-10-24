@@ -1,4 +1,5 @@
 #include "VirtualSensorLayoutSubsystem.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "VirtualSensorPlacementSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
@@ -240,6 +241,11 @@ FString UVirtualSensorLayoutSubsystem::PreviewLayoutRestore(const FString& Name)
     if(PendingWrite||bEnding)return AddOperation(EVirtualSensorLayoutOperation::Failed,TEXT("배치 쓰기가 끝난 뒤 불러오세요."));
     FString Json,Reason;FVirtualSensorLayoutDocument D;const FString Path=LayoutPath(Name);
     if(IFileManager::Get().FileSize(*Path)>1024*1024||!FFileHelper::LoadFileToString(Json,*Path)||!FJsonObjectConverter::JsonObjectStringToUStruct(Json,&D))return AddOperation(EVirtualSensorLayoutOperation::Failed,TEXT("배치 파일을 읽을 수 없습니다. 원본 보존"),Path);
+    for(auto& E:D.Sensors)
+    {
+        E.State.SensorId=VirtualSensorIdentity::Canonical(E.State.SensorId);
+        E.State.OriginalSensorId=VirtualSensorIdentity::Canonical(E.State.OriginalSensorId);
+    }
     TArray<AVirtualSensorActorBase*> Matches,Excess;if(!ValidateDocument(D,Matches,Excess,Reason))return AddOperation(EVirtualSensorLayoutOperation::Failed,Reason,Path);
     int32 Create=0,Update=0;for(auto* S:Matches){if(S)++Update;else ++Create;}
     RestoreDocument=MoveTemp(D);RestoreInventoryRevision=Revision;RestorePoses.Reset();RestoreRevisions.Reset();
