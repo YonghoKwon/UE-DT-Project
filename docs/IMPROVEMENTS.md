@@ -93,6 +93,8 @@ allocation 후속(기준a64dcc8/실측f1236f6): idle trace15분과4개 cut 및 �
 
 사용자2026-10-25 결정으로 신규 코일 LiDAR만 원료 하역과 같은 Ouster OS1-64 Rev7/FullSpec/1024×64·20Hz를 기본으로 생성한다. 명시 저장 프로필/간격/미리보기는 실제 복원 경로와 장면 재구성에서 보존한다. UI는 현재 모델과 목표Hz를 표시한다. KeyGeometry·기존 잔차/중심 편차 기준은 유지한다. [근거·80MiB/s 계산](research/COIL-OUSTER-basis.md), [실측·회귀·성능·캡처](../Saved/Reports/COIL-OUSTER/RESULT.md)/result.json을 따른다.
 
+현재 gate: 관련78 Success/3조건부Skip/0Fail·PCD loopback 통과, RT on ABAB **GT +8.291%·GPU +5.377%로2% FAIL**, merge_check BLOCKED(exit2). FPS/p95는 유지됐으며 직접 마우스는 보안 팝업으로 미수행이다. 품질/Hz/기준 완화나 공통 GPU 경로의 미검증 변경으로 통과시키지 않았다. 추가 성능 최적화는 별도 범위/계획이 필요하다.
+
 ## CRANE-31e — 사진의 상부 경사관·붐 밑면 격자
 
 ref1/ref4/ref6에서 보이는7개 부재만 기존 표시 전용 인스턴스로 보강한다. [부재별 근거](research/CRANE-31e-basis.md)에 관찰 위치와 표시 치수 가정을 구분했으며 GTSU의 다른 구조를 복제하지 않는다. 기존 하부 knee strut 금지와 측정/충돌·idle 회귀는 유지한다. 같은 구도의 전후1600px JPG와 RT on ABAB2% 결과·미수행은 [RESULT](../Saved/Reports/CRANE-31e/RESULT.md)/result.json을 따른다.
