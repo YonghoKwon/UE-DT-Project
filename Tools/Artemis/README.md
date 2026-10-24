@@ -1,5 +1,7 @@
 # MA0T10 Artemis 개발 Broker
 
+코일 출하부두 LiDAR의 새 역할 ID는 `os_lidar_coil_quay`다. `pcd_codec.mjs`의 메타 읽기, `stomp_probe.mjs`의 메타 대조/집계, Python loopback 집계는 옛 `Coil.Quay.XT32`를 같은 ID로 읽는다. PCD 원본 bytes와 체크섬은 그대로 검증한다. 토픽은 유지하며 외부 서버의 ID 필터는 새 ID 허용 여부를 별도로 확인한다.
+
 ## Binary PCD 20Hz 설정
 
 버전 관리되는 `etc-override/broker.xml`은 ML-X(80) 실시간 PCD를 위해 다음 값을 사용합니다.

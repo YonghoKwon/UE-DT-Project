@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "SensorToolWidgetDecl.h"
 #include "SensorOwnedPresentationStyle.h"
@@ -1329,7 +1330,8 @@ bool UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(const FVirtu
 {
     if (State.SensorId.TrimStartAndEnd().IsEmpty()) { OutError = TEXT("SensorId가 비어 있습니다"); return false; }
     if (State.ActorTransform.ContainsNaN()) { OutError = TEXT("Transform에 유효하지 않은 숫자가 있습니다"); return false; }
-    if (OtherSensorIds.Contains(State.SensorId)) { OutError = TEXT("이미 사용 중인 SensorId입니다"); return false; }
+    const FString Id=VirtualSensorIdentity::Canonical(State.SensorId);
+    if (OtherSensorIds.ContainsByPredicate([&](const FString& Other){return VirtualSensorIdentity::Canonical(Other)==Id;})) { OutError = TEXT("이미 사용 중인 SensorId입니다"); return false; }
     if (State.TargetKind == EVirtualSensorTargetKind::Camera)
     {
         if (!FMath::IsFinite(State.CameraCaptureInterval) || !FMath::IsFinite(State.CameraFov) ||

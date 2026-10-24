@@ -1,4 +1,5 @@
 #include "VirtualSensorPlacementSubsystem.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
@@ -55,6 +56,7 @@ bool UVirtualSensorPlacementSubsystem::EnsureLoaded()
         if(!Object.IsValid()||!FJsonObjectConverter::JsonObjectToUStruct(Object.ToSharedRef(),&B)||!FGuid::Parse(B.BookmarkId,Guid)||!Guid.IsValid()||Ids.Contains(B.BookmarkId)||
            B.MapPackage!=LoadedMap||B.SensorId.IsEmpty()||B.Name.TrimStartAndEnd().IsEmpty()||B.Name.Len()>64||B.Revision<1||B.Pose.ContainsNaN()||!B.Pose.GetRotation().IsNormalized()||
            (B.SensorKind!=EVirtualSensorKind::Camera&&B.SensorKind!=EVirtualSensorKind::Lidar))return Fail();
+        B.SensorId=VirtualSensorIdentity::Canonical(B.SensorId);
         const FString Key=LexToString(int32(B.SensorKind))+TEXT("|")+B.SensorId;const FString NameKey=Key+TEXT("|")+B.Name.ToLower();
         if(Names.Contains(NameKey)||++Counts.FindOrAdd(Key)>MaxBookmarksPerSensor)return Fail();
         B.Pose.SetScale3D(FVector::OneVector);Ids.Add(B.BookmarkId);Names.Add(NameKey);Loaded.Add(MoveTemp(B));

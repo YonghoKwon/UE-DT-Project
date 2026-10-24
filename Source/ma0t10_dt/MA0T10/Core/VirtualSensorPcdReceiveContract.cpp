@@ -1,4 +1,5 @@
 #include "VirtualSensorPcdReceiveContract.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorStreamReceiverTypes.h"
 
 namespace
@@ -32,6 +33,7 @@ bool FVirtualSensorPcdReceiveContract::Normalize(const TMap<FName,FString>& Inpu
 {
 	Output=Input;
 	D.SensorId=Input.FindRef(TEXT("x-sensor-id")); if(D.SensorId.IsEmpty()) D.SensorId=Input.FindRef(TEXT("sensor-id"));
+	D.SensorId=VirtualSensorIdentity::Canonical(D.SensorId);
 	FString Frame=Input.FindRef(TEXT("x-frame-id")); if(Frame.IsEmpty()) Frame=Input.FindRef(TEXT("frame-id")); LexTryParseString(D.FrameId,*Frame);
 	D.SchemaVersion=Input.FindRef(TEXT("schema")); D.Topic=Input.FindRef(TEXT("destination"));
 	D.RequestId=Input.FindRef(TEXT("x-request-id")); if(D.RequestId.IsEmpty()) D.RequestId=Input.FindRef(TEXT("request-id"));
@@ -46,6 +48,7 @@ bool FVirtualSensorPcdReceiveContract::Normalize(const TMap<FName,FString>& Inpu
 		const FString *A=Input.Find(F.A),*B=Input.Find(F.B);
 		if(!A&&!B) { D.ErrorCode=TEXT("header-missing"); D.Message=FString::Printf(TEXT("필수 헤더 누락: %s 또는 %s"),F.A,F.B); return false; }
 		FString VA=A?*A:*B, VB=B?*B:VA;
+		if(FCString::Strcmp(F.A,TEXT("x-sensor-id"))==0){VA=VirtualSensorIdentity::Canonical(VA);VB=VirtualSensorIdentity::Canonical(VB);}
 		if(!Canonical(VA,F.Type)||!Canonical(VB,F.Type)) { D.ErrorCode=TEXT("header-invalid"); D.Message=FString::Printf(TEXT("헤더 값/타입 오류: %s 또는 %s"),F.A,F.B); return false; }
 		if(VA!=VB) { D.ErrorCode=TEXT("header-conflict"); D.Message=FString::Printf(TEXT("헤더 별칭 충돌: %s / %s"),F.A,F.B); return false; }
 		Output.Add(F.A,VA);

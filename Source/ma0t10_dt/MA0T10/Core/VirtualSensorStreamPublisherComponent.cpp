@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "VirtualPointCloudCoordinates.h"
@@ -70,7 +71,8 @@ void UVirtualSensorStreamPublisherComponent::SetTransportComponent(UVirtualSenso
 
 FString UVirtualSensorStreamPublisherComponent::MakeStreamKey(EVirtualSensorStreamKind StreamKind, const FString& SensorId) const
 {
-	return FString::Printf(TEXT("%d|%s"), static_cast<int32>(StreamKind), SensorId.IsEmpty() ? TEXT("*") : *SensorId);
+	const FString Id=VirtualSensorIdentity::Canonical(SensorId);
+	return FString::Printf(TEXT("%d|%s"), static_cast<int32>(StreamKind), Id.IsEmpty() ? TEXT("*") : *Id);
 }
 
 UVirtualSensorStreamPublisherComponent::FStreamRuntime& UVirtualSensorStreamPublisherComponent::FindOrAddRuntime(EVirtualSensorStreamKind StreamKind, const FString& SensorId)
@@ -78,14 +80,15 @@ UVirtualSensorStreamPublisherComponent::FStreamRuntime& UVirtualSensorStreamPubl
 	const FString Key = MakeStreamKey(StreamKind, SensorId);
 	FStreamRuntime& Runtime = StreamRuntimes.FindOrAdd(Key);
 	Runtime.Config.StreamKind = StreamKind;
-	Runtime.Config.SensorId = SensorId;
+	Runtime.Config.SensorId = VirtualSensorIdentity::Canonical(SensorId);
 	Runtime.Status.StreamKind = StreamKind;
-	Runtime.Status.SensorId = SensorId;
+	Runtime.Status.SensorId = Runtime.Config.SensorId;
 	return Runtime;
 }
 
 FVirtualSensorStreamConfig UVirtualSensorStreamPublisherComponent::NormalizeLiveConfig(FVirtualSensorStreamConfig Config)
 {
+	Config.SensorId=VirtualSensorIdentity::Canonical(Config.SensorId.TrimStartAndEnd());
 	if (Config.StreamKind == EVirtualSensorStreamKind::PointCloud)
 	{
 		Config.PointCloudFormat = EVirtualPointCloudStreamFormat::PCD;
@@ -102,7 +105,7 @@ FVirtualSensorStreamConfig UVirtualSensorStreamPublisherComponent::GetEffectiveS
 	if (const FStreamRuntime* Runtime = StreamRuntimes.Find(MakeStreamKey(Kind, SensorId))) return Runtime->Config;
 	FVirtualSensorStreamConfig Config;
 	Config.StreamKind = Kind;
-	Config.SensorId = SensorId;
+	Config.SensorId = VirtualSensorIdentity::Canonical(SensorId);
 	return NormalizeLiveConfig(Config);
 }
 
@@ -1076,16 +1079,19 @@ void UVirtualSensorStreamPublisherComponent::SubmitImuBatch(const FString& Id,in
     }
 }
 
-FVirtualPcdSendOptions UVirtualSensorStreamPublisherComponent::GetPcdSendOptions(const FString& Id) const
+FVirtualPcdSendOptions UVirtualSensorStreamPublisherComponent::GetPcdSendOptions(const FString& RequestedId) const
 {
+    const FString Id=VirtualSensorIdentity::Canonical(RequestedId);
     if(const auto* O=PcdSendOptionsBySensor.Find(Id))return *O;
+    if(Id==VirtualSensorIdentity::CoilQuay)if(const auto* O=PcdSendOptionsBySensor.Find(VirtualSensorIdentity::LegacyCoilQuay))return *O;
     if(const auto* O=PcdSendOptionsBySensor.Find(FString()))return *O;
     FVirtualSensorStreamConfig Config;
     if(ResolveActiveStreamForSensor(EVirtualSensorStreamKind::PointCloud,Id,Config)&&Config.bOverridePcdSendOptions)return Config.PcdSendOptions;
     FVirtualPcdSendOptions Default;Default.bCompressed=bDefaultPcdCompression;return Default;
 }
-bool UVirtualSensorStreamPublisherComponent::SetPcdSendOptions(const FString& Id,const FVirtualPcdSendOptions& Options,bool All,FString& Error)
+bool UVirtualSensorStreamPublisherComponent::SetPcdSendOptions(const FString& RequestedId,const FVirtualPcdSendOptions& Options,bool All,FString& Error)
 {
+    const FString Id=VirtualSensorIdentity::Canonical(RequestedId);
     Error.Reset();
     if(!All&&Id.IsEmpty()){Error=TEXT("Select a LiDAR first");return false;}
     // Accepted FIFO work drains under its original configuration. Never flush it to apply a UI option.

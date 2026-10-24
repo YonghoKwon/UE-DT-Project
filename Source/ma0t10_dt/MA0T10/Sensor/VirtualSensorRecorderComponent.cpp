@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 
 #include "Json.h"
 #include "Misc/FileHelper.h"
@@ -6,6 +7,24 @@
 #include "EngineUtils.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h"
+
+namespace
+{
+FString ReadPayloadIdentity(const FString& Json)
+{
+    if(!Json.Contains(VirtualSensorIdentity::LegacyCoilQuay,ESearchCase::CaseSensitive))return Json;
+    TSharedPtr<FJsonObject> Object;
+    if(!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json),Object)||!Object.IsValid())return Json;
+    bool Changed=false;
+    for(const TCHAR* Key:{TEXT("sensorId"),TEXT("sensor_id")})
+    {
+        FString Id;if(Object->TryGetStringField(Key,Id)&&Id==VirtualSensorIdentity::LegacyCoilQuay)
+        {Object->SetStringField(Key,VirtualSensorIdentity::CoilQuay);Changed=true;}
+    }
+    if(!Changed)return Json;
+    FString Result;FJsonSerializer::Serialize(Object.ToSharedRef(),TJsonWriterFactory<>::Create(&Result));return Result;
+}
+}
 
 UVirtualSensorRecorderComponent::UVirtualSensorRecorderComponent()
 {
@@ -109,11 +128,11 @@ bool UVirtualSensorRecorderComponent::LoadSessionFromFile(const FString& Absolut
         }
 
         FVirtualSensorRecordedFrame Frame;
-        Frame.SensorId = (*FrameObject)->GetStringField(TEXT("sensorId"));
+        Frame.SensorId = VirtualSensorIdentity::Canonical((*FrameObject)->GetStringField(TEXT("sensorId")));
         Frame.SensorType = (*FrameObject)->GetStringField(TEXT("sensorType"));
         Frame.FrameId = static_cast<int64>((*FrameObject)->GetNumberField(TEXT("frameId")));
         FDateTime::ParseIso8601(*(*FrameObject)->GetStringField(TEXT("timestampUtc")), Frame.TimestampUtc);
-        Frame.PayloadJson = (*FrameObject)->GetStringField(TEXT("payloadJson"));
+        Frame.PayloadJson = ReadPayloadIdentity((*FrameObject)->GetStringField(TEXT("payloadJson")));
         RecordedFrames.Add(Frame);
     }
 

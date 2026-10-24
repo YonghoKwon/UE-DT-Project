@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualPointCloudStreamReceiverTC.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorPcdReceiveContract.h"
 
 #include "Json.h"
@@ -205,7 +206,7 @@ TSharedPtr<FTransactionCodeDataBase> UVirtualPointCloudStreamReceiverTC::ParseBi
 	if (Embedded.IsValid())
 	{
 		FString Sensor, Frame, Utc;
-		if (!Embedded->TryGetStringField(TEXT("sensor_id"),Sensor) || Sensor!=Data->SensorId ||
+		if (!Embedded->TryGetStringField(TEXT("sensor_id"),Sensor) || VirtualSensorIdentity::Canonical(Sensor)!=Data->SensorId ||
 			!Embedded->TryGetStringField(TEXT("sensor_frame_id"),Frame) || Frame!=LexToString(Data->FrameId) ||
 			!Embedded->TryGetStringField(TEXT("timestamp_utc"),Utc) || Utc!=TimestampText)
 		{ Data->Message=TEXT("PCD 내부 센서 식별 정보와 STOMP 헤더가 다릅니다."); return Data; }

@@ -1,7 +1,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { parsePcd, decodeLzf } from './pcd_codec.mjs';
+import { parsePcd, decodeLzf, canonicalSensorId } from './pcd_codec.mjs';
+
+test('legacy coil metadata resolves to role ID without changing archived PCD bytes',()=>{
+  const original=fs.readFileSync(new URL('../../Source/ma0t10_dt/MA0T10/Sensor/Tests/Fixtures/ArchitectureWire/with-context.pcd',import.meta.url));
+  const parsed=parsePcd(original), lines=parsed.headerText.split('\n');
+  const index=lines.findIndex(line=>line.startsWith('# MA0T10_META '));
+  const meta=JSON.parse(lines[index].slice(14));meta.sensor_id='Coil.Quay.XT32';
+  lines[index]='# MA0T10_META '+JSON.stringify(meta);
+  const archived=Buffer.concat([Buffer.from(lines.join('\n')),original.subarray(parsed.payloadOffset)]), before=Buffer.from(archived);
+  const loaded=parsePcd(archived);
+  assert.equal(loaded.metadata.sensor_id,'os_lidar_coil_quay');
+  assert.deepEqual(archived,before);assert.deepEqual(loaded.records,parsed.records);
+  assert.equal(canonicalSensorId('Coil.Quay.XT32.custom'),'Coil.Quay.XT32.custom');
+});
 
 test('existing Full golden records remain bit exact',()=>{
   const body=fs.readFileSync(new URL('../../Source/ma0t10_dt/MA0T10/Sensor/Tests/Fixtures/ArchitectureWire/with-context.pcd',import.meta.url));

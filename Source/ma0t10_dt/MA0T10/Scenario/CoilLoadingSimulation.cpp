@@ -1,4 +1,5 @@
 #include "CoilLoadingSimulation.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
@@ -55,7 +56,7 @@ void ACoilLoadingSimulation::ConfigureLidar()
     if(!Lidar)return;Lidar->SetFlags(RF_Transient);Lidar->ScanComponent->bAutoStartScan=false;Lidar->FinishSpawning(GetActorTransform());
     FVirtualSensorEditableState S,Applied;FString E;Lidar->ReadEditableState(S);S.LidarProfile=EVirtualLidarDeviceProfile::HesaiXT32;S.SimulationQuality=EVirtualSensorSimulationQuality::FullSpec;
     if(!Lidar->ApplyProfileAndSimulationQuality(S,Applied,E)){Status=E;return;}Lidar->ReadEditableState(S);
-    S.SensorId=TEXT("Coil.Quay.XT32");S.ActorTransform=FTransform(GetActorQuat()*FRotator(-72,112,0).Quaternion(),GetActorTransform().TransformPosition(FVector(-Settings.HoldLength*.5+4,-Settings.HoldWidth*.5+3,Settings.HoldHeight+8)*100));
+    S.SensorId=VirtualSensorIdentity::CoilQuay;S.ActorTransform=FTransform(GetActorQuat()*FRotator(-72,112,0).Quaternion(),GetActorTransform().TransformPosition(FVector(-Settings.HoldLength*.5+4,-Settings.HoldWidth*.5+3,Settings.HoldHeight+8)*100));
     S.LidarScanInterval=.05f;S.bLidarMaterialResponse=true;S.PreviewPointStride=2;S.MaxPreviewPoints=12000;S.bExportPcdOnScan=false;S.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::WhenRequested;
     if(!Lidar->ApplyEditableState(S,E)){Status=E;return;}
     FVirtualLidarSemanticClassRule Rule;Rule.Label=TEXT("Coil");Rule.ActorTags={TEXT("Coil")};Rule.DisplayColor=FLinearColor(.9,.55,.1);Lidar->ScanComponent->SemanticClassRules.Insert(Rule,0);

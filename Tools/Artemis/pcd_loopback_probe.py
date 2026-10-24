@@ -15,6 +15,10 @@ from pathlib import Path
 
 MAX_BODY = 8 * 1024 * 1024
 NATIVE_LZF_VALIDATOR = None
+
+
+def canonical_sensor_id(sensor_id):
+    return "os_lidar_coil_quay" if sensor_id == "Coil.Quay.XT32" else sensor_id
 # PCD 0.7/PCL field layout. Full remains the default; optional stream profiles
 # select a subset with mandatory XYZ. Storage writers continue using Full.
 FIELD_TYPES = dict(zip(
@@ -167,7 +171,7 @@ async def main(args):
                     except (ValueError, KeyError) as error:
                         report["invalid"] += 1
                         raise ValueError(str(error)) from error
-                    sensor, frame = headers["sensor-id"], int(headers["frame-id"])
+                    sensor, frame = canonical_sensor_id(headers["sensor-id"]), int(headers["frame-id"])
                     row = report["sensors"].setdefault(sensor, {"frames": 0, "bytes": 0,
                         "gaps": 0, "duplicates": 0, "max_gap_ms": 0,
                         "first_frame": frame, "first_unix": time.time(), "samples": []})

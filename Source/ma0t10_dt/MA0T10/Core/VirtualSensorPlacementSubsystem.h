@@ -85,6 +85,7 @@ private:
     void RecordCommand(AVirtualSensorActorBase* Sensor,const FTransform& Before,const FTransform& After,const FString& BeforeBookmark,const FString& AfterBookmark);
     static FWriteResult WriteLibrary(const FString& Path,const FString& Json);
 #if WITH_DEV_AUTOMATION_TESTS
+    friend class FCoilIdentityLoad;
     friend class FSensorPoseLibraryTest;
     friend class FSensorPoseLibraryRhiTest;
     friend class FSlabRunPlacementSnapshotTest;
