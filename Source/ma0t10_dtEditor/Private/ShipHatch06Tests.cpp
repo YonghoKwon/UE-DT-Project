@@ -116,8 +116,13 @@ struct FHatch06Probe
  static void FloorCamera(UShipHatchMonitorWidget& M,FVector2D Target)
  {
   const auto Pose=M.Simulation->GetActorTransform();const auto P=Pose.TransformPosition(FVector(Target.X+3,Target.Y-2,15)*100),Aim=Pose.TransformPosition(FVector(Target,0)*100);
-  M.Host->ViewCamera->SetActorLocationAndRotation(P,(Aim-P).Rotation());
+  // UXR-P2b (fadf810) made toolbar height part of Layout's cache key.
+  // A later layout pass legitimately reapplies the monitor's camera state.
+  // Use the production free-camera state so the fixture survives that pass;
+  // keep the original eye/target, geometry, collision and pixel predicates.
+  M.SetFreeCamera(true);M.FreeCameraPosition=P;M.FreeCameraRotation=(Aim-P).Rotation();M.UpdateCamera();
  }
+ static bool UsesFreeCamera(const UShipHatchMonitorWidget& M){return M.bFreeCamera;}
  static void Settings(UShipHatchMonitorWidget& M,bool Open){if(M.bSettings!=Open)M.OnSettings();}
  static void CheckLayout(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
  {
@@ -209,13 +214,31 @@ class FHatch06Run:public IAutomationLatentCommand
   {
    FHitResult First;const FVector Aim=Sim->GetActorTransform().TransformPosition(FVector(Target,-.05)*100);FCollisionQueryParams Query(SCENE_QUERY_STAT(Hatch06FloorPixel),true);
    FVector Eye;FRotator EyeRotation;W->GetFirstPlayerController()->GetPlayerViewPoint(Eye,EyeRotation);
+   const auto Pose=Sim->GetActorTransform();const FVector ExpectedEye=Pose.TransformPosition(FVector(Target.X+3,Target.Y-2,15)*100),ExpectedAim=Pose.TransformPosition(FVector(Target,0)*100);
+   const bool StableCamera=FHatch06Probe::UsesFreeCamera(M)&&Eye.Equals(ExpectedEye,.1)&&EyeRotation.Equals((ExpectedAim-ExpectedEye).Rotation(),.001);
+   R->SetBoolField(TEXT("production_free_camera_pose_preserved"),StableCamera);R->SetNumberField(TEXT("camera_position_error_cm"),FVector::Distance(Eye,ExpectedEye));
+   T->TestTrue(TEXT("production free-camera floor fixture survives layout updates at its original eye and target"),StableCamera);
    const bool HasHit=W->LineTraceSingleByChannel(First,Eye,Aim,ECC_Visibility,Query);
    const double FirstZ=HasHit?Sim->GetActorTransform().InverseTransformPosition(First.ImpactPoint).Z*.01:1.e9;
    const bool TankTop=HasHit&&First.GetActor()&&First.GetActor()->ActorHasTag(TEXT("HatchHold"))&&FMath::Abs(FirstZ)<.005;
    R->SetBoolField(TEXT("first_visible_hit_is_tank_top"),TankTop);R->SetNumberField(TEXT("first_hit_local_z_m"),FirstZ);
+   R->SetStringField(TEXT("first_hit_actor"),GetNameSafe(First.GetActor()));
    T->TestTrue(TEXT("pixel sample sightline first hits actual Z0 tank-top, with no crane/cargo occlusion"),TankTop);
-   FVector2D P;const auto* S=M.GetSimulation();W->GetFirstPlayerController()->ProjectWorldLocationToScreen(S->GetActorTransform().TransformPosition(FVector(Target,0)*100),P,false);
-   int Hit=0,Total=0;for(int Y=-3;Y<=3;++Y)for(int X=-3;X<=3;++X){const int PX=FMath::RoundToInt(P.X)+X,PY=FMath::RoundToInt(P.Y)+Y;if(PX>=0&&PY>=0&&PX<Size.X&&PY<Size.Y){const auto C=Pixels[PY*Size.X+PX];++Total;const int Low=FMath::Min3(int(C.R),int(C.G),int(C.B)),High=FMath::Max3(int(C.R),int(C.G),int(C.B));Hit+=Low>=40&&High<=180&&High-Low<=24;}}
+   FVector2D P=FVector2D::ZeroVector;auto* PC=W->GetFirstPlayerController();const bool Projected=PC->ProjectWorldLocationToScreen(ExpectedAim,P,false);
+   const auto PixelToLocal=M.GetCachedGeometry().GetLocalSize()/FVector2D(Size.X,Size.Y);const auto FloorScene=FHatch06Probe::Scene(M);
+   T->TestTrue(TEXT("complete7x7 floor sample projects inside the visible3D pane"),Projected&&FloorScene.ContainsPoint((P-FVector2D(3,3))*PixelToLocal)&&FloorScene.ContainsPoint((P+FVector2D(3,3))*PixelToLocal));
+   int Hit=0,Total=0,FloorHits=0;TArray<TSharedPtr<FJsonValue>> Samples;
+   for(int Y=-3;Y<=3;++Y)for(int X=-3;X<=3;++X)
+   {
+    const int PX=FMath::RoundToInt(P.X)+X,PY=FMath::RoundToInt(P.Y)+Y;if(PX<0||PY<0||PX>=Size.X||PY>=Size.Y)continue;
+    const auto C=Pixels[PY*Size.X+PX];++Total;const int Low=FMath::Min3(int(C.R),int(C.G),int(C.B)),High=FMath::Max3(int(C.R),int(C.G),int(C.B));Hit+=Low>=40&&High<=180&&High-Low<=24;
+    FVector O,D;FHitResult PixelHit;const bool Physical=PC->DeprojectScreenPositionToWorld(PX,PY,O,D)&&W->LineTraceSingleByChannel(PixelHit,O,O+D*20000,ECC_Visibility,Query);
+    const double Z=Physical?Pose.InverseTransformPosition(PixelHit.ImpactPoint).Z*.01:1.e9;
+    const bool FloorPixel=Physical&&PixelHit.GetActor()&&PixelHit.GetActor()->ActorHasTag(TEXT("HatchHold"))&&FMath::Abs(Z)<.005;FloorHits+=FloorPixel;
+    auto Sample=MakeShared<FJsonObject>();Sample->SetNumberField(TEXT("x"),PX);Sample->SetNumberField(TEXT("y"),PY);Sample->SetNumberField(TEXT("r"),C.R);Sample->SetNumberField(TEXT("g"),C.G);Sample->SetNumberField(TEXT("b"),C.B);Sample->SetBoolField(TEXT("first_hit_is_tank_top"),FloorPixel);Sample->SetNumberField(TEXT("first_hit_local_z_m"),Z);Samples.Add(MakeShared<FJsonValueObject>(Sample));
+   }
+   R->SetNumberField(TEXT("tank_top_sample_rays"),FloorHits);R->SetArrayField(TEXT("floor_samples"),Samples);
+   T->TestEqual(TEXT("all49 rendered sample rays first hit actual Z0 tank-top"),FloorHits,49);
    R->SetNumberField(TEXT("floor_pixel_x"),P.X);R->SetNumberField(TEXT("floor_pixel_y"),P.Y);R->SetNumberField(TEXT("neutral_steel_pixels"),Hit);R->SetNumberField(TEXT("sample_pixels"),Total);
    T->TestTrue(TEXT("actual exposed tank-top center is neutral gray steel (all49 of7x7 pixels, no water-blue tint)"),Total==49&&Hit==49);
   }
