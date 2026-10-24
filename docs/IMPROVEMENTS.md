@@ -70,6 +70,8 @@ MEMORY-TREND-26b soak2(2026-10-24): 기준4419436/코드ce456eb, PCD-on idle/디
 
 allocation 후속(기준a64dcc8/실측f1236f6): idle trace15분과4개 cut 및 무추적 reference 각15분을 완료했다. LiDAR-off에서 증가가 크게 줄고 PCD-off에서도 증가가 지속되며, preview-off/CPU의 RSS 감소만으로는 계속 증가한 LLM 태그를 해소하지 못했다. 로그 보관 기여와 in-flight 후보 버퍼를 식별했으나 프로젝트 버퍼의 무제한 누적 또는 엔진/드라이버 단독 원인은 확정하지 못했다. 제품 수정0·기존RSS 미해결을 유지한다. [상위 allocation·분리 조건·심볼/처리량 한계](MEMORY_TREND_26b.md#2026-10-24-allocation-귀속과-분리-실험)·[결과](../Saved/Reports/MEMORY-TREND-26b/attribution/RESULT.md).
 
+26c(기준3ed0367): Scheduler 주기 요약을 기본Verbose 억제로 전환했고 기존문자열/통계·상태/경고는 보존했다. 기본0줄·명시opt-in1+3줄, 자동화Info3,792개 제거를 확인했다. Editor15분 전후와 Development package60분은 모두 누수 의심(package꼬리RSS50.17/Commit18.68MiB/h·UObject0)이다. Shipping은 별도실험시작맵으로30초/정상종료를 확인했다. allocator/실제Hz/사전준비 차이를 분리하며 기존8MiB/5쌍 FAIL은 해결로 바꾸지 않는다. [전체조건·한계·최종gate](MEMORY_TREND_26c.md)·[결과](../Saved/Reports/MEMORY-TREND-26c/RESULT.md).
+
 ## FOLLOWUP-28 — Rev7×3 PCD 송신 공정성
 
 2026-10-23 사용자 승인으로 기본PCD 예산64→80MiB/s를 적용했다. 새 기본값은 공통상수로 관리하며 지정된 기존값·저장형식·PCD33-byte·승인FIFO·기본출력·예약상한을 보존한다. 기본 Rev7×3·90초 표시형 localhost의 각19.695/19.684/19.672Hz/편차0.022Hz로 각19Hz 목표를 충족했다. 필요75.942MiB/s이며 필요>예산 경고0, 송신 생략0,150ms 초과0이다. 최초 오프스크린의 기존 획득cadence3FAIL은 보존하고 표시형에서 같은 assertion까지통과했다. [측정·한계](../Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md)·[UI](../Saved/Reports/FOLLOWUP-28-26/r4/manual/CHECKLIST.md).

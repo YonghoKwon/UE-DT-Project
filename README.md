@@ -90,6 +90,8 @@ MEMORY-TREND-26b soak2: 기준 `4419436`, 측정 코드 `ce456eb`. 영상 디코
 
 후속 allocation 귀속(기준 `a64dcc8`, 실측 `f1236f6`): idle trace15분과 reference/LiDAR-off/PCD-off/preview-off/CPU 각15분을 완료했다. RSS 꼬리 기울기는 무추적 reference +68.95, LiDAR-off +10.57, PCD-off +117.44, preview-off −98.40, CPU −143.08MiB/시간이다. 후자 둘도 LLM 태그 증가로 진단은 누수 의심이며 CPU는 실제9.53~10.04Hz로 처리량 차이가 있다. 추적한 live allocation에서 진단 로그 보관 기여와 관측/ray/hit 버퍼의 두 시점 차이를 확인했으나 전체 native 증가의 누수/보존 구분은 미확정이다. 제품 메모리 수정0, 기존RSS FAIL 유지. [상위50개 경로·교차 검증·한계](docs/MEMORY_TREND_26b.md#2026-10-24-allocation-귀속과-분리-실험)·[결과](Saved/Reports/MEMORY-TREND-26b/attribution/RESULT.md).
 
+MEMORY-TREND-26c(기준 `3ed0367`): Scheduler 주기 로그를 기본 억제하고 `-LogCmds="LogVirtualSensorTelemetry Verbose"`로 기존 진단을 켠다. 실제 기본0줄/opt-in1global+3sensor를 검증했다. Editor15분 전후 RSS 꼬리는328.10→119.51MiB/시간, Development package60분은50.17MiB/시간으로 모두 **누수 의심**이다. package는 기본binned2·실제16.54~16.98Hz여서 Editor Mimalloc/약20Hz와 구분한다. 기존RSS 미해결과 기준은 유지한다. [조건·기여량·검증](docs/MEMORY_TREND_26c.md)·[결과](Saved/Reports/MEMORY-TREND-26c/RESULT.md).
+
 ### FOLLOWUP-28 PCD 송신 예산·공정성
 
 기본 Ouster OS1-64 Rev7 3대(1024×64·20Hz 요청)에 센서별 토큰 버킷과 프레임 크기를 반영한 균등 Hz 상한을 적용한다. 기본 송신 예산은80MiB/s(사용자 승인2026-10-23)이며 PCD33-byte·승인FIFO·기본출력과 전역128MiB/스트림64MiB 예약 상한은 유지한다. `데이터 → 전송 → 고급 → PCD 예산`에서 현재 세션 예산을 바꾸며, 필요/예산 MiB/s와 최근 약1초의 실제 송신Hz를 표시한다. 저장 형식은 바꾸지 않는다.
