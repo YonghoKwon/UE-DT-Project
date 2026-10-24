@@ -66,6 +66,8 @@ T01/C01/H02/D01의 소유 점유 영역 회피, 미확인 사유 수와 확인 �
 
 기본Rev7×3/GPU/RT on/35초+90초/50회−0회 교차5쌍: 절대3쌍·차이2쌍 실패,기능오류0. 디깅RSS 중앙값+10.43MiB/최대raw차이+17.67MiB. CPU/LLM/Binned2 진단과 두 미채택 후보는 [원문](../Saved/Reports/FOLLOWUP-28-26/r2/RSS-26.md)에 구분한다. 기본Mimalloc 상세dump미구현,소유버퍼·RHI수량 불변만으로 무누수를 입증하지 않는다. 두 후보는 원복하고 editor-only계측만 남겼다. 약90분 조사 후 검증된 수정안 없음으로 인계하며 기준·횟수·기본정책을 완화하지 않는다.
 
+MEMORY-TREND-26b 직렬(2026-10-24): master `08c7ab5` 통합·Editor 빌드·C++ 계약 및 PCD 관련 회귀 통과. PCD-on 대조는 영상 디코딩1% 감지로 약27분15초에서 취소하여 장시간 판정 **데이터 부족**이다. 부분 자료의 Untracked/allocator-unused 증가만으로 누수/수정을 확정하지 않는다. 반복 디깅·원래 RSS5쌍·off/on 오버헤드는 미수행이며 기존 RSS FAIL/미해결 수용 결정은 유지한다. [부분 수치·환경 중단·재실행 조건](MEMORY_TREND_26b.md).
+
 ## FOLLOWUP-28 — Rev7×3 PCD 송신 공정성
 
 2026-10-23 사용자 승인으로 기본PCD 예산64→80MiB/s를 적용했다. 새 기본값은 공통상수로 관리하며 지정된 기존값·저장형식·PCD33-byte·승인FIFO·기본출력·예약상한을 보존한다. 기본 Rev7×3·90초 표시형 localhost의 각19.695/19.684/19.672Hz/편차0.022Hz로 각19Hz 목표를 충족했다. 필요75.942MiB/s이며 필요>예산 경고0, 송신 생략0,150ms 초과0이다. 최초 오프스크린의 기존 획득cadence3FAIL은 보존하고 표시형에서 같은 assertion까지통과했다. [측정·한계](../Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md)·[UI](../Saved/Reports/FOLLOWUP-28-26/r4/manual/CHECKLIST.md).

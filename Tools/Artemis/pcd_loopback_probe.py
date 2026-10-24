@@ -180,7 +180,7 @@ async def main(args):
                     row["bytes"] += size
                     row.update(last_frame=frame, last_unix=now, last_points=points)
                     # Bounded metadata only; enough for the warmup + 30 s windows.
-                    if len(row["samples"]) < 8192:
+                    if len(row["samples"]) < args.sample_limit:
                         row["samples"].append([now, frame, size])
                     receipt = headers.get("receipt", "")
                     if receipt:
@@ -233,6 +233,8 @@ if __name__ == "__main__":
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--stop-file", type=Path, required=True)
     parser.add_argument("--native-validator", type=Path)
+    parser.add_argument("--sample-limit", type=int, default=8192,
+                        help="Bounded per-frame metadata; use 0 for long runs with periodic aggregate snapshots")
     options = parser.parse_args()
     if options.native_validator:
         import ctypes
@@ -242,5 +244,7 @@ if __name__ == "__main__":
         NATIVE_LZF_VALIDATOR.restype = ctypes.c_int
     if not 1024 <= options.port <= 65535:
         parser.error("use an unprivileged local port")
+    if not 0 <= options.sample_limit <= 8192:
+        parser.error("sample-limit must be between 0 and 8192")
     options.report.parent.mkdir(parents=True, exist_ok=True)
     asyncio.run(main(options))

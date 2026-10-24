@@ -33,6 +33,8 @@
 #include "RenderingThread.h"
 #include "RHICommandList.h"
 #include "UObject/UObjectArray.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
 
 void ValidateHatchPresentation(FAutomationTestBase*,UShipHatchMonitorWidget*);
 struct FHatchDigProbe
@@ -178,6 +180,7 @@ void DigJson(const FString& Name,const TSharedRef<FJsonObject>& R)
 {FString Text;FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Text));IFileManager::Get().MakeDirectory(*DigRoot(),true);FFileHelper::SaveStringToFile(Text,*(DigRoot()/Name));}
 class FHatchDig final:public IAutomationLatentCommand
 {
+    friend struct FHatchMemorySamplerProbe;
     FAutomationTestBase* Test;bool Captures,IdleControl;double Started=FPlatformTime::Seconds(),Changed=0,LastWall=0,MeasureStart=0;int32 MeasuredView=1;
     int32 Phase=0,Clicks=0,Material=0,State=0,View=0;uint64 BeforeRevision=0,LastEngine=0,BoundaryFrame=0,RawBefore=0,Rss=0,Commit=0,Buffers=0,MeshBytes=0;
     TArray<float> Original,AfterOne,BeforeLast;TArray<double> Engine,Game,Wall,Edits,FreshLatency;
@@ -189,26 +192,158 @@ class FHatchDig final:public IAutomationLatentCommand
     // Fixed storage avoids allocating JSON/LLM maps during the measured curve.
     struct FMemoryPoint { double Seconds=0;int32 Cycle=0,Objects=0;uint64 Rss=0,Commit=0;int64 Tags[10]={}; };
     TArray<FMemoryPoint> MemoryCurve;
-    void CurvePoint(int32 Cycle)
+    // Opt-in diagnostic path only. No per-frame history, forced GC/trim, RHI
+    // drain or LLM UpdateStatsPerFrame inside the long observation window.
+    bool Trend=false,TrendLlm=false,TrendFailed=false;double TrendSeconds=1800,TrendInterval=5,TrendLast=-1,TrendCost=0,TrendCostSum=0,TrendCostMax=0;
+    int32 TrendSamples=0,TrendRestores=0;TUniquePtr<FArchive> TrendFile;
+    TMap<FName,uint64> TrendDefaultTags,TrendPlatformTags;
+    TWeakObjectPtr<UVirtualSensorStreamPublisherComponent> MemoryPublisher;
+    int32 MemoryPcdPort=0;FString MemoryCancelFile;double NextCancelPoll=0;
+    TMap<FString,FVirtualSensorStreamStatus> PcdBefore;
+    bool ConfigureMemoryPcd(AShipHatchSimulation& S)
     {
-        if(!FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit")))return;
-        FMemoryPoint P;P.Seconds=FPlatformTime::Seconds()-MeasureStart;P.Cycle=Cycle;
+        if(!MemoryPcdPort)return true;
+        if(!Test->TestTrue(TEXT("memory PCD fixture requires unprivileged loopback port"),MemoryPcdPort>=1024&&MemoryPcdPort<=65535))return false;
+        auto* Transport=NewObject<UVirtualSensorTransportComponent>(&S);S.AddInstanceComponent(Transport);Transport->RegisterComponent();
+        Transport->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+        FVirtualSensorTransportProfile Profile;Profile.BrokerUrl=FString::Printf(TEXT("tcp://127.0.0.1:%d"),MemoryPcdPort);Profile.UserName.Reset();
+        Transport->ConfigureTransportProfile(Profile);Transport->SetSessionCredentials(TEXT(""),TEXT(""));
+        auto* Publisher=NewObject<UVirtualSensorStreamPublisherComponent>(&S);S.AddInstanceComponent(Publisher);
+        Publisher->SetTransportComponent(Transport);Publisher->RegisterComponent();MemoryPublisher=Publisher;
+        for(int32 I=0;I<3;++I)if(S.SensorEnabled(I))if(auto* A=S.SensorAt(I))
+        {
+            A->StopSensor();A->SetSharedOutputServices(Transport,nullptr,Publisher);
+            FVirtualSensorStreamConfig Config;Config.SensorId=A->GetSensorId();Config.StreamKind=EVirtualSensorStreamKind::PointCloud;Config.bEnabled=true;Publisher->ConfigureStream(Config);
+            A->StartSensor();
+        }
+        return true;
+    }
+    void PcdBaseline()
+    {if(MemoryPublisher.IsValid())for(const auto& S:MemoryPublisher->GetStreamStatuses())if(S.StreamKind==EVirtualSensorStreamKind::PointCloud)PcdBefore.Add(S.SensorId,S);}
+    TSharedRef<FJsonObject> PcdJson(bool Check=false)
+    {
+        auto R=MakeShared<FJsonObject>();
+        if(MemoryPublisher.IsValid())for(const auto& S:MemoryPublisher->GetStreamStatuses())if(S.StreamKind==EVirtualSensorStreamKind::PointCloud)
+        {
+            auto Row=MakeShared<FJsonObject>();const auto B=PcdBefore.FindRef(S.SensorId);
+            Row->SetNumberField(TEXT("input_frames"),S.InputFrameCount-B.InputFrameCount);Row->SetNumberField(TEXT("serialized_frames"),S.SerializedFrameCount-B.SerializedFrameCount);
+            Row->SetNumberField(TEXT("submitted_frames"),S.SubmittedFrameCount-B.SubmittedFrameCount);Row->SetNumberField(TEXT("receipt_frames"),S.ReceiptReceivedCount-B.ReceiptReceivedCount);
+            Row->SetNumberField(TEXT("consumer_received"),S.ConsumerReceivedCount-B.ConsumerReceivedCount);Row->SetNumberField(TEXT("submitted_bytes"),double(S.TotalSubmittedBytes-B.TotalSubmittedBytes));
+            Row->SetNumberField(TEXT("encode_failures"),S.EncodeFailureCount-B.EncodeFailureCount);Row->SetNumberField(TEXT("delivery_failures"),S.DeliveryFailureCount-B.DeliveryFailureCount);
+            Row->SetNumberField(TEXT("invalid"),S.ConsumerValidationFailureCount-B.ConsumerValidationFailureCount);Row->SetNumberField(TEXT("gaps"),S.ConsumerFrameGapCount-B.ConsumerFrameGapCount);
+            Row->SetNumberField(TEXT("duplicates"),S.ConsumerDuplicateCount-B.ConsumerDuplicateCount);Row->SetNumberField(TEXT("overloads"),S.OverloadCount-B.OverloadCount);
+            Row->SetNumberField(TEXT("rate_control_skipped"),S.RateControlSkippedFrameCount-B.RateControlSkippedFrameCount);Row->SetBoolField(TEXT("processing"),S.bProcessing);Row->SetNumberField(TEXT("budget_mib_s"),S.PcdBudgetMiBPerSecond);
+            if(Check)
+            {
+                Test->TestTrue(TEXT("memory workload actually submits and receives PCD"),S.SubmittedFrameCount>B.SubmittedFrameCount&&S.ConsumerReceivedCount>B.ConsumerReceivedCount);
+                Test->TestEqual(TEXT("memory PCD invalid payload count"),S.ConsumerValidationFailureCount-B.ConsumerValidationFailureCount,int64(0));
+                Test->TestEqual(TEXT("memory PCD encode failures"),S.EncodeFailureCount-B.EncodeFailureCount,int64(0));
+            }
+            R->SetObjectField(S.SensorId,Row);
+        }
+        return R;
+    }
+    static TSharedRef<FJsonObject> CurveJson(const FMemoryPoint& P)
+    {
+        auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("cycle"),P.Cycle);R->SetNumberField(TEXT("seconds"),P.Seconds);
+        R->SetNumberField(TEXT("rss_bytes"),double(P.Rss));R->SetNumberField(TEXT("commit_bytes"),double(P.Commit));R->SetNumberField(TEXT("uobject_count"),P.Objects);
+        const TCHAR* Names[]={TEXT("Physics"),TEXT("ChaosTrimesh"),TEXT("UObject"),TEXT("UI"),TEXT("RHIMisc"),TEXT("Textures"),TEXT("FMallocUnused"),TEXT("Hatch/CargoCook"),TEXT("Hatch/RayTree"),TEXT("Hatch/CargoUpdate")};
+        auto Tags=MakeShared<FJsonObject>();for(int I=0;I<10;++I)Tags->SetNumberField(Names[I],double(P.Tags[I]));R->SetObjectField(TEXT("llm_default"),Tags);return R;
+    }
+    bool TrendWrite(const TSharedRef<FJsonObject>& Row)
+    {
+        if(!TrendFile)return false;FString Text;
+        FJsonSerializer::Serialize(Row,TJsonWriterFactory<TCHAR,TCondensedJsonPrintPolicy<TCHAR>>::Create(&Text));Text+=TEXT("\n");
+        FTCHARToUTF8 Utf8(*Text);TrendFile->Serialize((void*)Utf8.Get(),Utf8.Length());TrendFile->Flush();return !TrendFile->IsError();
+    }
+    TSharedRef<FJsonObject> TrendTop(TMap<FName,uint64>& Values)
+    {
+        // Keep at most16 tagged amounts without sorting/copying the full map.
+        TArray<TPair<FName,uint64>,TInlineAllocator<16>> Top;
+        for(const auto& Pair:Values)
+        {
+            int32 Index=0;while(Index<Top.Num()&&(Top[Index].Value>Pair.Value||(Top[Index].Value==Pair.Value&&Top[Index].Key.LexicalLess(Pair.Key))))++Index;
+            if(Index>=16)continue;if(Top.Num()==16)Top.Pop(false);Top.Insert(TPair<FName,uint64>(Pair.Key,Pair.Value),Index);
+        }
+        auto R=MakeShared<FJsonObject>();for(const auto& Pair:Top)R->SetNumberField(Pair.Key.ToString(),double(Pair.Value));return R;
+    }
+    bool TrendBegin()
+    {
+        IFileManager::Get().MakeDirectory(*DigRoot(),true);
+        const FString Path=DigRoot()/TEXT("memory-trend.jsonl");
+        if(IFileManager::Get().FileExists(*Path)){Test->AddError(TEXT("Memory trend requires a fresh report directory"));return false;}
+        TrendFile.Reset(IFileManager::Get().CreateFileWriter(*Path,FILEWRITE_AllowRead));
+        auto Meta=MakeShared<FJsonObject>();Meta->SetStringField(TEXT("type"),TEXT("metadata"));Meta->SetNumberField(TEXT("schema_version"),1);
+        Meta->SetStringField(TEXT("row_contract"),TEXT("memory_curve"));Meta->SetBoolField(TEXT("diagnostic_only"),true);Meta->SetNumberField(TEXT("requested_seconds"),TrendSeconds);Meta->SetNumberField(TEXT("interval_seconds"),TrendInterval);
+        Meta->SetBoolField(TEXT("pcd_loopback"),MemoryPcdPort!=0);Meta->SetBoolField(TEXT("pcd_default_compressed"),MemoryPublisher.IsValid()?MemoryPublisher->GetPcdSendOptions(TEXT("")).bCompressed:false);
+        Meta->SetStringField(TEXT("workload"),IdleControl?TEXT("idle-after-shared-warmup"):TEXT("dig-every-2s-restore-every-50"));
+        Meta->SetStringField(TEXT("started_utc"),FDateTime::UtcNow().ToIso8601());FString Source;FParse::Value(FCommandLine::Get(),TEXT("HatchSourceCommit="),Source);Meta->SetStringField(TEXT("source_commit"),Source);
+        Meta->SetStringField(TEXT("uobject_method"),TEXT("GUObjectArray occupied slots, includes pending GC; not a live-object traversal"));
+        Meta->SetStringField(TEXT("cost_method"),TEXT("previous_sample_total_gt_ms includes collection, JSON, write and flush; final sample cost in summary; header/footer excluded"));
+        return TrendWrite(Meta);
+    }
+    bool TrendFinish(bool Complete)
+    {
+        auto R=MakeShared<FJsonObject>();R->SetObjectField(TEXT("pcd"),PcdJson(Complete));R->SetStringField(TEXT("type"),TEXT("summary"));R->SetBoolField(TEXT("complete"),Complete&&!Test->HasAnyErrors());R->SetBoolField(TEXT("diagnostic_only"),true);
+        R->SetNumberField(TEXT("sample_count"),TrendSamples);R->SetNumberField(TEXT("measurement_seconds"),FPlatformTime::Seconds()-MeasureStart);
+        R->SetNumberField(TEXT("clicks"),Clicks);R->SetNumberField(TEXT("restores"),TrendRestores);R->SetBoolField(TEXT("llm_enabled"),TrendLlm);
+        R->SetNumberField(TEXT("last_sample_total_gt_ms"),TrendCost);R->SetNumberField(TEXT("sampler_total_gt_ms"),TrendCostSum);R->SetNumberField(TEXT("sampler_max_gt_ms"),TrendCostMax);
+        bool Saved=TrendWrite(R);if(TrendFile){Saved=TrendFile->Close()&&Saved;TrendFile.Reset();}return Saved;
+    }
+    void CurvePoint(int32 Cycle,const AShipHatchSimulation* Simulation=nullptr)
+    {
+        if(!Trend&&!FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit")))return;
+        const double CostStart=FPlatformTime::Seconds();
+        if(Trend&&TrendLast>=0&&CostStart-TrendLast<TrendInterval)return;
+        if(Trend){TrendLlm=false;TrendDefaultTags.Reset();TrendPlatformTags.Reset();}
+        FMemoryPoint P;P.Seconds=(Trend?CostStart:FPlatformTime::Seconds())-MeasureStart;P.Cycle=Cycle;
         const auto M=FPlatformMemory::GetStats();P.Rss=M.UsedPhysical;P.Commit=M.UsedVirtual;P.Objects=GUObjectArray.GetObjectArrayNumMinusAvailable();
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
         if(FLowLevelMemTracker::IsEnabled())
         {
             static const FName Names[]={TEXT("Physics"),TEXT("ChaosTrimesh"),TEXT("UObject"),TEXT("UI"),TEXT("RHIMisc"),TEXT("Textures"),TEXT("FMallocUnused"),TEXT("Hatch/CargoCook"),TEXT("Hatch/RayTree"),TEXT("Hatch/CargoUpdate")};
-            auto& L=FLowLevelMemTracker::Get();L.UpdateStatsPerFrame();
+            auto& L=FLowLevelMemTracker::Get();if(!Trend)L.UpdateStatsPerFrame();
             for(int I=0;I<10;++I)P.Tags[I]=L.GetTagAmountForTracker(ELLMTracker::Default,Names[I],ELLMTagSet::None);
+            if(Trend)
+            {
+                TrendLlm=true;
+                L.GetTrackedTagsNamesWithAmount(TrendDefaultTags,ELLMTracker::Default,ELLMTagSet::None);
+                L.GetTrackedTagsNamesWithAmount(TrendPlatformTags,ELLMTracker::Platform,ELLMTagSet::None);
+            }
         }
 #endif
-        MemoryCurve.Add(P);
+        if(Trend)
+        {
+            auto R=CurveJson(P);R->SetStringField(TEXT("type"),TEXT("memory_curve"));R->SetBoolField(TEXT("llm_enabled"),TrendLlm);
+            auto Watched=R->GetObjectField(TEXT("llm_default"));
+            // Always retain these attribution counters even when outside top16.
+            for(const TCHAR* Name:{TEXT("Untracked"),TEXT("TrackedTotal"),TEXT("Total"),TEXT("FMalloc")})
+                if(const uint64* Amount=TrendDefaultTags.Find(FName(Name)))Watched->SetNumberField(Name,double(*Amount));
+            R->SetObjectField(TEXT("llm_default_top"),TrendTop(TrendDefaultTags));R->SetObjectField(TEXT("llm_platform_top"),TrendTop(TrendPlatformTags));
+            R->SetObjectField(TEXT("pcd"),PcdJson());
+            if(Simulation)
+            {
+                auto Sensors=MakeShared<FJsonObject>();
+                for(int32 I=0;I<3;++I)if(auto* A=Simulation->SensorAt(I))
+                {
+                    auto Sensor=MakeShared<FJsonObject>();Sensor->SetNumberField(TEXT("frame_id"),double(A->ScanComponent->GetRuntimeStatus().FrameId));
+                    Sensor->SetNumberField(TEXT("active_acquisition_backend"),int32(A->ScanComponent->GetActiveAcquisitionBackend()));
+                    Sensor->SetBoolField(TEXT("running"),A->IsSensorRunning());Sensor->SetNumberField(TEXT("preview_point_budget"),A->ScanComponent->GetPreviewPolicyState().MaxPoints);
+                    Sensors->SetObjectField(A->GetSensorId(),Sensor);
+                }
+                R->SetObjectField(TEXT("sensors"),Sensors);
+            }
+            R->SetNumberField(TEXT("previous_sample_total_gt_ms"),TrendCost);R->SetNumberField(TEXT("restores"),TrendRestores);
+            if(!TrendWrite(R)){TrendFailed=true;Test->AddError(TEXT("Memory trend sample write failed"));}
+            // Include destruction of transient JSON/maps in the measured cost.
+        }
+        else MemoryCurve.Add(P);
+        if(Trend){TrendLast=CostStart;TrendCost=(FPlatformTime::Seconds()-CostStart)*1000;TrendCostSum+=TrendCost;TrendCostMax=FMath::Max(TrendCostMax,TrendCost);++TrendSamples;}
     }
     void SaveCurve()
     {
         TArray<TSharedPtr<FJsonValue>> Rows;Rows.Reserve(MemoryCurve.Num());
-        const TCHAR* Names[]={TEXT("Physics"),TEXT("ChaosTrimesh"),TEXT("UObject"),TEXT("UI"),TEXT("RHIMisc"),TEXT("Textures"),TEXT("FMallocUnused"),TEXT("Hatch/CargoCook"),TEXT("Hatch/RayTree"),TEXT("Hatch/CargoUpdate")};
-        for(const auto& P:MemoryCurve){auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("cycle"),P.Cycle);R->SetNumberField(TEXT("seconds"),P.Seconds);R->SetNumberField(TEXT("rss_bytes"),double(P.Rss));R->SetNumberField(TEXT("commit_bytes"),double(P.Commit));R->SetNumberField(TEXT("uobject_count"),P.Objects);auto Tags=MakeShared<FJsonObject>();for(int I=0;I<10;++I)Tags->SetNumberField(Names[I],double(P.Tags[I]));R->SetObjectField(TEXT("llm_default"),Tags);Rows.Add(MakeShared<FJsonValueObject>(R));}
+        for(const auto& P:MemoryCurve)Rows.Add(MakeShared<FJsonValueObject>(CurveJson(P)));
         Result->SetArrayField(TEXT("memory_curve"),Rows);
     }
     void MemoryDetails(const TCHAR* Boundary,const AShipHatchSimulation& Simulation)
@@ -295,14 +430,20 @@ class FHatchDig final:public IAutomationLatentCommand
         return Accepted;
     }
 public:
-    FHatchDig(FAutomationTestBase* T,bool C,bool Idle=false):Test(T),Captures(C),IdleControl(Idle){FParse::Value(FCommandLine::Get(),TEXT("HatchDigView="),MeasuredView);MeasuredView=MeasuredView==0?0:1;FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryWindowSeconds="),MatchedMemorySeconds);
+    FHatchDig(FAutomationTestBase* T,bool C,bool Idle=false,bool LongTrend=false):Test(T),Captures(C),IdleControl(Idle),Trend(LongTrend){FParse::Value(FCommandLine::Get(),TEXT("HatchDigView="),MeasuredView);MeasuredView=MeasuredView==0?0:1;FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryWindowSeconds="),MatchedMemorySeconds);
+        FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryPcdLoopbackPort="),MemoryPcdPort);FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryCancelFile="),MemoryCancelFile);
+        if(Trend){FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryTrendSeconds="),TrendSeconds);FParse::Value(FCommandLine::Get(),TEXT("HatchMemorySampleSeconds="),TrendInterval);}
 #if RHI_ENABLE_RESOURCE_INFO
         RhiTracking=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit"));
 #endif
     }
     bool Update() override
     {
-        const double Now=FPlatformTime::Seconds();if(Now-Started>600){Test->AddError(TEXT("HATCH-03 timeout"));return true;}
+        if(Trend&&(!FMath::IsFinite(TrendSeconds)||!FMath::IsFinite(TrendInterval)||TrendSeconds<1800||TrendSeconds>3600||TrendInterval<5||TrendInterval>30))
+        {Test->AddError(TEXT("Memory trend requires 1800..3600 seconds and 5..30 second samples"));return true;}
+        const double Now=FPlatformTime::Seconds();if(Now-Started>(Trend?TrendSeconds+600:600)){if(TrendFile)TrendFinish(false);Test->AddError(TEXT("HATCH-03 timeout"));return true;}
+        if(!MemoryCancelFile.IsEmpty()&&Now>=NextCancelPoll){NextCancelPoll=Now+1;if(IFileManager::Get().FileExists(*MemoryCancelFile)){Test->AddError(TEXT("memory run cancelled by environment monitor"));if(TrendFile)TrendFinish(false);return true;}}
+        if(TrendFailed){TrendFinish(false);return true;}
         UWorld* W=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)W=C.World();
         if(!W||!FinalAcceptanceViewportReady(W))return false;AShipHatchMonitorHost* H=nullptr;
         for(TActorIterator<AShipHatchMonitorHost>I(W);I;++I)H=*I;
@@ -310,7 +451,7 @@ public:
         auto& S=*H->Simulation;auto& M=*H->Monitor;if(!Messages)Messages=MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled,false);
         if(Phase==0)
         {
-            if(!M.GetAnalysis())return false;FHatchDigProbe::Controls(*Test,M);int32 Font=100;FParse::Value(FCommandLine::Get(),TEXT("HatchFontPercent="),Font);M.SetFontPercent(Font);M.SelectView(0);M.SetSplitView(false);M.SetCameraPreset(0);
+            if(!M.GetAnalysis())return false;if(!ConfigureMemoryPcd(S))return true;FHatchDigProbe::Controls(*Test,M);int32 Font=100;FParse::Value(FCommandLine::Get(),TEXT("HatchFontPercent="),Font);M.SetFontPercent(Font);M.SelectView(0);M.SetSplitView(false);M.SetCameraPreset(0);
             S.Coverage(WorkOpening,WorkFloor,WorkArea);Result->SetNumberField(TEXT("opening_fov_percent"),WorkOpening);Result->SetNumberField(TEXT("visible_floor_fov_percent"),WorkFloor);Result->SetNumberField(TEXT("structurally_visible_floor_m2"),WorkArea);Result->SetNumberField(TEXT("mlx_above_deck_m"),S.EffectiveMLXHeight());
             Original=S.Surface().Heights;OriginalVolume=S.Surface().Volume;Phase=1;Changed=Now;return false;
         }
@@ -349,6 +490,13 @@ public:
         }
         if(Phase==4)
         {
+            if(Trend)
+            {
+                int32 Warmup=35;FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryWarmup="),Warmup);
+                if(Now-Changed<Warmup||M.AnalysisBuilds<WarmBuilds+5)return false;
+                if(!TrendBegin()){Test->AddError(TEXT("Memory trend output could not be created"));return true;}
+                PcdBaseline();MeasureStart=FPlatformTime::Seconds();CurvePoint(0,&S);Changed=MeasureStart;Phase=60;return false;
+            }
             if(!MemoryPrimed){MemoryCurve.Reserve(64);MeasureStart=Now;CurvePoint(-1);MemoryCurve.Reset();MemoryDetails(TEXT("priming"),S);if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDeepReport")))GEngine->Exec(W,TEXT("memreport -full"));MemoryPrimed=true;}
             int32 Warmup=35;FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryWarmup="),Warmup);
             if(Now-Changed<Warmup||M.AnalysisBuilds<WarmBuilds+5)return false;Stop(S);Changed=Now;Phase=5;return false;
@@ -366,11 +514,32 @@ public:
             DrainBoundary();RawBefore=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();
             Rss=FPlatformMemory::GetStats().UsedPhysical;Commit=FPlatformMemory::GetStats().UsedVirtual;Buffers=S.DigBufferBytes();MeshBytes=S.MeshScratchBytes();
             MemoryDetails(TEXT("before"),S);
+            PcdBaseline();
             Result->SetObjectField(TEXT("resources_before"),Resources(S));
             MeasureStart=Now;
             CurvePoint(0);
             BeforeRevision=S.Revision();BeforeLast=S.Surface().Heights;BeforeVolume=S.Surface().Volume;LastWall=Now;LastEngine=GFrameCounter;
             Start(S);if(!IdleControl)Test->TestTrue(TEXT("first measured production click"),Click(M,0));Edits.Add(S.LastMeshApplyMs);Changed=Now;Phase=6;return false;
+        }
+        if(Phase==60)
+        {
+            CurvePoint(Clicks,&S);
+            if(TrendLast-MeasureStart>=TrendSeconds)
+            {
+                for(auto* A:{S.MLX.Get(),S.Livox.Get(),S.CabRight.Get()})if(A)Test->TestTrue(TEXT("long memory trend retains sensor acquisition"),A->IsSensorRunning());
+                if(!IdleControl)Test->TestTrue(TEXT("long memory trend completed repeated edit/restore workload"),Clicks>=50&&TrendRestores>0);
+                Test->TestTrue(TEXT("long memory trend summary saved"),TrendFinish(!TrendFailed&&!Test->HasAnyErrors()));return true;
+            }
+            if(!IdleControl&&Now-Changed>=2&&M.GetAnalysis())
+            {
+                // Restore the original cargo every50 accepted edits so the same
+                // bounded history/workload can run for an hour without depletion.
+                if(Clicks>0&&Clicks%50==0&&TrendRestores<Clicks/50){FHatchDigProbe::Restore(M);++TrendRestores;}
+                else if(Click(M,Clicks%25))++Clicks;
+                else {Test->AddError(TEXT("long memory trend production click rejected"));TrendFailed=true;}
+                Changed=Now;
+            }
+            return false;
         }
         if(Phase==6)
         {
@@ -407,6 +576,7 @@ public:
             DrainBoundary();const uint64 RawAfter=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();const auto Memory=FPlatformMemory::GetStats();
             MemoryDetails(TEXT("after"),S);
             SaveCurve();
+            Result->SetObjectField(TEXT("pcd"),PcdJson(true));
             if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDeepReport")))GEngine->Exec(W,TEXT("memreport -full"));
             Result->SetObjectField(TEXT("resources_after"),Resources(S));
             TFunction<void(const FJsonObject&,const FJsonObject&)> CheckResources;
@@ -498,6 +668,39 @@ public:
     }
 };
 }
+namespace
+{
+struct FHatchMemorySamplerProbe
+{
+    static bool Check(FAutomationTestBase& T)
+    {
+        FHatchDig Run(&T,false,false,true);
+        TMap<FName,uint64> Tags;for(int32 I=0;I<31;++I)Tags.Add(FName(*FString::Printf(TEXT("SamplerTag%02d"),I)),I);
+        const auto Top=Run.TrendTop(Tags);T.TestEqual(TEXT("LLM top list stays bounded at16"),Top->Values.Num(),16);
+        T.TestEqual(TEXT("largest tag retained"),Top->GetNumberField(TEXT("SamplerTag30")),30.);
+        T.TestFalse(TEXT("small tag omitted rather than recorded as zero"),Top->HasField(TEXT("SamplerTag00")));
+        if(!T.TestTrue(TEXT("open incremental sampler report"),Run.TrendBegin()))return false;
+        Run.MeasureStart=FPlatformTime::Seconds();Run.CurvePoint(0);Run.CurvePoint(1);
+        T.TestEqual(TEXT("immediate repeated callback cannot oversample"),Run.TrendSamples,1);
+        T.TestEqual(TEXT("long sampler never accumulates curve rows in memory"),Run.MemoryCurve.Num(),0);
+        T.TestTrue(TEXT("short contract test saves incomplete footer"),Run.TrendFinish(false));
+        FString Text;T.TestTrue(TEXT("incremental evidence readable after close"),FFileHelper::LoadFileToString(Text,*(DigRoot()/TEXT("memory-trend.jsonl"))));
+        TArray<FString> Lines;Text.ParseIntoArrayLines(Lines);if(!T.TestEqual(TEXT("header plus one row plus footer"),Lines.Num(),3))return false;
+        TSharedPtr<FJsonObject> Row,Footer;
+        T.TestTrue(TEXT("sample is independently valid JSON"),FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Lines[1]),Row));
+        T.TestTrue(TEXT("footer is independently valid JSON"),FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Lines[2]),Footer));
+        if(Row&&Footer)
+        {
+            T.TestTrue(TEXT("sample includes process RSS and occupied UObject slots"),Row->GetNumberField(TEXT("rss_bytes"))>0&&Row->GetNumberField(TEXT("uobject_count"))>0);
+            T.TestEqual(TEXT("footer count matches emitted sample count"),Footer->GetNumberField(TEXT("sample_count")),1.);
+            T.TestFalse(TEXT("short test cannot claim completed long observation"),Footer->GetBoolField(TEXT("complete")));
+        }
+        return !T.HasAnyErrors();
+    }
+};
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchMemorySamplerContract,"HATCH26.MemorySamplerContract",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FHatchMemorySamplerContract::RunTest(const FString&){return FHatchMemorySamplerProbe::Check(*this);}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchDigRuntime,"HATCH03.DigRuntimeRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FHatchDigRuntime::RunTest(const FString&)
 {if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchDig(this,false));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
@@ -507,4 +710,10 @@ bool FHatchDigCaptures::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchDigIdle,"HATCH03.IdleMemoryControlRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FHatchDigIdle::RunTest(const FString&)
 {if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchDig(this,false,true));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchMemoryTrendDig,"HATCH26.MemoryTrendDigRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FHatchMemoryTrendDig::RunTest(const FString&)
+{if(!FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryTrend"))){AddInfo(TEXT("[OPT-IN SKIP] requires -HatchMemoryTrend; 30..60 minute diagnostic"));return true;}if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchDig(this,false,false,true));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchMemoryTrendIdle,"HATCH26.MemoryTrendIdleRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FHatchMemoryTrendIdle::RunTest(const FString&)
+{if(!FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryTrend"))){AddInfo(TEXT("[OPT-IN SKIP] requires -HatchMemoryTrend; 30..60 minute diagnostic"));return true;}if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FHatchDig(this,false,true,true));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
 #endif
