@@ -92,6 +92,8 @@ MEMORY-TREND-26b soak2: 기준 `4419436`, 측정 코드 `ce456eb`. 영상 디코
 
 MEMORY-TREND-26c(기준 `3ed0367`): Scheduler 주기 로그를 기본 억제하고 `-LogCmds="LogVirtualSensorTelemetry Verbose"`로 기존 진단을 켠다. 실제 기본0줄/opt-in1global+3sensor를 검증했다. Editor15분 전후 RSS 꼬리는328.10→119.51MiB/시간, Development package60분은50.17MiB/시간으로 모두 **누수 의심**이다. package는 기본binned2·실제16.54~16.98Hz여서 Editor Mimalloc/약20Hz와 구분한다. 기존RSS 미해결과 기준은 유지한다. [조건·기여량·검증](docs/MEMORY_TREND_26c.md)·[결과](Saved/Reports/MEMORY-TREND-26c/RESULT.md).
 
+26d(기준 `1c19ebb`): 엔진 Editor PDB의 실제 소스 줄과 game PDB 일치를 검증하고 패키지20분 trace를 분석했다. RHIMisc 유력 기여를 D3D12 query 배열(+2.32MiB/2개)·상한이 있는 crash-event 문자열 캐시로 좁혔다. 프로젝트 버퍼의 무제한 보유와 원래 무추적RSS+50/Commit+19 전체 귀속은 미확정이다. GPU alias 집계·game 엔진 소스 줄 한계는 분리하며 제품 수정/안정화 완료로 표시하지 않는다. [콜스택·검증·완화 제안](docs/MEMORY_ATTRIBUTION_26d.md)·[결과](Saved/Reports/MEMORY-ATTRIBUTION-26d/RESULT.md).
+
 ### FOLLOWUP-28 PCD 송신 예산·공정성
 
 기본 Ouster OS1-64 Rev7 3대(1024×64·20Hz 요청)에 센서별 토큰 버킷과 프레임 크기를 반영한 균등 Hz 상한을 적용한다. 기본 송신 예산은80MiB/s(사용자 승인2026-10-23)이며 PCD33-byte·승인FIFO·기본출력과 전역128MiB/스트림64MiB 예약 상한은 유지한다. `데이터 → 전송 → 고급 → PCD 예산`에서 현재 세션 예산을 바꾸며, 필요/예산 MiB/s와 최근 약1초의 실제 송신Hz를 표시한다. 저장 형식은 바꾸지 않는다.
