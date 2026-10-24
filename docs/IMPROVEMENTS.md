@@ -74,6 +74,8 @@ allocation 후속(기준a64dcc8/실측f1236f6): idle trace15분과4개 cut 및 �
 
 26d(기준1c19ebb): 새엔진PDB로Editorprivate줄정보·gamePDBpublic/project심볼을검증하고 package20분trace의CPU콜스택을추출했다. D3D12 query-family배열/10,000개한도crash-event캐시가RHIMisc유력경로다. 기존분석기의겹친heap처리를보정해CPU합계를대조했지만GPUalias집계는미검증이다. 원래+50/+19전체귀속·프로젝트누수는미확정,제품수정/기준완화0. 조건부60분/ABAB재회귀는미수행이다. [근거·한계·완화제안](MEMORY_ATTRIBUTION_26d.md)·[결과](../Saved/Reports/MEMORY-ATTRIBUTION-26d/RESULT.md).
 
+26e(기준15326e6/Runtime eb4d515): 큰 future 결과3경로를 이동 소비하고 해치 FResult를 move-only로 만들었다. package20분 trace2회/비추적60분 모두 누수 의심, 비추적 RSS17.50/Commit13.84/RHIMisc11.81MiB/h·UObject0이다. query 배열·bounded profiler cache·PCD encode만 두 새 trace의 증가 경로 후보로 남겼으며 point lease1개+25MiB 등 단일 실행 차이를 누수로 단정하지 않았다. 관련22 Success/1기존 Fail/0 Skip, 기준에서도 같은4assertion 재현·quick/layer/guard 통과지만 RT on ABAB1블록 GPU+2.4487% FAIL을 유지한다. 기존 RSS 수용·기준과 제품 기본값은 유지한다. [조건·콜스택·정리 제한](MEMORY_OBSERVATION_26e.md)·[결과](../Saved/Reports/MEMORY-26e/RESULT.md).
+
 ## FOLLOWUP-28 — Rev7×3 PCD 송신 공정성
 
 2026-10-23 사용자 승인으로 기본PCD 예산64→80MiB/s를 적용했다. 새 기본값은 공통상수로 관리하며 지정된 기존값·저장형식·PCD33-byte·승인FIFO·기본출력·예약상한을 보존한다. 기본 Rev7×3·90초 표시형 localhost의 각19.695/19.684/19.672Hz/편차0.022Hz로 각19Hz 목표를 충족했다. 필요75.942MiB/s이며 필요>예산 경고0, 송신 생략0,150ms 초과0이다. 최초 오프스크린의 기존 획득cadence3FAIL은 보존하고 표시형에서 같은 assertion까지통과했다. [측정·한계](../Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md)·[UI](../Saved/Reports/FOLLOWUP-28-26/r4/manual/CHECKLIST.md).
