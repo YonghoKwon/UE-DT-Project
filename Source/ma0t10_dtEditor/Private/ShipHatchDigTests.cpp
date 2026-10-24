@@ -358,6 +358,7 @@ class FHatchDig final:public IAutomationLatentCommand
                     auto Sensor=MakeShared<FJsonObject>();Sensor->SetNumberField(TEXT("frame_id"),double(A->ScanComponent->GetRuntimeStatus().FrameId));
                     Sensor->SetNumberField(TEXT("active_acquisition_backend"),int32(A->ScanComponent->GetActiveAcquisitionBackend()));
                     Sensor->SetBoolField(TEXT("running"),A->IsSensorRunning());Sensor->SetNumberField(TEXT("preview_point_budget"),A->ScanComponent->GetPreviewPolicyState().MaxPoints);
+                    Sensor->SetNumberField(TEXT("visible_preview_points"),A->VisualizationComponent->GetVisiblePointCount());
                     Sensors->SetObjectField(A->GetSensorId(),Sensor);
                 }
                 R->SetObjectField(TEXT("sensors"),Sensors);
@@ -528,7 +529,7 @@ public:
                 if(Investigation)
                 {
                     if(InvestigationCut==TEXT("LidarOff"))Stop(S);
-                    else if(InvestigationCut==TEXT("PreviewOff"))M.SelectView(0);
+                    else if(InvestigationCut==TEXT("PreviewOff"))for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))A->VisualizationComponent->SetWorldPointCloudEnabled(false);
                     else if(InvestigationCut!=TEXT("Reference")&&InvestigationCut!=TEXT("PcdOff")&&InvestigationCut!=TEXT("Cpu")){Test->AddError(TEXT("unknown memory isolation cut"));return true;}
                     Changed=Now;Phase=41;return false;
                 }
@@ -575,6 +576,7 @@ public:
             {
                 if(Investigation){TRACE_BOOKMARK(TEXT("MEMORY26B_END"));}
                 for(auto* A:{S.MLX.Get(),S.Livox.Get(),S.CabRight.Get()})if(A)Test->TestEqual(TEXT("memory run expected sensor running state"),A->IsSensorRunning(),!(Investigation&&InvestigationCut==TEXT("LidarOff")));
+                if(Investigation&&InvestigationCut==TEXT("PreviewOff"))for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))Test->TestEqual(TEXT("preview isolation stays disabled"),A->VisualizationComponent->GetVisiblePointCount(),0);
                 if(!IdleControl)Test->TestTrue(TEXT("long memory trend completed repeated edit/restore workload"),Clicks>=50&&TrendRestores>0);
                 Test->TestTrue(TEXT("long memory trend summary saved"),TrendFinish(!TrendFailed&&!Test->HasAnyErrors()));return true;
             }
