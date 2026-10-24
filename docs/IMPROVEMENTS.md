@@ -89,6 +89,10 @@ allocation 후속(기준a64dcc8/실측f1236f6): idle trace15분과4개 cut 및 �
 검수 추가: 측면/해치 하향/상부 사선 근접 프리셋, 기본 Grab/Trolley TF·상자, 순수 센서 RGB와 원료 보라 높이 옵션을 반영한다. 코일의 Slab 진행·재생·차트 생성뿐 아니라 공통 시나리오 메뉴·사행 상태 카드·상태 칩도 숨기며 숨긴 Slab 조회/문자열 조립을 멈춘다. [비교 캡처](../Saved/Reports/HATCH07-COIL02/progress/hatch-rviz-compare.png)는 현장 실측 TF 정합이나 실제 스캔 복원 증거가 아니다.
 
 
+## CRANE-31e — 사진의 상부 경사관·붐 밑면 격자
+
+ref1/ref4/ref6에서 보이는7개 부재만 기존 표시 전용 인스턴스로 보강한다. [부재별 근거](research/CRANE-31e-basis.md)에 관찰 위치와 표시 치수 가정을 구분했으며 GTSU의 다른 구조를 복제하지 않는다. 기존 하부 knee strut 금지와 측정/충돌·idle 회귀는 유지한다. 같은 구도의 전후1600px JPG와 RT on ABAB2% 결과·미수행은 [RESULT](../Saved/Reports/CRANE-31e/RESULT.md)/result.json을 따른다.
+
 ## COIL-LIDAR-ID — 출하부두 역할 ID·읽기 호환
 
 `Coil.Quay.XT32`를 `os_lidar_coil_quay`로 정리하고 기존 배치·저장 위치·SaveGame PCD 옵션·녹화·PCD 메타를 읽는 경계에서 별칭을 적용한다. 토픽과 PCD 레코드는 유지하며 새 송신 ID의 서버 필터 영향·실제 기본 프로필과 캡처 프로필의 차이는 [결과](../Saved/Reports/COIL-LIDAR-ID/RESULT.md)에 기록한다. 수행/실패/미수행은 같은 폴더의 result.json을 따른다.

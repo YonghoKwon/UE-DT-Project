@@ -114,6 +114,10 @@ MEMORY-TREND-26c(기준 `3ed0367`): Scheduler 주기 로그를 기본 억제하�
 
 검증 조건·성공/실패·skip·직접 UI·제한과 설정 복원은 [result.json](Saved/Reports/HATCH07-COIL02/result.json), [검증 이력](docs/VALIDATION_HISTORY.md#2026-10-23-hatch-07--coil-02)을 따른다. PCD 송신 예산/성능은 #28 범위다.
 
+### CRANE-31e 사진에 보이는 상부·붐 밑면 부재
+
+ref1/ref4/ref6의 전경 상부 경사관1개와 붐 밑면의 횡관3개·대각관3개를 기존 표시 전용 경로에 보강했다. 보이지 않는 반대편 경사관과 가려진 뿌리 쪽 격자는 추가하지 않는다. [부재별 사진 위치·치수 가정](docs/research/CRANE-31e-basis.md)을 따르며 구조 강도/인증 형상으로 취급하지 않는다. 기존 주 다리·충돌·센서 측정·knee strut 금지 검사는 유지한다. 같은 구도의 전후1600px JPG, RT on 표준/코일 장면 ABAB2%의 실제 수행·수치와 직접 UI 제한은 [RESULT](Saved/Reports/CRANE-31e/RESULT.md)/[result.json](Saved/Reports/CRANE-31e/result.json)을 따른다.
+
 ### COIL-LIDAR-ID 출하부두 센서 식별자
 
 코일 출하부두 LiDAR의 역할 ID는 `os_lidar_coil_quay`다. 옛 `Coil.Quay.XT32`는 배치·저장 위치·SaveGame의 센서별 PCD 옵션·녹화·PCD 수신에서 읽기 별칭으로 받는다. 기존 파일은 읽기만으로 다시 저장하지 않으며 새 ID와 옛 ID가 같은 배치에 있으면 중복으로 거절한다. 토픽·33-byte PCD 레코드·슬롯/버전은 유지하지만 새 프레임의 `sensor-id`/`x-sensor-id`, JSON `sensorId`, PCD 메타 `sensor_id`는 새 ID를 쓴다. 서버가 ID를 필터링하면 새 역할 ID를 허용해야 한다. 서버/현장 수용은 로컬 회귀와 별도다. [검증·기본 프로필 확인](Saved/Reports/COIL-LIDAR-ID/RESULT.md).

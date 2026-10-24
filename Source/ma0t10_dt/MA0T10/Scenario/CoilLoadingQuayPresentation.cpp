@@ -126,6 +126,9 @@ void ACoilLoadingSimulation::BuildQuayPresentation()
         for(double Z:CoilQuay::PortalTubeLevels)Tube(Node(Sign,0,Z),Node(Sign,1,Z),CoilQuay::PortalTubeDiameter,2,1,false,TEXT("CoilPortalHorizontal"));
         Tube(Node(Sign,0,23.),Node(Sign,1,12.),.42,2,1,false,TEXT("CoilPortalDiagonal"));
         Tube(Node(Sign,0,17.5),Node(Sign,1,6.5),.42,2,1,false,TEXT("CoilPortalDiagonal"));
+        // CRANE-31e P01: the foreground upper rising pipe in ref1/ref4.
+        // Its opposite face is occluded: do not invent a mirrored member.
+        if(Sign>0)Tube(Node(Sign,0,23.),Node(Sign,1,28.),.52,2,1,false,TEXT("CoilPortalUpperDiagonal"));
         Beam(Node(Sign,0,26.4),Node(Sign,1,26.4),1.4,2,1,false,TEXT("CoilPortalHeader"));
         const double GX=X+Sign*CoilQuay::TopHalfX;
         Part({GX,Center,Q+28},{1.3,Length,1.7},2,FRotator(0,0,0),1,nullptr,false);
@@ -136,6 +139,17 @@ void ACoilLoadingSimulation::BuildQuayPresentation()
         // Ref1/ref4 upper-left slender stays; no cantilever lower knee struts.
         const FVector Post=Node(Sign,0,28),Anchor=Post+(Post-Node(Sign,0,CoilQuay::LegKneeZ)).GetSafeNormal()*6;
         Beam(Post,Anchor,.75,2,1,false,TEXT("CoilUpperStayPost"));Tube(Anchor,{GX,Sea,Q+28.9},.10,2,1,false,TEXT("CoilUpperStay"));
+    }
+    // CRANE-31e B01..03/D01..03: only the three visible underside bays in
+    // ref4 (ref1 corroborates the open lattice). No hidden root-bay repeats.
+    // All use the existing display-only batches, never measured structure.
+    const double BoomRootY=Node(1,0,28).Y,BoomBottom=Q+27.05;
+    for(int Bay=0;Bay<3;++Bay)
+    {
+        const double YA=FMath::Lerp(Sea,BoomRootY,double(Bay)/4),YB=FMath::Lerp(Sea,BoomRootY,double(Bay+1)/4);
+        Tube({X-CoilQuay::TopHalfX,YB,BoomBottom},{X+CoilQuay::TopHalfX,YB,BoomBottom},.18,2,1,true,TEXT("CoilBoomUndersideCross"));
+        const double FromX=X+(Bay%2?1:-1)*CoilQuay::TopHalfX,ToX=2*X-FromX;
+        Tube({FromX,YA,BoomBottom},{ToX,YB,BoomBottom},.14,2,1,true,TEXT("CoilBoomUndersideDiagonal"));
     }
     for(double Y:{Sea,Land}){Part({X,Y,Q+28},{2*CoilQuay::TopHalfX+1.8,.9,2.05},2,FRotator(0,0,0),1,nullptr,false,TEXT("CoilEndCarriage"));for(double DX:{-CoilQuay::TopHalfX,CoilQuay::TopHalfX})Part({X+DX,Y,Q+29.3},{.6,.4,.5},12,FRotator(0,0,0),1);}
     // Machinery house at girder end, with painted roof, door and ventilation.

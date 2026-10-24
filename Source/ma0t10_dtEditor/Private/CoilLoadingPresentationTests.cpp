@@ -161,6 +161,27 @@ class FCoilPresentationRun final:public IAutomationLatentCommand
         Test->TestEqual(TEXT("trolley four wheels"),Count(TEXT("CoilTrolleyWheel")),4);
         Test->TestEqual(TEXT("four large horizontal tubes on each principal side frame"),Count(TEXT("CoilPortalHorizontal")),8);
         Test->TestEqual(TEXT("sparse photo diagonals replace repeated small X grid"),Count(TEXT("CoilPortalDiagonal")),4);
+        Test->TestEqual(TEXT("ref1/ref4 only one visible foreground upper rising pipe; no unseen mirror"),Count(TEXT("CoilPortalUpperDiagonal")),1);
+        Test->TestEqual(TEXT("ref4 only three visible underside cross members"),Count(TEXT("CoilBoomUndersideCross")),3);
+        Test->TestEqual(TEXT("ref4 only three visible underside diagonal members"),Count(TEXT("CoilBoomUndersideDiagonal")),3);
+        for(auto* C:Parts)if(C->ComponentHasTag(TEXT("CoilPortalUpperDiagonal"))||C->ComponentHasTag(TEXT("CoilBoomUndersideCross"))||C->ComponentHasTag(TEXT("CoilBoomUndersideDiagonal")))
+        {
+            Test->TestTrue(TEXT("photo-only additions retain display-only collision and parent ownership"),C->ComponentHasTag(TEXT("CoilDisplayOnly"))&&C->GetCollisionEnabled()==ECollisionEnabled::NoCollision&&C->GetAttachParent()&&C->GetAttachParent()->ComponentHasTag(TEXT("CoilPortalMotionRoot")));
+            for(int I=0;I<C->GetInstanceCount();++I)
+            {
+                FTransform T;C->GetInstanceTransform(I,T,false);const FVector Axis=T.GetRotation().RotateVector(FVector::UpVector)*T.GetScale3D().Z*.5,Center=T.GetLocation()*.01,A=Center-Axis,B=Center+Axis;
+                if(C->ComponentHasTag(TEXT("CoilPortalUpperDiagonal")))
+                {
+                    const auto Sea=CoilQuay::LegNode(S.Settings,1,0,23)+FVector(0,0,S.BaseQuayZ()),Land=CoilQuay::LegNode(S.Settings,1,1,28)+FVector(0,0,S.BaseQuayZ());
+                    Test->TestTrue(TEXT("upper pipe joins existing foreground legs above23m; no new cantilever anchor"),(A.Equals(Sea,1.e-5)&&B.Equals(Land,1.e-5))||(B.Equals(Sea,1.e-5)&&A.Equals(Land,1.e-5)));
+                }
+                else
+                {
+                    const double SeaY=CoilQuay::GirderSea(S.Settings),RootY=CoilQuay::LegNode(S.Settings,1,0,28).Y;
+                    Test->TestTrue(TEXT("underside pipes stay in the photographed seaward boom span and under the flange"),FMath::IsNearlyEqual(A.Z,S.BaseQuayZ()+27.05,1.e-5)&&FMath::IsNearlyEqual(B.Z,A.Z,1.e-5)&&A.Y>=FMath::Min(SeaY,RootY)-1.e-5&&A.Y<=FMath::Max(SeaY,RootY)+1.e-5&&B.Y>=FMath::Min(SeaY,RootY)-1.e-5&&B.Y<=FMath::Max(SeaY,RootY)+1.e-5);
+                }
+            }
+        }
         Test->TestEqual(TEXT("three end ties per rail portal"),Count(TEXT("CoilPortalEndTie")),6);
         int CollisionLegs=0;TInlineComponentArray<UStaticMeshComponent*> Simple(&S);for(auto* C:Simple)if(C->ComponentHasTag(TEXT("CoilPortalLegCollision"))){++CollisionLegs;Test->TestTrue(TEXT("primary leg collision stays a simple box"),C->GetStaticMesh()->GetName()==TEXT("Cube")&&C->GetCollisionEnabled()!=ECollisionEnabled::NoCollision);}
         Test->TestEqual(TEXT("six primary simple leg boxes follow visible segments"),CollisionLegs,6);

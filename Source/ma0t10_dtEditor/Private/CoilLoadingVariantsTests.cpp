@@ -23,6 +23,7 @@
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformMemory.h"
 #include "HAL/IConsoleManager.h"
 #include "ShaderCompiler.h"
 #include "Misc/CommandLine.h"
@@ -34,7 +35,7 @@ FString VariantRoot(){return CoilTestReportPaths::Root()/TEXT("variants");}
 void VariantJson(const FString& Name,TSharedRef<FJsonObject> O){FString Text;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&Text));IFileManager::Get().MakeDirectory(*VariantRoot(),true);FFileHelper::SaveStringToFile(Text,*(VariantRoot()/Name));}
 class FCoilVariantRun final:public IAutomationLatentCommand
 {
-    FAutomationTestBase* Test;bool Stress;int32 Step=0;double Began=FPlatformTime::Seconds(),Changed=0,Last=0,MeasureStart=0;int64 StartFrame=0;TArray<double> Wall,Engine,Game;
+    FAutomationTestBase* Test;bool Stress;int32 Step=0;double Began=FPlatformTime::Seconds(),Changed=0,Last=0,MeasureStart=0;int64 StartFrame=0;TArray<double> Wall,Engine,Game,Gpu;
     TSharedRef<FJsonObject> Report=MakeShared<FJsonObject>();
     void Capture(UWorld& W,const FString& Name)
     {
@@ -79,13 +80,18 @@ public:
         if(Stress)
         {
             if(Step==1){if(Now-Changed<10)return false;MeasureStart=Last=Now;StartFrame=S.Lidar->GetSensorRuntimeStatus().FrameId;Step=2;return false;}
-            Wall.Add((Now-Last)*1000);Engine.Add(FApp::GetDeltaTime()*1000);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));Last=Now;if(Now-MeasureStart<30)return false;
+            Wall.Add((Now-Last)*1000);Engine.Add(FApp::GetDeltaTime()*1000);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));Gpu.Add(FPlatformTime::ToMilliseconds(GGPUFrameTime));Last=Now;if(Now-MeasureStart<30)return false;
             const auto Mean=[](const TArray<double>& V){double Sum=0;for(double X:V)Sum+=X;return V.Num()?Sum/V.Num():0;};
             auto Sorted=Engine;Sorted.Sort();const auto Status=S.Lidar->GetSensorRuntimeStatus();
             Report->SetNumberField(TEXT("average_fps"),1000/Mean(Engine));Report->SetNumberField(TEXT("callback_average_fps"),1000/Mean(Wall));Report->SetNumberField(TEXT("frame_p95_ms"),Sorted[FMath::FloorToInt((Sorted.Num()-1)*.95)]);Report->SetNumberField(TEXT("game_thread_mean_ms"),Mean(Game));Report->SetNumberField(TEXT("acquisition_hz"),(Status.FrameId-StartFrame)/(Now-MeasureStart));Report->SetStringField(TEXT("backend"),Status.ActiveAcquisitionBackend);Report->SetNumberField(TEXT("warmup_seconds"),10);Report->SetNumberField(TEXT("measurement_seconds"),Now-MeasureStart);Report->SetNumberField(TEXT("coils"),S.Plan().Num());
+            // CRANE-31e: additive observation only; the same instrument is overlaid
+            // on both archived revisions for the scene-specific ABAB comparison.
+            Report->SetNumberField(TEXT("gpu_mean_ms"),Mean(Gpu));Report->SetNumberField(TEXT("rss_bytes"),FPlatformMemory::GetStats().UsedPhysical);
+            Report->SetStringField(TEXT("sensor_id"),S.Lidar->GetSensorId());Report->SetStringField(TEXT("lidar_profile"),UEnum::GetValueAsString(S.Lidar->ScanComponent->DeviceProfile));
+            Report->SetNumberField(TEXT("samples"),Engine.Num());auto* RayTracing=IConsoleManager::Get().FindConsoleVariable(TEXT("r.RayTracing"));Report->SetBoolField(TEXT("ray_tracing_enabled"),RayTracing&&RayTracing->GetInt()!=0);
             Test->TestTrue(TEXT("stress actually acquires HWRT frames"),Status.FrameId>StartFrame&&Status.ActiveAcquisitionBackend==TEXT("hardware_ray_tracing"));
             int32 Instances=0;TInlineComponentArray<UInstancedStaticMeshComponent*> Batch(&S);for(auto* B:Batch)if(B->ComponentHasTag(TEXT("CoilSettledBatch")))Instances+=B->GetInstanceCount();Test->TestTrue(TEXT("hundreds of bodies and details render by instancing"),Instances>=600);Report->SetNumberField(TEXT("render_instances"),Instances);
-            FString Csv=TEXT("callback_ms,engine_ms,game_thread_ms\n");for(int I=0;I<Engine.Num();++I)Csv+=FString::Printf(TEXT("%.6f,%.6f,%.6f\n"),Wall[I],Engine[I],Game[I]);FFileHelper::SaveStringToFile(Csv,*(VariantRoot()/TEXT("stress-300-raw.csv")));Capture(*W,TEXT("coil-300-mixed"));Report->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());VariantJson(TEXT("stress-300.json"),Report);return true;
+            FString Csv=TEXT("callback_ms,engine_ms,game_thread_ms,gpu_ms\n");for(int I=0;I<Engine.Num();++I)Csv+=FString::Printf(TEXT("%.6f,%.6f,%.6f,%.6f\n"),Wall[I],Engine[I],Game[I],Gpu[I]);FFileHelper::SaveStringToFile(Csv,*(VariantRoot()/TEXT("stress-300-raw.csv")));Capture(*W,TEXT("coil-300-mixed"));Report->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());VariantJson(TEXT("stress-300.json"),Report);return true;
         }
         if(Now-Changed<1.5)return false;
         if(Step==1){Capture(*W,TEXT("coil-hr-vs-cr"));Camera(*H,{S.Plan()[0].Center.X-3.455,S.Plan()[0].Center.Y-2,2.4},S.Plan()[0].Center);Step=2;Changed=Now;return false;}

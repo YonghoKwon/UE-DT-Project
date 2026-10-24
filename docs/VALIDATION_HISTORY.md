@@ -895,3 +895,9 @@ Personal44 exactset/SHA,protected483 and runtime hashes restored/unchanged; init
 출하부두 역할 ID를 os_lidar_coil_quay로 정리하고 옛 Coil.Quay.XT32를 설정/배치/저장 위치/SaveGame PCD 옵션/녹화/PCD 수신과 검증 도구에서 읽기 별칭으로 받는다. 토픽·슬롯/버전·PCD33-byte 레코드는 유지하고 새 송신 센서 ID 변경의 서버 필터 영향을 README와 RESULT에 기록했다. 기준 코드의 실제 기본 프로필은 HesaiXT32이고 Ouster Rev7은 환경 캡처에서만 적용하므로 이번 ID 변경에서 프로필을 바꾸지 않았다.
 
 UE5.3 Development Editor build·집중3Success, 실제 D3D12 1920x1080 관련77Success/2조건부Skip/0Fail, Node4/Python4Pass. 초기 잘못된1280x720 캡처6Fail과 새 테스트 fixture 실패는 원본을 남기고 수정/조건을 기록했다. 기존 임계값은 유지했다. 자동 코일UI캡처1장을 보관했으며 직접 마우스는 Windows Security 팝업 때문에 미수행이다. 소유 Editor 정상 종료·개인 설정/보호 경로 해시 복원 일치. full release/RT ABAB/외부 서버·회사 수용은 미수행이다. [RESULT](../Saved/Reports/COIL-LIDAR-ID/RESULT.md), [result](../Saved/Reports/COIL-LIDAR-ID/result.json), [직접UI 제한](../Saved/Reports/COIL-LIDAR-ID/manual/CHECKLIST.md).
+
+## 2026-10-25 — CRANE-31e
+
+사용자 지정 ref1/ref4/ref6에서 보이는 전경 상부 경사관1개와 붐 밑면 횡관3개·대각관3개를 기존 표시 전용 Cylinder/재질/PortalRoot에 추가했다. 원형 단면·간격·치수는 사진 해상도에 따른 표시 가정이며 강도/인증 값이 아니다. 반대편 경사관·가려진 뿌리 격자·새 하부 knee strut는 추가하지 않았다. GTSU는 별도 구조여서 이번 모델 변경에서 제외했다. [부재별 사진 위치](research/CRANE-31e-basis.md).
+
+Development Editor build·집중 외형1·대량 코일1 Success, 실제 D3D12 1920x1080 관련77Success/2조건부Skip/0Fail. 기존 knee strut·충돌·idle0 회귀를 유지했고 공유용1600px JPG를 보관했다. 직접 마우스는 Windows Security 팝업 때문에 보류, 보안 설정 조작 없음. 렌더 증가에 대한 표준1Camera+1LiDAR/실제300코일 장면의 RT on ABAB2% 판정, 수행/미수행과 설정 복원은 [RESULT](../Saved/Reports/CRANE-31e/RESULT.md)/[result](../Saved/Reports/CRANE-31e/result.json)/[merge](../Saved/Reports/CRANE-31e/merge-check.json)을 따른다. 전체 release·패키징·회사 수용은 미수행이다.
