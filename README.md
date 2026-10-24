@@ -793,6 +793,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
 
+HATCH06-REGRESSION-34는 Editor 테스트의 바닥 카메라 fixture만 기존 자유 카메라 상태에 연결한다. Runtime·획득·렌더·저장·DTCore 변경 없이 layer/allowlist **0→0**을 유지한다. 첫 충돌·회색49/49 기준을 보존하고 카메라 유지·49개 화면 광선 검사도 추가했다. [원인 이분 탐색·검증·제한](Saved/Reports/HATCH06-REGRESSION-34/RESULT.md).
+
 UXR-H150은 기존 L3 해치 Widget 내부의 재배치·접기·분할 비율만 바꾼다. layer/allowlist **0→0**, 기존 UDxWidget·selector·분석 인스턴스·L1/L2·DTCore·wire·저장 형식 변경 없음. [검증과 제한](Saved/Reports/UXR-H150/RESULT.md).
 
 DUAL-CAMERA-22는 기존 L3 Monitor에서 주 정답 영상 미준비 시 보조 RGB brush 갱신이 차단되는 조기 반환을 제거했다. 새 회귀는 Editor 모듈과 테스트 전용 friend만 사용하며 layer/allowlist **0→0**, 새 모듈·자산·DTCore·wire·저장 형식 변경은 없다. [기능 검증·직접 점검·성능 미수행](Saved/Reports/DUAL-CAMERA-22/RESULT.md)을 구분한다.
@@ -1150,6 +1152,8 @@ Python 표준 라이브러리 클라이언트는127.0.0.1 주소만 만들고 �
 검증/제한은 [HATCH-04 RESULT](Saved/Reports/HATCH-04/RESULT.md), [DONE](Saved/Reports/HATCH-04/DONE.md), [직접 점검표](docs/MANUAL_CHECKLIST.md)를 따른다. 새 맵·자산·플러그인은 없으며 기존 `M_HatchCargo`만 vertex color 입력으로 확장했다. 캡처/검증 도구는 `Scripts/run_hatch_validation.ps1 -Mode FeedbackCaptures`, `-Mode Dig`, `-Mode Performance -Sensors 3`다. UI 자동 캡처와 직접 마우스 수용, 상대 기존맵 성능과 3대 해치 절대 성능을 구분한다.
 
 ## HATCH-06 실제 비례·원료·장비 비교·설정 동시 보기
+
+HATCH06-REGRESSION-34(2026-10-25): 바닥 시선·회색 픽셀 회귀의 최초 실패는 UXR-P2b `fadf810`이며 부모 `d2ca1d1`은 두 재질 모두 통과한다. 동적 툴바 reflow 뒤 monitor가 카메라 상태를 재적용하면서 Actor 좌표만 바꾼 구형 fixture가 덮였다. fixture를 기존 자유 카메라 경로에 연결하고 원래 시점·물리 장면·굴착·색상 기준을 유지했다. 전체 RHI 결과·전후1600px JPG·동일 표면 CRC·검증 한계는 [결과](Saved/Reports/HATCH06-REGRESSION-34/RESULT.md)를 따른다. 기존 RSS·성능 미해결 수용을 변경하지 않는다.
 
 후속 품질 보강(사용자 2026-10-21): GTSU의 플랜지·리브·볼트·거셋·통로 난간·기계실 창/도어/루버·케이블 릴, 선박의 코밍 보강·커버 이음·계류 장비·창 멀리언·흘수 마크를 절차 메시로 추가했다. 작은 외형 디테일은 측정 충돌에서 분리하고 GTSU 180m/선박 220m에서 거리 컬링한다. 선체 선수·선미 곡률과 갑판 캠버/시어를 보강했다. 원료는 0.5m 물리 높이장을 유지하면서 불규칙 덩어리와 다중 입도/습윤/신선한 절삭면의 색·거칠기를 표현한다. 새 텍스처·자산 없이 기존 M_HatchCargo를 사용하며 바닥·측정 높이·PCD 계약을 유지한다.
 

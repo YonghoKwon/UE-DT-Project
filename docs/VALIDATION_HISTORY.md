@@ -866,6 +866,16 @@ CPUuser+3.797246MiB/count−26370,CPUbacking−8.058594MiB/count+42다. 근접sa
 Editorbuild/DevelopmentpackagePASS,NullRHI계약1Success·Python23PASS. Source/asset/protected·개인44/보호481복원및최종quick/layer/guard/schema/merge는RESULTmanifest를따른다. 원시trace/cache/debugCSV11파일50,845,512,983bytes·package663파일2,558,113,352bytes를해시/요약보존후삭제했다. 엔진PDB/binaries는그대로다. 기존RSS미해결수용/절대8MiB·90초·5쌍과현장수용구분을유지하며push/PR/merge0이다. [콜스택·완화·한계](MEMORY_ATTRIBUTION_26d.md)·[RESULT](../Saved/Reports/MEMORY-ATTRIBUTION-26d/RESULT.md)·result.json/merge-check.json.
 
 
+## 2026-10-25 HATCH06-REGRESSION-34 — 탱크톱 fixture 회귀
+
+기준 `1a8e88a`, 코드 `adf1342`, branch `fix/hatch06-tanktop-34`, DTCore `b2504d1`. 메인 체크아웃의 first-parent/내부 git bisect 8개 실제 D3D12 probe로 최초 실패 `fadf8109390e`(#82 UXR-P2b)를 특정했다. 인접 부모 `d2ca1d1`은 철광석·석탄 모두 Z0 첫 충돌/회색49/49다. H150은 최초 도입이 아니다. 역사 probe는 초기 프레젠테이션/장비 timing을 건너뛴 바닥 전용 진단이며 성능 통과로 세지 않는다.
+
+동적 툴바 Layout이 monitor 카메라 상태를 재적용하면서 카메라 Actor 좌표만 바꾸던 구형 fixture가 덮였다. Editor fixture만 기존 자유 카메라 상태에 연결했다. 원래 eye/target·default Dig·시드·표면 CRC·굴착 횟수·물리 장면과 첫 충돌 |Z|<0.005m·7×7 회색49/49(RGB40~180/차이24)를 유지했다. 카메라 유지·전체 샘플 가시 영역·49개 실제 화면 광선의 탱크톱 첫 충돌도 추가 검증한다. fixture 정당성은 Claude 독립 리뷰 대상이다.
+
+UE5.3 Editor Development/quick/layer/guard PASS, allowlist0→0. 단축 없는 1280×720/font100 AcceptanceRhi 1 Success, 코드 SHA의 1920×1080/font100 HATCH06 전체7개 포함 해치 회귀27 Success, Fail0/Skip0. 두 Acceptance 모두 5종 준비10초+측정30초를 유지했다. 두 해상도/두 재질의 회색49/49·실제 광선49/49·카메라 유지 PASS. 동일 물리 CRC·굴착 횟수에서 master의0/49→49/49이며 전후1600×900 JPG4장을 보존한다.
+
+Runtime/획득/렌더/Config/자산 변경0이므로 조건부 RT on ABAB는 미발동/미수행이다. 기존 HATCH-06 RSS 및 MEMORY-26e perf 실패는 유지한다. 전체 release·직접 마우스·현장 수용은 미수행이다. 개인44개 원본 집합/SHA 복원·보호552개 해시 동일·시작 전 SensorTestMap 변경 보존/저장0. DTCore/gitlink·Config/Game.ini·PixelStreaming·운영맵·Claude 메모 변경0, Editor/PIE 정상 종료, push/PR/merge 없음. 최초 실행기 인용 오류와 추가 검사 변수명 컴파일 실패도 별도 보존하고 PASS로 집계하지 않았다. [RESULT](../Saved/Reports/HATCH06-REGRESSION-34/RESULT.md), [result](../Saved/Reports/HATCH06-REGRESSION-34/result.json), [merge check](../Saved/Reports/HATCH06-REGRESSION-34/merge-check.json).
+
 ## 2026-10-25 MEMORY-26e - future result ownership and repeated package attribution
 
 Base `15326e6`, Runtime `eb4d515`, branch `fix/hatch-observation-copy-26e`. UE5.3 has no Consume; the project consumes exclusively owned ready futures by moving their state/result and invalidating the original. Hatch analysis FResult is move-only. Hatch generation and stored PCD viewer large results use the same path. Pointer/capacity/value/ready-state regression repeats3times. No Blueprint/wire/default/DTCore/asset changes.
