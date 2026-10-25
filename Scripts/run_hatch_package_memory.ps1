@@ -6,6 +6,7 @@ param(
     [switch]$Investigation,
     [switch]$MemoryTrace,
     [switch]$TraceCanary,
+    [ValidateSet('none','baseline','crash-off','gpu-stats-off','rdg-events-off','mimalloc','trim-60s')][string]$ExperimentCase='none',
     [ValidateRange(1024,65535)][int]$Port=18626
 )
 # Owned standalone game/loopback only. User apps, broker settings and maps are
@@ -39,7 +40,7 @@ function Environment-Sample {
 try {
     $processes=@(Get-Process|Where-Object{$_.ProcessName -match 'chrome|msedge|firefox|brave|vlc|mpv|potplayer|Unreal|Shader|LiveCoding'}|ForEach-Object{@{name=$_.ProcessName;pid=$_.Id;working_set_bytes=$_.WorkingSet64}})
     $source=((& git -C $root rev-parse HEAD) -join '')
-    @{commit=$source;executable=$Executable;executable_sha256=(Get-FileHash -LiteralPath $Executable -Algorithm SHA256).Hash;seconds=$Seconds;processes=$processes;note='Explicit blank loopback credentials; fresh UserDir; no user app/URL/title/command line capture'}|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 -LiteralPath "$ReportRoot/environment-before.json"
+    @{commit=$source;executable=$Executable;executable_sha256=(Get-FileHash -LiteralPath $Executable -Algorithm SHA256).Hash;seconds=$Seconds;experiment_case=$ExperimentCase;processes=$processes;note='Explicit blank loopback credentials; fresh UserDir; no user app/URL/title/command line capture'}|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 -LiteralPath "$ReportRoot/environment-before.json"
     for($i=0;$i -lt 3;$i++){
         if(Environment-Sample){$contaminated=$true;throw 'Video decoding detected before measurement; stopped'}
         if($i -lt 2){Start-Sleep -Seconds 2}
@@ -51,13 +52,24 @@ try {
         if($probe.HasExited -or [DateTime]::UtcNow -gt $ready){throw 'Loopback fixture did not become ready'}
         Start-Sleep -Milliseconds 200
     }
+    $commands='t.MaxFPS 60,r.VSync 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0'
+    $expected=@{}
+    switch($ExperimentCase){
+        'crash-off' {$expected['r.gpucrash.collectionenable']=0}
+        'gpu-stats-off' {$expected['r.GPUStatsEnabled']=0}
+        'rdg-events-off' {$expected['r.RDG.Events']=0}
+    }
+    foreach($key in $expected.Keys){$commands+=",$key $($expected[$key])"}
     $arguments=@('/Game/MA0T10/Maps/Tests/ShipHatchTestMap','-d3d12','-llm','-nosound','-unattended','-nop4','-nosplash','-windowed','-RenderOffscreen','-ForceRes','-ResX=1920','-ResY=1080',
-        '-ExecCmds=t.MaxFPS 60,r.VSync 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0',
+        "-ExecCmds=$commands",
         "-UserDir=$ReportRoot/user","-HatchMemoryRuntimeReport=$ReportRoot","-HatchMemoryRuntimeSeconds=$Seconds",'-HatchMemorySampleSeconds=5',
         "-HatchMemoryPcdLoopbackPort=$Port","-HatchMemoryCancelFile=$cancel","-HatchSourceCommit=$source","-abslog=$ReportRoot/game.log")
     if($Investigation){$arguments+='-HatchMemoryInvestigation'}
     if($MemoryTrace){$arguments+=@('-trace=memory,bookmark',"-tracefile=$ReportRoot/memory.utrace")}
     if($TraceCanary){$arguments+='-HatchMemoryTraceCanary'}
+    if($ExperimentCase -ne 'none'){$arguments+='-HatchMemoryExperiment'}
+    if($ExperimentCase -eq 'mimalloc'){$arguments+='-mimalloc'}
+    if($ExperimentCase -eq 'trim-60s'){$arguments+='-HatchMemoryTrimSeconds=60'}
     $arguments=@($arguments|ForEach-Object{'"'+$_+'"'})
     $game=Start-Process -FilePath $Executable -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$ReportRoot/console.log" -RedirectStandardError "$ReportRoot/stderr.log"
     $null=$game.Handle;$deadline=[DateTime]::UtcNow.AddSeconds($Seconds+900)
@@ -75,10 +87,20 @@ try {
     if($failure){throw $failure}
     $last=Get-Content -LiteralPath "$ReportRoot/memory-trend.jsonl" -Tail 1 -Encoding UTF8|ConvertFrom-Json
     if($last.type -ne 'summary' -or !$last.complete){throw 'No complete runtime memory summary'}
+    if($ExperimentCase -ne 'none'){
+        $experiment=@(Get-Content -LiteralPath "$ReportRoot/experiment.jsonl" -Encoding UTF8|ForEach-Object{$_|ConvertFrom-Json})
+        if($experiment[-1].type -ne 'summary' -or !$experiment[-1].complete){throw 'Incomplete experiment sidecar'}
+        foreach($entry in $experiment|Where-Object{$_.type -in @('metadata','sample','summary')}){
+            foreach($key in $expected.Keys){$value=$entry.cvars.PSObject.Properties[$key];if(!$value -or !$value.Value.present -or $value.Value.value -ne $expected[$key]){throw "Experiment CVar not effective: $key"}}
+        }
+        if($ExperimentCase -eq 'mimalloc' -and $experiment[0].allocator -notmatch 'mimalloc'){throw 'Requested mimalloc not active'}
+        if($ExperimentCase -eq 'trim-60s' -and $Seconds -ge 60 -and $experiment[-1].trim_calls -le 0){throw 'Diagnostic trim never ran'}
+        if($ExperimentCase -ne 'trim-60s' -and $experiment[-1].trim_calls -ne 0){throw 'Unexpected allocator trim'}
+    }
 }catch{$failure=$_.Exception.Message}
 finally {
     if($probe -and !$probe.HasExited){[IO.File]::WriteAllText($stop,'done');if(!$probe.WaitForExit(10000)){$failure+='; loopback failed normal shutdown'}}
-    @{Valid=(!$failure);Failure=$failure;Commit=((& git -C $root rev-parse HEAD)-join '');VideoDecodeDetected=$contaminated;Seconds=$Seconds;GameExit=$(if($game){$game.ExitCode}else{$null});Executable=$Executable;Scope='Packaged local diagnostic; no company acceptance'}|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 -LiteralPath "$ReportRoot/run-manifest.json"
+    @{Valid=(!$failure);Failure=$failure;Commit=((& git -C $root rev-parse HEAD)-join '');VideoDecodeDetected=$contaminated;Seconds=$Seconds;ExperimentCase=$ExperimentCase;GameExit=$(if($game){$game.ExitCode}else{$null});Executable=$Executable;Scope='Packaged local diagnostic; no company acceptance'}|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 -LiteralPath "$ReportRoot/run-manifest.json"
 }
 if($failure){throw $failure}
 Write-Host "Packaged memory run complete: $ReportRoot"

@@ -1,4 +1,5 @@
 #include "HatchMemoryRuntimeProbe.h"
+#include "HatchMemoryExperimentDiagnostics.h"
 
 #include "ShipHatchMonitorHost.h"
 #include "ShipHatchMonitorWidget.h"
@@ -93,7 +94,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
     }
     void Finish(bool Complete,const FString& Reason)
     {
-        if(Finished)return;Finished=true;
+        if(Finished)return;Finished=true;Failed=!FinishHatchMemoryExperiment(Complete&&!Failed)||Failed;
         auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("type"),TEXT("summary"));R->SetObjectField(TEXT("pcd"),Pcd(Complete));
         R->SetStringField(TEXT("reason"),Reason);R->SetBoolField(TEXT("complete"),Complete&&!Failed);R->SetBoolField(TEXT("diagnostic_only"),true);
         if(Complete&&!Failed){TRACE_BOOKMARK(TEXT("MEMORY26B_END"));}else{TRACE_BOOKMARK(TEXT("MEMORY26B_CANCEL"));}
@@ -160,11 +161,12 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         if(!Write(R)||!ViewportValid)return false;
         for(const auto& Status:Publisher->GetStreamStatuses())if(Status.StreamKind==EVirtualSensorStreamKind::PointCloud)PcdBefore.Add(Status.SensorId,Status);
         for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))FramesBefore.Add(A->GetSensorId(),A->ScanComponent->GetRuntimeStatus().FrameId);
-        Started=FPlatformTime::Seconds();TRACE_BOOKMARK(TEXT("MEMORY26B_BEGIN"));return true;
+        Started=FPlatformTime::Seconds();if(!BeginHatchMemoryExperiment(Directory))return false;TRACE_BOOKMARK(TEXT("MEMORY26B_BEGIN"));return true;
     }
     void Sample(AShipHatchSimulation& S)
     {
         const double CostStart=FPlatformTime::Seconds();
+        if(!SampleHatchMemoryExperiment(CostStart-Started))Failed=true;
         {
             const auto Mem=FPlatformMemory::GetStats();auto R=MakeShared<FJsonObject>();
             R->SetStringField(TEXT("type"),TEXT("memory_curve"));R->SetNumberField(TEXT("seconds"),CostStart-Started);R->SetNumberField(TEXT("cycle"),0);
