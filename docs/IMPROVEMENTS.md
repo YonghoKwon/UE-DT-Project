@@ -76,6 +76,8 @@ allocation 후속(기준a64dcc8/실측f1236f6): idle trace15분과4개 cut 및 �
 
 26e(기준15326e6/Runtime eb4d515): 큰 future 결과3경로를 이동 소비하고 해치 FResult를 move-only로 만들었다. package20분 trace2회/비추적60분 모두 누수 의심, 비추적 RSS17.50/Commit13.84/RHIMisc11.81MiB/h·UObject0이다. query 배열·bounded profiler cache·PCD encode만 두 새 trace의 증가 경로 후보로 남겼으며 point lease1개+25MiB 등 단일 실행 차이를 누수로 단정하지 않았다. 관련22 Success/1기존 Fail/0 Skip, 기준에서도 같은4assertion 재현·quick/layer/guard 통과지만 RT on ABAB1블록 GPU+2.4487% FAIL을 유지한다. 기존 RSS 수용·기준과 제품 기본값은 유지한다. [조건·콜스택·정리 제한](MEMORY_OBSERVATION_26e.md)·[결과](../Saved/Reports/MEMORY-26e/RESULT.md).
 
+26f 해결 계획1·3단계 완료(기준d8048bf/진단Runtime e389af6): 60분 baseline3회·30분 cut5회를 같은package로 실행하고,첫10분 제외·공통꼬리20분·120초쿨다운을 고정했다. baseline RSS/Commit/RHIMisc 중앙값17.429/19.146/11.128,범위6.706/9.803/0.729MiB/h다. 유의는사전범위/최소효과/처리량/다른RAM악화/통제값운영기준이며통계적유의성은아니다. GPUStats/RDG/Trim은RHI한정후보이고 RSS/Commit 개선은없다. 제품기본값변경·2단계태그작업·4단계는수행하지않았으며 최종2시간/원래5쌍/ABAB기준은그대로미평가다. [전체조건·표·제외사유](MEMORY_FIX_26f_STAGE13.md)·[결과](../Saved/Reports/MEMORY-FIX-26f/RESULT.md).
+
 ## FOLLOWUP-28 — Rev7×3 PCD 송신 공정성
 
 2026-10-23 사용자 승인으로 기본PCD 예산64→80MiB/s를 적용했다. 새 기본값은 공통상수로 관리하며 지정된 기존값·저장형식·PCD33-byte·승인FIFO·기본출력·예약상한을 보존한다. 기본 Rev7×3·90초 표시형 localhost의 각19.695/19.684/19.672Hz/편차0.022Hz로 각19Hz 목표를 충족했다. 필요75.942MiB/s이며 필요>예산 경고0, 송신 생략0,150ms 초과0이다. 최초 오프스크린의 기존 획득cadence3FAIL은 보존하고 표시형에서 같은 assertion까지통과했다. [측정·한계](../Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md)·[UI](../Saved/Reports/FOLLOWUP-28-26/r4/manual/CHECKLIST.md).
