@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "MA0T10MemoryTags.h"
 #include "IndustrialLidarProfiles.h"
 #include "VirtualLidarSemanticDiagnostics.h"
 #include "SensorOwnedRayTracing.h"
@@ -124,11 +125,13 @@ void InitializeWorkerPoint(const FVirtualLidarSceneQueryJob& J,int I,FVirtualLid
 }
 void NormalizeHardware(const TSharedPtr<FVirtualLidarSceneQueryJob,ESPMode::ThreadSafe>& J,TArray<FSensorRtHit>&& Hits)
 {
+    LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
  if(J->Cancelled.load(std::memory_order_acquire)){J->Buffer->Busy.store(false,std::memory_order_release);J->WorkerReady.store(true,std::memory_order_release);return;}
  if(J->bCollectSemanticDiagnostics)J->DiagnosticReport=VirtualLidarSemanticDiagnostics::BuildHardwareReport(J->DiagnosticMeshes,Hits);
- const int Count=Hits.Num();J->WorkerPoints.SetNum(Count);J->Buffer->Hits.SetNum(Count);J->RequiresResolve.SetNumZeroed(Count);
+ const int Count=Hits.Num();{LLM_SCOPE_BYTAG(MA0T10_LidarPoints);J->WorkerPoints.SetNum(Count);}J->Buffer->Hits.SetNum(Count);J->RequiresResolve.SetNumZeroed(Count);
  ParallelFor(FMath::DivideAndRoundUp(Count,512),[J,&Hits,Count](int Chunk)
  {
+  LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
   if(J->Cancelled.load(std::memory_order_acquire))return;
   for(int I=Chunk*512;I<FMath::Min(Count,(Chunk+1)*512);++I)
   {
@@ -155,9 +158,11 @@ void NormalizeHardware(const TSharedPtr<FVirtualLidarSceneQueryJob,ESPMode::Thre
 }
 void NormalizeCpuSnapshot(const TSharedPtr<FVirtualLidarSceneQueryJob,ESPMode::ThreadSafe>& J)
 {
+    LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
  const int Count=J->Width*J->Height;J->WorkerPoints.SetNum(Count);J->RequiresResolve.SetNumZeroed(Count);
  ParallelFor(FMath::DivideAndRoundUp(Count,512),[J,Count](int Chunk)
  {
+  LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
   if(J->Cancelled.load(std::memory_order_acquire))return;
   for(int I=Chunk*512;I<FMath::Min(Count,(Chunk+1)*512);++I)
   {
@@ -186,6 +191,7 @@ void NormalizeCpuSnapshot(const TSharedPtr<FVirtualLidarSceneQueryJob,ESPMode::T
 }
 void UVirtualLidarScanComponent::BeginSceneQueryBatch()
 {
+    LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
  const bool bRequestedHardware=ActiveAcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing;
  HardwareSurfaceIdentities.Reset();
  if(!ScheduledRayQuery)
@@ -245,6 +251,7 @@ void UVirtualLidarScanComponent::BeginSceneQueryBatch()
      {J->DiagnosticMeshes=CaptureDiagnosticMeshes(*J);J->bCollectSemanticDiagnostics=true;}
     Request.OnReadback=[J](TArray<FSensorRtHit>&& Hits,const FString& Error)
     {
+     LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
      if(J->Cancelled.load(std::memory_order_acquire))return;
      if(!Error.IsEmpty()||Hits.Num()!=J->Width*J->Height)
      {J->ReadbackFailure=Error.IsEmpty()?TEXT("HWRT hit count differs"):Error;J->ReadbackFailed.store(true,std::memory_order_release);return;}
@@ -284,6 +291,7 @@ void UVirtualLidarScanComponent::BeginSceneQueryBatch()
 }
 bool UVirtualLidarScanComponent::PollSceneQueryBatch()
 {
+    LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
  auto J=SceneQueryJob;if(!J)return true;
  if(J->Generation!=ScheduledGeneration||J->Cancelled.load(std::memory_order_acquire))return false;
  if(J->ReadyRays.load(std::memory_order_acquire)>ScheduledNextRayIndex)return true;
@@ -411,6 +419,7 @@ void UVirtualLidarScanComponent::RecordSceneQueryWork(double Seconds,bool Comple
 }
 void UVirtualLidarScanComponent::AcquireScenePointStorage(int32 Capacity)
 {
+    LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
  CSV_SCOPED_TIMING_STAT(LidarWallclock28b,PointStorage);
  RecycleScenePointStorage();
  if(ScenePointCapacity!=Capacity)

@@ -1,4 +1,5 @@
 #include "ShipHatchSimulation.h"
+#include "MA0T10MemoryTags.h"
 #include "ma0t10_dt/MA0T10/Contracts/ConsumeReadyFuture.h"
 #include "ProceduralMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -425,6 +426,7 @@ void AShipHatchSimulation::ConfigureSensors()
 }
 void AShipHatchSimulation::CollectObservations(TArray<ShipHatch::FObservation>& Out) const
 {
+    LLM_SCOPE_BYTAG(MA0T10_HatchAnalysis);
     Out.Reset();if(bGenerating)return;
     for(int32 Index=0;Index<3;++Index)
     {auto* A=SensorEnabled(Index)?SensorAt(Index):nullptr;

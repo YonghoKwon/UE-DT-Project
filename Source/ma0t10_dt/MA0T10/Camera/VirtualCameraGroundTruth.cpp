@@ -1,4 +1,5 @@
 #include "VirtualCameraGroundTruth.h"
+#include "MA0T10MemoryTags.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorTextureReadback.h"
 #include "VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorCaptureRendering.h"
@@ -59,6 +60,7 @@ FVirtualCameraIntrinsics FVirtualCameraIntrinsics::Make(int32 W,int32 H,double F
 }
 TArray<FVirtualCameraTruthBox> FVirtualCameraTruthFrame::FindBoxes(const TArray<uint8>& Labels,const TArray<uint32>& Ids,int32 W,int32 H)
 {
+    LLM_SCOPE_BYTAG(MA0T10_CameraGT);
     TArray<FVirtualCameraTruthBox> Result;
     if(W<=0||H<=0||int64(W)*H!=Ids.Num()||Labels.Num()!=Ids.Num())return Result;
     TMap<uint64,int32> Index;
@@ -117,6 +119,7 @@ void UVirtualCameraGroundTruth::Cancel(const FString& Reason)
 }
 bool UVirtualCameraGroundTruth::Capture(UVirtualCameraCaptureComponent& Source,const FVirtualCameraPayloadSnapshot& Snapshot,bool Save,bool Dataset,bool IncludeTruth,FVirtualCameraTruthSaveCompletion Completion)
 {
+    LLM_SCOPE_BYTAG(MA0T10_CameraGT);
     auto Reject=[&](const FString& Reason){Status=Reason;if(Completion)Completion(nullptr,FString(),Reason,{});return false;};
     if(Work)return Reject(TEXT("정답 데이터 처리 중 · 새 요청 생략"));
     if(!GetWorld()||(IncludeTruth&&!Source.bGroundTruthEnabled)||(!IncludeTruth&&!Dataset)||Snapshot.Width<=0||Snapshot.Height<=0||int64(Snapshot.Width)*Snapshot.Height>4096ll*2160||Source.ProjectionType!=ECameraProjectionMode::Perspective||Source.bUseCustomProjectionMatrix)
@@ -176,6 +179,7 @@ bool UVirtualCameraGroundTruth::Capture(UVirtualCameraCaptureComponent& Source,c
     const bool QueueSemanticNow=!State->WaitingSemanticCapture;
     ENQUEUE_RENDER_COMMAND(CameraTruthCopy)([State,DepthResource,SemanticResource,RgbResource,QueueSemanticNow](FRHICommandListImmediate& Cmd)
     {
+        LLM_SCOPE_BYTAG(MA0T10_CameraGT);
         if(State->Cancelled)return;
         // InitResource/UpdateResource and both captures precede this command. Fetching
         // texture refs on the game thread can observe an uninitialized first target.
@@ -196,6 +200,7 @@ bool UVirtualCameraGroundTruth::Capture(UVirtualCameraCaptureComponent& Source,c
 
 void UVirtualCameraGroundTruth::Poll()
 {
+    LLM_SCOPE_BYTAG(MA0T10_CameraGT);
     auto State=Work;if(!State||State->Cancelled||State->Mapping)return;
     if(!State->Source.IsValid()||State->Source->GetFileCaptureRevision()!=State->Revision||(State->IncludeTruth&&!State->Source->bGroundTruthEnabled)){Cancel();return;}
     if(State->WaitingSemanticCapture&&State->InitialCopiesQueued.load(std::memory_order_acquire)&&SemanticScene->PollPendingCapture())
@@ -204,6 +209,7 @@ void UVirtualCameraGroundTruth::Poll()
         auto* Resource=SemanticScene->GetTarget()->GameThread_GetRenderTargetResource();
         ENQUEUE_RENDER_COMMAND(CameraTruthDeferredSemanticCopy)([State,Resource](FRHICommandListImmediate& Cmd)
         {
+            LLM_SCOPE_BYTAG(MA0T10_CameraGT);
             if(State->Cancelled)return;
             const auto Texture=Resource?Resource->GetRenderTargetTexture():FTextureRHIRef();
             if(Texture.IsValid())
@@ -217,6 +223,7 @@ void UVirtualCameraGroundTruth::Poll()
     TWeakObjectPtr<UVirtualCameraGroundTruth> Weak(this);
     ENQUEUE_RENDER_COMMAND(CameraTruthMap)([State,Weak,Module](FRHICommandListImmediate&)mutable
     {
+        LLM_SCOPE_BYTAG(MA0T10_CameraGT);
         TArray<FLinearColor> IdPixels;int32 DP=0,SP=0;
         const float* D=State->Depth?static_cast<const float*>(State->Depth->Lock(DP)):nullptr;
         const FLinearColor* S=State->Semantic?static_cast<const FLinearColor*>(State->Semantic->Lock(SP)):nullptr;
@@ -238,6 +245,7 @@ void UVirtualCameraGroundTruth::Poll()
         State->Frame->ReadbackLatencyMs=(FPlatformTime::Seconds()-State->Started)*1000;
         Async(EAsyncExecution::ThreadPool,[State,Weak,Module,IdPixels=MoveTemp(IdPixels),W,H]()mutable
         {
+            LLM_SCOPE_BYTAG(MA0T10_CameraGT);
             const double Start=FPlatformTime::Seconds();auto& F=*State->Frame;
             if(!State->Cancelled&&(!State->IncludeTruth||IdPixels.Num()==W*H))
             {
@@ -311,6 +319,7 @@ void UVirtualCameraGroundTruth::Poll()
 }
 void UVirtualCameraGroundTruth::Complete(const TSharedPtr<FVirtualCameraTruthWork,ESPMode::ThreadSafe>& State)
 {
+    LLM_SCOPE_BYTAG(MA0T10_CameraGT);
     if(Work!=State||State->Cancelled)return;
     if(!State->Source.IsValid()||State->Source->GetFileCaptureRevision()!=State->Revision||(State->IncludeTruth&&!State->Source->bGroundTruthEnabled)){Cancel();return;}
     Work.Reset();

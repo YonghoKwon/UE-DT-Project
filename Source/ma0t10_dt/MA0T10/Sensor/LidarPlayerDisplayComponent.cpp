@@ -1,4 +1,5 @@
 #include "LidarPlayerDisplayComponent.h"
+#include "MA0T10MemoryTags.h"
 #include "PrimitiveSceneProxy.h"
 #include "PrimitiveViewRelevance.h"
 #include "SceneManagement.h"
@@ -76,6 +77,7 @@ public:
         // of repeatedly staging writes into static mesh position/color buffers.
         ENQUEUE_RENDER_COMMAND(HatchInitDynamicPointStreams)([this](FRHICommandListImmediate& Cmd)
         {
+            LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
             DynamicPositions.InitResource(Cmd);DynamicColors.InitResource(Cmd);
             FRHIResourceCreateInfo PosInfo(TEXT("HatchDynamicPointPositions")),ColorInfo(TEXT("HatchDynamicPointColors"));
             const uint32 PositionBytes=Vertices.PositionVertexBuffer.GetNumVertices()*sizeof(FVector3f),ColorBytes=Vertices.ColorVertexBuffer.GetNumVertices()*sizeof(FColor);
@@ -103,6 +105,7 @@ public:
     {if(bFixedPoints){Factory.ReleaseResource();DynamicPositionSRV.SafeRelease();DynamicColorSRV.SafeRelease();DynamicPositions.ReleaseResource();DynamicColors.ReleaseResource();Vertices.PositionVertexBuffer.ReleaseResource();Vertices.StaticMeshVertexBuffer.ReleaseResource();Vertices.ColorVertexBuffer.ReleaseResource();Indices.ReleaseResource();}}
     void UpdatePoints(FRHICommandListImmediate& Cmd,FPlayerPointUpdate&& Data)
     {
+        LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
         check(IsInRenderingThread());
         if(!bFixedPoints||Data.Points.Num()!=Points.Num())return;
         Points=MoveTemp(Data.Points);
@@ -144,7 +147,7 @@ public:
 };
 }
 FPrimitiveSceneProxy* ULidarPlayerDisplayComponent::CreateSceneProxy()
-{FixedProxyPointCount=bFixedPointSubmission&&GEngine&&GEngine->VertexColorMaterial?BatchedPoints.Num():0;if(FixedProxyPointCount>0)++FixedPointProxyCreations;return new FPlayerDisplayProxy(this);}
+{LLM_SCOPE_BYTAG(MA0T10_LidarPreview);FixedProxyPointCount=bFixedPointSubmission&&GEngine&&GEngine->VertexColorMaterial?BatchedPoints.Num():0;if(FixedProxyPointCount>0)++FixedPointProxyCreations;return new FPlayerDisplayProxy(this);}
 void ULidarPlayerDisplayComponent::CommitPointData()
 {
     UpdateBounds();
@@ -153,6 +156,7 @@ void ULidarPlayerDisplayComponent::CommitPointData()
 }
 void ULidarPlayerDisplayComponent::SendRenderDynamicData_Concurrent()
 {
+    LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
     Super::SendRenderDynamicData_Concurrent();
     if(!bFixedPointSubmission||!SceneProxy||FixedProxyPointCount<=0||FixedProxyPointCount!=BatchedPoints.Num())return;
     FPlayerPointUpdate Data;Data.Points=BatchedPoints;Data.Origin=PointViewOrigin;Data.Right=PointViewRight;Data.Up=PointViewUp;Data.Forward=PointViewForward;Data.PixelScale=PointPixelScale;

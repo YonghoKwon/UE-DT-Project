@@ -1,4 +1,5 @@
 #include "SensorOwnedRayTracing.h"
+#include "MA0T10MemoryTags.h"
 #include "GlobalShader.h"
 #include "BuiltInRayTracingShaders.h"
 #include "RayTracingPayloadType.h"
@@ -76,12 +77,14 @@ uint64 CacheClock=0;
 template<typename T>
 FBufferRHIRef Upload(FRHICommandListImmediate& Cmd,const TCHAR* Name,const TArray<T>& Data,EBufferUsageFlags Flags)
 {
+    LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
     TResourceArray<T> Resource;Resource.Append(Data);
     FRHIResourceCreateInfo Info(Name);Info.ResourceArray=&Resource;
     return Cmd.CreateStructuredBuffer(sizeof(T),Resource.GetResourceDataSize(),Flags|BUF_ShaderResource,Info);
 }
 TSharedPtr<FBlas,ESPMode::ThreadSafe> GetBlas(FRHICommandListImmediate& Cmd,const FSensorRtMesh& Mesh)
 {
+    LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
     if(auto* Existing=BlasCache.Find(Mesh.Revision)){(*Existing)->LastUse=++CacheClock;return *Existing;}
     while(BlasCache.Num()>=8){uint64 OldKey=0,OldUse=MAX_uint64;for(const auto& Entry:BlasCache)if(Entry.Value->LastUse<OldUse){OldKey=Entry.Key;OldUse=Entry.Value->LastUse;}BlasCache.Remove(OldKey);}
     auto B=MakeShared<FBlas,ESPMode::ThreadSafe>();B->Revision=Mesh.Revision;B->LastUse=++CacheClock;
@@ -147,6 +150,7 @@ public:
     void Fail(const TCHAR* Reason){Failure=Reason;Complete();}
     void PumpReadback()
     {
+        LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
 #if RHI_RAYTRACING
         if(Finished.load(std::memory_order_acquire)||!Readback||!Readback->IsReady())return;
         const uint32 Bytes=Request.Rays.Num()*sizeof(FSensorRtHit);
@@ -174,6 +178,7 @@ public:
     }
     void Dispatch(FRHICommandListImmediate& Cmd)
     {
+        LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
 #if RHI_RAYTRACING
         if(Cancelled.load()){Fail(TEXT("cancelled before GPU submission"));return;}
         if(!SensorOwnedRayTracing::IsAvailable()){Fail(TEXT("HWRT pipeline unavailable"));return;}
@@ -202,6 +207,7 @@ public:
         auto AddressBuffer=Addresses.Buffer;auto Geometries=Init.ReferencedGeometries;
         Cmd.EnqueueLambda([AddressBuffer,Geometries](FRHICommandListImmediate& Rhi)
         {
+            LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
             auto* Data=static_cast<FRayTracingAccelerationStructureAddress*>(Rhi.LockBuffer(AddressBuffer,0,Geometries.Num()*sizeof(FRayTracingAccelerationStructureAddress),RLM_WriteOnly));
             for(int I=0;I<Geometries.Num();++I)Data[I]=Geometries[I]->GetAccelerationStructureAddress(Rhi.GetGPUMask().ToIndex());
             Rhi.UnlockBuffer(AddressBuffer);
@@ -238,7 +244,10 @@ public:
         FRayTracingShaderBindingsWriter Bindings;SetShaderParameters(Bindings,Shader,P);
         Cmd.RayTraceDispatch(Pipeline,Shader.GetRayTracingShader(),Scene,Bindings,Request.Rays.Num(),1);
         Cmd.Transition(FRHITransitionInfo(ResultBuffer,ERHIAccess::UAVCompute,ERHIAccess::CopySrc));
-        Readback=MakeUnique<FRHIGPUBufferReadback>(TEXT("SensorOwnedLidar"));Readback->EnqueueCopy(Cmd,ResultBuffer,Request.Rays.Num()*sizeof(FSensorRtHit));
+        {
+            LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
+            Readback=MakeUnique<FRHIGPUBufferReadback>(TEXT("SensorOwnedLidar"));Readback->EnqueueCopy(Cmd,ResultBuffer,Request.Rays.Num()*sizeof(FSensorRtHit));
+        }
 #else
         Fail(TEXT("RHI compiled without ray tracing"));
 #endif
@@ -256,6 +265,7 @@ bool SensorOwnedRayTracing::IsAvailable()
 }
 TSharedPtr<ISensorRtScan,ESPMode::ThreadSafe> SensorOwnedRayTracing::Submit(FSensorRtRequest&& Request)
 {
+    LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
     if(!IsAvailable()||Request.Rays.IsEmpty()||Request.Rays.Num()>1048576||Request.Meshes.IsEmpty()||Request.Meshes.Num()>4)return {};
     uint64 GeometryBytes=0;
     for(const auto& Mesh:Request.Meshes)if(Mesh.Vertices&&!Mesh.Vertices->IsEmpty())
@@ -267,7 +277,7 @@ TSharedPtr<ISensorRtScan,ESPMode::ThreadSafe> SensorOwnedRayTracing::Submit(FSen
     if(ActiveScans.fetch_add(1)>=MaxActiveScans){--ActiveScans;return {};}
     auto Scan=MakeShared<FScan,ESPMode::ThreadSafe>();Scan->bAutomaticReadback=bool(Request.OnReadback);Scan->Request=MoveTemp(Request);
     ENQUEUE_RENDER_COMMAND(DispatchSensorRt)([Scan](FRHICommandListImmediate& Cmd)
-    {Scan->Dispatch(Cmd);if(Scan->bAutomaticReadback&&!Scan->Finished.load(std::memory_order_acquire))PendingReadbacks.Add(Scan);});
+    {LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);Scan->Dispatch(Cmd);if(Scan->bAutomaticReadback&&!Scan->Finished.load(std::memory_order_acquire))PendingReadbacks.Add(Scan);});
     return Scan;
 }
 void SensorOwnedRayTracing::RegisterShaders()

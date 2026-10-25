@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "MA0T10MemoryTags.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "VirtualPointCloudCoordinates.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualPcdCodec.h"
@@ -78,6 +79,7 @@ bool SerializeBinaryPcd(
 	TArray<uint8>& OutBytes,
 	int32& OutPointCount)
 {
+    LLM_SCOPE_BYTAG(MA0T10_PcdEncode);
 	TArray<const FVirtualLidarPoint*> FilteredPoints;
 	FilteredPoints.Reserve(Source.Num());
 	for (const FVirtualLidarPoint& Point : Source)

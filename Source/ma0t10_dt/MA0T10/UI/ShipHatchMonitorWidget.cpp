@@ -1,4 +1,5 @@
 #include "ShipHatchMonitorWidget.h"
+#include "MA0T10MemoryTags.h"
 #include "ma0t10_dt/MA0T10/Contracts/ConsumeReadyFuture.h"
 #include "ShipHatchMetricPresentation.h"
 #include "ShipHatchLabelPresentation.h"
@@ -556,6 +557,7 @@ FText UShipHatchMonitorWidget::CellTooltip(int32 I) const
 }
 void UShipHatchMonitorWidget::RefreshAnalysis()
 {
+    LLM_SCOPE_BYTAG(MA0T10_HatchAnalysis);
     auto* S=Simulation.Get();if(!S||!Work)return;
     if(Work->Pending.IsValid())
     {if(!Work->Pending.IsReady())return;auto R=MA0T10::ConsumeReadyFuture(Work->Pending);Work->ObservationScratch=MoveTemp(R.Observations);Work->ComparisonScratch=MoveTemp(R.ComparisonScratch);Work->ComparisonAnalysis=MoveTemp(R.ComparisonAnalysis);if(R.Revision==S->Revision()&&R.CabRevision==S->CabRevision()&&R.Cell==CellSize)
@@ -567,6 +569,7 @@ void UShipHatchMonitorWidget::RefreshAnalysis()
     // Move the bounded analysis allocations with the task; thread-pool workers
     // do not each build their own short-lived per-sensor cell/point arrays.
     Work->Pending=Async(EAsyncExecution::ThreadPool,[Points=MoveTemp(Points),Frames=MoveTemp(Frames),Analysis=MoveTemp(Work->AnalysisScratch),One=MoveTemp(Work->ComparisonScratch),Comparison=MoveTemp(Work->ComparisonAnalysis),Settings,Pose,Cell,Revision,CabRevision,M,L,C]() mutable{
+        LLM_SCOPE_BYTAG(MA0T10_HatchAnalysis);
         FShipHatchMonitorWork::FResult R;R.Revision=Revision;R.CabRevision=CabRevision;R.Cell=Cell;R.MLX=M;R.Livox=L;R.CabRight=C;R.Settings=Settings;R.HoldPose=Pose;
         ShipHatch::AnalyzeInto(Settings,Cell,Points,Analysis);R.Analysis=MoveTemp(Analysis);R.Observations=MoveTemp(Points);
         const TCHAR* Roles[]={ShipHatchLabelPresentation::SensorRole(0),ShipHatchLabelPresentation::SensorRole(1),ShipHatchLabelPresentation::SensorRole(2)};

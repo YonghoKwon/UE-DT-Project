@@ -1,4 +1,5 @@
 #include "VirtualPcdCodec.h"
+#include "MA0T10MemoryTags.h"
 
 namespace
 {
@@ -52,6 +53,7 @@ double FVirtualPcdCodec::EstimateBytesPerSecond(const FVirtualPcdSendOptions& O,
 
 void FVirtualPcdCodec::CompressLzf(const TArray<uint8>& Input,TArray<uint8>& Out)
 {
+    LLM_SCOPE_BYTAG(MA0T10_PcdEncode);
 	// Original implementation of the public LZF stream format (32-byte literals,
 	// 13-bit backward distance, 3..264-byte matches). No third-party source copied.
 	Out.Reset(); Out.Reserve(Input.Num()+Input.Num()/32+1);
@@ -112,6 +114,7 @@ int64 FVirtualPcdCodec::EncodedPointBytes(const TArray<uint8>& Bytes,bool bCompr
 
 bool FVirtualPcdCodec::Encode(const TArray<const FVirtualLidarPoint*>& Points,const FString& Meta,const FVirtualPcdSendOptions& Options,TArray<uint8>& Out)
 {
+    LLM_SCOPE_BYTAG(MA0T10_PcdEncode);
 	Out.Reset();const int32 Step=BytesPerPoint(Options),Mask=Options.FieldMask();
 	if(int64(Points.Num())*Step>PcdMaxDecodedBytes)return false;
 	FString Fields,Size,Type,Count;

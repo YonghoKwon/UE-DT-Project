@@ -1,5 +1,6 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
+#include "MA0T10MemoryTags.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
@@ -191,7 +192,10 @@ class FHatchDig final:public IAutomationLatentCommand
     int64 BeforeFrames[3]={-1,-1};TArray<TSharedPtr<FJsonValue>> Measurements;
     TSharedRef<FJsonObject> Result=MakeShared<FJsonObject>();TUniquePtr<TGuardValue<bool>> Messages;
     // Fixed storage avoids allocating JSON/LLM maps during the measured curve.
-    struct FMemoryPoint { double Seconds=0;int32 Cycle=0,Objects=0;uint64 Rss=0,Commit=0;int64 Tags[10]={}; };
+    struct FMemoryPoint {
+        double Seconds=0;int32 Cycle=0,Objects=0;uint64 Rss=0,Commit=0;int64 Tags[10]={};
+        bool Llm=false,ProjectCounters=false;int64 ProjectTags[MA0T10MemoryTags::Count]={};
+    };
     TArray<FMemoryPoint> MemoryCurve;
     // Opt-in diagnostic path only. No per-frame history, forced GC/trim, RHI
     // drain or LLM UpdateStatsPerFrame inside the long observation window.
@@ -254,7 +258,10 @@ class FHatchDig final:public IAutomationLatentCommand
         auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("cycle"),P.Cycle);R->SetNumberField(TEXT("seconds"),P.Seconds);
         R->SetNumberField(TEXT("rss_bytes"),double(P.Rss));R->SetNumberField(TEXT("commit_bytes"),double(P.Commit));R->SetNumberField(TEXT("uobject_count"),P.Objects);
         const TCHAR* Names[]={TEXT("Physics"),TEXT("ChaosTrimesh"),TEXT("UObject"),TEXT("UI"),TEXT("RHIMisc"),TEXT("Textures"),TEXT("FMallocUnused"),TEXT("Hatch/CargoCook"),TEXT("Hatch/RayTree"),TEXT("Hatch/CargoUpdate")};
-        auto Tags=MakeShared<FJsonObject>();for(int I=0;I<10;++I)Tags->SetNumberField(Names[I],double(P.Tags[I]));R->SetObjectField(TEXT("llm_default"),Tags);return R;
+        auto Tags=MakeShared<FJsonObject>();for(int I=0;I<10;++I)Tags->SetNumberField(Names[I],double(P.Tags[I]));
+        R->SetBoolField(TEXT("llm_enabled"),P.Llm);
+        if(P.ProjectCounters)for(int I=0;I<MA0T10MemoryTags::Count;++I)Tags->SetNumberField(MA0T10MemoryTags::Names[I],double(P.ProjectTags[I]));
+        R->SetObjectField(TEXT("llm_default"),Tags);return R;
     }
     bool TrendWrite(const TSharedRef<FJsonObject>& Row)
     {
@@ -333,6 +340,10 @@ class FHatchDig final:public IAutomationLatentCommand
             static const FName Names[]={TEXT("Physics"),TEXT("ChaosTrimesh"),TEXT("UObject"),TEXT("UI"),TEXT("RHIMisc"),TEXT("Textures"),TEXT("FMallocUnused"),TEXT("Hatch/CargoCook"),TEXT("Hatch/RayTree"),TEXT("Hatch/CargoUpdate")};
             auto& L=FLowLevelMemTracker::Get();if(!Trend)L.UpdateStatsPerFrame();
             for(int I=0;I<10;++I)P.Tags[I]=L.GetTagAmountForTracker(ELLMTracker::Default,Names[I],ELLMTagSet::None);
+            // Legacy bounded audit curves keep fixed storage and direct
+            // counters. Trend rows below use enumeration to preserve absence.
+            P.Llm=true;
+            if(!Trend){P.ProjectCounters=true;for(int I=0;I<MA0T10MemoryTags::Count;++I)P.ProjectTags[I]=L.GetTagAmountForTracker(ELLMTracker::Default,FName(MA0T10MemoryTags::Names[I]),ELLMTagSet::None);}
             if(Trend)
             {
                 TrendLlm=true;
@@ -347,6 +358,10 @@ class FHatchDig final:public IAutomationLatentCommand
             auto Watched=R->GetObjectField(TEXT("llm_default"));
             // Always retain these attribution counters even when outside top16.
             for(const TCHAR* Name:{TEXT("Untracked"),TEXT("TrackedTotal"),TEXT("Total"),TEXT("FMalloc")})
+                if(const uint64* Amount=TrendDefaultTags.Find(FName(Name)))Watched->SetNumberField(Name,double(*Amount));
+            // A fixed watch list avoids top16 censoring without manufacturing
+            // zero values for tags that this workload has never observed.
+            for(const TCHAR* Name:MA0T10MemoryTags::Names)
                 if(const uint64* Amount=TrendDefaultTags.Find(FName(Name)))Watched->SetNumberField(Name,double(*Amount));
             R->SetObjectField(TEXT("llm_default_top"),TrendTop(TrendDefaultTags));R->SetObjectField(TEXT("llm_platform_top"),TrendTop(TrendPlatformTags));
             R->SetObjectField(TEXT("pcd"),PcdJson());

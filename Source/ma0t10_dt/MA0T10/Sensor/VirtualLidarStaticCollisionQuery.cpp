@@ -1,4 +1,5 @@
 #include "VirtualLidarStaticCollisionQuery.h"
+#include "MA0T10MemoryTags.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/BrushComponent.h"
@@ -42,6 +43,7 @@ public:
 }
 TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe> CaptureLidarStaticCollision(UWorld* World,AActor* Ignore,ECollisionChannel Channel,FString& Reason)
 {
+    LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
     check(IsInGameThread());if(!World)return {};
     auto Result=MakeShared<FStaticCollision,ESPMode::ThreadSafe>();auto Positions=MakeShared<TArray<FVector3f>,ESPMode::ThreadSafe>();
     auto Normals=MakeShared<TArray<FVector4f>,ESPMode::ThreadSafe>();
