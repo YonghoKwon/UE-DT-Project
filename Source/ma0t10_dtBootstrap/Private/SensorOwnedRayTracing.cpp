@@ -427,6 +427,7 @@ void FlushSubmissions()
 }
 SensorOwnedRayTracing::FSubmissionStats SensorOwnedRayTracing::GetSubmissionStats()
 {return {RtSubmissionCounters.Batches.load(),RtSubmissionCounters.Dispatches.load(),RtSubmissionCounters.Requests.load(),RtSubmissionCounters.PacketCreates.load(),RtSubmissionCounters.PacketReuses.load(),RtSubmissionCounters.RayUploads.load(),RtSubmissionCounters.ViewCreates.load(),RtSubmissionCounters.SceneBuilds.load()};}
+void SensorOwnedRayTracing::FlushPendingSubmissions(){FlushSubmissions();}
 uint64 SensorOwnedRayTracing::GetBlasBuildCount(){return BlasBuildCount.load();}
 void SensorOwnedRayTracing::RecycleHitArray(TArray<FSensorRtHit>&& Hits)
 {

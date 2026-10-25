@@ -52,6 +52,8 @@ namespace SensorOwnedRayTracing
         uint64 Batches=0,Dispatches=0,Requests=0,PacketCreates=0,PacketReuses=0,RayUploads=0,ViewCreates=0,SceneBuilds=0;
     };
     MA0T10_DTBOOTSTRAP_API FSubmissionStats GetSubmissionStats();
+    /** Submit immutable admissions before main-view rendering, once per scheduler tick. */
+    MA0T10_DTBOOTSTRAP_API void FlushPendingSubmissions();
     MA0T10_DTBOOTSTRAP_API bool IsAvailable();
     MA0T10_DTBOOTSTRAP_API uint64 GetBlasBuildCount();
     /** Diagnostic-only reuse, after the last normalization read. No payload alias. */
