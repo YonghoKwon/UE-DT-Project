@@ -9,6 +9,9 @@ MIB = 1024 * 1024
 INSUFFICIENT = "데이터 부족"
 STABLE = "안정화"
 SUSPECT = "누수 의심"
+PROJECT_LLM_TAGS = tuple("MA0T10/" + name for name in (
+    "LidarRtScene", "LidarReadback", "LidarPoints", "LidarPreview",
+    "PcdEncode", "HatchAnalysis", "CameraGT"))
 
 
 def number(value, name):
@@ -70,6 +73,32 @@ def fit(points, field, scale=1):
             "first_last_delta": ys[-1] - ys[0], "range": max(ys) - min(ys)}
 
 
+def project_tag_summary(points):
+    """Individual leaf amounts, even for a short smoke run. Never sum LLM tags.
+
+    An absent/disabled sample is unobserved, not zero. Keep endpoint values for
+    review, but only fit a continuous series with at least three observations.
+    This table is attribution evidence and does not relax the diagnostic gates.
+    """
+    result = {}
+    for tag in PROJECT_LLM_TAGS:
+        observed = []
+        for p in points:
+            values = {**p.get("llm_default_top", {}), **p.get("llm_default", {})}
+            if p.get("llm_enabled") is True and tag in values:
+                observed.append({"seconds": p["seconds"], "value": values[tag]})
+        count = len(observed)
+        result[tag] = {
+            "observed_samples": count, "coverage": count / len(points) if points else 0,
+            "first_bytes": observed[0]["value"] if count else None,
+            "last_bytes": observed[-1]["value"] if count else None,
+            "observed_delta_mib": (observed[-1]["value"] - observed[0]["value"]) / MIB if count else None,
+            "full": fit(observed, "value", MIB) if count >= 3 and count == len(points) else None,
+            "last_third": None,
+        }
+    return result
+
+
 def analyze(points, *, complete=False, min_seconds=1800, min_tail_seconds=600,
             mib_per_hour=8, objects_per_hour=10, max_gap_seconds=60):
     for key, value in (("min_seconds", min_seconds), ("min_tail_seconds", min_tail_seconds),
@@ -100,6 +129,7 @@ def analyze(points, *, complete=False, min_seconds=1800, min_tail_seconds=600,
                              "mib_per_hour": mib_per_hour, "objects_per_hour": objects_per_hour,
                              "max_gap_seconds": max_gap_seconds},
               "metrics": {}, "llm_default_tail": {},
+              "project_llm_default": project_tag_summary(points),
               "method": "OLS against actual elapsed hours, time-based last third; descriptive, correlated samples",
               "original_8mib_gate": "Unchanged; this diagnostic verdict is not acceptance or proof of no leak"}
     if len(points) < 3:
@@ -148,6 +178,11 @@ def analyze(points, *, complete=False, min_seconds=1800, min_tail_seconds=600,
                     exceeds(row["last_third"]["endpoint_median_delta"], mib_per_hour * hours)):
                 growth.append("LLM:" + tag)
         result["llm_default_tail"][tag] = row
+        if tag in result["project_llm_default"]:
+            project = result["project_llm_default"][tag]
+            # Disabled samples must not turn a synthetic/stale zero into data.
+            if all(p.get("llm_enabled") is True for p in tail):
+                project["last_third"] = row["last_third"]
     if not any(row["coverage"] == 1 for row in result["llm_default_tail"].values()):
         result["reasons"].append("No LLM tag observed throughout the last third")
     if not result["reasons"]:
@@ -156,6 +191,7 @@ def analyze(points, *, complete=False, min_seconds=1800, min_tail_seconds=600,
             "Last-third RSS/commit/UObject and continuously observed tags stay within diagnostic growth limits"]
     result["growth_indicators"] = growth
     result["limits"] = ["Top tags are censored and hierarchical; absent tags are never zero-filled or summed",
+                         "MA0T10 tags attribute scoped native allocations; RHI/driver allocations may keep engine tags or remain Untracked",
                          "RSS/commit growth may be allocator, renderer or driver retention; suspected is not confirmed",
                          "Stable describes this workload/window; it does not prove absence of leaks"]
     return result
