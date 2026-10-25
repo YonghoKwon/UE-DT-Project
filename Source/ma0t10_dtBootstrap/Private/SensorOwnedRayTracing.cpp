@@ -125,6 +125,7 @@ struct FSceneResources
     FRWBufferStructured Instances;
     FByteAddressBuffer Addresses;
     uint64 LastUse=0;
+    uint64 RenderFrame=0;
     FRayTracingPipelineState* BoundPipeline=nullptr;
     double LastPipelineUseSeconds=0;
     bool Matches(const TArray<FSensorRtMesh>& Meshes)const
@@ -262,11 +263,15 @@ public:
 #if RHI_RAYTRACING
         if(Cancelled.load()){Fail(TEXT("cancelled before GPU submission"));return;}
         if(!SensorOwnedRayTracing::IsAvailable()){Fail(TEXT("HWRT pipeline unavailable"));return;}
-        if(Reusable())for(auto& Cached:SceneCache)if(Cached->Matches(Request.Meshes))
+        // UE5.3 D3D12 supports RTSL_SingleFrame only. A scene captures raw BLAS
+        // residency handles at build time; never reuse that snapshot in a later
+        // render frame, even when logical mesh revision and pose still match.
+        if(Reusable())for(auto& Cached:SceneCache)if(Cached->RenderFrame==GFrameNumberRenderThread&&Cached->Matches(Request.Meshes))
         {Resources=Cached;Resources->LastUse=++SceneClock;Memory26::Count(Memory26::ECounter::SceneReuse);break;}
         if(!Resources)
         {
         Resources=MakeShared<FSceneResources,ESPMode::ThreadSafe>();
+        Resources->RenderFrame=GFrameNumberRenderThread;
         for(const auto& Mesh:Request.Meshes){Resources->Revisions.Add(Mesh.Revision);Resources->Poses.Add(Mesh.LocalToWorld);}
         auto& Blases=Resources->Blases;auto& Scene=Resources->Scene;auto& SceneMemory=Resources->SceneMemory;auto& Scratch=Resources->Scratch;
         auto& Instances=Resources->Instances;auto& Addresses=Resources->Addresses;auto& SceneView=Resources->SceneView;
