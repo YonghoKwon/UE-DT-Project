@@ -9,6 +9,8 @@ class MA0T10_DT_API ULidarPlayerDisplayComponent : public ULineBatchComponent
 {
     GENERATED_BODY()
 public:
+    ULidarPlayerDisplayComponent();
+    UMaterialInterface* ResolveFixedPointMaterial() const;
     /** Opt-in fixed GPU buffers; zero-size slots have zero area and never become returns. */
     bool bFixedPointSubmission=false;
     FVector PointViewOrigin=FVector::ZeroVector,PointViewRight=FVector::RightVector,PointViewUp=FVector::UpVector,PointViewForward=FVector::ForwardVector;
@@ -27,6 +29,11 @@ public:
 protected:
     virtual void SendRenderDynamicData_Concurrent() override;
 private:
+    // Explicit cook reference for the opt-in package experiment. Engine's debug
+    // view material pointer is normally null in standalone. No engine defaults
+    // are changed and the existing path remains the default until attributed.
+    UPROPERTY()
+    TObjectPtr<UMaterialInterface> DiagnosticPointMaterial;
     int32 FixedProxyPointCount=0;
     TAtomic<uint64> FixedPointProxyCreations{0},FixedPointUploads{0};
 };

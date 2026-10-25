@@ -13,9 +13,21 @@
 #include "GameFramework/PlayerController.h"
 #include "SceneView.h"
 #include "RenderingThread.h"
+#include "UObject/ConstructorHelpers.h"
+
+ULidarPlayerDisplayComponent::ULidarPlayerDisplayComponent()
+{
+    static ConstructorHelpers::FObjectFinder<UMaterial> PointMaterial(TEXT("/Engine/EngineDebugMaterials/VertexColorMaterial.VertexColorMaterial"));
+    DiagnosticPointMaterial=PointMaterial.Object;
+}
+UMaterialInterface* ULidarPlayerDisplayComponent::ResolveFixedPointMaterial() const
+{
+    if(Memory26::Enabled(Memory26::ECase::Preview))return DiagnosticPointMaterial;
+    return GEngine?GEngine->VertexColorMaterial:nullptr;
+}
 
 void ULidarPlayerDisplayComponent::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials,bool bGetDebugMaterials) const
-{Super::GetUsedMaterials(OutMaterials,bGetDebugMaterials);if(bFixedPointSubmission&&GEngine&&GEngine->VertexColorMaterial)OutMaterials.AddUnique(GEngine->VertexColorMaterial);}
+{Super::GetUsedMaterials(OutMaterials,bGetDebugMaterials);if(bFixedPointSubmission)if(auto* Material=ResolveFixedPointMaterial())OutMaterials.AddUnique(Material);}
 
 void ULidarPlayerDisplayComponent::RefreshPointView()
 {
@@ -38,6 +50,22 @@ struct FPreviewScratch
     uint64 Bytes() const{return Points.GetAllocatedSize();}
 };
 Memory26::TPool<FPreviewScratch,4,8ull*1024*1024> PreviewPool;
+TArray<FBatchedPoint> CopyPreviewPoints(const TArray<FBatchedPoint>& Source)
+{
+    LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
+    if(Memory26::Enabled(Memory26::ECase::Preview))
+    {
+        auto Lease=PreviewPool.Take(Memory26::ECounter::PreviewCreate,Memory26::ECounter::PreviewReuse);
+        Lease->Points.Reset();Lease->Points.Append(Source);return MoveTemp(Lease->Points);
+    }
+    Memory26::Count(Memory26::ECounter::PreviewCreate);return Source;
+}
+void ReturnPreviewPoints(TArray<FBatchedPoint>&& Points)
+{
+    if(!Memory26::Enabled(Memory26::ECase::Preview))return;
+    LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
+    auto Lease=MakeUnique<FPreviewScratch>();Lease->Points=MoveTemp(Points);Lease->Points.Reset();PreviewPool.Return(MoveTemp(Lease));
+}
 struct FPlayerPointUpdate
 {
     TArray<FBatchedPoint> Points;
@@ -64,8 +92,9 @@ class FPlayerDisplayProxy final:public FPrimitiveSceneProxy
     const FMaterialRenderProxy* Material=nullptr;
 public:
     explicit FPlayerDisplayProxy(const ULidarPlayerDisplayComponent* C)
-        :FPrimitiveSceneProxy(C),Points(C->BatchedPoints),Lines(C->BatchedLines),bFixedPoints(C->bFixedPointSubmission&&GEngine->VertexColorMaterial&&Points.Num()>0),Factory(GetScene().GetFeatureLevel(),"OwnedLidarPoints")
+        :FPrimitiveSceneProxy(C),Points(CopyPreviewPoints(C->BatchedPoints)),Lines(C->BatchedLines),bFixedPoints(C->bFixedPointSubmission&&C->ResolveFixedPointMaterial()&&Points.Num()>0),Factory(GetScene().GetFeatureLevel(),"OwnedLidarPoints")
     {
+        Memory26::Count(bFixedPoints?Memory26::ECounter::PreviewFixedProxy:Memory26::ECounter::PreviewLegacyProxy);
         bWillEverBeLit=false;if(!bFixedPoints)return;
         TArray<FDynamicMeshVertex> Data;Data.Reserve(Points.Num()*4);Indices.Indices.Reserve(Points.Num()*6);
         for(const auto& P:Points)
@@ -98,7 +127,7 @@ public:
             auto Streams=Factory.CopyStreams();Streams.PositionComponent=FVertexStreamComponent(&DynamicPositions,0,sizeof(FVector3f),VET_Float3);
             Streams.PositionComponentSRV=DynamicPositionSRV;Streams.ColorComponent=FVertexStreamComponent(&DynamicColors,0,sizeof(FColor),VET_Color,EVertexStreamUsage::ManualFetch);Streams.ColorComponentsSRV=DynamicColorSRV;Factory.SetData(Streams);
         });
-        Material=GEngine->VertexColorMaterial->GetRenderProxy();
+        Material=C->ResolveFixedPointMaterial()->GetRenderProxy();
     }
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     FIntVector RhiResources() const
@@ -110,7 +139,7 @@ public:
     }
 #endif
     ~FPlayerDisplayProxy()
-    {if(bFixedPoints){Factory.ReleaseResource();DynamicPositionSRV.SafeRelease();DynamicColorSRV.SafeRelease();DynamicPositions.ReleaseResource();DynamicColors.ReleaseResource();Vertices.PositionVertexBuffer.ReleaseResource();Vertices.StaticMeshVertexBuffer.ReleaseResource();Vertices.ColorVertexBuffer.ReleaseResource();Indices.ReleaseResource();}}
+    {if(bFixedPoints){Factory.ReleaseResource();DynamicPositionSRV.SafeRelease();DynamicColorSRV.SafeRelease();DynamicPositions.ReleaseResource();DynamicColors.ReleaseResource();Vertices.PositionVertexBuffer.ReleaseResource();Vertices.StaticMeshVertexBuffer.ReleaseResource();Vertices.ColorVertexBuffer.ReleaseResource();Indices.ReleaseResource();}ReturnPreviewPoints(MoveTemp(Points));}
     void UpdatePoints(FRHICommandListImmediate& Cmd,FPlayerPointUpdate&& Data)
     {
         LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
@@ -156,7 +185,7 @@ public:
 };
 }
 FPrimitiveSceneProxy* ULidarPlayerDisplayComponent::CreateSceneProxy()
-{LLM_SCOPE_BYTAG(MA0T10_LidarPreview);FixedProxyPointCount=bFixedPointSubmission&&GEngine&&GEngine->VertexColorMaterial?BatchedPoints.Num():0;if(FixedProxyPointCount>0)++FixedPointProxyCreations;return new FPlayerDisplayProxy(this);}
+{LLM_SCOPE_BYTAG(MA0T10_LidarPreview);FixedProxyPointCount=bFixedPointSubmission&&ResolveFixedPointMaterial()?BatchedPoints.Num():0;if(FixedProxyPointCount>0)++FixedPointProxyCreations;return new FPlayerDisplayProxy(this);}
 void ULidarPlayerDisplayComponent::CommitPointData()
 {
     UpdateBounds();

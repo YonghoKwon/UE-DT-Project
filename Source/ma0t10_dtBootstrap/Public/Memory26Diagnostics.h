@@ -7,7 +7,7 @@ namespace Memory26
 {
 enum class ECase { None, Baseline, Preview, Scene, Readback, Points, Pcd, Invalid };
 enum class ECounter { SceneBuild, SceneReuse, BlasBuild, ReadbackCreate, ReadbackReuse, HitCreate, HitReuse,
-    PreviewCreate, PreviewReuse, PcdCreate, PcdReuse, PointPoolCreate, PointFallback, Count };
+    PreviewCreate, PreviewReuse, PcdCreate, PcdReuse, PointPoolCreate, PointFallback, PreviewFixedProxy, PreviewLegacyProxy, Count };
 MA0T10_DTBOOTSTRAP_API ECase GetCase();
 MA0T10_DTBOOTSTRAP_API const TCHAR* CaseName();
 MA0T10_DTBOOTSTRAP_API void Count(ECounter Counter);
