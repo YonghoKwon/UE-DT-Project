@@ -81,7 +81,7 @@ void UVirtualLidarScanComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 
 void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
 {
-    LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
 #if WITH_DEV_AUTOMATION_TESTS
     if(bTimingTraceForTests&&TimingSamplesForTests.Num()<4096)
     {ActiveTimingSampleForTests.Completed=FPlatformTime::Seconds();ActiveTimingSampleForTests.CompletionFrame=GFrameCounter;TimingSamplesForTests.Add(ActiveTimingSampleForTests);}
@@ -547,7 +547,7 @@ bool UVirtualLidarScanComponent::ExportLastPointCloudJsonLines(const FString& Fi
 
 bool UVirtualLidarScanComponent::ExportLastPointCloudPcd(const FString& FileNamePrefix) const
 {
-    LLM_SCOPE_BYTAG(MA0T10_PcdEncode);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_PcdEncode);
     TArray<const FVirtualLidarPoint*> Points;
     CollectExportPoints(Points);
     FString Text = FString::Printf(
@@ -743,7 +743,7 @@ void UVirtualLidarScanComponent::ResetLastLazExportStatus(const FString& StatusT
 
 UInstancedStaticMeshComponent* UVirtualLidarScanComponent::EnsurePointCloudPreviewComponent()
 {
-    LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
     if (!PointCloudPreviewComponent)
     {
         UObject* PreviewOuter = GetOwner() ? Cast<UObject>(GetOwner()) : Cast<UObject>(this);
@@ -768,7 +768,7 @@ UInstancedStaticMeshComponent* UVirtualLidarScanComponent::EnsurePointCloudPrevi
 
 void UVirtualLidarScanComponent::RefreshPointCloudPreview()
 {
-    LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
     UWorld* World = GetWorld(); if (!bPointCloudPreviewEnabled || !World) { ClearPointCloudPreview(); return; }
     const TArray<FVirtualLidarPoint>& LastPoints = GetLastPoints();
     UInstancedStaticMeshComponent* Comp = EnsurePointCloudPreviewComponent(); if (!Comp) return; Comp->SetHiddenInGame(false); Comp->SetVisibility(true, true);

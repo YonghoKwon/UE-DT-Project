@@ -43,7 +43,7 @@ public:
 }
 TSharedPtr<const IVirtualSensorRayQuery,ESPMode::ThreadSafe> CaptureLidarStaticCollision(UWorld* World,AActor* Ignore,ECollisionChannel Channel,FString& Reason)
 {
-    LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
     check(IsInGameThread());if(!World)return {};
     auto Result=MakeShared<FStaticCollision,ESPMode::ThreadSafe>();auto Positions=MakeShared<TArray<FVector3f>,ESPMode::ThreadSafe>();
     auto Normals=MakeShared<TArray<FVector4f>,ESPMode::ThreadSafe>();

@@ -225,7 +225,7 @@ int32 UVirtualLidarScanComponent::ProcessGpuDepthScan()
 
 void UVirtualLidarScanComponent::BeginScheduledScan(double NowSeconds)
 {
-    LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
 	if (auto* Slab = FVirtualSensorAcquisitionContextProviders::Get(GetWorld())) ScheduledSlabContext=Slab->CaptureAcquisitionContext(SensorId,FrameId+1);
     if(ActiveAcquisitionBackend!=EVirtualLidarAcquisitionBackend::HardwareRayTracing)ActiveAcquisitionBackend = EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
     RuntimeStatus.ActiveAcquisitionBackend=TEXT("accurate_cpu_trace");
@@ -414,7 +414,7 @@ void UVirtualLidarScanComponent::CompleteScheduledPayloadBuild(TSharedPtr<FVirtu
 
 void UVirtualLidarScanComponent::ScanAndSend()
 {
-    LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
     ++FrameId;
     ScheduledScanStartTime=FPlatformTime::Seconds();
     ScheduledAcquisitionStartUnixNanoseconds = UtcNowUnixNanoseconds();
@@ -459,7 +459,7 @@ bool UVirtualLidarScanComponent::SetReadOnlyPreviewFrame(TSharedRef<const FVirtu
 
 void UVirtualLidarScanComponent::InjectPointCloudFrame(const TArray<FVirtualLidarPoint>& Points, bool bSendTransport)
 {
-    LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
     ++FrameId;
     ScheduledScanStartTime=FPlatformTime::Seconds();ScheduledAcquisitionStartUnixNanoseconds=UtcNowUnixNanoseconds();
     LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(Points);
@@ -509,7 +509,7 @@ void UVirtualLidarScanComponent::PublishLastFrameSnapshot(
 	int32 InVerticalChannels,
 	float InMaxDistanceCm)
 {
-    LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
 	TSharedPtr<FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> Snapshot = MakeShared<FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe>();
 	Snapshot->Points = GetLastPointSnapshot();
     Snapshot->SchemaVersion = TEXT("virtual-lidar.v2");

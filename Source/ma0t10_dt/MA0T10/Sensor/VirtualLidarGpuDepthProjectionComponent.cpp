@@ -167,7 +167,7 @@ bool UVirtualLidarGpuDepthProjectionComponent::BeginAcquisition(const FVirtualLi
 
 void UVirtualLidarGpuDepthProjectionComponent::QueueReadback()
 {
-    LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
 	if (!DepthRenderTarget || bReadbackQueued) return;
     if(SemanticScene&&SemanticScene->IsCapturePending())
     {
@@ -243,7 +243,7 @@ void UVirtualLidarGpuDepthProjectionComponent::QueueReadback()
 	ENQUEUE_RENDER_COMMAND(VirtualLidarGpuDepthReadback)(
 		[CapturedReadback, Texture, CapturedSemanticReadback, SemanticTexture](FRHICommandListImmediate& RHICmdList)
 		{
-            LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
+            MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
 			if (CapturedReadback.IsValid() && Texture.IsValid())
 			{
 				VirtualSensorTextureReadback::Enqueue(RHICmdList,*CapturedReadback,Texture);
@@ -268,7 +268,7 @@ void UVirtualLidarGpuDepthProjectionComponent::SetSemanticPsoPendingForTests(boo
 EVirtualSensorBackendPollResult UVirtualLidarGpuDepthProjectionComponent::PollAcquisition(
 	FVirtualLidarDepthAcquisitionFrame& OutFrame)
 {
-    LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
 	if (CompletedFrame.IsSet())
 	{
 		OutFrame = MoveTemp(CompletedFrame.GetValue());
@@ -312,7 +312,7 @@ EVirtualSensorBackendPollResult UVirtualLidarGpuDepthProjectionComponent::PollAc
 	ENQUEUE_RENDER_COMMAND(VirtualLidarConsumeGpuDepthReadback)(
 		[CapturedReadback = MoveTemp(CapturedReadback), CapturedSemanticReadback = MoveTemp(CapturedSemanticReadback), Identities = MoveTemp(Identities), SemanticStatus, WeakThis, Request, Width, Height, Generation](FRHICommandListImmediate& RHICmdList) mutable
 		{
-            LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
+            MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
 			FVirtualLidarDepthAcquisitionFrame Frame;
 			Frame.Request = Request;
 			Frame.CaptureWidth = Width;

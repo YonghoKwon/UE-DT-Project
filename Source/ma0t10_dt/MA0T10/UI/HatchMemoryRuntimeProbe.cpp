@@ -1,6 +1,7 @@
 #include "HatchMemoryRuntimeProbe.h"
 #include "HatchMemoryExperimentDiagnostics.h"
 #include "MA0T10MemoryTags.h"
+#include "SensorOwnedRayTracing.h"
 
 #include "ShipHatchMonitorHost.h"
 #include "ShipHatchMonitorWidget.h"
@@ -138,7 +139,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         // registry/writer smoke holds4KiB under that tag, explicitly labelled;
         // never enable it in trend comparisons or call it CameraGT acceptance.
         if(FParse::Param(FCommandLine::Get(),TEXT("Memory26CameraTagCanary")))
-        {if(Seconds!=30)return false;LLM_SCOPE_BYTAG(MA0T10_CameraGT);CameraTagCanary.SetNumZeroed(4096);}
+        {if(Seconds!=30)return false;MA0T10_LLM_SCOPE_BYTAG(MA0T10_CameraGT);CameraTagCanary.SetNumZeroed(4096);}
         const FString Path=Directory/TEXT("memory-trend.jsonl");if(IFileManager::Get().FileExists(*Path))return false;
         IFileManager::Get().MakeDirectory(*Directory,true);File.Reset(IFileManager::Get().CreateFileWriter(*Path,FILEWRITE_AllowRead));
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
@@ -148,6 +149,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         R->SetStringField(TEXT("row_contract"),TEXT("memory_curve"));R->SetBoolField(TEXT("diagnostic_only"),true);
         R->SetNumberField(TEXT("requested_seconds"),Seconds);R->SetNumberField(TEXT("interval_seconds"),Interval);R->SetBoolField(TEXT("llm_enabled"),Llm);
         R->SetNumberField(TEXT("camera_gt_tag_canary_bytes"),CameraTagCanary.Num());
+        R->SetBoolField(TEXT("project_tags_enabled"),MA0T10MemoryTags::IsEnabled());
         R->SetBoolField(TEXT("investigation"),Investigation);R->SetBoolField(TEXT("trace_canary"),TraceCanaryEnabled);R->SetStringField(TEXT("trace_bookmarks"),TEXT("MEMORY26B_BEGIN/END; shared allocation-query contract"));
         R->SetBoolField(TEXT("sampler_enabled"),true);R->SetBoolField(TEXT("pcd_loopback"),true);R->SetBoolField(TEXT("pcd_default_compressed"),Publisher->GetPcdSendOptions(TEXT("")).bCompressed);
         R->SetStringField(TEXT("workload"),TEXT("packaged idle;17 public Dig near-surface ray cycles with fresh analysis, restore,35s warmup; no Editor automation history"));
@@ -192,10 +194,14 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
                 if(const auto* V=DefaultTags.Find(FName(Name)))Watched->SetNumberField(Name,double(*V));
             // Retain every observed project leaf, even below top16. An absent
             // tag stays absent; it is not evidence of a measured zero.
-            for(const TCHAR* Name:MA0T10MemoryTags::Names)
+            if(MA0T10MemoryTags::IsEnabled())for(const TCHAR* Name:MA0T10MemoryTags::Names)
                 if(const auto* V=DefaultTags.Find(FName(Name)))Watched->SetNumberField(Name,double(*V));
             R->SetObjectField(TEXT("llm_default"),Watched);R->SetObjectField(TEXT("llm_default_top"),Top(DefaultTags));R->SetObjectField(TEXT("llm_platform_top"),Top(PlatformTags));
             R->SetObjectField(TEXT("pcd"),Pcd());auto Sensors=MakeShared<FJsonObject>();
+            const auto Stats=SensorOwnedRayTracing::GetSubmissionStats();auto Gpu=MakeShared<FJsonObject>();
+            Gpu->SetNumberField(TEXT("batches"),Stats.Batches);Gpu->SetNumberField(TEXT("dispatches"),Stats.Dispatches);Gpu->SetNumberField(TEXT("requests"),Stats.Requests);
+            Gpu->SetNumberField(TEXT("packet_creates"),Stats.PacketCreates);Gpu->SetNumberField(TEXT("packet_reuses"),Stats.PacketReuses);Gpu->SetNumberField(TEXT("ray_uploads"),Stats.RayUploads);
+            Gpu->SetNumberField(TEXT("view_creates"),Stats.ViewCreates);Gpu->SetNumberField(TEXT("scene_builds"),Stats.SceneBuilds);R->SetObjectField(TEXT("rhi_submission"),Gpu);
             for(int32 I=0;I<3;++I)
             {
                 auto* A=S.SensorAt(I);if(!A){Failed=true;continue;}const auto* Scan=A->ScanComponent.Get();const auto& Status=Scan->GetRuntimeStatus();

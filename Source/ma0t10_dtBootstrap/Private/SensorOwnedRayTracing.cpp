@@ -9,6 +9,8 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "ShaderCore.h"
 #include "Misc/Paths.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "RHICommandList.h"
 #include "RHIGPUReadback.h"
 #include "RenderGraphUtils.h"
@@ -30,7 +32,11 @@ std::atomic<uint64> BlasBuildCount{0};
 struct FHitScratch{TArray<FSensorRtHit> Data;uint64 Bytes()const{return Data.GetAllocatedSize();}};
 Memory26::TPool<FHitScratch> HitPool;
 constexpr int32 MaxActiveScans=4;
-FDelegateHandle EndFrameHandle;
+FDelegateHandle EndFrameHandle,SubmitFrameHandle;
+bool Optimized()
+{static const bool Value=!FParse::Param(FCommandLine::Get(),TEXT("SensorRtLegacy"));return Value;}
+struct FStats
+{std::atomic<uint64> Batches{0},Dispatches{0},Requests{0},PacketCreates{0},PacketReuses{0},RayUploads{0},ViewCreates{0},SceneBuilds{0};} RtSubmissionCounters;
 #if RHI_RAYTRACING
 class FLidarRGS final : public FGlobalShader
 {
@@ -80,14 +86,14 @@ uint64 CacheClock=0;
 template<typename T>
 FBufferRHIRef Upload(FRHICommandListImmediate& Cmd,const TCHAR* Name,const TArray<T>& Data,EBufferUsageFlags Flags)
 {
-    LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
     TResourceArray<T> Resource;Resource.Append(Data);
     FRHIResourceCreateInfo Info(Name);Info.ResourceArray=&Resource;
     return Cmd.CreateStructuredBuffer(sizeof(T),Resource.GetResourceDataSize(),Flags|BUF_ShaderResource,Info);
 }
 TSharedPtr<FBlas,ESPMode::ThreadSafe> GetBlas(FRHICommandListImmediate& Cmd,const FSensorRtMesh& Mesh)
 {
-    LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
     if(auto* Existing=BlasCache.Find(Mesh.Revision)){(*Existing)->LastUse=++CacheClock;return *Existing;}
     while(BlasCache.Num()>=8){uint64 OldKey=0,OldUse=MAX_uint64;for(const auto& Entry:BlasCache)if(Entry.Value->LastUse<OldUse){OldKey=Entry.Key;OldUse=Entry.Value->LastUse;}BlasCache.Remove(OldKey);}
     auto B=MakeShared<FBlas,ESPMode::ThreadSafe>();B->Revision=Mesh.Revision;B->LastUse=++CacheClock;
@@ -106,7 +112,7 @@ TSharedPtr<FBlas,ESPMode::ThreadSafe> GetBlas(FRHICommandListImmediate& Cmd,cons
     Cmd.Transition(FRHITransitionInfo(B->Geometry.GetReference(),ERHIAccess::BVHWrite,ERHIAccess::BVHRead));
     BlasCache.Add(Mesh.Revision,B);return B;
 }
-TArray<TUniquePtr<FRHIGPUBufferReadback>> FreeReadbacks; // RT only, max4, ray cap bounds each to32MiB
+
 struct FSceneResources
 {
     TArray<TSharedPtr<FBlas,ESPMode::ThreadSafe>> Blases;
@@ -128,30 +134,72 @@ struct FSceneResources
 };
 TArray<TSharedPtr<FSceneResources,ESPMode::ThreadSafe>> SceneCache; // immutable key, bounded4, RT only
 uint64 SceneClock=0;
+struct FDispatchPacket
+{
+    uint64 OwnerToken=0;
+    int32 RayCount=0;
+    bool Used=false;
+    TArray<FSensorRtRay> LastRays;
+    FBufferRHIRef RayBuffer,ResultBuffer;
+    FShaderResourceViewRHIRef RayView;
+    FUnorderedAccessViewRHIRef ResultView;
+    TUniquePtr<FRHIGPUBufferReadback> Readback;
+    uint64 Bytes()const{return uint64(RayCount)*(sizeof(FSensorRtRay)+2*sizeof(FSensorRtHit))+LastRays.GetAllocatedSize();}
+};
+TArray<TUniquePtr<FDispatchPacket>> FreePackets; // RT only; no live/in-flight packet can enter here
+uint64 FreePacketBytes=0;
+constexpr uint64 MaxFreePacketBytes=64ull*1024*1024;
+TUniquePtr<FDispatchPacket> TakePacket(int32 Count,uint64 Owner,bool Reuse)
+{
+    if(Reuse)
+    {
+        int32 Found=INDEX_NONE;
+        for(int32 I=0;I<FreePackets.Num();++I)if(FreePackets[I]->RayCount==Count)
+        {Found=I;if(FreePackets[I]->OwnerToken==Owner)break;}
+        if(Found!=INDEX_NONE){auto P=MoveTemp(FreePackets[Found]);FreePackets.RemoveAtSwap(Found);FreePacketBytes-=P->Bytes();P->OwnerToken=Owner;++RtSubmissionCounters.PacketReuses;Memory26::Count(Memory26::ECounter::ReadbackReuse);return P;}
+    }
+    auto P=MakeUnique<FDispatchPacket>();P->RayCount=Count;P->OwnerToken=Owner;++RtSubmissionCounters.PacketCreates;Memory26::Count(Memory26::ECounter::ReadbackCreate);return P;
+}
+void ReturnPacket(TUniquePtr<FDispatchPacket> P)
+{
+    // Called only after the latest copy fence is ready and every Lock is unlocked.
+    if(P&&FreePackets.Num()<4&&P->Bytes()<=MaxFreePacketBytes-FreePacketBytes)
+    {FreePacketBytes+=P->Bytes();FreePackets.Add(MoveTemp(P));}
+}
 #endif
 class FScan;
+FCriticalSection SubmissionMutex;
+TArray<TSharedPtr<FScan,ESPMode::ThreadSafe>> Submissions; // admission already bounded to4
 TArray<TSharedPtr<FScan,ESPMode::ThreadSafe>> RetiredScans; // RT ownership until fence ready
 TArray<TSharedPtr<FScan,ESPMode::ThreadSafe>> PendingReadbacks; // Same bounded scans; RT-only references
 class FScan final : public ISensorRtScan, public TSharedFromThis<FScan,ESPMode::ThreadSafe>
 {
 public:
     FSensorRtRequest Request;
-    bool bAutomaticReadback=false;
+    bool bAutomaticReadback=false,bBatchMember=false,bCounted=true;
+    TArray<TSharedPtr<FScan,ESPMode::ThreadSafe>> Members;
+    int32 RayCount()const
+    {int32 N=Request.Rays.Num();for(const auto& M:Members)N+=M->Request.Rays.Num();return N;}
+    bool Reusable()const
+    {
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+        if(Request.bFreshResourcesForTests)return false;
+#endif
+        return Optimized();
+    }
     FCriticalSection Mutex;
     TArray<FSensorRtHit> Hits;
     FString Failure;
     std::atomic<bool> Finished{false},Cancelled{false},PollQueued{false};
 #if RHI_RAYTRACING
-    TUniquePtr<FRHIGPUBufferReadback> Readback;
+    TUniquePtr<FDispatchPacket> Packet;
     TSharedPtr<FSceneResources,ESPMode::ThreadSafe> Resources;
-    FBufferRHIRef RayBuffer,ResultBuffer;
-    FShaderResourceViewRHIRef RayView;
-    FUnorderedAccessViewRHIRef ResultView;
 #endif
-    ~FScan(){--ActiveScans;}
+    ~FScan(){if(bCounted)--ActiveScans;}
     void Cancel() override
     {
         if(Cancelled.exchange(true)||Finished.load(std::memory_order_acquire))return;
+        if(bBatchMember)return; // queued batch owns the request until its terminal GPU fence
         auto Self=AsShared();
         ENQUEUE_RENDER_COMMAND(RetireSensorRt)([Self](FRHICommandListImmediate& Cmd)
         {Self->Request.OnReadback=nullptr;RetiredScans.AddUnique(Self);});
@@ -159,7 +207,7 @@ public:
     bool CanRetire() const
     {
 #if RHI_RAYTRACING
-        return Finished.load(std::memory_order_acquire)||(Readback&&Readback->IsReady());
+        return Finished.load(std::memory_order_acquire)||(Packet&&Packet->Readback&&Packet->Readback->IsReady());
 #else
         return true;
 #endif
@@ -173,22 +221,23 @@ public:
     void Fail(const TCHAR* Reason){Failure=Reason;Complete();}
     void PumpReadback()
     {
-        LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
+        MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
 #if RHI_RAYTRACING
-        if(Finished.load(std::memory_order_acquire)||!Readback||!Readback->IsReady())return;
-        const uint32 Bytes=Request.Rays.Num()*sizeof(FSensorRtHit);
+        if(Finished.load(std::memory_order_acquire)||!Packet||!Packet->Readback||!Packet->Readback->IsReady())return;
+        auto& Readback=Packet->Readback;
+        const uint32 Bytes=RayCount()*sizeof(FSensorRtHit);
         if(!Cancelled.load(std::memory_order_acquire))
         {
             const void* Data=Readback->Lock(Bytes);
             if(Data)
             {
-                if(Memory26::Enabled(Memory26::ECase::Readback)){auto Lease=HitPool.Take(Memory26::ECounter::HitCreate,Memory26::ECounter::HitReuse);Hits=MoveTemp(Lease->Data);}
+                if(Reusable()){auto Lease=HitPool.Take(Memory26::ECounter::HitCreate,Memory26::ECounter::HitReuse);Hits=MoveTemp(Lease->Data);}
                 else Memory26::Count(Memory26::ECounter::HitCreate);
-                Hits.SetNumUninitialized(Request.Rays.Num());FMemory::Memcpy(Hits.GetData(),Data,Bytes);Readback->Unlock();
+                Hits.SetNumUninitialized(RayCount());FMemory::Memcpy(Hits.GetData(),Data,Bytes);Readback->Unlock();
             }
             else Failure=TEXT("GPU readback lock failed");
         }
-        if(Memory26::Enabled(Memory26::ECase::Readback)&&FreeReadbacks.Num()<4)FreeReadbacks.Add(MoveTemp(Readback));
+        if(Reusable())ReturnPacket(MoveTemp(Packet));
         Complete();
 #endif
     }
@@ -196,7 +245,7 @@ public:
     {
         if(Finished.load(std::memory_order_acquire)){Out=MoveTemp(Hits);Error=Failure;return true;}
 #if RHI_RAYTRACING
-        if(!bAutomaticReadback&&!PollQueued.exchange(true))
+        if(!bBatchMember&&!bAutomaticReadback&&!PollQueued.exchange(true))
         {
             auto Self=AsShared();
             ENQUEUE_RENDER_COMMAND(PollSensorRt)([Self](FRHICommandListImmediate& Cmd)
@@ -207,11 +256,11 @@ public:
     }
     void Dispatch(FRHICommandListImmediate& Cmd)
     {
-        LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
+        MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
 #if RHI_RAYTRACING
         if(Cancelled.load()){Fail(TEXT("cancelled before GPU submission"));return;}
         if(!SensorOwnedRayTracing::IsAvailable()){Fail(TEXT("HWRT pipeline unavailable"));return;}
-        if(Memory26::Enabled(Memory26::ECase::Scene))for(auto& Cached:SceneCache)if(Cached->Matches(Request.Meshes))
+        if(Reusable())for(auto& Cached:SceneCache)if(Cached->Matches(Request.Meshes))
         {Resources=Cached;Resources->LastUse=++SceneClock;Memory26::Count(Memory26::ECounter::SceneReuse);break;}
         if(!Resources)
         {
@@ -246,7 +295,7 @@ public:
         auto AddressBuffer=Addresses.Buffer;auto Geometries=Init.ReferencedGeometries;
         Cmd.EnqueueLambda([AddressBuffer,Geometries](FRHICommandListImmediate& Rhi)
         {
-            LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
+            MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
             auto* Data=static_cast<FRayTracingAccelerationStructureAddress*>(Rhi.LockBuffer(AddressBuffer,0,Geometries.Num()*sizeof(FRayTracingAccelerationStructureAddress),RLM_WriteOnly));
             for(int I=0;I<Geometries.Num();++I)Data[I]=Geometries[I]->GetAccelerationStructureAddress(Rhi.GetGPUMask().ToIndex());
             Rhi.UnlockBuffer(AddressBuffer);
@@ -258,8 +307,8 @@ public:
         FRayTracingSceneBuildParams Build;Build.Scene=Scene;Build.ScratchBuffer=Scratch;Build.InstanceBuffer=Instances.Buffer;
         Cmd.BuildAccelerationStructure(Build);Cmd.Transition(FRHITransitionInfo(Scene.GetReference(),ERHIAccess::BVHWrite,ERHIAccess::BVHRead));
         SceneView=Cmd.CreateShaderResourceView(FShaderResourceViewInitializer(SceneMemory,Scene->GetLayerBufferOffset(0),0));
-        Memory26::Count(Memory26::ECounter::SceneBuild);
-        if(Memory26::Enabled(Memory26::ECase::Scene))
+        Memory26::Count(Memory26::ECounter::SceneBuild);++RtSubmissionCounters.SceneBuilds;
+        if(Reusable())
         {
             // Exact immutable geometry+pose key. Eviction never invalidates a
             // live scan: it holds shared ownership through its terminal fence.
@@ -268,11 +317,32 @@ public:
         }
         }
         auto& Scene=Resources->Scene;auto& SceneView=Resources->SceneView;auto& Blases=Resources->Blases;
-        RayBuffer=Upload(Cmd,TEXT("SensorRtRays"),Request.Rays,BUF_Static);RayView=Cmd.CreateShaderResourceView(RayBuffer);
-        FRHIResourceCreateInfo OutputInfo(TEXT("SensorRtResults"));
-        ResultBuffer=Cmd.CreateStructuredBuffer(sizeof(FSensorRtHit),Request.Rays.Num()*sizeof(FSensorRtHit),BUF_UnorderedAccess|BUF_ShaderResource,OutputInfo);
-        ResultView=Cmd.CreateUnorderedAccessView(ResultBuffer,false,false);
-        FLidarRGS::FParameters P;P.LidarTLAS=SceneView;P.LidarRays=RayView;P.LidarHits=ResultView;P.RayCount=Request.Rays.Num();
+        const int32 Count=RayCount();
+        Packet=TakePacket(Count,Request.OwnerToken,Reusable());
+        bool Same=Packet->LastRays.Num()==Count;int32 Offset=0;
+        auto Compare=[&](const TArray<FSensorRtRay>& Rays)
+        {if(Same&&FMemory::Memcmp(Packet->LastRays.GetData()+Offset,Rays.GetData(),Rays.Num()*sizeof(FSensorRtRay)))Same=false;Offset+=Rays.Num();};
+        if(Members.IsEmpty())Compare(Request.Rays);else for(const auto& M:Members)Compare(M->Request.Rays);
+        if(!Same)
+        {
+            Packet->LastRays.SetNumUninitialized(Count);Offset=0;
+            auto Copy=[&](const TArray<FSensorRtRay>& Rays){FMemory::Memcpy(Packet->LastRays.GetData()+Offset,Rays.GetData(),Rays.Num()*sizeof(FSensorRtRay));Offset+=Rays.Num();};
+            if(Members.IsEmpty())Copy(Request.Rays);else for(const auto& M:Members)Copy(M->Request.Rays);
+            if(!Packet->RayBuffer.IsValid())
+            {Packet->RayBuffer=Upload(Cmd,TEXT("SensorRtRays"),Packet->LastRays,BUF_Static);Packet->RayView=Cmd.CreateShaderResourceView(Packet->RayBuffer);++RtSubmissionCounters.ViewCreates;}
+            else
+            {void* Dest=Cmd.LockBuffer(Packet->RayBuffer,0,Count*sizeof(FSensorRtRay),RLM_WriteOnly);FMemory::Memcpy(Dest,Packet->LastRays.GetData(),Count*sizeof(FSensorRtRay));Cmd.UnlockBuffer(Packet->RayBuffer);}
+            ++RtSubmissionCounters.RayUploads;
+        }
+        if(!Packet->ResultBuffer.IsValid())
+        {
+            FRHIResourceCreateInfo Info(TEXT("SensorRtResults"));
+            Packet->ResultBuffer=Cmd.CreateStructuredBuffer(sizeof(FSensorRtHit),Count*sizeof(FSensorRtHit),BUF_UnorderedAccess|BUF_ShaderResource,Info);
+            Packet->ResultView=Cmd.CreateUnorderedAccessView(Packet->ResultBuffer,false,false);++RtSubmissionCounters.ViewCreates;
+        }
+        else Cmd.Transition(FRHITransitionInfo(Packet->ResultBuffer,ERHIAccess::CopySrc,ERHIAccess::UAVCompute));
+        auto& RayView=Packet->RayView;auto& ResultView=Packet->ResultView;auto& ResultBuffer=Packet->ResultBuffer;
+        FLidarRGS::FParameters P;P.LidarTLAS=SceneView;P.LidarRays=RayView;P.LidarHits=ResultView;P.RayCount=Count;
         FShaderResourceViewRHIRef Views[4]={Blases[0]->AttributeView,Blases[0]->AttributeView,Blases[0]->AttributeView,Blases[0]->AttributeView};
         for(int I=0;I<Resources->MeshIndices.Num();++I)Views[Resources->MeshIndices[I]]=Blases[I]->AttributeView;
         P.Surface0=Views[0];P.Surface1=Views[1];P.Surface2=Views[2];P.Surface3=Views[3];
@@ -291,26 +361,77 @@ public:
         Cmd.SetRayTracingHitGroup(Scene,0,0,0,Pipeline,0,0,nullptr,0,nullptr,0);
         Cmd.SetRayTracingMissShader(Scene,0,Pipeline,0,0,nullptr,0);
         FRayTracingShaderBindingsWriter Bindings;SetShaderParameters(Bindings,Shader,P);
-        Cmd.RayTraceDispatch(Pipeline,Shader.GetRayTracingShader(),Scene,Bindings,Request.Rays.Num(),1);
+        Cmd.RayTraceDispatch(Pipeline,Shader.GetRayTracingShader(),Scene,Bindings,Count,1);++RtSubmissionCounters.Dispatches;
         Cmd.Transition(FRHITransitionInfo(ResultBuffer,ERHIAccess::UAVCompute,ERHIAccess::CopySrc));
         {
-            LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
-            if(Memory26::Enabled(Memory26::ECase::Readback)&&!FreeReadbacks.IsEmpty())
-            {Readback=FreeReadbacks.Pop(false);Memory26::Count(Memory26::ECounter::ReadbackReuse);}
-            else {Readback=MakeUnique<FRHIGPUBufferReadback>(TEXT("SensorOwnedLidar"));Memory26::Count(Memory26::ECounter::ReadbackCreate);}
-            Readback->EnqueueCopy(Cmd,ResultBuffer,Request.Rays.Num()*sizeof(FSensorRtHit));
+            MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
+            if(!Packet->Readback)Packet->Readback=MakeUnique<FRHIGPUBufferReadback>(TEXT("SensorOwnedLidarBatch"));
+            Packet->Readback->EnqueueCopy(Cmd,ResultBuffer,Count*sizeof(FSensorRtHit));Packet->Used=true;
         }
 #else
         Fail(TEXT("RHI compiled without ray tracing"));
 #endif
     }
 };
+bool SameScene(const FSensorRtRequest& A,const FSensorRtRequest& B)
+{
+    if(A.Meshes.Num()!=B.Meshes.Num())return false;
+    for(int32 I=0;I<A.Meshes.Num();++I)if(A.Meshes[I].Revision!=B.Meshes[I].Revision||!A.Meshes[I].LocalToWorld.Equals(B.Meshes[I].LocalToWorld,0))return false;
+    return true;
 }
+void FlushSubmissions()
+{
+    TArray<TSharedPtr<FScan,ESPMode::ThreadSafe>> Pending;
+    {FScopeLock Lock(&SubmissionMutex);Swap(Pending,Submissions);}
+    if(Pending.IsEmpty())return;
+    ENQUEUE_RENDER_COMMAND(SensorLidarBatch)([Pending=MoveTemp(Pending)](FRHICommandListImmediate& Cmd) mutable
+    {
+        ++RtSubmissionCounters.Batches;
+        while(!Pending.IsEmpty())
+        {
+            auto First=Pending[0];Pending.RemoveAt(0);
+            if(First->Cancelled.load()){First->Complete();continue;}
+            TArray<TSharedPtr<FScan,ESPMode::ThreadSafe>> Group;Group.Add(First);
+            if(First->Reusable())for(int32 I=0;I<Pending.Num();)
+            {
+                if(Pending[I]->Reusable()&&SameScene(First->Request,Pending[I]->Request))
+                {Group.Add(Pending[I]);Pending.RemoveAt(I);}else ++I;
+            }
+            TSharedPtr<FScan,ESPMode::ThreadSafe> Work=First;
+            if(Group.Num()>1)
+            {
+                Work=MakeShared<FScan,ESPMode::ThreadSafe>();Work->bCounted=false;Work->Members=Group;
+                Work->Request.Meshes=First->Request.Meshes;Work->Request.OwnerToken=First->Request.OwnerToken;
+                for(const auto& M:Group)Work->Request.OwnerToken=HashCombineFast(Work->Request.OwnerToken,M->Request.OwnerToken);
+                Work->Request.OnReadback=[Group](TArray<FSensorRtHit>&& Hits,const FString& Error)
+                {
+                    int32 Offset=0;
+                    for(const auto& M:Group)
+                    {
+                        const int32 Count=M->Request.Rays.Num();M->Failure=Error;
+                        if(Error.IsEmpty()&&!M->Cancelled.load())
+                        {
+                            auto Lease=HitPool.Take(Memory26::ECounter::HitCreate,Memory26::ECounter::HitReuse);M->Hits=MoveTemp(Lease->Data);
+                            M->Hits.SetNumUninitialized(Count);FMemory::Memcpy(M->Hits.GetData(),Hits.GetData()+Offset,Count*sizeof(FSensorRtHit));
+                        }
+                        Offset+=Count;M->Complete();
+                    }
+                    SensorOwnedRayTracing::RecycleHitArray(MoveTemp(Hits));
+                };
+            }
+            Work->bAutomaticReadback=true;Work->Dispatch(Cmd);
+            if(!Work->Finished.load(std::memory_order_acquire))PendingReadbacks.Add(Work);
+        }
+    });
+}
+}
+SensorOwnedRayTracing::FSubmissionStats SensorOwnedRayTracing::GetSubmissionStats()
+{return {RtSubmissionCounters.Batches.load(),RtSubmissionCounters.Dispatches.load(),RtSubmissionCounters.Requests.load(),RtSubmissionCounters.PacketCreates.load(),RtSubmissionCounters.PacketReuses.load(),RtSubmissionCounters.RayUploads.load(),RtSubmissionCounters.ViewCreates.load(),RtSubmissionCounters.SceneBuilds.load()};}
 uint64 SensorOwnedRayTracing::GetBlasBuildCount(){return BlasBuildCount.load();}
 void SensorOwnedRayTracing::RecycleHitArray(TArray<FSensorRtHit>&& Hits)
 {
-    if(!Memory26::Enabled(Memory26::ECase::Readback))return;
-    LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
+    if(!Optimized())return;
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
     auto Scratch=MakeUnique<FHitScratch>();Scratch->Data=MoveTemp(Hits);Scratch->Data.Reset();HitPool.Return(MoveTemp(Scratch));
 }
 bool SensorOwnedRayTracing::IsAvailable()
@@ -323,7 +444,7 @@ bool SensorOwnedRayTracing::IsAvailable()
 }
 TSharedPtr<ISensorRtScan,ESPMode::ThreadSafe> SensorOwnedRayTracing::Submit(FSensorRtRequest&& Request)
 {
-    LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
     if(!IsAvailable()||Request.Rays.IsEmpty()||Request.Rays.Num()>1048576||Request.Meshes.IsEmpty()||Request.Meshes.Num()>4)return {};
     uint64 GeometryBytes=0;
     for(const auto& Mesh:Request.Meshes)if(Mesh.Vertices&&!Mesh.Vertices->IsEmpty())
@@ -334,13 +455,14 @@ TSharedPtr<ISensorRtScan,ESPMode::ThreadSafe> SensorOwnedRayTracing::Submit(FSen
     }
     if(ActiveScans.fetch_add(1)>=MaxActiveScans){--ActiveScans;return {};}
     auto Scan=MakeShared<FScan,ESPMode::ThreadSafe>();Scan->bAutomaticReadback=bool(Request.OnReadback);Scan->Request=MoveTemp(Request);
-    ENQUEUE_RENDER_COMMAND(DispatchSensorRt)([Scan](FRHICommandListImmediate& Cmd)
-    {LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);Scan->Dispatch(Cmd);if(Scan->bAutomaticReadback&&!Scan->Finished.load(std::memory_order_acquire))PendingReadbacks.Add(Scan);});
+    Scan->bBatchMember=true;++RtSubmissionCounters.Requests;
+    {FScopeLock Lock(&SubmissionMutex);Submissions.Add(Scan);}
     return Scan;
 }
 void SensorOwnedRayTracing::RegisterShaders()
 {
     AddShaderSourceDirectoryMapping(TEXT("/MA0T10"),FPaths::Combine(FPaths::ProjectDir(),TEXT("Shaders")));
+    SubmitFrameHandle=FCoreDelegates::OnEndFrame.AddStatic(&FlushSubmissions);
     EndFrameHandle=FCoreDelegates::OnEndFrameRT.AddLambda([]()
     {
         for(int I=PendingReadbacks.Num()-1;I>=0;--I)
@@ -354,13 +476,15 @@ void SensorOwnedRayTracing::RegisterShaders()
 
 void SensorOwnedRayTracing::Shutdown()
 {
+    FCoreDelegates::OnEndFrame.Remove(SubmitFrameHandle);
+    {FScopeLock Lock(&SubmissionMutex);for(const auto& Scan:Submissions){Scan->Cancelled.store(true);Scan->Request.OnReadback=nullptr;}Submissions.Reset();}
     FCoreDelegates::OnEndFrameRT.Remove(EndFrameHandle);
     ENQUEUE_RENDER_COMMAND(ReleaseOwnedSensorRt)([](FRHICommandListImmediate& Cmd)
     {
         for(const auto& Scan:PendingReadbacks){Scan->Cancelled.store(true,std::memory_order_release);Scan->Request.OnReadback=nullptr;}
         PendingReadbacks.Reset();RetiredScans.Reset();
 #if RHI_RAYTRACING
-        SceneCache.Reset();FreeReadbacks.Reset();BlasCache.Reset();
+        SceneCache.Reset();FreePackets.Reset();FreePacketBytes=0;BlasCache.Reset();
 #endif
     });
     // Module teardown only, never acquisition/polling. RHI resource deletion

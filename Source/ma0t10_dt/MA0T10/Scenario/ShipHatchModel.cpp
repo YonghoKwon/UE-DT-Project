@@ -206,7 +206,7 @@ FAnalysis Analyze(const FSettings& S,double CellSize,const TArray<FObservation>&
 }
 void AnalyzeInto(const FSettings& S,double CellSize,const TArray<FObservation>& Points,FAnalysis& R)
 {
-    LLM_SCOPE_BYTAG(MA0T10_HatchAnalysis);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_HatchAnalysis);
     auto Cells=MoveTemp(R.Cells);R=FAnalysis();R.Cells=MoveTemp(Cells);R.Cells.Reset();
     if(!FMath::IsFinite(CellSize)||CellSize<.25||CellSize>5)return;
     R.NX=FMath::CeilToInt(S.Length/CellSize);R.NY=FMath::CeilToInt(S.Width/CellSize);

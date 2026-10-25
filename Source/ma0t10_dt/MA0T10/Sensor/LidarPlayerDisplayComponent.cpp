@@ -52,7 +52,7 @@ struct FPreviewScratch
 Memory26::TPool<FPreviewScratch,4,8ull*1024*1024> PreviewPool;
 TArray<FBatchedPoint> CopyPreviewPoints(const TArray<FBatchedPoint>& Source)
 {
-    LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
     if(Memory26::Enabled(Memory26::ECase::Preview))
     {
         auto Lease=PreviewPool.Take(Memory26::ECounter::PreviewCreate,Memory26::ECounter::PreviewReuse);
@@ -63,7 +63,7 @@ TArray<FBatchedPoint> CopyPreviewPoints(const TArray<FBatchedPoint>& Source)
 void ReturnPreviewPoints(TArray<FBatchedPoint>&& Points)
 {
     if(!Memory26::Enabled(Memory26::ECase::Preview))return;
-    LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
     auto Lease=MakeUnique<FPreviewScratch>();Lease->Points=MoveTemp(Points);Lease->Points.Reset();PreviewPool.Return(MoveTemp(Lease));
 }
 struct FPlayerPointUpdate
@@ -114,7 +114,7 @@ public:
         // of repeatedly staging writes into static mesh position/color buffers.
         ENQUEUE_RENDER_COMMAND(HatchInitDynamicPointStreams)([this](FRHICommandListImmediate& Cmd)
         {
-            LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
+            MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
             DynamicPositions.InitResource(Cmd);DynamicColors.InitResource(Cmd);
             FRHIResourceCreateInfo PosInfo(TEXT("HatchDynamicPointPositions")),ColorInfo(TEXT("HatchDynamicPointColors"));
             const uint32 PositionBytes=Vertices.PositionVertexBuffer.GetNumVertices()*sizeof(FVector3f),ColorBytes=Vertices.ColorVertexBuffer.GetNumVertices()*sizeof(FColor);
@@ -142,7 +142,7 @@ public:
     {if(bFixedPoints){Factory.ReleaseResource();DynamicPositionSRV.SafeRelease();DynamicColorSRV.SafeRelease();DynamicPositions.ReleaseResource();DynamicColors.ReleaseResource();Vertices.PositionVertexBuffer.ReleaseResource();Vertices.StaticMeshVertexBuffer.ReleaseResource();Vertices.ColorVertexBuffer.ReleaseResource();Indices.ReleaseResource();}ReturnPreviewPoints(MoveTemp(Points));}
     void UpdatePoints(FRHICommandListImmediate& Cmd,FPlayerPointUpdate&& Data)
     {
-        LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
+        MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
         check(IsInRenderingThread());
         if(!bFixedPoints||(Data.Scratch?Data.Scratch->Points.Num():Data.Points.Num())!=Points.Num())return;
         if(Data.Scratch){Swap(Points,Data.Scratch->Points);Data.Scratch->Points.Reset();PreviewPool.Return(MoveTemp(Data.Scratch));}
@@ -185,7 +185,7 @@ public:
 };
 }
 FPrimitiveSceneProxy* ULidarPlayerDisplayComponent::CreateSceneProxy()
-{LLM_SCOPE_BYTAG(MA0T10_LidarPreview);FixedProxyPointCount=bFixedPointSubmission&&ResolveFixedPointMaterial()?BatchedPoints.Num():0;if(FixedProxyPointCount>0)++FixedPointProxyCreations;return new FPlayerDisplayProxy(this);}
+{MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);FixedProxyPointCount=bFixedPointSubmission&&ResolveFixedPointMaterial()?BatchedPoints.Num():0;if(FixedProxyPointCount>0)++FixedPointProxyCreations;return new FPlayerDisplayProxy(this);}
 void ULidarPlayerDisplayComponent::CommitPointData()
 {
     UpdateBounds();
@@ -194,7 +194,7 @@ void ULidarPlayerDisplayComponent::CommitPointData()
 }
 void ULidarPlayerDisplayComponent::SendRenderDynamicData_Concurrent()
 {
-    LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
     Super::SendRenderDynamicData_Concurrent();
     if(!bFixedPointSubmission||!SceneProxy||FixedProxyPointCount<=0||FixedProxyPointCount!=BatchedPoints.Num())return;
     FPlayerPointUpdate Data;

@@ -26,6 +26,11 @@ struct FSensorRtHit
 };
 struct FSensorRtRequest
 {
+    /** Resource affinity only; never substitutes for exact ray/geometry checks. */
+    uint64 OwnerToken=0;
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    bool bFreshResourcesForTests=false;
+#endif
     TArray<FSensorRtMesh> Meshes;
     TArray<FSensorRtRay> Rays;
     /** Optional RT notification. Enqueue CPU work only; no UObject access or waits.
@@ -42,6 +47,11 @@ public:
 };
 namespace SensorOwnedRayTracing
 {
+    struct FSubmissionStats
+    {
+        uint64 Batches=0,Dispatches=0,Requests=0,PacketCreates=0,PacketReuses=0,RayUploads=0,ViewCreates=0,SceneBuilds=0;
+    };
+    MA0T10_DTBOOTSTRAP_API FSubmissionStats GetSubmissionStats();
     MA0T10_DTBOOTSTRAP_API bool IsAvailable();
     MA0T10_DTBOOTSTRAP_API uint64 GetBlasBuildCount();
     /** Diagnostic-only reuse, after the last normalization read. No payload alias. */

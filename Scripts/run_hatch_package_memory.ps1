@@ -9,6 +9,7 @@ param(
     [ValidateSet('none','baseline','crash-off','gpu-stats-off','rdg-events-off','mimalloc','trim-60s')][string]$ExperimentCase='none',
     [ValidateSet('none','baseline','preview-reuse','scene-reuse','readback-reuse','point-leases4','pcd-scratch-reuse')][string]$CodeCase='none',
     [switch]$CameraTagCanary,
+    [switch]$DisableProjectTags,
     [ValidateRange(1024,65535)][int]$Port=18626
 )
 # Owned standalone game/loopback only. User apps, broker settings and maps are
@@ -74,6 +75,7 @@ try {
     if($ExperimentCase -ne 'none'){$arguments+='-HatchMemoryExperiment'}
     if($CodeCase -ne 'none'){$arguments+="-Memory26Case=$CodeCase"}
     if($CameraTagCanary){$arguments+='-Memory26CameraTagCanary'}
+    if($DisableProjectTags){$arguments+='-NoProjectMemoryTags'}
     if($ExperimentCase -eq 'mimalloc'){$arguments+='-mimalloc'}
     if($ExperimentCase -eq 'trim-60s'){$arguments+='-HatchMemoryTrimSeconds=60'}
     $arguments=@($arguments|ForEach-Object{'"'+$_+'"'})

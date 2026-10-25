@@ -64,7 +64,7 @@ struct FTree
  }
  const FVirtualSensorCollisionMesh& ExportGpuMesh() const
  {
-  LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
+  MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
   if(GpuMesh.Vertices)return GpuMesh;
   auto Vertices=MakeShared<TArray<FVector3f>,ESPMode::ThreadSafe>();
   auto Attributes=MakeShared<TArray<FVector4f>,ESPMode::ThreadSafe>();

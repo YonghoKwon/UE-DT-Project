@@ -79,7 +79,7 @@ bool SerializeBinaryPcd(
 	TArray<uint8>& OutBytes,
 	int32& OutPointCount)
 {
-    LLM_SCOPE_BYTAG(MA0T10_PcdEncode);
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_PcdEncode);
 	TArray<const FVirtualLidarPoint*> FilteredPoints;
 	FilteredPoints.Reserve(Source.Num());
 	for (const FVirtualLidarPoint& Point : Source)
