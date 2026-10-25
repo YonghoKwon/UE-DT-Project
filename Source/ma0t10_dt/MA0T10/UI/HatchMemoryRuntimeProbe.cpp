@@ -226,7 +226,8 @@ public:
         FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryPcdLoopbackPort="),Port);FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryCancelFile="),CancelFile);
         FParse::Value(FCommandLine::Get(),TEXT("HatchSourceCommit="),SourceCommit);
         Investigation=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryInvestigation"));TraceCanaryEnabled=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryTraceCanary"));
-        const bool ValidDuration=Investigation?(Seconds>=900&&Seconds<=1200):(Seconds==30||(Seconds>=1800&&Seconds<=3600));
+        const bool FinalSoak=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryFinalValidation"));
+        const bool ValidDuration=Investigation?(Seconds>=900&&Seconds<=1200):(Seconds==30||(Seconds>=1800&&Seconds<=3600)||(FinalSoak&&Seconds==7200));
         Failed=!FMath::IsFinite(Seconds)||!FMath::IsFinite(Interval)||!ValidDuration||(TraceCanaryEnabled&&Seconds!=30)||Interval<5||Interval>30||Port<1024||Port>65535;
     }
     TStatId GetStatId() const override {RETURN_QUICK_DECLARE_CYCLE_STAT(FHatchMemoryRuntimeProbe,STATGROUP_Tickables);}

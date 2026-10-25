@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory=$true)][string]$Executable,
     [Parameter(Mandatory=$true)][string]$ReportRoot,
     [Parameter(Mandatory=$true)][string]$NativeValidator,
-    [ValidateSet(30,900,1200,1800,3600)][int]$Seconds=3600,
+    [ValidateSet(30,900,1200,1800,3600,7200)][int]$Seconds=3600,
+    [switch]$FinalSoak,
     [switch]$Investigation,
     [switch]$MemoryTrace,
     [switch]$TraceCanary,
@@ -17,6 +18,7 @@ param(
 # never changed. A30s run qualifies the diagnostic; it is not a soak verdict.
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
+if(($Seconds -eq 7200) -ne [bool]$FinalSoak){throw '7200s requires explicit FinalSoak; other diagnostic durations unchanged'}
 if($CodeCase -ne 'none' -and $ExperimentCase -ne 'baseline'){throw 'Code experiments require engine controls at baseline'}
 if($CameraTagCanary -and $Seconds -ne 30){throw 'Tag registry canary is30s qualification only; never a soak'}
 if(($Seconds -in @(900,1200)) -ne [bool]$Investigation){throw '900/1200s require explicit Investigation; ordinary30s/1800..3600s modes remain unchanged'}
@@ -71,6 +73,7 @@ try {
         "-UserDir=$ReportRoot/user","-HatchMemoryRuntimeReport=$ReportRoot","-HatchMemoryRuntimeSeconds=$Seconds",'-HatchMemorySampleSeconds=5',
         "-HatchMemoryPcdLoopbackPort=$Port","-HatchMemoryCancelFile=$cancel","-HatchSourceCommit=$source","-abslog=$ReportRoot/game.log")
     if($Investigation){$arguments+='-HatchMemoryInvestigation'}
+    if($FinalSoak){$arguments+='-HatchMemoryFinalValidation'}
     if($MemoryTrace){$arguments+=@('-trace=memory,bookmark',"-tracefile=$ReportRoot/memory.utrace")}
     if($TraceCanary){$arguments+='-HatchMemoryTraceCanary'}
     if($ExperimentCase -ne 'none'){$arguments+='-HatchMemoryExperiment'}
