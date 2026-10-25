@@ -922,3 +922,15 @@ cut 순서별 RSS/Commit/RHIMisc: crash-off11.392/8.766/6.976,gpu-stats-off24.23
 14프로세스 동일exe·모든 본실행 exit0/complete/decoder0/controls일정·UObject꼬리0이다. 요청20Hz를 유지하고 실제 전센서Hz를 별도 기록했다. 인코딩/전달/검증/overload/duplicate0이나 송신 제어 생략과 수신gap은 baseline각13/14/16,crash6/6/7,다른cut각6/7/8이다. 무손실/20Hz/업무ACK 수용이 아니다. Editor/Game build PASS,순수NullRHI2Success/Python32PASS(신규9),최종quick/layer0→0/guard/schema/merge는 result manifest를 따른다.
 
 개인44 exactset/SHA·보호483/Runtime해시·기존 사용자 상태를 보존했다. DTCore/gitlink/ConfigGame/PixelStreaming/운영맵/uasset/Claude메모 수정0이다. 패키지를3단계까지 보관·재사용한 뒤663파일2558500424bytes를 목록/SHA보존 후 삭제했다(빈폴더 유지). 최종2시간 RSS/Commit≤8/RHIMisc≤2·원래5쌍PASS·ABAB2%·전체release/직접mouse/회사 수용은 미수행이다. 2단계는 다른worktree이며4단계는Claude후속지시대기로 시작하지 않았다. push/PR/merge0. [상세](MEMORY_FIX_26f_STAGE13.md)·[RESULT](../Saved/Reports/MEMORY-FIX-26f/RESULT.md)·[result](../Saved/Reports/MEMORY-FIX-26f/result.json)·[merge check](../Saved/Reports/MEMORY-FIX-26f/merge-check.json).
+
+## 2026-10-26 MEMORY-FIX-26f — 2단계 통합·4/5단계 완료, 원인 미확정
+
+전체기준d8048bf/단계시작6b682da, Runtime f8dc70d. 4018dcd·719270f를a0461e3에서병합하며Probe엔진진단hook과LLM기록을모두보존했다. 5bdf5b1·f8dc70d는기본꺼짐재사용옵션·자원카운터·packagepreviewqualification을지원한다. 제품메모리개선수정은적용하지않았다.
+
+같은package의30분조건별RSS/Commit/RHIMisc꼬리MiB/h: baseline18.350/15.269/7.766, preview29.333/31.493/10.343, scene13.470/11.449/8.371, readback16.899/17.634/10.579, point4 15.970/13.460/7.647, PCDscratch25.085/20.468/10.603. 기존범위6.706/9.803/.729와최소효과1·Hz하한15.815810·다른RAM악화기준을그대로사용했다. baseline/scene/point4는Hz13.845469/15.398692/15.768930으로하한미달,preview는RAM악화,readback/PCD는감소량미달이다. 5개모두후보없음. BLAS추가생성은모두0,각옵션의TLAS/readback/preview/PCD재사용과pointfallback제거를카운터로확인했지만증가원인을확정하지못했다.
+
+수정없는추가60분은RSS18.237/Commit15.014/RHIMisc11.819MiB/h,최저Hz16.336519,UObject꼬리0이다. 첫10분제외50분전체는16.944/15.008/10.132다. leaf들은대체로평탄했으며카메라GT는미관측(0대체없음)이다. 7태그writer는별도30초에서만4KiB CameraGT registrycanary로확인했고CameraGT기능수용으로세지않았다. 장시간14동일exe프로세스 중본관측7개는complete/exit0/decoder0/invalid0이다. 제어생략·수신gap은따로보존한다.
+
+Editor/Development빌드·Python40·순수7·관련RHI13Success/1Fail/0skip(반복실행기준). HATCH03.DigRuntimeRhi의8MiB rawRSS/retainedRSS/Commit3assert실패는그대로남겼다. RTon실제Rev7 HWRT 1Camera+1Lidar/offscreen1920×1080/10+30초/ABAB3블록12구간은FPS감소.000257%/p95변화0/GT증가.480829%/GPU감소5.722628%로2%통과했다. samplerGT평균2.529~2.804ms/표본,최대10.098ms다.
+
+개인253/보호483원본집합·SHA복원,DTCore/gitlink·ConfigGame·PixelStreaming·운영맵/uasset·Claude메모기존상태보존. 소유패키지/현재ABAB사본5729파일16,875,385,127bytes를검증후파일별삭제(빈폴더유지),trace생성0. 엔진/드라이버/allocator보존과계측밖native경로는여전히가설이며최종2시간/원래5쌍·전체release·직접mouse/회사수용은미수행이다. 기준완화·push/PR/외부merge없음(승인된LLM로컬병합만수행). [상세](MEMORY_FIX_26f_STAGE45.md)·[RESULT](../Saved/Reports/MEMORY-FIX-26f/RESULT.md)·[result](../Saved/Reports/MEMORY-FIX-26f/result.json)·[mergecheck](../Saved/Reports/MEMORY-FIX-26f/merge-check.json).

@@ -76,7 +76,7 @@ allocation 후속(기준a64dcc8/실측f1236f6): idle trace15분과4개 cut 및 �
 
 26e(기준15326e6/Runtime eb4d515): 큰 future 결과3경로를 이동 소비하고 해치 FResult를 move-only로 만들었다. package20분 trace2회/비추적60분 모두 누수 의심, 비추적 RSS17.50/Commit13.84/RHIMisc11.81MiB/h·UObject0이다. query 배열·bounded profiler cache·PCD encode만 두 새 trace의 증가 경로 후보로 남겼으며 point lease1개+25MiB 등 단일 실행 차이를 누수로 단정하지 않았다. 관련22 Success/1기존 Fail/0 Skip, 기준에서도 같은4assertion 재현·quick/layer/guard 통과지만 RT on ABAB1블록 GPU+2.4487% FAIL을 유지한다. 기존 RSS 수용·기준과 제품 기본값은 유지한다. [조건·콜스택·정리 제한](MEMORY_OBSERVATION_26e.md)·[결과](../Saved/Reports/MEMORY-26e/RESULT.md).
 
-26f 해결 계획1·3단계 완료(기준d8048bf/진단Runtime e389af6): 60분 baseline3회·30분 cut5회를 같은package로 실행하고,첫10분 제외·공통꼬리20분·120초쿨다운을 고정했다. baseline RSS/Commit/RHIMisc 중앙값17.429/19.146/11.128,범위6.706/9.803/0.729MiB/h다. 유의는사전범위/최소효과/처리량/다른RAM악화/통제값운영기준이며통계적유의성은아니다. GPUStats/RDG/Trim은RHI한정후보이고 RSS/Commit 개선은없다. 제품기본값변경·2단계태그작업·4단계는수행하지않았으며 최종2시간/원래5쌍/ABAB기준은그대로미평가다. [전체조건·표·제외사유](MEMORY_FIX_26f_STAGE13.md)·[결과](../Saved/Reports/MEMORY-FIX-26f/RESULT.md).
+26f 해결 계획2단계 통합·4/5단계 완료(전체기준 `d8048bf`, Runtime `f8dc70d`): LLM 태그7개와 분석기 확장을 통합하고, 같은 Development 패키지로 기본조건+우리코드5개 분리조건을 각30분 실행했다. 기존 흔들림·처리량 기준을 통과한 메모리 개선 후보가 없어 제품 개선 수정은 적용하지 않았다. 추가60분 기본확인의 RSS/Commit/RHIMisc 꼬리는18.237/15.014/11.819MiB/h로 목표 미달이며 #26은 미해결이다. RTon ABAB3블록2%는 통과했고, 관련HATCH03의 기존8MiB3assert는 실패로 보존했다. 최종2시간/원래5쌍은6단계 별도 지시 대상이다. [방법·표·한계](MEMORY_FIX_26f_STAGE45.md)·[이전1·3단계](MEMORY_FIX_26f_STAGE13.md)·[결과](../Saved/Reports/MEMORY-FIX-26f/RESULT.md).
 
 ## FOLLOWUP-28 — Rev7×3 PCD 송신 공정성
 

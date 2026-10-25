@@ -96,7 +96,7 @@ MEMORY-TREND-26c(기준 `3ed0367`): Scheduler 주기 로그를 기본 억제하�
 
 26e(기준 `15326e6`, Runtime `eb4d515`): 해치 분석·지형 생성·저장 PCD 미리보기의 큰 future 결과를 복사 없이 한 번 이동하며 Pending 무효화와 버퍼 capacity를 검증했다. package20분 trace2회·비추적60분은 모두 누수 의심이고, 비추적 꼬리는 RSS+17.50/Commit+13.84/RHIMisc+11.81MiB/h다. D3D12 query·상한 있는 profiler cache·PCD encode가 반복된 양의 스택이며 전체 RSS 귀속은 미해결이다. 기존 HATCH06 픽셀 실패는 기준에서도 재현됐고 RT on ABAB1블록은 GPU mean+2.4487%로 FAIL이다. 기준 완화/추가 제품 기본값 변경 없이 보고했다. [변경·비교·한계](docs/MEMORY_OBSERVATION_26e.md)·[결과](Saved/Reports/MEMORY-26e/RESULT.md).
 
-26f 해결 계획1·3단계(기준 `d8048bf`, 진단 Runtime `e389af6`): 같은 package60분 idle3회의 마지막20분 RSS/Commit/RHIMisc 중앙값은17.429/19.146/11.128MiB/h,범위는6.706/9.803/0.729다.30분 cut5회를 완료했고 GPUStats off·RDG events off·주기Trim은 RHIMisc 한정 관측 기여 후보, RSS/Commit 개선 후보는 없다. crash-off는처리량비교불가·mimalloc은RAM악화로제외했다. 제품기본값/2단계LLM태그는변경하지않았고4단계·최종2시간/5쌍/ABAB성공은미평가다. [방법·표·한계](docs/MEMORY_FIX_26f_STAGE13.md)·[결과](Saved/Reports/MEMORY-FIX-26f/RESULT.md).
+26f 해결 계획2단계 통합·4/5단계 완료(전체기준 `d8048bf`, Runtime `f8dc70d`): LLM 태그7개와 분석기 확장을 통합하고, 같은 Development 패키지로 기본조건+우리코드5개 분리조건을 각30분 실행했다. 기존 흔들림·처리량 기준을 통과한 메모리 개선 후보가 없어 제품 개선 수정은 적용하지 않았다. 추가60분 기본확인의 RSS/Commit/RHIMisc 꼬리는18.237/15.014/11.819MiB/h로 목표 미달이며 #26은 미해결이다. RTon ABAB3블록2%는 통과했고, 관련HATCH03의 기존8MiB3assert는 실패로 보존했다. 최종2시간/원래5쌍은6단계 별도 지시 대상이다. [방법·표·한계](docs/MEMORY_FIX_26f_STAGE45.md)·[이전1·3단계](docs/MEMORY_FIX_26f_STAGE13.md)·[결과](Saved/Reports/MEMORY-FIX-26f/RESULT.md).
 
 ### FOLLOWUP-28 PCD 송신 예산·공정성
 
