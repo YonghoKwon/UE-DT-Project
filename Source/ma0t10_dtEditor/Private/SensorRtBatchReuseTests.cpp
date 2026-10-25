@@ -39,7 +39,7 @@ public:
             auto V=MakeShared<TArray<FVector3f>,ESPMode::ThreadSafe>();V->Append({FVector3f(100,-100,-100),FVector3f(100,100,-100),FVector3f(100,0,100)});
             auto N=MakeShared<TArray<FVector4f>,ESPMode::ThreadSafe>();N->Add(FVector4f(-1,0,0,0));Mesh.Revision=0x264000000001;Mesh.Vertices=V;Mesh.NormalsAndSurfaces=N;
             Rays.SetNum(3);for(int32 I=0;I<3;++I)for(int32 J=0;J<65536;++J)
-                Rays[I].Add({FVector3f(0,I+(J%31)-15,(J/31)%31-15),1000,FVector3f(1,0,0),0});
+                Rays[I].Add({FVector3f(I*10+J%7,I+(J%31)-15,(J/31)%31-15),J%17==0?20.f:1000.f,FVector3f(1,0,0),0});
             Submit(true);for(const auto& S:Scans)if(!Test->TestTrue(TEXT("all three admitted"),S.IsValid()))return true;
             if(!Test->TestTrue(TEXT("fresh reference admitted"),Reference.IsValid()))return true;Phase=1;return false;
         }
@@ -53,8 +53,9 @@ public:
             const int32 Count=Rays[I].Num();Test->TestEqual(TEXT("per-sensor result cardinality"),Actual[I].Num(),Count);
             if(Actual[I].Num()==Count&&Expected.Num()>=Offset+Count)
                 Test->TestTrue(TEXT("batched persistent result bytes equal fresh independent dispatch"),FMemory::Memcmp(Actual[I].GetData(),Expected.GetData()+Offset,Count*sizeof(FSensorRtHit))==0);
-            bool Plane=true;for(const auto& H:Actual[I])Plane&=FMath::Abs(H.NormalAndDistance.W-100)<.001f;
-            Test->TestTrue(TEXT("all65536 known plane hits100cm"),Plane);
+            bool Plane=true;for(int32 J=0;J<Actual[I].Num();++J)
+            {const auto& Ray=Rays[I][J];const float T=100-Ray.Origin.X;const float Want=Ray.MaxDistance<T?-1:T;Plane&=FMath::Abs(Actual[I][J].NormalAndDistance.W-Want)<.001f;}
+            Test->TestTrue(TEXT("all65536 per-sensor varied analytic distances and misses"),Plane);
             Offset+=Count;SensorOwnedRayTracing::RecycleHitArray(MoveTemp(Actual[I]));
         }
         Scans.Reset();
@@ -66,6 +67,7 @@ public:
             Test->TestEqual(TEXT("steady SRV/UAV persistent"),Now.ViewCreates,Stable.ViewCreates);
             Test->TestEqual(TEXT("identical rays not reuploaded"),Now.RayUploads,Stable.RayUploads);
             Test->TestEqual(TEXT("identical scene not rebuilt"),Now.SceneBuilds,Stable.SceneBuilds);
+            Test->TestEqual(TEXT("immutable local shader records not rebound"),Now.BindingUpdates,Stable.BindingUpdates);
             if(++Repeats==3)return true;
         }
         Submit(false);return false;

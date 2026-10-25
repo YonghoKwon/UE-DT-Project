@@ -10,6 +10,7 @@ param(
     [ValidateSet('none','baseline','preview-reuse','scene-reuse','readback-reuse','point-leases4','pcd-scratch-reuse')][string]$CodeCase='none',
     [switch]$CameraTagCanary,
     [switch]$DisableProjectTags,
+    [switch]$Visible,
     [ValidateRange(1024,65535)][int]$Port=18626
 )
 # Owned standalone game/loopback only. User apps, broker settings and maps are
@@ -65,7 +66,7 @@ try {
         'rdg-events-off' {$expected['r.RDG.Events']=0}
     }
     foreach($key in $expected.Keys){$commands+=",$key $($expected[$key])"}
-    $arguments=@('/Game/MA0T10/Maps/Tests/ShipHatchTestMap','-d3d12','-llm','-nosound','-unattended','-nop4','-nosplash','-windowed','-RenderOffscreen','-ForceRes','-ResX=1920','-ResY=1080',
+    $arguments=@('/Game/MA0T10/Maps/Tests/ShipHatchTestMap','-d3d12','-llm','-nosound','-unattended','-nop4','-nosplash','-windowed','-ForceRes','-ResX=1920','-ResY=1080',
         "-ExecCmds=$commands",
         "-UserDir=$ReportRoot/user","-HatchMemoryRuntimeReport=$ReportRoot","-HatchMemoryRuntimeSeconds=$Seconds",'-HatchMemorySampleSeconds=5',
         "-HatchMemoryPcdLoopbackPort=$Port","-HatchMemoryCancelFile=$cancel","-HatchSourceCommit=$source","-abslog=$ReportRoot/game.log")
@@ -75,11 +76,13 @@ try {
     if($ExperimentCase -ne 'none'){$arguments+='-HatchMemoryExperiment'}
     if($CodeCase -ne 'none'){$arguments+="-Memory26Case=$CodeCase"}
     if($CameraTagCanary){$arguments+='-Memory26CameraTagCanary'}
+    if(!$Visible){$arguments+='-RenderOffscreen'}
     if($DisableProjectTags){$arguments+='-NoProjectMemoryTags'}
     if($ExperimentCase -eq 'mimalloc'){$arguments+='-mimalloc'}
     if($ExperimentCase -eq 'trim-60s'){$arguments+='-HatchMemoryTrimSeconds=60'}
     $arguments=@($arguments|ForEach-Object{'"'+$_+'"'})
-    $game=Start-Process -FilePath $Executable -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$ReportRoot/console.log" -RedirectStandardError "$ReportRoot/stderr.log"
+    $windowStyle=if($Visible){'Normal'}else{'Hidden'}
+    $game=Start-Process -FilePath $Executable -ArgumentList $arguments -WindowStyle $windowStyle -PassThru -RedirectStandardOutput "$ReportRoot/console.log" -RedirectStandardError "$ReportRoot/stderr.log"
     $null=$game.Handle;$deadline=[DateTime]::UtcNow.AddSeconds($Seconds+900)
     while(!$game.HasExited){
         try{

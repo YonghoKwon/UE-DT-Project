@@ -36,7 +36,7 @@ FDelegateHandle EndFrameHandle,SubmitFrameHandle;
 bool Optimized()
 {static const bool Value=!FParse::Param(FCommandLine::Get(),TEXT("SensorRtLegacy"));return Value;}
 struct FStats
-{std::atomic<uint64> Batches{0},Dispatches{0},Requests{0},PacketCreates{0},PacketReuses{0},RayUploads{0},ViewCreates{0},SceneBuilds{0};} RtSubmissionCounters;
+{std::atomic<uint64> Batches{0},Dispatches{0},Requests{0},PacketCreates{0},PacketReuses{0},RayUploads{0},ViewCreates{0},SceneBuilds{0},BindingUpdates{0};} RtSubmissionCounters;
 #if RHI_RAYTRACING
 class FLidarRGS final : public FGlobalShader
 {
@@ -125,6 +125,8 @@ struct FSceneResources
     FRWBufferStructured Instances;
     FByteAddressBuffer Addresses;
     uint64 LastUse=0;
+    FRayTracingPipelineState* BoundPipeline=nullptr;
+    double LastPipelineUseSeconds=0;
     bool Matches(const TArray<FSensorRtMesh>& Meshes)const
     {
         if(Meshes.Num()!=Revisions.Num())return false;
@@ -358,8 +360,18 @@ public:
         FRHIRayTracingShader* HitTable[]={HitShader.GetRayTracingShader()};PipelineInit.SetHitGroupTable(HitTable);
         FRHIRayTracingShader* MissTable[]={MissShader.GetRayTracingShader()};PipelineInit.SetMissShaderTable(MissTable);
         auto* Pipeline=PipelineStateCache::GetAndOrCreateRayTracingPipelineState(Cmd,PipelineInit);
-        Cmd.SetRayTracingHitGroup(Scene,0,0,0,Pipeline,0,0,nullptr,0,nullptr,0);
-        Cmd.SetRayTracingMissShader(Scene,0,Pipeline,0,0,nullptr,0);
+        const double PipelineNow=FPlatformTime::Seconds();
+        // Local hit/miss records have no per-frame uniforms or loose data. The
+        // exact scene key owns their immutable geometry; global raygen bindings
+        // below still carry this dispatch's ray/result buffers. Rebind on a new
+        // PSO or after an idle gap (the engine may evict inactive PSOs).
+        if(!Reusable()||Resources->BoundPipeline!=Pipeline||PipelineNow-Resources->LastPipelineUseSeconds>1)
+        {
+            Cmd.SetRayTracingHitGroup(Scene,0,0,0,Pipeline,0,0,nullptr,0,nullptr,0);
+            Cmd.SetRayTracingMissShader(Scene,0,Pipeline,0,0,nullptr,0);
+            Resources->BoundPipeline=Pipeline;++RtSubmissionCounters.BindingUpdates;
+        }
+        Resources->LastPipelineUseSeconds=PipelineNow;
         FRayTracingShaderBindingsWriter Bindings;SetShaderParameters(Bindings,Shader,P);
         Cmd.RayTraceDispatch(Pipeline,Shader.GetRayTracingShader(),Scene,Bindings,Count,1);++RtSubmissionCounters.Dispatches;
         Cmd.Transition(FRHITransitionInfo(ResultBuffer,ERHIAccess::UAVCompute,ERHIAccess::CopySrc));
@@ -426,7 +438,7 @@ void FlushSubmissions()
 }
 }
 SensorOwnedRayTracing::FSubmissionStats SensorOwnedRayTracing::GetSubmissionStats()
-{return {RtSubmissionCounters.Batches.load(),RtSubmissionCounters.Dispatches.load(),RtSubmissionCounters.Requests.load(),RtSubmissionCounters.PacketCreates.load(),RtSubmissionCounters.PacketReuses.load(),RtSubmissionCounters.RayUploads.load(),RtSubmissionCounters.ViewCreates.load(),RtSubmissionCounters.SceneBuilds.load()};}
+{return {RtSubmissionCounters.Batches.load(),RtSubmissionCounters.Dispatches.load(),RtSubmissionCounters.Requests.load(),RtSubmissionCounters.PacketCreates.load(),RtSubmissionCounters.PacketReuses.load(),RtSubmissionCounters.RayUploads.load(),RtSubmissionCounters.ViewCreates.load(),RtSubmissionCounters.SceneBuilds.load(),RtSubmissionCounters.BindingUpdates.load()};}
 void SensorOwnedRayTracing::FlushPendingSubmissions(){FlushSubmissions();}
 uint64 SensorOwnedRayTracing::GetBlasBuildCount(){return BlasBuildCount.load();}
 void SensorOwnedRayTracing::RecycleHitArray(TArray<FSensorRtHit>&& Hits)

@@ -49,7 +49,7 @@ namespace SensorOwnedRayTracing
 {
     struct FSubmissionStats
     {
-        uint64 Batches=0,Dispatches=0,Requests=0,PacketCreates=0,PacketReuses=0,RayUploads=0,ViewCreates=0,SceneBuilds=0;
+        uint64 Batches=0,Dispatches=0,Requests=0,PacketCreates=0,PacketReuses=0,RayUploads=0,ViewCreates=0,SceneBuilds=0,BindingUpdates=0;
     };
     MA0T10_DTBOOTSTRAP_API FSubmissionStats GetSubmissionStats();
     /** Submit immutable admissions before main-view rendering, once per scheduler tick. */

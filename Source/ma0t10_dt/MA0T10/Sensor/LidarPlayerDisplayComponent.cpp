@@ -23,7 +23,10 @@ ULidarPlayerDisplayComponent::ULidarPlayerDisplayComponent()
 UMaterialInterface* ULidarPlayerDisplayComponent::ResolveFixedPointMaterial() const
 {
     if(Memory26::Enabled(Memory26::ECase::Preview))return DiagnosticPointMaterial;
-    return GEngine?GEngine->VertexColorMaterial:nullptr;
+    // Standalone disables engine debug view materials. Keep the same fixed
+    // player-only mesh path used in Editor, with its explicit cooked reference,
+    // instead of rebuilding a PDI proxy and transient draw resources at5Hz.
+    return GEngine&&GEngine->VertexColorMaterial?GEngine->VertexColorMaterial.Get():DiagnosticPointMaterial.Get();
 }
 
 void ULidarPlayerDisplayComponent::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials,bool bGetDebugMaterials) const
