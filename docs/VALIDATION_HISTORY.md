@@ -901,3 +901,11 @@ UE5.3 Development Editor build·집중3Success, 실제 D3D12 1920x1080 관련77S
 사용자 지정 ref1/ref4/ref6에서 보이는 전경 상부 경사관1개와 붐 밑면 횡관3개·대각관3개를 기존 표시 전용 Cylinder/재질/PortalRoot에 추가했다. 원형 단면·간격·치수는 사진 해상도에 따른 표시 가정이며 강도/인증 값이 아니다. 반대편 경사관·가려진 뿌리 격자·새 하부 knee strut는 추가하지 않았다. GTSU는 별도 구조여서 이번 모델 변경에서 제외했다. [부재별 사진 위치](research/CRANE-31e-basis.md).
 
 Development Editor build·집중 외형1·대량 코일1 Success, 실제 D3D12 1920x1080 관련77Success/2조건부Skip/0Fail. 기존 knee strut·충돌·idle0 회귀를 유지했고 공유용1600px JPG를 보관했다. 직접 마우스는 Windows Security 팝업 때문에 보류, 보안 설정 조작 없음. 렌더 증가에 대한 표준1Camera+1LiDAR/실제300코일 장면의 RT on ABAB2% 판정, 수행/미수행과 설정 복원은 [RESULT](../Saved/Reports/CRANE-31e/RESULT.md)/[result](../Saved/Reports/CRANE-31e/result.json)/[merge](../Saved/Reports/CRANE-31e/merge-check.json)을 따른다. 전체 release·패키징·회사 수용은 미수행이다.
+
+## 2026-10-25 — COIL-OUSTER
+
+사용자 결정으로 신규 코일 센서 기본값만 OusterOS1_64_Rev7/FullSpec/1024x64·20Hz로 변경했다. ID os_lidar_coil_quay와 기존 송신/저장 계약을 유지한다. 실제 layout loader의 명시 Hesai 프로필·간격/미리보기 복원과 장면 재구성 후 보존을 검증했다. UI는 실제 모델/목표Hz를 표시하며 캡처의 강제 Ouster override를 실제 기본값 검사로 강화했다. KeyGeometry·잔차2cm·중심 편차p95 3cm·노이즈 기준은 유지했다.
+
+Development build/집중 회귀·관련78Success/3조건부Skip/0Fail. 별도 opt-in PCD Full 비압축 loopback1Success: 외부20.023694Hz·16.731340MiB/s, 최대 필요16.759529/예산80MiB/s, 누락/중복/invalid/경고0, 최대gap82.889557ms. 단일 반환 전체 ray 본문 상한41.25MiB/s+헤더와 실측을 구분한다. 점군 포함1600px JPG2장을 보관했다. 직전 cd19f94 대 제품 커밋의 코일 RT on ABAB2%, 직접 UI·보호 경로/개인 설정 복원·실패/미수행은 [RESULT](../Saved/Reports/COIL-OUSTER/RESULT.md)/[result](../Saved/Reports/COIL-OUSTER/result.json)/[merge](../Saved/Reports/COIL-OUSTER/merge-check.json)을 따른다. [프로필·보존·예산 근거](research/COIL-OUSTER-basis.md). result/merge 기준은 a0ca52a이며 전체 release·회사 수용은 미수행이다.
+
+COIL-OUSTER 최종 성능: cd19f94(Hesai32)→a95d878(Ouster64)의 실제 변경을 유지한 RT on ABAB3블록/A6B6에서 wall FPS 저하0.002751%·engine p95변화0%는 통과, GT5.583417→6.046311ms(+8.290505%)·GPU5.689627→5.995552ms(+5.376885%)는2% FAIL이다. 원본12회와 원시CSV를 보존했고 품질/20Hz/정확도/2%를 낮추지 않았다. 정적TLAS 캐시 단일 진단은 GT6.022319/GPU5.985608ms로 효과가 부족해 원복했다(패치/실패 빌드·시험 원본 보존). 최종 공통GPU/Bootstrap/기존GPU 계약·variants 파일은 a95d878의 원래 코드다. 테스트 출력정리 대기만 별도 커밋해 명시 프로필 복원을 재검증했고 공개 기대값은 유지했다. 직접UI는 보안 팝업으로 미수행, 소유Editor exit0/개인 설정·보호 경로 복원 일치. 스키마PASS, merge_check BLOCKED(exit2), 성능 완료/머지 가능으로 표시하지 않는다.

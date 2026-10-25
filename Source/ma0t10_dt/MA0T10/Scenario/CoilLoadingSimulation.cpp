@@ -54,7 +54,7 @@ void ACoilLoadingSimulation::ConfigureLidar()
 {
     Lidar=GetWorld()->SpawnActorDeferred<AVirtualLidarSensorActor>(AVirtualLidarSensorActor::StaticClass(),GetActorTransform(),this);
     if(!Lidar)return;Lidar->SetFlags(RF_Transient);Lidar->ScanComponent->bAutoStartScan=false;Lidar->FinishSpawning(GetActorTransform());
-    FVirtualSensorEditableState S,Applied;FString E;Lidar->ReadEditableState(S);S.LidarProfile=EVirtualLidarDeviceProfile::HesaiXT32;S.SimulationQuality=EVirtualSensorSimulationQuality::FullSpec;
+    FVirtualSensorEditableState S,Applied;FString E;Lidar->ReadEditableState(S);S.LidarProfile=EVirtualLidarDeviceProfile::OusterOS1_64_Rev7;S.SimulationQuality=EVirtualSensorSimulationQuality::FullSpec;
     if(!Lidar->ApplyProfileAndSimulationQuality(S,Applied,E)){Status=E;return;}Lidar->ReadEditableState(S);
     S.SensorId=VirtualSensorIdentity::CoilQuay;S.ActorTransform=FTransform(GetActorQuat()*FRotator(-72,112,0).Quaternion(),GetActorTransform().TransformPosition(FVector(-Settings.HoldLength*.5+4,-Settings.HoldWidth*.5+3,Settings.HoldHeight+8)*100));
     S.LidarScanInterval=.05f;S.bLidarMaterialResponse=true;S.PreviewPointStride=2;S.MaxPreviewPoints=12000;S.bExportPcdOnScan=false;S.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::WhenRequested;
