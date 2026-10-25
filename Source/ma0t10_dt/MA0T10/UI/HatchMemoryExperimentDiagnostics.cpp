@@ -1,4 +1,5 @@
 #include "HatchMemoryExperimentDiagnostics.h"
+#include "Memory26Diagnostics.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/MemoryBase.h"
@@ -33,6 +34,12 @@ struct FExperiment
         }
         return Out;
     }
+    TSharedRef<FJsonObject> Counters() const
+    {
+        auto Out=MakeShared<FJsonObject>();
+        for(int32 I=0;I<int32(Memory26::ECounter::Count);++I){const auto C=Memory26::ECounter(I);Out->SetNumberField(Memory26::CounterName(C),double(Memory26::Value(C)));}
+        return Out;
+    }
 };
 TUniquePtr<FExperiment> Experiment;
 }
@@ -41,12 +48,14 @@ bool BeginHatchMemoryExperiment(const FString& Directory)
     double Period=0;const bool HasPeriod=FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryTrimSeconds="),Period);
     const bool Enabled=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryExperiment"));
     if(!Enabled)return !HasPeriod;
+    if(Memory26::GetCase()==Memory26::ECase::Invalid)return false;
     if(!ValidTrimPeriod(Period))return false;
     const FString Path=Directory/TEXT("experiment.jsonl");if(IFileManager::Get().FileExists(*Path))return false;
     Experiment=MakeUnique<FExperiment>();Experiment->Period=Period;Experiment->File.Reset(IFileManager::Get().CreateFileWriter(*Path,FILEWRITE_AllowRead));
     if(!Experiment->File)return false;
     auto Row=MakeShared<FJsonObject>();Row->SetStringField(TEXT("type"),TEXT("metadata"));Row->SetStringField(TEXT("allocator"),GMalloc->GetDescriptiveName());
     Row->SetBoolField(TEXT("diagnostic_only"),true);Row->SetNumberField(TEXT("trim_interval_seconds"),Period);Row->SetObjectField(TEXT("cvars"),Experiment->Controls());
+    Row->SetStringField(TEXT("memory26_case"),Memory26::CaseName());Row->SetObjectField(TEXT("resource_counters"),Experiment->Counters());
     return Experiment->Write(Row);
 }
 bool SampleHatchMemoryExperiment(double ElapsedSeconds)
@@ -66,6 +75,7 @@ bool SampleHatchMemoryExperiment(double ElapsedSeconds)
     }
     auto Row=MakeShared<FJsonObject>();Row->SetStringField(TEXT("type"),TEXT("sample"));Row->SetNumberField(TEXT("seconds"),ElapsedSeconds);
     Row->SetNumberField(TEXT("trim_calls"),Experiment->Calls);Row->SetNumberField(TEXT("trim_total_gt_ms"),Experiment->TotalMs);Row->SetObjectField(TEXT("cvars"),Experiment->Controls());
+    Row->SetStringField(TEXT("memory26_case"),Memory26::CaseName());Row->SetObjectField(TEXT("resource_counters"),Experiment->Counters());
     return Experiment->Write(Row);
 }
 bool FinishHatchMemoryExperiment(bool Complete)
@@ -73,11 +83,30 @@ bool FinishHatchMemoryExperiment(bool Complete)
     if(!Experiment)return true;if(!Experiment->File){Experiment.Reset();return false;}
     auto Row=MakeShared<FJsonObject>();Row->SetStringField(TEXT("type"),TEXT("summary"));Row->SetBoolField(TEXT("complete"),Complete);
     Row->SetNumberField(TEXT("trim_calls"),Experiment->Calls);Row->SetNumberField(TEXT("trim_total_gt_ms"),Experiment->TotalMs);Row->SetNumberField(TEXT("trim_max_gt_ms"),Experiment->MaxMs);
-    Row->SetObjectField(TEXT("cvars"),Experiment->Controls());const bool Written=Experiment->Write(Row);const bool Closed=Experiment->File->Close();Experiment.Reset();return Written&&Closed;
+    Row->SetObjectField(TEXT("cvars"),Experiment->Controls());Row->SetStringField(TEXT("memory26_case"),Memory26::CaseName());Row->SetObjectField(TEXT("resource_counters"),Experiment->Counters());
+    const bool Written=Experiment->Write(Row);const bool Closed=Experiment->File->Close();Experiment.Reset();return Written&&Closed;
 }
 
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMemory26PoolTest,"HATCH26.BoundedDiagnosticPool",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FMemory26PoolTest::RunTest(const FString&)
+{
+    struct FItem{TArray<uint8> Data;uint64 Bytes()const{return Data.GetAllocatedSize();}};
+    Memory26::TPool<FItem,2,1024> Pool;
+    const auto C=Memory26::ECounter::PcdCreate,R=Memory26::ECounter::PcdReuse;
+    auto A=Pool.Take(C,R),B=Pool.Take(C,R),D=Pool.Take(C,R);
+    A->Data.SetNumUninitialized(256);A->Data[0]=42;const void* Address=A->Data.GetData();
+    TestTrue(TEXT("live leases have distinct ownership"),A.Get()!=B.Get()&&A.Get()!=D.Get()&&B.Get()!=D.Get());
+    Pool.Return(MoveTemp(A));auto E=Pool.Take(C,R);
+    TestTrue(TEXT("returned capacity reused"),Address==E->Data.GetData());TestEqual(TEXT("contents retained until caller resets"),E->Data[0],uint8(42));
+    E->Data.Reset();TestTrue(TEXT("reset keeps capacity"),Address==E->Data.GetData());
+    Pool.Return(MoveTemp(E));Pool.Return(MoveTemp(B));Pool.Return(MoveTemp(D));
+    TestEqual(TEXT("count bounded"),Pool.RetainedCount(),2);TestTrue(TEXT("bytes bounded"),Pool.RetainedBytes()<=1024);
+    auto Large=Pool.Take(C,R);Large->Data.SetNumUninitialized(2048);Pool.Return(MoveTemp(Large));
+    TestTrue(TEXT("oversized lease discarded"),Pool.RetainedBytes()<=1024&&Pool.RetainedCount()==1);
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchTrimScheduleTest,"HATCH26.TrimDiagnosticSchedule",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FHatchTrimScheduleTest::RunTest(const FString&)
 {

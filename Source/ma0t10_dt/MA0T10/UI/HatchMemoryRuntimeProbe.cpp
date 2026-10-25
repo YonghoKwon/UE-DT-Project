@@ -51,6 +51,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
     bool Investigation=false, TraceCanaryEnabled=false;
     int32 CanaryStage=0;
     TArray<uint8> TraceCanary;
+    TArray<uint8> CameraTagCanary;
     static FORCENOINLINE void ResizeMemoryTraceCanary(TArray<uint8>& Bytes,int32 Size){Bytes.SetNumZeroed(Size);}
 
     bool Write(const TSharedRef<FJsonObject>& Row)
@@ -133,6 +134,11 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
     }
     bool Begin(AShipHatchSimulation& S)
     {
+        // The Rev7x3 fixture has no CameraGT workload. A separate30s opt-in
+        // registry/writer smoke holds4KiB under that tag, explicitly labelled;
+        // never enable it in trend comparisons or call it CameraGT acceptance.
+        if(FParse::Param(FCommandLine::Get(),TEXT("Memory26CameraTagCanary")))
+        {if(Seconds!=30)return false;LLM_SCOPE_BYTAG(MA0T10_CameraGT);CameraTagCanary.SetNumZeroed(4096);}
         const FString Path=Directory/TEXT("memory-trend.jsonl");if(IFileManager::Get().FileExists(*Path))return false;
         IFileManager::Get().MakeDirectory(*Directory,true);File.Reset(IFileManager::Get().CreateFileWriter(*Path,FILEWRITE_AllowRead));
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
@@ -141,6 +147,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("type"),TEXT("metadata"));R->SetNumberField(TEXT("schema_version"),1);
         R->SetStringField(TEXT("row_contract"),TEXT("memory_curve"));R->SetBoolField(TEXT("diagnostic_only"),true);
         R->SetNumberField(TEXT("requested_seconds"),Seconds);R->SetNumberField(TEXT("interval_seconds"),Interval);R->SetBoolField(TEXT("llm_enabled"),Llm);
+        R->SetNumberField(TEXT("camera_gt_tag_canary_bytes"),CameraTagCanary.Num());
         R->SetBoolField(TEXT("investigation"),Investigation);R->SetBoolField(TEXT("trace_canary"),TraceCanaryEnabled);R->SetStringField(TEXT("trace_bookmarks"),TEXT("MEMORY26B_BEGIN/END; shared allocation-query contract"));
         R->SetBoolField(TEXT("sampler_enabled"),true);R->SetBoolField(TEXT("pcd_loopback"),true);R->SetBoolField(TEXT("pcd_default_compressed"),Publisher->GetPcdSendOptions(TEXT("")).bCompressed);
         R->SetStringField(TEXT("workload"),TEXT("packaged idle;17 public Dig near-surface ray cycles with fresh analysis, restore,35s warmup; no Editor automation history"));

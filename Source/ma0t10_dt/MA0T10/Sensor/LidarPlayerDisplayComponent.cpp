@@ -1,5 +1,6 @@
 #include "LidarPlayerDisplayComponent.h"
 #include "MA0T10MemoryTags.h"
+#include "Memory26Diagnostics.h"
 #include "PrimitiveSceneProxy.h"
 #include "PrimitiveViewRelevance.h"
 #include "SceneManagement.h"
@@ -31,9 +32,16 @@ void ULidarPlayerDisplayComponent::RefreshPointView()
 
 namespace
 {
+struct FPreviewScratch
+{
+    TArray<FBatchedPoint> Points;
+    uint64 Bytes() const{return Points.GetAllocatedSize();}
+};
+Memory26::TPool<FPreviewScratch,4,8ull*1024*1024> PreviewPool;
 struct FPlayerPointUpdate
 {
     TArray<FBatchedPoint> Points;
+    TUniquePtr<FPreviewScratch> Scratch;
     FVector Origin,Right,Up,Forward;
     double PixelScale=0;
 };
@@ -107,8 +115,9 @@ public:
     {
         LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
         check(IsInRenderingThread());
-        if(!bFixedPoints||Data.Points.Num()!=Points.Num())return;
-        Points=MoveTemp(Data.Points);
+        if(!bFixedPoints||(Data.Scratch?Data.Scratch->Points.Num():Data.Points.Num())!=Points.Num())return;
+        if(Data.Scratch){Swap(Points,Data.Scratch->Points);Data.Scratch->Points.Reset();PreviewPool.Return(MoveTemp(Data.Scratch));}
+        else Points=MoveTemp(Data.Points);
         for(int I=0;I<Points.Num();++I)
         {
             const auto& P=Points[I];const double Depth=FVector::DotProduct(P.Position-Data.Origin,Data.Forward);
@@ -159,7 +168,14 @@ void ULidarPlayerDisplayComponent::SendRenderDynamicData_Concurrent()
     LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
     Super::SendRenderDynamicData_Concurrent();
     if(!bFixedPointSubmission||!SceneProxy||FixedProxyPointCount<=0||FixedProxyPointCount!=BatchedPoints.Num())return;
-    FPlayerPointUpdate Data;Data.Points=BatchedPoints;Data.Origin=PointViewOrigin;Data.Right=PointViewRight;Data.Up=PointViewUp;Data.Forward=PointViewForward;Data.PixelScale=PointPixelScale;
+    FPlayerPointUpdate Data;
+    if(Memory26::Enabled(Memory26::ECase::Preview))
+    {
+        Data.Scratch=PreviewPool.Take(Memory26::ECounter::PreviewCreate,Memory26::ECounter::PreviewReuse);
+        Data.Scratch->Points.Reset();Data.Scratch->Points.Append(BatchedPoints);
+    }
+    else {Memory26::Count(Memory26::ECounter::PreviewCreate);Data.Points=BatchedPoints;}
+    Data.Origin=PointViewOrigin;Data.Right=PointViewRight;Data.Up=PointViewUp;Data.Forward=PointViewForward;Data.PixelScale=PointPixelScale;
     auto* Proxy=static_cast<FPlayerDisplayProxy*>(SceneProxy);++FixedPointUploads;
     ENQUEUE_RENDER_COMMAND(HatchUpdateFixedPoints)([Proxy,Data=MoveTemp(Data)](FRHICommandListImmediate& Cmd) mutable {Proxy->UpdatePoints(Cmd,MoveTemp(Data));});
 }

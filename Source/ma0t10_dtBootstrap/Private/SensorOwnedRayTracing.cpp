@@ -1,5 +1,6 @@
 #include "SensorOwnedRayTracing.h"
 #include "MA0T10MemoryTags.h"
+#include "Memory26Diagnostics.h"
 #include "GlobalShader.h"
 #include "BuiltInRayTracingShaders.h"
 #include "RayTracingPayloadType.h"
@@ -26,6 +27,8 @@ namespace
 TAutoConsoleVariable<int32> EnableOwnedLidar(TEXT("ma0t10.Lidar.HardwareRayTracing"),1,TEXT("Enable sensor-owned HWRT; zero retains CPU fallback."));
 std::atomic<int32> ActiveScans{0};
 std::atomic<uint64> BlasBuildCount{0};
+struct FHitScratch{TArray<FSensorRtHit> Data;uint64 Bytes()const{return Data.GetAllocatedSize();}};
+Memory26::TPool<FHitScratch> HitPool;
 constexpr int32 MaxActiveScans=4;
 FDelegateHandle EndFrameHandle;
 #if RHI_RAYTRACING
@@ -99,9 +102,32 @@ TSharedPtr<FBlas,ESPMode::ThreadSafe> GetBlas(FRHICommandListImmediate& Cmd,cons
     FRayTracingGeometrySegment Segment;Segment.VertexBuffer=B->Vertices;Segment.VertexBufferStride=sizeof(FVector3f);
     Segment.MaxVertices=Mesh.Vertices->Num();Segment.NumPrimitives=Init.TotalPrimitiveCount;Init.Segments.Add(Segment);
     B->Geometry=Cmd.CreateRayTracingGeometry(Init);Cmd.BuildAccelerationStructure(B->Geometry);++BlasBuildCount;
+    Memory26::Count(Memory26::ECounter::BlasBuild);
     Cmd.Transition(FRHITransitionInfo(B->Geometry.GetReference(),ERHIAccess::BVHWrite,ERHIAccess::BVHRead));
     BlasCache.Add(Mesh.Revision,B);return B;
 }
+TArray<TUniquePtr<FRHIGPUBufferReadback>> FreeReadbacks; // RT only, max4, ray cap bounds each to32MiB
+struct FSceneResources
+{
+    TArray<TSharedPtr<FBlas,ESPMode::ThreadSafe>> Blases;
+    TArray<uint64> Revisions;
+    TArray<int32> MeshIndices;
+    TArray<FTransform> Poses;
+    FRayTracingSceneRHIRef Scene;
+    FBufferRHIRef SceneMemory,Scratch,InstanceUpload,TransformUpload;
+    FShaderResourceViewRHIRef SceneView,InstanceUploadView,TransformUploadView;
+    FRWBufferStructured Instances;
+    FByteAddressBuffer Addresses;
+    uint64 LastUse=0;
+    bool Matches(const TArray<FSensorRtMesh>& Meshes)const
+    {
+        if(Meshes.Num()!=Revisions.Num())return false;
+        for(int32 I=0;I<Meshes.Num();++I)if(Meshes[I].Revision!=Revisions[I]||!Meshes[I].LocalToWorld.Equals(Poses[I],0))return false;
+        return true;
+    }
+};
+TArray<TSharedPtr<FSceneResources,ESPMode::ThreadSafe>> SceneCache; // immutable key, bounded4, RT only
+uint64 SceneClock=0;
 #endif
 class FScan;
 TArray<TSharedPtr<FScan,ESPMode::ThreadSafe>> RetiredScans; // RT ownership until fence ready
@@ -117,13 +143,10 @@ public:
     std::atomic<bool> Finished{false},Cancelled{false},PollQueued{false};
 #if RHI_RAYTRACING
     TUniquePtr<FRHIGPUBufferReadback> Readback;
-    TArray<TSharedPtr<FBlas,ESPMode::ThreadSafe>> Blases;
-    FRayTracingSceneRHIRef Scene;
-    FBufferRHIRef SceneMemory,Scratch,InstanceUpload,TransformUpload,RayBuffer,ResultBuffer;
-    FShaderResourceViewRHIRef SceneView,InstanceUploadView,TransformUploadView,RayView;
+    TSharedPtr<FSceneResources,ESPMode::ThreadSafe> Resources;
+    FBufferRHIRef RayBuffer,ResultBuffer;
+    FShaderResourceViewRHIRef RayView;
     FUnorderedAccessViewRHIRef ResultView;
-    FRWBufferStructured Instances;
-    FByteAddressBuffer Addresses;
 #endif
     ~FScan(){--ActiveScans;}
     void Cancel() override
@@ -157,9 +180,15 @@ public:
         if(!Cancelled.load(std::memory_order_acquire))
         {
             const void* Data=Readback->Lock(Bytes);
-            if(Data){Hits.SetNumUninitialized(Request.Rays.Num());FMemory::Memcpy(Hits.GetData(),Data,Bytes);Readback->Unlock();}
+            if(Data)
+            {
+                if(Memory26::Enabled(Memory26::ECase::Readback)){auto Lease=HitPool.Take(Memory26::ECounter::HitCreate,Memory26::ECounter::HitReuse);Hits=MoveTemp(Lease->Data);}
+                else Memory26::Count(Memory26::ECounter::HitCreate);
+                Hits.SetNumUninitialized(Request.Rays.Num());FMemory::Memcpy(Hits.GetData(),Data,Bytes);Readback->Unlock();
+            }
             else Failure=TEXT("GPU readback lock failed");
         }
+        if(Memory26::Enabled(Memory26::ECase::Readback)&&FreeReadbacks.Num()<4)FreeReadbacks.Add(MoveTemp(Readback));
         Complete();
 #endif
     }
@@ -182,11 +211,21 @@ public:
 #if RHI_RAYTRACING
         if(Cancelled.load()){Fail(TEXT("cancelled before GPU submission"));return;}
         if(!SensorOwnedRayTracing::IsAvailable()){Fail(TEXT("HWRT pipeline unavailable"));return;}
+        if(Memory26::Enabled(Memory26::ECase::Scene))for(auto& Cached:SceneCache)if(Cached->Matches(Request.Meshes))
+        {Resources=Cached;Resources->LastUse=++SceneClock;Memory26::Count(Memory26::ECounter::SceneReuse);break;}
+        if(!Resources)
+        {
+        Resources=MakeShared<FSceneResources,ESPMode::ThreadSafe>();
+        for(const auto& Mesh:Request.Meshes){Resources->Revisions.Add(Mesh.Revision);Resources->Poses.Add(Mesh.LocalToWorld);}
+        auto& Blases=Resources->Blases;auto& Scene=Resources->Scene;auto& SceneMemory=Resources->SceneMemory;auto& Scratch=Resources->Scratch;
+        auto& Instances=Resources->Instances;auto& Addresses=Resources->Addresses;auto& SceneView=Resources->SceneView;
+        auto& InstanceUpload=Resources->InstanceUpload;auto& InstanceUploadView=Resources->InstanceUploadView;
+        auto& TransformUpload=Resources->TransformUpload;auto& TransformUploadView=Resources->TransformUploadView;
         TArray<FRayTracingGeometryInstance> Descriptors;TArray<FMatrix> Poses;for(const auto& M:Request.Meshes)Poses.Add(M.LocalToWorld.ToMatrixWithScale());
         for(int32 I=0;I<Request.Meshes.Num();++I)
         {
             const auto& Mesh=Request.Meshes[I];if(!Mesh.Vertices||Mesh.Vertices->IsEmpty())continue;
-            auto B=GetBlas(Cmd,Mesh);Blases.Add(B);
+            auto B=GetBlas(Cmd,Mesh);Blases.Add(B);Resources->MeshIndices.Add(I);
             FRayTracingGeometryInstance D;D.GeometryRHI=B->Geometry;D.NumTransforms=1;D.Transforms=MakeArrayView(&Poses[I],1);D.DefaultUserData=I;D.Mask=0xff;Descriptors.Add(D);
         }
         if(Descriptors.IsEmpty()){Fail(TEXT("empty collision TLAS"));return;}
@@ -219,13 +258,23 @@ public:
         FRayTracingSceneBuildParams Build;Build.Scene=Scene;Build.ScratchBuffer=Scratch;Build.InstanceBuffer=Instances.Buffer;
         Cmd.BuildAccelerationStructure(Build);Cmd.Transition(FRHITransitionInfo(Scene.GetReference(),ERHIAccess::BVHWrite,ERHIAccess::BVHRead));
         SceneView=Cmd.CreateShaderResourceView(FShaderResourceViewInitializer(SceneMemory,Scene->GetLayerBufferOffset(0),0));
+        Memory26::Count(Memory26::ECounter::SceneBuild);
+        if(Memory26::Enabled(Memory26::ECase::Scene))
+        {
+            // Exact immutable geometry+pose key. Eviction never invalidates a
+            // live scan: it holds shared ownership through its terminal fence.
+            if(SceneCache.Num()>=4){int32 Old=0;for(int32 I=1;I<SceneCache.Num();++I)if(SceneCache[I]->LastUse<SceneCache[Old]->LastUse)Old=I;SceneCache.RemoveAt(Old);}
+            Resources->LastUse=++SceneClock;SceneCache.Add(Resources);
+        }
+        }
+        auto& Scene=Resources->Scene;auto& SceneView=Resources->SceneView;auto& Blases=Resources->Blases;
         RayBuffer=Upload(Cmd,TEXT("SensorRtRays"),Request.Rays,BUF_Static);RayView=Cmd.CreateShaderResourceView(RayBuffer);
         FRHIResourceCreateInfo OutputInfo(TEXT("SensorRtResults"));
         ResultBuffer=Cmd.CreateStructuredBuffer(sizeof(FSensorRtHit),Request.Rays.Num()*sizeof(FSensorRtHit),BUF_UnorderedAccess|BUF_ShaderResource,OutputInfo);
         ResultView=Cmd.CreateUnorderedAccessView(ResultBuffer,false,false);
         FLidarRGS::FParameters P;P.LidarTLAS=SceneView;P.LidarRays=RayView;P.LidarHits=ResultView;P.RayCount=Request.Rays.Num();
         FShaderResourceViewRHIRef Views[4]={Blases[0]->AttributeView,Blases[0]->AttributeView,Blases[0]->AttributeView,Blases[0]->AttributeView};
-        for(int I=0;I<Descriptors.Num();++I)Views[Descriptors[I].DefaultUserData]=Blases[I]->AttributeView;
+        for(int I=0;I<Resources->MeshIndices.Num();++I)Views[Resources->MeshIndices[I]]=Blases[I]->AttributeView;
         P.Surface0=Views[0];P.Surface1=Views[1];P.Surface2=Views[2];P.Surface3=Views[3];
         P.Normal0=FMatrix44f(Request.Meshes[0].LocalToWorld.ToInverseMatrixWithScale().GetTransposed());
         P.Normal1=Request.Meshes.Num()>1?FMatrix44f(Request.Meshes[1].LocalToWorld.ToInverseMatrixWithScale().GetTransposed()):FMatrix44f::Identity;
@@ -246,7 +295,10 @@ public:
         Cmd.Transition(FRHITransitionInfo(ResultBuffer,ERHIAccess::UAVCompute,ERHIAccess::CopySrc));
         {
             LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
-            Readback=MakeUnique<FRHIGPUBufferReadback>(TEXT("SensorOwnedLidar"));Readback->EnqueueCopy(Cmd,ResultBuffer,Request.Rays.Num()*sizeof(FSensorRtHit));
+            if(Memory26::Enabled(Memory26::ECase::Readback)&&!FreeReadbacks.IsEmpty())
+            {Readback=FreeReadbacks.Pop(false);Memory26::Count(Memory26::ECounter::ReadbackReuse);}
+            else {Readback=MakeUnique<FRHIGPUBufferReadback>(TEXT("SensorOwnedLidar"));Memory26::Count(Memory26::ECounter::ReadbackCreate);}
+            Readback->EnqueueCopy(Cmd,ResultBuffer,Request.Rays.Num()*sizeof(FSensorRtHit));
         }
 #else
         Fail(TEXT("RHI compiled without ray tracing"));
@@ -255,6 +307,12 @@ public:
 };
 }
 uint64 SensorOwnedRayTracing::GetBlasBuildCount(){return BlasBuildCount.load();}
+void SensorOwnedRayTracing::RecycleHitArray(TArray<FSensorRtHit>&& Hits)
+{
+    if(!Memory26::Enabled(Memory26::ECase::Readback))return;
+    LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
+    auto Scratch=MakeUnique<FHitScratch>();Scratch->Data=MoveTemp(Hits);Scratch->Data.Reset();HitPool.Return(MoveTemp(Scratch));
+}
 bool SensorOwnedRayTracing::IsAvailable()
 {
 #if RHI_RAYTRACING
@@ -302,10 +360,25 @@ void SensorOwnedRayTracing::Shutdown()
         for(const auto& Scan:PendingReadbacks){Scan->Cancelled.store(true,std::memory_order_release);Scan->Request.OnReadback=nullptr;}
         PendingReadbacks.Reset();RetiredScans.Reset();
 #if RHI_RAYTRACING
-        BlasCache.Reset();
+        SceneCache.Reset();FreeReadbacks.Reset();BlasCache.Reset();
 #endif
     });
     // Module teardown only, never acquisition/polling. RHI resource deletion
     // retains the engine's deferred GPU lifetime; no GPU-idle wait is introduced.
     FlushRenderingCommands();
 }
+
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR && RHI_RAYTRACING
+#include "Misc/AutomationTest.h"
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMemory26SceneKeyTest,"HATCH26.SceneReuseKey",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FMemory26SceneKeyTest::RunTest(const FString&)
+{
+    FSceneResources Key;Key.Revisions.Add(42);Key.Poses.Add(FTransform::Identity);
+    TArray<FSensorRtMesh> Meshes;Meshes.AddDefaulted();Meshes[0].Revision=42;
+    TestTrue(TEXT("unchanged immutable geometry and pose matches"),Key.Matches(Meshes));
+    Meshes[0].Revision=43;TestFalse(TEXT("revision invalidates"),Key.Matches(Meshes));Meshes[0].Revision=42;
+    Meshes[0].LocalToWorld.SetTranslation(FVector(.000001,0,0));TestFalse(TEXT("even small pose change invalidates"),Key.Matches(Meshes));
+    Meshes[0].LocalToWorld=FTransform::Identity;Meshes.AddDefaulted();TestFalse(TEXT("mesh count invalidates"),Key.Matches(Meshes));
+    return true;
+}
+#endif

@@ -7,12 +7,16 @@ param(
     [switch]$MemoryTrace,
     [switch]$TraceCanary,
     [ValidateSet('none','baseline','crash-off','gpu-stats-off','rdg-events-off','mimalloc','trim-60s')][string]$ExperimentCase='none',
+    [ValidateSet('none','baseline','preview-reuse','scene-reuse','readback-reuse','point-leases4','pcd-scratch-reuse')][string]$CodeCase='none',
+    [switch]$CameraTagCanary,
     [ValidateRange(1024,65535)][int]$Port=18626
 )
 # Owned standalone game/loopback only. User apps, broker settings and maps are
 # never changed. A30s run qualifies the diagnostic; it is not a soak verdict.
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
+if($CodeCase -ne 'none' -and $ExperimentCase -ne 'baseline'){throw 'Code experiments require engine controls at baseline'}
+if($CameraTagCanary -and $Seconds -ne 30){throw 'Tag registry canary is30s qualification only; never a soak'}
 if(($Seconds -in @(900,1200)) -ne [bool]$Investigation){throw '900/1200s require explicit Investigation; ordinary30s/1800..3600s modes remain unchanged'}
 if($TraceCanary -and (!$MemoryTrace -or $Seconds -ne 30)){throw 'TraceCanary requires the separate30s memory-trace calibration'}
 $ReportRoot=[IO.Path]::GetFullPath($ReportRoot)
@@ -68,6 +72,8 @@ try {
     if($MemoryTrace){$arguments+=@('-trace=memory,bookmark',"-tracefile=$ReportRoot/memory.utrace")}
     if($TraceCanary){$arguments+='-HatchMemoryTraceCanary'}
     if($ExperimentCase -ne 'none'){$arguments+='-HatchMemoryExperiment'}
+    if($CodeCase -ne 'none'){$arguments+="-Memory26Case=$CodeCase"}
+    if($CameraTagCanary){$arguments+='-Memory26CameraTagCanary'}
     if($ExperimentCase -eq 'mimalloc'){$arguments+='-mimalloc'}
     if($ExperimentCase -eq 'trim-60s'){$arguments+='-HatchMemoryTrimSeconds=60'}
     $arguments=@($arguments|ForEach-Object{'"'+$_+'"'})
@@ -91,16 +97,19 @@ try {
         $experiment=@(Get-Content -LiteralPath "$ReportRoot/experiment.jsonl" -Encoding UTF8|ForEach-Object{$_|ConvertFrom-Json})
         if($experiment[-1].type -ne 'summary' -or !$experiment[-1].complete){throw 'Incomplete experiment sidecar'}
         foreach($entry in $experiment|Where-Object{$_.type -in @('metadata','sample','summary')}){
+            if($CodeCase -ne 'none' -and $entry.memory26_case -ne $CodeCase){throw 'Code experiment mode mismatch'}
             foreach($key in $expected.Keys){$value=$entry.cvars.PSObject.Properties[$key];if(!$value -or !$value.Value.present -or $value.Value.value -ne $expected[$key]){throw "Experiment CVar not effective: $key"}}
         }
         if($ExperimentCase -eq 'mimalloc' -and $experiment[0].allocator -notmatch 'mimalloc'){throw 'Requested mimalloc not active'}
         if($ExperimentCase -eq 'trim-60s' -and $Seconds -ge 60 -and $experiment[-1].trim_calls -le 0){throw 'Diagnostic trim never ran'}
         if($ExperimentCase -ne 'trim-60s' -and $experiment[-1].trim_calls -ne 0){throw 'Unexpected allocator trim'}
+        $reused=@{'preview-reuse'='preview_array_reuse';'scene-reuse'='tlas_reuse';'readback-reuse'='readback_reuse';'pcd-scratch-reuse'='pcd_scratch_reuse'}
+        if($reused.ContainsKey($CodeCase) -and $experiment[-1].resource_counters.PSObject.Properties[$reused[$CodeCase]].Value -le 0){throw 'Requested reuse path was not exercised'}
     }
 }catch{$failure=$_.Exception.Message}
 finally {
     if($probe -and !$probe.HasExited){[IO.File]::WriteAllText($stop,'done');if(!$probe.WaitForExit(10000)){$failure+='; loopback failed normal shutdown'}}
-    @{Valid=(!$failure);Failure=$failure;Commit=((& git -C $root rev-parse HEAD)-join '');VideoDecodeDetected=$contaminated;Seconds=$Seconds;ExperimentCase=$ExperimentCase;GameExit=$(if($game){$game.ExitCode}else{$null});Executable=$Executable;Scope='Packaged local diagnostic; no company acceptance'}|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 -LiteralPath "$ReportRoot/run-manifest.json"
+    @{Valid=(!$failure);Failure=$failure;Commit=((& git -C $root rev-parse HEAD)-join '');VideoDecodeDetected=$contaminated;Seconds=$Seconds;ExperimentCase=$ExperimentCase;CodeCase=$CodeCase;CameraTagCanary=[bool]$CameraTagCanary;GameExit=$(if($game){$game.ExitCode}else{$null});Executable=$Executable;Scope='Packaged local diagnostic; no company acceptance'}|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 -LiteralPath "$ReportRoot/run-manifest.json"
 }
 if($failure){throw $failure}
 Write-Host "Packaged memory run complete: $ReportRoot"
