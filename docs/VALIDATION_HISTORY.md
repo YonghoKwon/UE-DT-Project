@@ -946,3 +946,9 @@ Editor/Development빌드·Python40·순수7·관련RHI13Success/1Fail/0skip(반�
 348의안전RHI4Success/0skip,Editor/Development/Shippingbuild,Development/Shipping30초smoke통과. 최종5쌍10실행에서동일residency크래시는관찰되지않았지만absolute8MiB와dig-control8MiB모두FAIL(Commit차이중앙값90.926MiB),pair2의150ms GT/콜백실패도보존했다. RTonABAB3블록12구간(a2→348,1Camera+1Rev7실제HWRT/offscreen/10+30초)은FPS감소.000470%/p95변화0/GT-.154541%/GPU-3.598122%로2%통과다.
 
 직접UI는Windows잠금화면확인후0input/미수행,해제·우회하지않았다. 최종quick/release관련/layer/guard/schema/보호·정리·mergecheck는최종result.json을따른다. [상세](MEMORY_FIX_26f_GPU_SUBMISSION.md)·[재작성계획](LIDAR_GPU_ACQUISITION_REWRITE_PLAN_26f.md)·[RESULT](../Saved/Reports/MEMORY-FIX-26f/RESULT.md). #26미해결,기준완화없음,push/merge없음.
+
+## 2026-10-26 — LIDAR-GPU-REWRITE-26g
+
+Base c9e6e40 / branch feat/lidar-gpu-acq-rewrite-26g / Runtime826c58f. Native committed TLAS/BLAS prototype repeatedly failed device-removal safety despite byte oracle success, graphics-queue and upload-boundary trials. It is diagnostic-only. Supported SingleFrame metadata + persistent RHI storage fallback passed full bytes/points, pose/revision/unequal-count/mixed-cancel and fifty-dig/scheduled tests, then completed packaged60 min actual19.998640+ Hz. Tail20 RSS/Commit/RHIMisc +12.579751/+11.812793/+9.768926 MiB/h failed8/8/2; UObject tail0. Final50 min storage/packet/view creations0, scene/SBT updates146331. No leak/allocator/driver root-cause certainty is claimed.
+
+Two-hourx2, original five pairs8MiB, RTonABAB2%, Shipping/full release/night were NOT_RUN after blocking preflight. No previousSHApass substituted. Personal253/protected310 preserved; owned package/raw-crash8.25GB removed with file-only hash-checked cleanup. No engine/DTCore/default-quality/threshold change or push/merge. [RESULT](../Saved/Reports/LIDAR-GPU-REWRITE-26g/RESULT.md) · [design](LIDAR_GPU_ACQUISITION_26g.md).

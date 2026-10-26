@@ -78,6 +78,8 @@ allocation 후속(기준a64dcc8/실측f1236f6): idle trace15분과4개 cut 및 �
 
 26f GPU 제출·수명 추적(기준 `a2fd42d`, 최종 Runtime `3485774`): 배치·fenced GPU packet·고정 preview 재사용을 구현했다. 중간 SHA의 idle60분·2시간2회는8/8/2MiB/h와실제20Hz를통과했지만,반복디깅검증에서residency크래시가발견되어RTscene재사용을같은렌더프레임으로제한했다. **이전SHA장시간통과를최종소스에이월하지않으며#26은미해결**이다. 최종소스의원래5쌍8MiB·150ms기준은실패,RTonABAB2%와Development/Shipping30초smoke는통과했다. 추가메모리수정은중단하고재작성계획을남겼다. [결과·검증범위](MEMORY_FIX_26f_GPU_SUBMISSION.md)·[재작성계획](LIDAR_GPU_ACQUISITION_REWRITE_PLAN_26f.md)·[RESULT](../Saved/Reports/MEMORY-FIX-26f/RESULT.md).
 
+26g 후속(기준 `c9e6e40`, Runtime `826c58f`): native 지속 TLAS/BLAS는 반복 GPU 오류로 진단 전용으로 남겼다. 지원 RHI 저장소 fallback은 byte/점·디깅·취소·20Hz를 유지했지만 패키지60분 꼬리 RSS/Commit/RHIMisc **12.58/11.81/9.77MiB/h**로8/8/2목표에 실패해 **#26 미해결·후속 gate 중단**이다. 다른SHA 통과를 이월하지 않는다. [설계·한계](LIDAR_GPU_ACQUISITION_26g.md)·[현재 결과](../Saved/Reports/LIDAR-GPU-REWRITE-26g/RESULT.md).
+
 ## FOLLOWUP-28 — Rev7×3 PCD 송신 공정성
 
 2026-10-23 사용자 승인으로 기본PCD 예산64→80MiB/s를 적용했다. 새 기본값은 공통상수로 관리하며 지정된 기존값·저장형식·PCD33-byte·승인FIFO·기본출력·예약상한을 보존한다. 기본 Rev7×3·90초 표시형 localhost의 각19.695/19.684/19.672Hz/편차0.022Hz로 각19Hz 목표를 충족했다. 필요75.942MiB/s이며 필요>예산 경고0, 송신 생략0,150ms 초과0이다. 최초 오프스크린의 기존 획득cadence3FAIL은 보존하고 표시형에서 같은 assertion까지통과했다. [측정·한계](../Saved/Reports/FOLLOWUP-28-26/r4/PCD-80.md)·[UI](../Saved/Reports/FOLLOWUP-28-26/r4/manual/CHECKLIST.md).
