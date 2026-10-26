@@ -106,6 +106,7 @@ public:
     uint64 NextFence=0,Clock=0;
     uint64 LastMessage=0;
     bool Faulted=false;
+    D3D12_COMMAND_LIST_TYPE ListType=D3D12_COMMAND_LIST_TYPE_DIRECT;
     bool Initialize(FString& Error)
     {
         if(!IsRHID3D12()||GNumExplicitGPUsForRendering!=1){Error=TEXT("native LiDAR requires a single D3D12 GPU");return false;}
@@ -117,9 +118,21 @@ public:
         D3D12_FEATURE_DATA_D3D12_OPTIONS5 Options={};
         if(!Succeeded(Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5,&Options,sizeof(Options)),Error,TEXT("DXR capability")))return false;
         if(Options.RaytracingTier<D3D12_RAYTRACING_TIER_1_1){Error=TEXT("native LiDAR requires DXR 1.1 inline queries");return false;}
-        D3D12_COMMAND_QUEUE_DESC Q={};Q.Type=D3D12_COMMAND_LIST_TYPE_COMPUTE;Q.NodeMask=1;
-        if(!Succeeded(Device->CreateCommandQueue(&Q,IID_PPV_ARGS(Queue.GetInitReference())),Error,TEXT("CreateCommandQueue")))return false;
-        Queue->SetName(L"SensorOwnedLidarCompute");
+        if(FParse::Param(FCommandLine::Get(),TEXT("SensorNativeComputeQueue")))
+        {
+            ListType=D3D12_COMMAND_LIST_TYPE_COMPUTE;
+            D3D12_COMMAND_QUEUE_DESC Q={};Q.Type=ListType;Q.NodeMask=1;
+            if(!Succeeded(Device->CreateCommandQueue(&Q,IID_PPV_ARGS(Queue.GetInitReference())),Error,TEXT("CreateCommandQueue")))return false;
+            Queue->SetName(L"SensorOwnedLidarCompute");
+        }
+        else
+        {
+            // Use an independent native command list on the existing graphics
+            // queue. No engine list, descriptor heap, state cache or residency
+            // handle is touched. Native resources remain strongly owned through
+            // our own fence on this queue; command-list state is self-contained.
+            Queue=GetID3D12DynamicRHI()->RHIGetCommandQueue();
+        }
         if(!Succeeded(Device->CreateFence(0,D3D12_FENCE_FLAG_NONE,IID_PPV_ARGS(Fence.GetInitReference())),Error,TEXT("CreateFence")))return false;
         D3D12_ROOT_PARAMETER Parameters[8]={};
         for(uint32 I=0;I<6;++I){Parameters[I].ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV;Parameters[I].Descriptor.ShaderRegister=I;}
@@ -159,8 +172,8 @@ public:
         Collect();
         for(int32 I=0;I<Free.Num();++I)if(Free[I]->Count==Count){auto Job=Free[I];Free.RemoveAtSwap(I);++PacketReuses;return Job;}
         auto Job=MakeShared<FJob,ESPMode::ThreadSafe>();Job->Count=Count;
-        if(!Succeeded(Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_COMPUTE,IID_PPV_ARGS(Job->Allocator.GetInitReference())),Error,TEXT("CreateCommandAllocator")))return {};
-        if(!Succeeded(Device->CreateCommandList(1,D3D12_COMMAND_LIST_TYPE_COMPUTE,Job->Allocator,nullptr,IID_PPV_ARGS(Job->List.GetInitReference())),Error,TEXT("CreateCommandList")))return {};
+        if(!Succeeded(Device->CreateCommandAllocator(ListType,IID_PPV_ARGS(Job->Allocator.GetInitReference())),Error,TEXT("CreateCommandAllocator")))return {};
+        if(!Succeeded(Device->CreateCommandList(1,ListType,Job->Allocator,nullptr,IID_PPV_ARGS(Job->List.GetInitReference())),Error,TEXT("CreateCommandList")))return {};
         if(!Succeeded(Job->List->Close(),Error,TEXT("initial Close")))return {};
         Job->List->SetName(L"SensorOwnedLidarList");Job->Allocator->SetName(L"SensorOwnedLidarAllocator");
         Job->Rays=NewBuffer(Device,uint64(Count)*sizeof(FSensorRtRay),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error);

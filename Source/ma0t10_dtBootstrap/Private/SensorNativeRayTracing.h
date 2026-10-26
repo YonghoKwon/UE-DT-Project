@@ -3,7 +3,8 @@
 
 // Render-thread entry points. No engine RT scene or engine-owned residency
 // handle is retained. All native GPU work and terminal fences use one owned
-// queue, so there is no implicit ordering dependency on an engine command list.
+// queue fence. The default uses an independent list on the graphics queue;
+// it never records into an engine command list or inherits its binding state.
 namespace SensorNativeRayTracing
 {
     class ITicket
