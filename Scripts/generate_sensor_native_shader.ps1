@@ -13,7 +13,7 @@ if($CheckSourceOnly){
 $folder=Join-Path $root 'Saved/Reports/LIDAR-GPU-REWRITE-26g/shader'
 New-Item -ItemType Directory -Force -Path $folder|Out-Null
 $binary=Join-Path $folder 'SensorInline.dxil'
-& $Dxc -T cs_6_5 -E MainInlineCS -D SENSOR_NATIVE_INLINE=1 -O3 -Ges -Fo $binary $source
+& $Dxc -T cs_6_5 -E MainInlineCS -D SENSOR_NATIVE_INLINE=1 -D SENSOR_NATIVE_STANDALONE=1 -O3 -Ges -Fo $binary $source
 if($LASTEXITCODE -ne 0){throw 'DXC compilation failed'}
 $bytes=[IO.File]::ReadAllBytes($binary)
 $lines=[Collections.Generic.List[string]]::new()

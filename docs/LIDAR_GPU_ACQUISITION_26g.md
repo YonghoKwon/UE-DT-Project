@@ -2,7 +2,17 @@
 
 Status: implementation and validation in progress on `feat/lidar-gpu-acq-rewrite-26g`, based on `c9e6e40`. No merge or final acceptance is implied. Current evidence is in [RESULT.md](../Saved/Reports/LIDAR-GPU-REWRITE-26g/RESULT.md).
 
-## Resource and completion contract
+## Current supported fallback
+
+The default now uses the supported engine raygen path with persistent project-owned RHI TLAS/scratch/instance/upload/address buffers. Engine `SingleFrame` scene metadata is recreated in each render frame and never reused across frames. A cache record is borrowed for storage reuse only when it has no scan owner and belongs to an older render frame. Every scan retains the record through its terminal GPU readback fence. Geometry-count/capacity changes recreate the required storage; ordinary idle frames reuse it. Existing BLAS ownership, residency updates, GPU mask handling and deferred RHI deletion remain in the engine path.
+
+This fallback separates frame-local metadata from reusable storage as allowed in the original plan. It does **not** claim the primary goal of a fully persistent engine-independent TLAS was achieved. The native prototype is explicitly diagnostic-only (`-SensorRtNative`) after repeated device-removal failures. Its earlier results remain below.
+
+Installed UE 5.3 Windows shader-platform data declares `bSupportsInlineRayTracing=false` for PCD3D_SM5 and PCD3D_SM6. The RHI inline variant is capability-gated and explicit-only (`-SensorRtRhiInline`). No engine capability flag, shader-platform INI or project shader-model default was changed. The inline capability qualification failed; it is not a pass.
+
+The supported storage fallback passed two full byte oracles and the six-test actual-D3D12 collision/rigid/byte/dig/cancel/scheduled group. Steady tests require TLAS storage creation to stop increasing, observe actual storage reuse, preserve whole result bytes and refresh SingleFrame metadata. Package and long-memory gates remain pending.
+
+## Diagnostic native prototype resource contract
 
 The Windows DXR 1.1 backend owns committed D3D12 buffers, a root signature, one fixed compute PSO, command allocators/lists, and a monotonically increasing queue fence. Its independent direct command list is submitted to the existing graphics queue through the public UE 5.3 D3D12 bridge. It never records into an engine command list or modifies its state cache/descriptor heaps. It does not retain an engine `FRHIRayTracingScene`, raw engine residency handle, pooled engine BLAS address, or opaque engine PSO pointer. Existing Scheduler admissions and immutable requests remain the only acquisition entry point.
 
@@ -44,3 +54,5 @@ The graphics-queue fallback passed the same six actual-D3D12 tests, including by
 Subsequent independent graphics-queue package runs also failed during preparation; queue selection alone did not fix the issue. Address/fence logging found a fault address in a recycled native vertex/scene-metadata allocation range. That vertex allocation's recorded fence was 4 and completion was 56 at release, with device status S_OK; this does not support a simple release-before-recorded-fence conclusion. The engine-path control package completed its 30-second qualification.
 
 The next trial pins each recorded buffer directly in the GPU job, records per-buffer use/completion/device status, closes CPU upload mappings before submission, and keeps immutable normal matrices in ordinary CPU memory. It removes the unused GPU allocation for scene CPU matrices and avoids reading from write-combined upload memory. Upload buffers retain their GPU allocation and are remapped only after their job fence. This follows Microsoft's [simple mapping model and CPU-write ordering guidance](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12resource-map); it is an explicit visibility/ownership boundary, not a confirmed root-cause attribution. The updated four-test byte/dig/scheduled regression passed; package validation is still required.
+
+That upload-boundary package also failed its first independent qualification; the remaining two planned qualifications were not run. A preceding pins-only Editor regression failed during production digging. Its ledger showed an old vertex range released at last-use fence 4 / completed 56 / device S_OK, reused for CPU matrix storage, then reported as the GPU fault range. GPU error reporting delay prevents treating that chronology as proof of an early release. The surface-buffer attribution initially considered during investigation was corrected to a recycled vertex/metadata range. Native lifetime/interop remains unresolved, and no native long-memory result is claimed.

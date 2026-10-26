@@ -54,6 +54,7 @@ namespace SensorOwnedRayTracing
         uint64 NativeValidationErrors=0;
         bool NativeValidationAvailable=false;
         uint64 NativeFallbacks=0;
+        uint64 InlineDispatches=0,SceneStorageCreates=0,SceneStorageReuses=0;
     };
     MA0T10_DTBOOTSTRAP_API FSubmissionStats GetSubmissionStats();
     /** Submit immutable admissions before main-view rendering, once per scheduler tick. */
@@ -61,6 +62,8 @@ namespace SensorOwnedRayTracing
     MA0T10_DTBOOTSTRAP_API bool IsAvailable();
     /** Persistent native DXR 1.1; unsupported platforms retain the engine path. */
     MA0T10_DTBOOTSTRAP_API bool UsesNativeBackend();
+    MA0T10_DTBOOTSTRAP_API bool UsesInlineBackend();
+    MA0T10_DTBOOTSTRAP_API bool UsesPersistentSceneStorage();
     MA0T10_DTBOOTSTRAP_API uint64 GetBlasBuildCount();
     /** Diagnostic-only reuse, after the last normalization read. No payload alias. */
     MA0T10_DTBOOTSTRAP_API void RecycleHitArray(TArray<FSensorRtHit>&& Hits);

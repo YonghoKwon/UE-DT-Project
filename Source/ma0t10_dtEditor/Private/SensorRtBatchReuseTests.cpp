@@ -79,7 +79,16 @@ public:
                 Test->TestEqual(TEXT("native BLAS retained safely across frames"),Now.NativeBlasBuilds,Stable.NativeBlasBuilds);
                 Test->TestEqual(TEXT("native live bytes bounded and stable"),Now.NativeBytes,Stable.NativeBytes);
             }
-            else Test->TestTrue(TEXT("single-frame scene refreshed"),Now.SceneBuilds>Stable.SceneBuilds);
+            else
+            {
+                Test->TestTrue(TEXT("single-frame scene refreshed"),Now.SceneBuilds>Stable.SceneBuilds);
+                if(SensorOwnedRayTracing::UsesPersistentSceneStorage())
+                {
+                    Test->TestTrue(TEXT("rewritten RHI dispatch actually ran"),Now.Dispatches>Stable.Dispatches);
+                    Test->TestEqual(TEXT("TLAS storage is persistent after GPU completion"),Now.SceneStorageCreates,Stable.SceneStorageCreates);
+                    Test->TestTrue(TEXT("TLAS storage reuse is observed"),Now.SceneStorageReuses>Stable.SceneStorageReuses);
+                }
+            }
             if(++Repeats==3)return true;
         }
         Submit(false);return false;

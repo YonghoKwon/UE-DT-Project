@@ -9,6 +9,7 @@ StructuredBuffer<float4> Surface1 : register(t3);
 StructuredBuffer<float4> Surface2 : register(t4);
 StructuredBuffer<float4> Surface3 : register(t5);
 RWStructuredBuffer<FLidarHit> LidarHits : register(u0);
+#if SENSOR_NATIVE_STANDALONE
 cbuffer Constants : register(b0)
 {
     row_major float4x4 Normal0;
@@ -17,6 +18,13 @@ cbuffer Constants : register(b0)
     row_major float4x4 Normal3;
     uint RayCount;
 };
+#else
+row_major float4x4 Normal0;
+row_major float4x4 Normal1;
+row_major float4x4 Normal2;
+row_major float4x4 Normal3;
+uint RayCount;
+#endif
 [numthreads(64,1,1)]
 void MainInlineCS(uint3 DispatchId : SV_DispatchThreadID)
 {

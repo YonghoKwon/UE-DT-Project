@@ -37,7 +37,7 @@ FDelegateHandle EndFrameHandle,SubmitFrameHandle;
 bool Optimized()
 {static const bool Value=!FParse::Param(FCommandLine::Get(),TEXT("SensorRtLegacy"));return Value;}
 struct FStats
-{std::atomic<uint64> Batches{0},Dispatches{0},Requests{0},PacketCreates{0},PacketReuses{0},RayUploads{0},ViewCreates{0},SceneBuilds{0},BindingUpdates{0},NativeFallbacks{0};} RtSubmissionCounters;
+{std::atomic<uint64> Batches{0},Dispatches{0},Requests{0},PacketCreates{0},PacketReuses{0},RayUploads{0},ViewCreates{0},SceneBuilds{0},BindingUpdates{0},NativeFallbacks{0},InlineDispatches{0},SceneStorageCreates{0},SceneStorageReuses{0};} RtSubmissionCounters;
 #if RHI_RAYTRACING
 class FLidarRGS final : public FGlobalShader
 {
@@ -64,6 +64,17 @@ class FLidarRGS final : public FGlobalShader
     static ERayTracingPayloadType GetRayTracingPayloadType(int32){return ERayTracingPayloadType::Default;}
 };
 IMPLEMENT_GLOBAL_SHADER(FLidarRGS,"/MA0T10/Private/SensorOwnedRayTracing.usf","MainRGS",SF_RayGen);
+class FLidarInlineCS final:public FGlobalShader
+{
+    DECLARE_GLOBAL_SHADER(FLidarInlineCS);
+    SHADER_USE_PARAMETER_STRUCT(FLidarInlineCS,FGlobalShader);
+    using FParameters=FLidarRGS::FParameters;
+    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& P)
+    {return IsRayTracingEnabledForProject(P.Platform)&&RHISupportsInlineRayTracing(P.Platform);}
+    static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& P,FShaderCompilerEnvironment& E)
+    {FGlobalShader::ModifyCompilationEnvironment(P,E);E.SetDefine(TEXT("SENSOR_NATIVE_INLINE"),1);E.CompilerFlags.Add(CFLAG_InlineRayTracing);E.CompilerFlags.Add(CFLAG_Wave32);}
+};
+IMPLEMENT_GLOBAL_SHADER(FLidarInlineCS,"/MA0T10/Private/SensorOwnedRayTracing.usf","MainInlineCS",SF_Compute);
 class FLidarCHS final:public FBuiltInRayTracingShader
 {
     DECLARE_GLOBAL_SHADER(FLidarCHS);
@@ -129,6 +140,7 @@ struct FSceneResources
     uint64 RenderFrame=0;
     FRayTracingPipelineState* BoundPipeline=nullptr;
     double LastPipelineUseSeconds=0;
+    uint32 InstanceCount=0,GeometryCount=0;
     bool Matches(const TArray<FSensorRtMesh>& Meshes)const
     {
         if(Meshes.Num()!=Revisions.Num())return false;
@@ -291,7 +303,16 @@ public:
         {Resources=Cached;Resources->LastUse=++SceneClock;Memory26::Count(Memory26::ECounter::SceneReuse);break;}
         if(!Resources)
         {
-        Resources=MakeShared<FSceneResources,ESPMode::ThreadSafe>();
+        bool InCache=false;
+        if(Reusable()&&SensorOwnedRayTracing::UsesPersistentSceneStorage())for(auto& Cached:SceneCache)
+        {
+            // The last scan owns this record through GPU copy completion. A
+            // cache-only reference in a later frame therefore permits storage
+            // reuse, while the engine SingleFrame scene object is recreated.
+            if(Cached.GetSharedReferenceCount()==1&&Cached->RenderFrame!=GFrameNumberRenderThread)
+            {Resources=Cached;InCache=true;Resources->Scene.SafeRelease();Resources->Blases.Reset();Resources->Revisions.Reset();Resources->Poses.Reset();Resources->MeshIndices.Reset();Resources->BoundPipeline=nullptr;break;}
+        }
+        if(!Resources)Resources=MakeShared<FSceneResources,ESPMode::ThreadSafe>();
         Resources->RenderFrame=GFrameNumberRenderThread;
         for(const auto& Mesh:Request.Meshes){Resources->Revisions.Add(Mesh.Revision);Resources->Poses.Add(Mesh.LocalToWorld);}
         auto& Blases=Resources->Blases;auto& Scene=Resources->Scene;auto& SceneMemory=Resources->SceneMemory;auto& Scratch=Resources->Scratch;
@@ -310,16 +331,36 @@ public:
         const auto& Init=Scene->GetInitializer();const uint32 Count=Init.NumNativeInstancesPerLayer[0];
         const auto Sizes=RHICalcRayTracingSceneSize(Count,ERayTracingAccelerationStructureFlags::FastTrace);
         FRHIResourceCreateInfo SceneInfo(TEXT("SensorOwnedTLAS")),ScratchInfo(TEXT("SensorOwnedTLASScratch"));
-        SceneMemory=Cmd.CreateBuffer(Sizes.ResultSize,BUF_AccelerationStructure,0,ERHIAccess::BVHWrite,SceneInfo);
-        Scratch=Cmd.CreateBuffer(Sizes.BuildScratchSize,BUF_UnorderedAccess,GRHIRayTracingScratchBufferAlignment,ERHIAccess::UAVCompute,ScratchInfo);
-        Instances.Initialize(Cmd,TEXT("SensorOwnedInstances"),GRHIRayTracingInstanceDescriptorSize,Count);
+        const bool ReuseStorage=SceneMemory.IsValid()&&SceneMemory->GetSize()>=Sizes.ResultSize&&Scratch->GetSize()>=Sizes.BuildScratchSize&&Resources->InstanceCount==Count&&Resources->GeometryCount==uint32(Init.ReferencedGeometries.Num());
+        if(!ReuseStorage)
+        {
+            SceneMemory=Cmd.CreateBuffer(Sizes.ResultSize,BUF_AccelerationStructure,0,ERHIAccess::BVHWrite,SceneInfo);
+            Scratch=Cmd.CreateBuffer(Sizes.BuildScratchSize,BUF_UnorderedAccess,GRHIRayTracingScratchBufferAlignment,ERHIAccess::UAVCompute,ScratchInfo);
+            Instances.Release();Instances.Initialize(Cmd,TEXT("SensorOwnedInstances"),GRHIRayTracingInstanceDescriptorSize,Count);
+            Resources->InstanceCount=Count;Resources->GeometryCount=Init.ReferencedGeometries.Num();++RtSubmissionCounters.SceneStorageCreates;
+        }
+        else
+        {
+            Cmd.Transition(FRHITransitionInfo(SceneMemory,ERHIAccess::BVHRead,ERHIAccess::BVHWrite));
+            Cmd.Transition(FRHITransitionInfo(Instances.Buffer,ERHIAccess::SRVCompute,ERHIAccess::UAVCompute));
+            ++RtSubmissionCounters.SceneStorageReuses;
+        }
         TArray<FRayTracingInstanceDescriptorInput> Inputs;Inputs.SetNumUninitialized(Count);
         TArray<FVector4f> Transforms;Transforms.SetNumUninitialized(Built.NumNativeCPUInstances*3);
         FillRayTracingInstanceUploadBuffer(Scene,FVector::ZeroVector,Descriptors,Built.InstanceGeometryIndices,Built.BaseUploadBufferOffsets,
             Built.NumNativeGPUSceneInstances,Built.NumNativeCPUInstances,Inputs,Transforms);
-        InstanceUpload=Upload(Cmd,TEXT("SensorRtInstanceUpload"),Inputs,BUF_Volatile);InstanceUploadView=Cmd.CreateShaderResourceView(InstanceUpload);
-        TransformUpload=Upload(Cmd,TEXT("SensorRtTransforms"),Transforms,BUF_Volatile);TransformUploadView=Cmd.CreateShaderResourceView(TransformUpload);
-        Addresses.Initialize(Cmd,TEXT("SensorRtAddresses"),Init.ReferencedGeometries.Num()*sizeof(FRayTracingAccelerationStructureAddress),BUF_Volatile);
+        if(!ReuseStorage)
+        {
+            InstanceUpload=Upload(Cmd,TEXT("SensorRtInstanceUpload"),Inputs,BUF_Static);InstanceUploadView=Cmd.CreateShaderResourceView(InstanceUpload);
+            TransformUpload=Upload(Cmd,TEXT("SensorRtTransforms"),Transforms,BUF_Static);TransformUploadView=Cmd.CreateShaderResourceView(TransformUpload);
+            Addresses.Release();Addresses.Initialize(Cmd,TEXT("SensorRtAddresses"),Init.ReferencedGeometries.Num()*sizeof(FRayTracingAccelerationStructureAddress),BUF_Static);
+        }
+        else
+        {
+            auto Write=[&](FBufferRHIRef Buffer,const void* Data,uint32 Bytes){void* Dest=Cmd.LockBuffer(Buffer,0,Bytes,RLM_WriteOnly);FMemory::Memcpy(Dest,Data,Bytes);Cmd.UnlockBuffer(Buffer);};
+            Write(InstanceUpload,Inputs.GetData(),Inputs.Num()*sizeof(FRayTracingInstanceDescriptorInput));
+            Write(TransformUpload,Transforms.GetData(),Transforms.Num()*sizeof(FVector4f));
+        }
         auto AddressBuffer=Addresses.Buffer;auto Geometries=Init.ReferencedGeometries;
         Cmd.EnqueueLambda([AddressBuffer,Geometries](FRHICommandListImmediate& Rhi)
         {
@@ -334,14 +375,14 @@ public:
         Cmd.BindAccelerationStructureMemory(Scene,SceneMemory,0);
         FRayTracingSceneBuildParams Build;Build.Scene=Scene;Build.ScratchBuffer=Scratch;Build.InstanceBuffer=Instances.Buffer;
         Cmd.BuildAccelerationStructure(Build);Cmd.Transition(FRHITransitionInfo(Scene.GetReference(),ERHIAccess::BVHWrite,ERHIAccess::BVHRead));
-        SceneView=Cmd.CreateShaderResourceView(FShaderResourceViewInitializer(SceneMemory,Scene->GetLayerBufferOffset(0),0));
+        if(!ReuseStorage)SceneView=Cmd.CreateShaderResourceView(FShaderResourceViewInitializer(SceneMemory,Scene->GetLayerBufferOffset(0),0));
         Memory26::Count(Memory26::ECounter::SceneBuild);++RtSubmissionCounters.SceneBuilds;
         if(Reusable())
         {
             // Exact immutable geometry+pose key. Eviction never invalidates a
             // live scan: it holds shared ownership through its terminal fence.
-            if(SceneCache.Num()>=4){int32 Old=0;for(int32 I=1;I<SceneCache.Num();++I)if(SceneCache[I]->LastUse<SceneCache[Old]->LastUse)Old=I;SceneCache.RemoveAt(Old);}
-            Resources->LastUse=++SceneClock;SceneCache.Add(Resources);
+            if(!InCache){if(SceneCache.Num()>=4){int32 Old=0;for(int32 I=1;I<SceneCache.Num();++I)if(SceneCache[I]->LastUse<SceneCache[Old]->LastUse)Old=I;SceneCache.RemoveAt(Old);}SceneCache.Add(Resources);}
+            Resources->LastUse=++SceneClock;
         }
         }
         auto& Scene=Resources->Scene;auto& SceneView=Resources->SceneView;auto& Blases=Resources->Blases;
@@ -378,6 +419,15 @@ public:
         P.Normal1=Request.Meshes.Num()>1?FMatrix44f(Request.Meshes[1].LocalToWorld.ToInverseMatrixWithScale().GetTransposed()):FMatrix44f::Identity;
         P.Normal2=Request.Meshes.Num()>2?FMatrix44f(Request.Meshes[2].LocalToWorld.ToInverseMatrixWithScale().GetTransposed()):FMatrix44f::Identity;
         P.Normal3=Request.Meshes.Num()>3?FMatrix44f(Request.Meshes[3].LocalToWorld.ToInverseMatrixWithScale().GetTransposed()):FMatrix44f::Identity;
+        if(Reusable()&&SensorOwnedRayTracing::UsesInlineBackend())
+        {
+            auto Shader=GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FLidarInlineCS>();
+            const uint32 Groups=FMath::DivideAndRoundUp(uint32(Count),64u);
+            FComputeShaderUtils::Dispatch(Cmd,Shader,P,FIntVector(FMath::Min(Groups,65535u),FMath::DivideAndRoundUp(Groups,65535u),1));
+            ++RtSubmissionCounters.InlineDispatches;++RtSubmissionCounters.Dispatches;
+        }
+        else
+        {
         auto Shader=GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FLidarRGS>();
         auto HitShader=GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FLidarCHS>();
         auto MissShader=GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FDefaultPayloadMS>();
@@ -400,6 +450,7 @@ public:
         Resources->LastPipelineUseSeconds=PipelineNow;
         FRayTracingShaderBindingsWriter Bindings;SetShaderParameters(Bindings,Shader,P);
         Cmd.RayTraceDispatch(Pipeline,Shader.GetRayTracingShader(),Scene,Bindings,Count,1);++RtSubmissionCounters.Dispatches;
+        }
         Cmd.Transition(FRHITransitionInfo(ResultBuffer,ERHIAccess::UAVCompute,ERHIAccess::CopySrc));
         {
             MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
@@ -466,7 +517,7 @@ void FlushSubmissions()
 SensorOwnedRayTracing::FSubmissionStats SensorOwnedRayTracing::GetSubmissionStats()
 {
     const auto N=SensorNativeRayTracing::GetStats();
-    return {RtSubmissionCounters.Batches.load(),RtSubmissionCounters.Dispatches.load()+N.Dispatches,RtSubmissionCounters.Requests.load(),RtSubmissionCounters.PacketCreates.load()+N.PacketCreates,RtSubmissionCounters.PacketReuses.load()+N.PacketReuses,RtSubmissionCounters.RayUploads.load(),RtSubmissionCounters.ViewCreates.load(),RtSubmissionCounters.SceneBuilds.load()+N.SceneBuilds,RtSubmissionCounters.BindingUpdates.load(),N.Dispatches,N.BlasBuilds,N.SceneBuilds,N.Bytes,N.PeakBytes,N.ValidationErrors,N.ValidationAvailable,RtSubmissionCounters.NativeFallbacks.load()};
+    return {RtSubmissionCounters.Batches.load(),RtSubmissionCounters.Dispatches.load()+N.Dispatches,RtSubmissionCounters.Requests.load(),RtSubmissionCounters.PacketCreates.load()+N.PacketCreates,RtSubmissionCounters.PacketReuses.load()+N.PacketReuses,RtSubmissionCounters.RayUploads.load(),RtSubmissionCounters.ViewCreates.load(),RtSubmissionCounters.SceneBuilds.load()+N.SceneBuilds,RtSubmissionCounters.BindingUpdates.load(),N.Dispatches,N.BlasBuilds,N.SceneBuilds,N.Bytes,N.PeakBytes,N.ValidationErrors,N.ValidationAvailable,RtSubmissionCounters.NativeFallbacks.load(),RtSubmissionCounters.InlineDispatches.load(),RtSubmissionCounters.SceneStorageCreates.load(),RtSubmissionCounters.SceneStorageReuses.load()};
 }
 void SensorOwnedRayTracing::FlushPendingSubmissions(){FlushSubmissions();}
 uint64 SensorOwnedRayTracing::GetBlasBuildCount(){return BlasBuildCount.load()+SensorNativeRayTracing::GetStats().BlasBuilds;}
@@ -479,8 +530,21 @@ void SensorOwnedRayTracing::RecycleHitArray(TArray<FSensorRtHit>&& Hits)
 bool SensorOwnedRayTracing::UsesNativeBackend()
 {
     static const bool Engine=FParse::Param(FCommandLine::Get(),TEXT("SensorRtEngine"));
-    return !Engine&&Optimized()&&SensorNativeRayTracing::IsSupported();
+    static const bool Explicit=FParse::Param(FCommandLine::Get(),TEXT("SensorRtNative"));
+    return Explicit&&!Engine&&Optimized()&&SensorNativeRayTracing::IsSupported();
 }
+bool SensorOwnedRayTracing::UsesInlineBackend()
+{
+#if RHI_RAYTRACING
+    static const bool Engine=FParse::Param(FCommandLine::Get(),TEXT("SensorRtEngine"));
+    static const bool Explicit=FParse::Param(FCommandLine::Get(),TEXT("SensorRtRhiInline"));
+    return Explicit&&!Engine&&Optimized()&&!UsesNativeBackend()&&GRHISupportsInlineRayTracing;
+#else
+    return false;
+#endif
+}
+bool SensorOwnedRayTracing::UsesPersistentSceneStorage()
+{static const bool Engine=FParse::Param(FCommandLine::Get(),TEXT("SensorRtEngine"));return !Engine&&Optimized()&&!UsesNativeBackend();}
 bool SensorOwnedRayTracing::IsAvailable()
 {
 #if RHI_RAYTRACING

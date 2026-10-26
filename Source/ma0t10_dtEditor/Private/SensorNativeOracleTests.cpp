@@ -57,8 +57,8 @@ public:
         if(FPlatformTime::Seconds()-Started>60){Test->AddError(TEXT("native multi-scene oracle timeout"));for(auto& S:Scans)if(S)S->Cancel();if(Reference)Reference->Cancel();return true;}
         if(!Submitted)
         {
-            if(!SensorOwnedRayTracing::IsAvailable()||!SensorOwnedRayTracing::UsesNativeBackend())
-            {Test->AddError(TEXT("native oracle requires actual native DXR 1.1 backend; no skip"));return true;}
+            if(!SensorOwnedRayTracing::IsAvailable()||(!SensorOwnedRayTracing::UsesNativeBackend()&&!SensorOwnedRayTracing::UsesPersistentSceneStorage()))
+            {Test->AddError(TEXT("rewritten oracle requires actual DXR rewritten backend; no skip"));return true;}
             Submit();if(!Reference||Scans.Contains(nullptr)){Test->AddError(TEXT("oracle admission missing"));return true;}return false;
         }
         FString Error;
@@ -79,13 +79,13 @@ public:
         }
         Scans.Reset();Reference.Reset();
         const auto Stats=SensorOwnedRayTracing::GetSubmissionStats();
-        Test->TestTrue(TEXT("native backend actually ran"),Stats.NativeDispatches>0);
+        Test->TestTrue(TEXT("rewritten backend actually ran"),Stats.NativeDispatches+(Epoch==0?Stats.SceneStorageCreates:Stats.SceneStorageReuses)>0);
         Test->TestTrue(TEXT("entire live native allocation ledger respects cap"),Stats.NativeBytes<=512ull*1024*1024);
         if(++Epoch==12)return true;
         Submitted=false;return false;
     }
 };
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorNativeOracleTest,"MA0T10.GpuLidar.NativeMultiSceneByteOracleRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorNativeOracleTest,"MA0T10.GpuLidar.RewrittenMultiSceneByteOracleRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorNativeOracleTest::RunTest(const FString&){ADD_LATENT_AUTOMATION_COMMAND(FNativeOracle(this));return true;}
 #endif
