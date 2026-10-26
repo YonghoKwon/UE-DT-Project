@@ -50,11 +50,17 @@ namespace SensorOwnedRayTracing
     struct FSubmissionStats
     {
         uint64 Batches=0,Dispatches=0,Requests=0,PacketCreates=0,PacketReuses=0,RayUploads=0,ViewCreates=0,SceneBuilds=0,BindingUpdates=0;
+        uint64 NativeDispatches=0,NativeBlasBuilds=0,NativeSceneBuilds=0,NativeBytes=0,NativePeakBytes=0;
+        uint64 NativeValidationErrors=0;
+        bool NativeValidationAvailable=false;
+        uint64 NativeFallbacks=0;
     };
     MA0T10_DTBOOTSTRAP_API FSubmissionStats GetSubmissionStats();
     /** Submit immutable admissions before main-view rendering, once per scheduler tick. */
     MA0T10_DTBOOTSTRAP_API void FlushPendingSubmissions();
     MA0T10_DTBOOTSTRAP_API bool IsAvailable();
+    /** Persistent native DXR 1.1; unsupported platforms retain the engine path. */
+    MA0T10_DTBOOTSTRAP_API bool UsesNativeBackend();
     MA0T10_DTBOOTSTRAP_API uint64 GetBlasBuildCount();
     /** Diagnostic-only reuse, after the last normalization read. No payload alias. */
     MA0T10_DTBOOTSTRAP_API void RecycleHitArray(TArray<FSensorRtHit>&& Hits);

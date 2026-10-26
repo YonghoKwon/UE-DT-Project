@@ -203,6 +203,11 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
             Gpu->SetNumberField(TEXT("packet_creates"),Stats.PacketCreates);Gpu->SetNumberField(TEXT("packet_reuses"),Stats.PacketReuses);Gpu->SetNumberField(TEXT("ray_uploads"),Stats.RayUploads);
             Gpu->SetNumberField(TEXT("view_creates"),Stats.ViewCreates);Gpu->SetNumberField(TEXT("scene_builds"),Stats.SceneBuilds);R->SetObjectField(TEXT("rhi_submission"),Gpu);
             Gpu->SetNumberField(TEXT("binding_updates"),Stats.BindingUpdates);
+            Gpu->SetNumberField(TEXT("native_dispatches"),Stats.NativeDispatches);Gpu->SetNumberField(TEXT("native_blas_builds"),Stats.NativeBlasBuilds);
+            Gpu->SetNumberField(TEXT("native_scene_builds"),Stats.NativeSceneBuilds);Gpu->SetNumberField(TEXT("native_bytes"),Stats.NativeBytes);Gpu->SetNumberField(TEXT("native_peak_bytes"),Stats.NativePeakBytes);
+            Gpu->SetBoolField(TEXT("native_validation_available"),Stats.NativeValidationAvailable);
+            Gpu->SetNumberField(TEXT("native_fallbacks"),Stats.NativeFallbacks);
+            if(Stats.NativeValidationAvailable)Gpu->SetNumberField(TEXT("native_validation_errors"),Stats.NativeValidationErrors);
             for(int32 I=0;I<3;++I)
             {
                 auto* A=S.SensorAt(I);if(!A){Failed=true;continue;}const auto* Scan=A->ScanComponent.Get();const auto& Status=Scan->GetRuntimeStatus();

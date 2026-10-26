@@ -1,4 +1,5 @@
 #include "SensorOwnedRayTracing.h"
+#include "SensorNativeRayTracing.h"
 #include "MA0T10MemoryTags.h"
 #include "Memory26Diagnostics.h"
 #include "GlobalShader.h"
@@ -36,7 +37,7 @@ FDelegateHandle EndFrameHandle,SubmitFrameHandle;
 bool Optimized()
 {static const bool Value=!FParse::Param(FCommandLine::Get(),TEXT("SensorRtLegacy"));return Value;}
 struct FStats
-{std::atomic<uint64> Batches{0},Dispatches{0},Requests{0},PacketCreates{0},PacketReuses{0},RayUploads{0},ViewCreates{0},SceneBuilds{0},BindingUpdates{0};} RtSubmissionCounters;
+{std::atomic<uint64> Batches{0},Dispatches{0},Requests{0},PacketCreates{0},PacketReuses{0},RayUploads{0},ViewCreates{0},SceneBuilds{0},BindingUpdates{0},NativeFallbacks{0};} RtSubmissionCounters;
 #if RHI_RAYTRACING
 class FLidarRGS final : public FGlobalShader
 {
@@ -194,6 +195,8 @@ public:
     TArray<FSensorRtHit> Hits;
     FString Failure;
     std::atomic<bool> Finished{false},Cancelled{false},PollQueued{false};
+    bool bNativeScratchTaken=false;
+    TSharedPtr<SensorNativeRayTracing::ITicket,ESPMode::ThreadSafe> NativeTicket;
 #if RHI_RAYTRACING
     TUniquePtr<FDispatchPacket> Packet;
     TSharedPtr<FSceneResources,ESPMode::ThreadSafe> Resources;
@@ -225,6 +228,13 @@ public:
     void PumpReadback()
     {
         MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
+        if(NativeTicket)
+        {
+            if(!bNativeScratchTaken&&Reusable())
+            {auto Lease=HitPool.Take(Memory26::ECounter::HitCreate,Memory26::ECounter::HitReuse);Hits=MoveTemp(Lease->Data);bNativeScratchTaken=true;}
+            if(!NativeTicket->Poll(Hits,Failure,Cancelled.load(std::memory_order_acquire)))return;
+            NativeTicket.Reset();Complete();return;
+        }
 #if RHI_RAYTRACING
         if(Finished.load(std::memory_order_acquire)||!Packet||!Packet->Readback||!Packet->Readback->IsReady())return;
         auto& Readback=Packet->Readback;
@@ -263,6 +273,17 @@ public:
 #if RHI_RAYTRACING
         if(Cancelled.load()){Fail(TEXT("cancelled before GPU submission"));return;}
         if(!SensorOwnedRayTracing::IsAvailable()){Fail(TEXT("HWRT pipeline unavailable"));return;}
+        if(Reusable()&&SensorOwnedRayTracing::UsesNativeBackend())
+        {
+            TArray<TConstArrayView<FSensorRtRay>> Parts;
+            if(Members.IsEmpty())Parts.Add(Request.Rays);else for(const auto& M:Members)Parts.Add(M->Request.Rays);
+            bool BudgetLimited=false;NativeTicket=SensorNativeRayTracing::Submit(Request.Meshes,Parts,Failure,BudgetLimited);
+            if(NativeTicket)return;
+            if(!BudgetLimited){Complete();return;}
+            // No native work was submitted. Preserve the previous supported
+            // geometry/ray limits via the safe engine path, never lower quality.
+            ++RtSubmissionCounters.NativeFallbacks;Failure.Reset();
+        }
         // UE5.3 D3D12 supports RTSL_SingleFrame only. A scene captures raw BLAS
         // residency handles at build time; never reuse that snapshot in a later
         // render frame, even when logical mesh revision and pose still match.
@@ -443,14 +464,22 @@ void FlushSubmissions()
 }
 }
 SensorOwnedRayTracing::FSubmissionStats SensorOwnedRayTracing::GetSubmissionStats()
-{return {RtSubmissionCounters.Batches.load(),RtSubmissionCounters.Dispatches.load(),RtSubmissionCounters.Requests.load(),RtSubmissionCounters.PacketCreates.load(),RtSubmissionCounters.PacketReuses.load(),RtSubmissionCounters.RayUploads.load(),RtSubmissionCounters.ViewCreates.load(),RtSubmissionCounters.SceneBuilds.load(),RtSubmissionCounters.BindingUpdates.load()};}
+{
+    const auto N=SensorNativeRayTracing::GetStats();
+    return {RtSubmissionCounters.Batches.load(),RtSubmissionCounters.Dispatches.load()+N.Dispatches,RtSubmissionCounters.Requests.load(),RtSubmissionCounters.PacketCreates.load()+N.PacketCreates,RtSubmissionCounters.PacketReuses.load()+N.PacketReuses,RtSubmissionCounters.RayUploads.load(),RtSubmissionCounters.ViewCreates.load(),RtSubmissionCounters.SceneBuilds.load()+N.SceneBuilds,RtSubmissionCounters.BindingUpdates.load(),N.Dispatches,N.BlasBuilds,N.SceneBuilds,N.Bytes,N.PeakBytes,N.ValidationErrors,N.ValidationAvailable,RtSubmissionCounters.NativeFallbacks.load()};
+}
 void SensorOwnedRayTracing::FlushPendingSubmissions(){FlushSubmissions();}
-uint64 SensorOwnedRayTracing::GetBlasBuildCount(){return BlasBuildCount.load();}
+uint64 SensorOwnedRayTracing::GetBlasBuildCount(){return BlasBuildCount.load()+SensorNativeRayTracing::GetStats().BlasBuilds;}
 void SensorOwnedRayTracing::RecycleHitArray(TArray<FSensorRtHit>&& Hits)
 {
     if(!Optimized())return;
     MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
     auto Scratch=MakeUnique<FHitScratch>();Scratch->Data=MoveTemp(Hits);Scratch->Data.Reset();HitPool.Return(MoveTemp(Scratch));
+}
+bool SensorOwnedRayTracing::UsesNativeBackend()
+{
+    static const bool Engine=FParse::Param(FCommandLine::Get(),TEXT("SensorRtEngine"));
+    return !Engine&&Optimized()&&SensorNativeRayTracing::IsSupported();
 }
 bool SensorOwnedRayTracing::IsAvailable()
 {
@@ -499,8 +528,9 @@ void SensorOwnedRayTracing::Shutdown()
     FCoreDelegates::OnEndFrameRT.Remove(EndFrameHandle);
     ENQUEUE_RENDER_COMMAND(ReleaseOwnedSensorRt)([](FRHICommandListImmediate& Cmd)
     {
-        for(const auto& Scan:PendingReadbacks){Scan->Cancelled.store(true,std::memory_order_release);Scan->Request.OnReadback=nullptr;}
+        for(const auto& Scan:PendingReadbacks){Scan->Cancelled.store(true,std::memory_order_release);Scan->Request.OnReadback=nullptr;Scan->NativeTicket.Reset();}
         PendingReadbacks.Reset();RetiredScans.Reset();
+        SensorNativeRayTracing::Shutdown();
 #if RHI_RAYTRACING
         SceneCache.Reset();FreePackets.Reset();FreePacketBytes=0;BlasCache.Reset();
 #endif

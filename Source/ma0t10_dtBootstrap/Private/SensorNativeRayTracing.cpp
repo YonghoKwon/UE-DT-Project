@@ -1,0 +1,315 @@
+#include "SensorNativeRayTracing.h"
+#include "RenderingThread.h"
+#include "Misc/ScopeExit.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include <atomic>
+#if PLATFORM_WINDOWS && RHI_RAYTRACING
+#include "ID3D12DynamicRHI.h"
+#include <d3d12sdklayers.h>
+#include "SensorNativeRayQueryDxil.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"
+
+namespace SensorNativeRayTracing
+{
+namespace
+{
+constexpr uint64 MaxBytes=512ull*1024*1024;
+constexpr uint64 MaxFreeBytes=64ull*1024*1024;
+std::atomic<uint64> Bytes{0},PeakBytes{0},Dispatches{0},BlasBuilds{0},SceneBuilds{0},PacketCreates{0},PacketReuses{0};
+std::atomic<uint64> ValidationErrors{0};
+std::atomic<bool> ValidationAvailable{false};
+bool CapacityHit=false; // render thread only, one synchronous Submit transaction
+bool LedgerEnabled(){static const bool Enabled=FParse::Param(FCommandLine::Get(),TEXT("SensorNativeLedger"));return Enabled;}
+bool Succeeded(HRESULT Result,FString& Error,const TCHAR* Operation)
+{
+    if(SUCCEEDED(Result))return true;
+    Error=FString::Printf(TEXT("native LiDAR %s failed (0x%08x)"),Operation,uint32(Result));return false;
+}
+struct FBuffer
+{
+    TRefCountPtr<ID3D12Resource> Resource;
+    uint64 Size=0;
+    void* Mapped=nullptr;
+    ~FBuffer(){if(Resource&&LedgerEnabled())UE_LOG(LogTemp,Display,TEXT("[SensorNativeLedger] release VA=0x%llx bytes=%llu"),uint64(Resource->GetGPUVirtualAddress()),Size);if(Resource&&Mapped)Resource->Unmap(0,nullptr);if(Size)Bytes.fetch_sub(Size);}
+    bool Create(ID3D12Device* Device,uint64 InSize,D3D12_HEAP_TYPE Heap,D3D12_RESOURCE_STATES State,bool Uav,FString& Error)
+    {
+        // Dedicated committed allocations cannot be relocated by the engine's
+        // pool or BLAS compactor. They are created resident and never evicted by
+        // this backend; the entire live + retired + cached ledger is bounded.
+        InSize=Align(InSize,uint64(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT));
+        if(!InSize||Bytes.load()+InSize>MaxBytes){CapacityHit=true;Error=TEXT("native LiDAR live allocation budget exceeded");return false;}
+        D3D12_HEAP_PROPERTIES Properties={};Properties.Type=Heap;Properties.CreationNodeMask=Properties.VisibleNodeMask=1;
+        D3D12_RESOURCE_DESC Desc={};Desc.Dimension=D3D12_RESOURCE_DIMENSION_BUFFER;Desc.Width=InSize;
+        Desc.Height=1;Desc.DepthOrArraySize=1;Desc.MipLevels=1;Desc.SampleDesc.Count=1;Desc.Layout=D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+        Desc.Flags=Uav?D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS:D3D12_RESOURCE_FLAG_NONE;
+        if(!Succeeded(Device->CreateCommittedResource(&Properties,D3D12_HEAP_FLAG_NONE,&Desc,State,nullptr,IID_PPV_ARGS(Resource.GetInitReference())),Error,TEXT("CreateCommittedResource")))return false;
+        Size=InSize;Bytes.fetch_add(Size);PeakBytes.store(FMath::Max(PeakBytes.load(),Bytes.load()));
+        Resource->SetName(L"SensorOwnedPersistent");
+        if(LedgerEnabled())UE_LOG(LogTemp,Display,TEXT("[SensorNativeLedger] create VA=0x%llx bytes=%llu heap=%d state=%u"),uint64(Resource->GetGPUVirtualAddress()),Size,int32(Heap),uint32(State));
+        if(Heap!=D3D12_HEAP_TYPE_DEFAULT)
+        {
+            D3D12_RANGE Range={0,Heap==D3D12_HEAP_TYPE_READBACK?SIZE_T(Size):0};
+            if(!Succeeded(Resource->Map(0,&Range,&Mapped),Error,TEXT("Map")))return false;
+        }
+        return true;
+    }
+    D3D12_GPU_VIRTUAL_ADDRESS Address()const{return Resource->GetGPUVirtualAddress();}
+};
+using FBufferPtr=TSharedPtr<FBuffer,ESPMode::ThreadSafe>;
+FBufferPtr NewBuffer(ID3D12Device* Device,uint64 Size,D3D12_HEAP_TYPE Heap,D3D12_RESOURCE_STATES State,bool Uav,FString& Error)
+{auto Result=MakeShared<FBuffer,ESPMode::ThreadSafe>();return Result->Create(Device,Size,Heap,State,Uav,Error)?Result:FBufferPtr();}
+void UavBarrier(ID3D12GraphicsCommandList4* List)
+{D3D12_RESOURCE_BARRIER B={};B.Type=D3D12_RESOURCE_BARRIER_TYPE_UAV;List->ResourceBarrier(1,&B);}
+struct FBlas
+{
+    uint64 Revision=0,LastUse=0;
+    FBufferPtr Vertices,Surfaces,Storage,Scratch;
+};
+struct FScene
+{
+    TArray<TSharedPtr<FBlas,ESPMode::ThreadSafe>> Blases;
+    TArray<uint64> Revisions;
+    TArray<FTransform> Poses;
+    FBufferPtr Instances,Storage,Scratch,Constants;
+    uint64 LastUse=0;
+    bool Matches(const TArray<FSensorRtMesh>& Meshes)const
+    {
+        if(Meshes.Num()!=Revisions.Num())return false;
+        for(int32 I=0;I<Meshes.Num();++I)if(Meshes[I].Revision!=Revisions[I]||!Meshes[I].LocalToWorld.Equals(Poses[I],0))return false;
+        return true;
+    }
+};
+struct FJob
+{
+    TRefCountPtr<ID3D12CommandAllocator> Allocator;
+    TRefCountPtr<ID3D12GraphicsCommandList4> List;
+    FBufferPtr Rays,Results,Readback,Constants;
+    TSharedPtr<FScene,ESPMode::ThreadSafe> Scene;
+    int32 Count=0;
+    uint64 FenceValue=0;
+    uint64 BufferBytes()const{return Rays->Size+Results->Size+Readback->Size+Constants->Size;}
+};
+class FBackend
+{
+public:
+    TRefCountPtr<ID3D12Device5> Device;
+    TRefCountPtr<ID3D12CommandQueue> Queue;
+    TRefCountPtr<ID3D12Fence> Fence;
+    TRefCountPtr<ID3D12RootSignature> Root;
+    TRefCountPtr<ID3D12PipelineState> Pipeline;
+    TRefCountPtr<ID3D12InfoQueue> InfoQueue;
+    TArray<TSharedPtr<FBlas,ESPMode::ThreadSafe>> Blases;
+    TArray<TSharedPtr<FScene,ESPMode::ThreadSafe>> Scenes;
+    TArray<TSharedPtr<FJob,ESPMode::ThreadSafe>> Free,Retired;
+    uint64 NextFence=0,Clock=0;
+    uint64 LastMessage=0;
+    bool Faulted=false;
+    bool Initialize(FString& Error)
+    {
+        if(!IsRHID3D12()||GNumExplicitGPUsForRendering!=1){Error=TEXT("native LiDAR requires a single D3D12 GPU");return false;}
+        auto* Native=GetID3D12DynamicRHI()->RHIGetDevice(0);
+        if(GetID3D12DynamicRHI()->RHIGetDeviceNodeMask(0)!=1){Error=TEXT("native LiDAR unsupported GPU node mask");return false;}
+        if(!Succeeded(Native->QueryInterface(IID_PPV_ARGS(Device.GetInitReference())),Error,TEXT("ID3D12Device5")))return false;
+        if(SUCCEEDED(Native->QueryInterface(IID_PPV_ARGS(InfoQueue.GetInitReference()))))
+        {ValidationAvailable.store(true);LastMessage=InfoQueue->GetNumStoredMessagesAllowedByRetrievalFilter();}
+        D3D12_FEATURE_DATA_D3D12_OPTIONS5 Options={};
+        if(!Succeeded(Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5,&Options,sizeof(Options)),Error,TEXT("DXR capability")))return false;
+        if(Options.RaytracingTier<D3D12_RAYTRACING_TIER_1_1){Error=TEXT("native LiDAR requires DXR 1.1 inline queries");return false;}
+        D3D12_COMMAND_QUEUE_DESC Q={};Q.Type=D3D12_COMMAND_LIST_TYPE_COMPUTE;Q.NodeMask=1;
+        if(!Succeeded(Device->CreateCommandQueue(&Q,IID_PPV_ARGS(Queue.GetInitReference())),Error,TEXT("CreateCommandQueue")))return false;
+        Queue->SetName(L"SensorOwnedLidarCompute");
+        if(!Succeeded(Device->CreateFence(0,D3D12_FENCE_FLAG_NONE,IID_PPV_ARGS(Fence.GetInitReference())),Error,TEXT("CreateFence")))return false;
+        D3D12_ROOT_PARAMETER Parameters[8]={};
+        for(uint32 I=0;I<6;++I){Parameters[I].ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV;Parameters[I].Descriptor.ShaderRegister=I;}
+        Parameters[6].ParameterType=D3D12_ROOT_PARAMETER_TYPE_UAV;
+        Parameters[7].ParameterType=D3D12_ROOT_PARAMETER_TYPE_CBV;
+        D3D12_ROOT_SIGNATURE_DESC RootDesc={};RootDesc.NumParameters=8;RootDesc.pParameters=Parameters;
+        TRefCountPtr<ID3DBlob> Serialized,Errors;
+        if(!Succeeded(D3D12SerializeRootSignature(&RootDesc,D3D_ROOT_SIGNATURE_VERSION_1,Serialized.GetInitReference(),Errors.GetInitReference()),Error,TEXT("SerializeRootSignature")))return false;
+        if(!Succeeded(Device->CreateRootSignature(1,Serialized->GetBufferPointer(),Serialized->GetBufferSize(),IID_PPV_ARGS(Root.GetInitReference())),Error,TEXT("CreateRootSignature")))return false;
+        D3D12_COMPUTE_PIPELINE_STATE_DESC Desc={};Desc.pRootSignature=Root;Desc.CS={SensorNativeRayQueryDxil,sizeof(SensorNativeRayQueryDxil)};Desc.NodeMask=1;
+        return Succeeded(Device->CreateComputePipelineState(&Desc,IID_PPV_ARGS(Pipeline.GetInitReference())),Error,TEXT("CreateComputePipelineState"));
+    }
+    bool Complete(uint64 Value)const{return Fence->GetCompletedValue()>=Value;}
+    bool Validate(FString& Error)
+    {
+        if(!InfoQueue)return true;
+        const uint64 Count=InfoQueue->GetNumStoredMessagesAllowedByRetrievalFilter();
+        if(Count<LastMessage)LastMessage=0;
+        for(uint64 I=LastMessage;I<Count;++I)
+        {
+            SIZE_T Size=0;InfoQueue->GetMessage(I,nullptr,&Size);if(!Size)continue;
+            TArray<uint8> Storage;Storage.SetNumUninitialized(Size);auto* Message=reinterpret_cast<D3D12_MESSAGE*>(Storage.GetData());
+            if(SUCCEEDED(InfoQueue->GetMessage(I,Message,&Size))&&(Message->Severity==D3D12_MESSAGE_SEVERITY_ERROR||Message->Severity==D3D12_MESSAGE_SEVERITY_CORRUPTION))
+            {++ValidationErrors;Error=FString::Printf(TEXT("D3D12 validation during native acquisition: %s"),UTF8_TO_TCHAR(Message->pDescription));Faulted=true;}
+        }
+        LastMessage=Count;return !Faulted;
+    }
+    void Return(TSharedPtr<FJob,ESPMode::ThreadSafe> Job)
+    {
+        Job->Scene.Reset();uint64 Total=Job->BufferBytes();for(const auto& P:Free)Total+=P->BufferBytes();
+        if(Free.Num()<4&&Total<=MaxFreeBytes)Free.Add(MoveTemp(Job));
+    }
+    void Collect()
+    {for(int32 I=Retired.Num()-1;I>=0;--I)if(Complete(Retired[I]->FenceValue)){auto Job=Retired[I];Retired.RemoveAtSwap(I);Return(MoveTemp(Job));}}
+    TSharedPtr<FJob,ESPMode::ThreadSafe> Take(int32 Count,FString& Error)
+    {
+        Collect();
+        for(int32 I=0;I<Free.Num();++I)if(Free[I]->Count==Count){auto Job=Free[I];Free.RemoveAtSwap(I);++PacketReuses;return Job;}
+        auto Job=MakeShared<FJob,ESPMode::ThreadSafe>();Job->Count=Count;
+        if(!Succeeded(Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_COMPUTE,IID_PPV_ARGS(Job->Allocator.GetInitReference())),Error,TEXT("CreateCommandAllocator")))return {};
+        if(!Succeeded(Device->CreateCommandList(1,D3D12_COMMAND_LIST_TYPE_COMPUTE,Job->Allocator,nullptr,IID_PPV_ARGS(Job->List.GetInitReference())),Error,TEXT("CreateCommandList")))return {};
+        if(!Succeeded(Job->List->Close(),Error,TEXT("initial Close")))return {};
+        Job->List->SetName(L"SensorOwnedLidarList");Job->Allocator->SetName(L"SensorOwnedLidarAllocator");
+        Job->Rays=NewBuffer(Device,uint64(Count)*sizeof(FSensorRtRay),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error);
+        Job->Results=NewBuffer(Device,uint64(Count)*sizeof(FSensorRtHit),D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,true,Error);
+        Job->Readback=NewBuffer(Device,uint64(Count)*sizeof(FSensorRtHit),D3D12_HEAP_TYPE_READBACK,D3D12_RESOURCE_STATE_COPY_DEST,false,Error);
+        Job->Constants=NewBuffer(Device,512,D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error);
+        if(!Job->Rays||!Job->Results||!Job->Readback||!Job->Constants)return {};
+        ++PacketCreates;return Job;
+    }
+    TSharedPtr<FBlas,ESPMode::ThreadSafe> GetBlas(const FSensorRtMesh& Mesh,ID3D12GraphicsCommandList4* List,FString& Error)
+    {
+        for(auto& B:Blases)if(B->Revision==Mesh.Revision){B->LastUse=++Clock;return B;}
+        auto B=MakeShared<FBlas,ESPMode::ThreadSafe>();B->Revision=Mesh.Revision;B->LastUse=++Clock;
+        B->Vertices=NewBuffer(Device,uint64(Mesh.Vertices->Num())*sizeof(FVector3f),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error);
+        B->Surfaces=NewBuffer(Device,uint64(Mesh.NormalsAndSurfaces->Num())*sizeof(FVector4f),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error);
+        if(!B->Vertices||!B->Surfaces)return {};
+        FMemory::Memcpy(B->Vertices->Mapped,Mesh.Vertices->GetData(),Mesh.Vertices->Num()*sizeof(FVector3f));
+        FMemory::Memcpy(B->Surfaces->Mapped,Mesh.NormalsAndSurfaces->GetData(),Mesh.NormalsAndSurfaces->Num()*sizeof(FVector4f));
+        D3D12_RAYTRACING_GEOMETRY_DESC Geometry={};Geometry.Type=D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;Geometry.Flags=D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+        Geometry.Triangles.VertexBuffer.StartAddress=B->Vertices->Address();Geometry.Triangles.VertexBuffer.StrideInBytes=sizeof(FVector3f);
+        Geometry.Triangles.VertexCount=Mesh.Vertices->Num();Geometry.Triangles.VertexFormat=DXGI_FORMAT_R32G32B32_FLOAT;
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS Inputs={};Inputs.Type=D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+        Inputs.DescsLayout=D3D12_ELEMENTS_LAYOUT_ARRAY;Inputs.NumDescs=1;Inputs.pGeometryDescs=&Geometry;
+        Inputs.Flags=D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_BUILD;
+        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO Size={};Device->GetRaytracingAccelerationStructurePrebuildInfo(&Inputs,&Size);
+        B->Storage=NewBuffer(Device,Size.ResultDataMaxSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,true,Error);
+        B->Scratch=NewBuffer(Device,Size.ScratchDataSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,true,Error);
+        if(!B->Storage||!B->Scratch)return {};
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC Build={};Build.Inputs=Inputs;Build.DestAccelerationStructureData=B->Storage->Address();Build.ScratchAccelerationStructureData=B->Scratch->Address();
+        List->BuildRaytracingAccelerationStructure(&Build,0,nullptr);UavBarrier(List);++BlasBuilds;
+        if(Blases.Num()>=8){int32 Old=0;for(int32 I=1;I<Blases.Num();++I)if(Blases[I]->LastUse<Blases[Old]->LastUse)Old=I;Blases.RemoveAt(Old);}
+        Blases.Add(B);return B;
+    }
+    TSharedPtr<FScene,ESPMode::ThreadSafe> GetScene(const TArray<FSensorRtMesh>& Meshes,ID3D12GraphicsCommandList4* List,FString& Error)
+    {
+        for(auto& S:Scenes)if(S->Matches(Meshes)){S->LastUse=++Clock;return S;}
+        auto S=MakeShared<FScene,ESPMode::ThreadSafe>();S->LastUse=++Clock;
+        TArray<D3D12_RAYTRACING_INSTANCE_DESC> Instances;
+        for(int32 I=0;I<Meshes.Num();++I)
+        {
+            const auto& Mesh=Meshes[I];S->Revisions.Add(Mesh.Revision);S->Poses.Add(Mesh.LocalToWorld);S->Blases.Add({});
+            if(!Mesh.Vertices||Mesh.Vertices->IsEmpty())continue;
+            auto B=GetBlas(Mesh,List,Error);if(!B)return {};S->Blases[I]=B;
+            D3D12_RAYTRACING_INSTANCE_DESC Instance={};const FMatrix M=Mesh.LocalToWorld.ToMatrixWithScale();
+            for(int32 Row=0;Row<3;++Row)for(int32 Column=0;Column<4;++Column)Instance.Transform[Row][Column]=float(M.M[Column][Row]);
+            Instance.InstanceID=I;Instance.InstanceMask=0xff;Instance.AccelerationStructure=B->Storage->Address();Instances.Add(Instance);
+        }
+        if(Instances.IsEmpty()){Error=TEXT("native LiDAR empty collision TLAS");return {};}
+        S->Instances=NewBuffer(Device,Instances.Num()*sizeof(D3D12_RAYTRACING_INSTANCE_DESC),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error);
+        S->Constants=NewBuffer(Device,512,D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error);
+        if(!S->Instances||!S->Constants)return {};
+        FMemory::Memcpy(S->Instances->Mapped,Instances.GetData(),Instances.Num()*sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
+        auto* Normals=static_cast<FMatrix44f*>(S->Constants->Mapped);
+        for(int32 I=0;I<4;++I)Normals[I]=I<Meshes.Num()?FMatrix44f(Meshes[I].LocalToWorld.ToInverseMatrixWithScale().GetTransposed()):FMatrix44f::Identity;
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS Inputs={};Inputs.Type=D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+        Inputs.DescsLayout=D3D12_ELEMENTS_LAYOUT_ARRAY;Inputs.NumDescs=Instances.Num();Inputs.InstanceDescs=S->Instances->Address();
+        Inputs.Flags=D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO Size={};Device->GetRaytracingAccelerationStructurePrebuildInfo(&Inputs,&Size);
+        S->Storage=NewBuffer(Device,Size.ResultDataMaxSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,true,Error);
+        S->Scratch=NewBuffer(Device,Size.ScratchDataSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,true,Error);
+        if(!S->Storage||!S->Scratch)return {};
+        D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC Build={};Build.Inputs=Inputs;Build.DestAccelerationStructureData=S->Storage->Address();Build.ScratchAccelerationStructureData=S->Scratch->Address();
+        List->BuildRaytracingAccelerationStructure(&Build,0,nullptr);UavBarrier(List);++SceneBuilds;
+        if(Scenes.Num()>=4){int32 Old=0;for(int32 I=1;I<Scenes.Num();++I)if(Scenes[I]->LastUse<Scenes[Old]->LastUse)Old=I;Scenes.RemoveAt(Old);}
+        Scenes.Add(S);return S;
+    }
+    void Drain()
+    {
+        // Module teardown only. Every submitted native command retains its
+        // allocator, scene/BLAS, buffers and device until this terminal fence.
+        if(Queue&&Fence&&NextFence&&!Complete(NextFence))
+        {
+            HANDLE Event=CreateEvent(nullptr,0,0,nullptr);
+            if(Event&&SUCCEEDED(Fence->SetEventOnCompletion(NextFence,Event)))WaitForSingleObject(Event,INFINITE);
+            if(Event)CloseHandle(Event);
+        }
+        Retired.Reset();Free.Reset();Scenes.Reset();Blases.Reset();
+    }
+};
+TUniquePtr<FBackend> Backend;
+class FTicket final:public ITicket
+{
+    TSharedPtr<FJob,ESPMode::ThreadSafe> Job;
+public:
+    explicit FTicket(TSharedPtr<FJob,ESPMode::ThreadSafe> In):Job(MoveTemp(In)){}
+    ~FTicket(){if(Job&&Backend)Backend->Retired.Add(MoveTemp(Job));}
+    bool Poll(TArray<FSensorRtHit>& Hits,FString& Error,bool Cancelled)override
+    {
+        check(IsInRenderingThread());if(!Job)return true;
+        if(!Backend->Complete(Job->FenceValue))return false;
+        if(FAILED(Backend->Device->GetDeviceRemovedReason()))Error=TEXT("native LiDAR device removed");
+        else if(Backend->Validate(Error)&&!Cancelled){Hits.SetNumUninitialized(Job->Count);FMemory::Memcpy(Hits.GetData(),Job->Readback->Mapped,Job->Count*sizeof(FSensorRtHit));}
+        Backend->Return(MoveTemp(Job));return true;
+    }
+};
+}
+TSharedPtr<ITicket,ESPMode::ThreadSafe> Submit(const TArray<FSensorRtMesh>& Meshes,const TArray<TConstArrayView<FSensorRtRay>>& Parts,FString& Error,bool& BudgetLimited)
+{
+    check(IsInRenderingThread());
+    CapacityHit=false;BudgetLimited=false;ON_SCOPE_EXIT{BudgetLimited=CapacityHit;};
+    if(!Backend){auto New=MakeUnique<FBackend>();if(!New->Initialize(Error))return {};Backend=MoveTemp(New);}
+    if(Backend->Faulted){Error=TEXT("native LiDAR backend stopped after GPU failure");return {};}
+    if(!Succeeded(Backend->Device->GetDeviceRemovedReason(),Error,TEXT("device status")))return {};
+    int32 Count=0;for(const auto& Part:Parts)Count+=Part.Num();
+    auto Job=Backend->Take(Count,Error);if(!Job)return {};
+    bool Submitted=false;
+    ON_SCOPE_EXIT{if(!Submitted){Backend->Scenes.Reset();Backend->Blases.Reset();}};
+    if(!Succeeded(Job->Allocator->Reset(),Error,TEXT("allocator Reset"))||!Succeeded(Job->List->Reset(Job->Allocator,Backend->Pipeline),Error,TEXT("list Reset")))return {};
+    Job->Scene=Backend->GetScene(Meshes,Job->List,Error);if(!Job->Scene)return {};
+    uint32 Offset=0;for(const auto& Part:Parts){const uint32 Size=Part.Num()*sizeof(FSensorRtRay);FMemory::Memcpy(static_cast<uint8*>(Job->Rays->Mapped)+Offset,Part.GetData(),Size);Offset+=Size;}
+    // The immutable matrices are shared; the count/CBV is per fenced job.
+    // Never overwrite another in-flight dispatch's constant allocation.
+    FMemory::Memcpy(Job->Constants->Mapped,Job->Scene->Constants->Mapped,256);
+    FMemory::Memcpy(static_cast<uint8*>(Job->Constants->Mapped)+256,&Count,sizeof(Count));
+    Job->List->SetComputeRootSignature(Backend->Root);
+    Job->List->SetComputeRootShaderResourceView(0,Job->Scene->Storage->Address());
+    Job->List->SetComputeRootShaderResourceView(1,Job->Rays->Address());
+    auto Fallback=Job->Scene->Blases.FindByPredicate([](const auto& B){return B.IsValid();});
+    for(int32 I=0;I<4;++I){auto B=Job->Scene->Blases.IsValidIndex(I)&&Job->Scene->Blases[I]?Job->Scene->Blases[I]:*Fallback;Job->List->SetComputeRootShaderResourceView(2+I,B->Surfaces->Address());}
+    Job->List->SetComputeRootUnorderedAccessView(6,Job->Results->Address());Job->List->SetComputeRootConstantBufferView(7,Job->Constants->Address());
+    const uint32 Groups=FMath::DivideAndRoundUp(uint32(Count),64u);
+    Job->List->Dispatch(FMath::Min(Groups,65535u),FMath::DivideAndRoundUp(Groups,65535u),1);
+    D3D12_RESOURCE_BARRIER Transition={};Transition.Type=D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    Transition.Transition.pResource=Job->Results->Resource;Transition.Transition.StateBefore=D3D12_RESOURCE_STATE_UNORDERED_ACCESS;Transition.Transition.StateAfter=D3D12_RESOURCE_STATE_COPY_SOURCE;Transition.Transition.Subresource=D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    Job->List->ResourceBarrier(1,&Transition);Job->List->CopyBufferRegion(Job->Readback->Resource,0,Job->Results->Resource,0,uint64(Count)*sizeof(FSensorRtHit));
+    Swap(Transition.Transition.StateBefore,Transition.Transition.StateAfter);Job->List->ResourceBarrier(1,&Transition);
+    if(!Succeeded(Job->List->Close(),Error,TEXT("Close")))return {};
+    ID3D12CommandList* Lists[]={Job->List};Backend->Queue->ExecuteCommandLists(1,Lists);
+    Submitted=true;
+    Job->FenceValue=++Backend->NextFence;
+    if(!Succeeded(Backend->Queue->Signal(Backend->Fence,Job->FenceValue),Error,TEXT("Signal"))){Backend->Faulted=true;Backend->Retired.Add(Job);return {};}
+    ++Dispatches;return MakeShared<FTicket,ESPMode::ThreadSafe>(MoveTemp(Job));
+}
+bool IsSupported()
+{
+    if(!IsRHID3D12()||GNumExplicitGPUsForRendering!=1)return false;
+    auto* Rhi=GetID3D12DynamicRHI();if(Rhi->RHIGetDeviceNodeMask(0)!=1)return false;
+    static const bool Supported=[Rhi](){D3D12_FEATURE_DATA_D3D12_OPTIONS5 Options={};return SUCCEEDED(Rhi->RHIGetDevice(0)->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5,&Options,sizeof(Options)))&&Options.RaytracingTier>=D3D12_RAYTRACING_TIER_1_1;}();
+    return Supported;
+}
+FStats GetStats(){return {Dispatches.load(),BlasBuilds.load(),SceneBuilds.load(),PacketCreates.load(),PacketReuses.load(),Bytes.load(),PeakBytes.load(),ValidationErrors.load(),ValidationAvailable.load()};}
+void Shutdown(){check(IsInRenderingThread());if(Backend){Backend->Drain();Backend.Reset();}}
+}
+#else
+namespace SensorNativeRayTracing
+{
+TSharedPtr<ITicket,ESPMode::ThreadSafe> Submit(const TArray<FSensorRtMesh>&,const TArray<TConstArrayView<FSensorRtRay>>&,FString& Error,bool& BudgetLimited){BudgetLimited=false;Error=TEXT("native LiDAR requires Windows DXR");return {};}
+bool IsSupported(){return false;}
+FStats GetStats(){return {};}
+void Shutdown(){}
+}
+#endif

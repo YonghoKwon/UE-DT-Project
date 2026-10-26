@@ -3,6 +3,8 @@
 #include "Misc/AutomationTest.h"
 #include "RenderingThread.h"
 #include "Misc/CoreDelegates.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 namespace
 {
@@ -70,7 +72,14 @@ public:
             // its residency snapshot are single-frame. Packet/view/ray-upload
             // reuse remains valid; scene/SBT counts must not enforce an unsafe
             // cross-frame scene lifetime.
-            Test->TestTrue(TEXT("single-frame scene refreshed"),Now.SceneBuilds>Stable.SceneBuilds);
+            if(SensorOwnedRayTracing::UsesNativeBackend())
+            {
+                Test->TestTrue(TEXT("native compute actually dispatched"),Now.NativeDispatches>Stable.NativeDispatches);
+                Test->TestEqual(TEXT("native TLAS retained safely across frames"),Now.NativeSceneBuilds,Stable.NativeSceneBuilds);
+                Test->TestEqual(TEXT("native BLAS retained safely across frames"),Now.NativeBlasBuilds,Stable.NativeBlasBuilds);
+                Test->TestEqual(TEXT("native live bytes bounded and stable"),Now.NativeBytes,Stable.NativeBytes);
+            }
+            else Test->TestTrue(TEXT("single-frame scene refreshed"),Now.SceneBuilds>Stable.SceneBuilds);
             if(++Repeats==3)return true;
         }
         Submit(false);return false;

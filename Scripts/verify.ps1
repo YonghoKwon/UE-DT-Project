@@ -81,6 +81,10 @@ try {
         & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_perf_cohort.ps1" -ReportRoot "$report/perf-cohort-fixtures"
         if ($LASTEXITCODE -ne 0) { throw 'Synthetic perf cohort gate regression failed' }
     }
+    Invoke-Step 'native-shader-source' {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/generate_sensor_native_shader.ps1" -CheckSourceOnly
+        if ($LASTEXITCODE -ne 0) { throw 'Native ray query source/DXIL header mismatch' }
+    }
     if ($Level -eq 'perf') {
         Invoke-Step 'perf-abab' {
             [string[]]$conditionArgs=@()
