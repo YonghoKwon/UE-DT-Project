@@ -21,6 +21,7 @@ std::atomic<uint64> Bytes{0},PeakBytes{0},Dispatches{0},BlasBuilds{0},SceneBuild
 std::atomic<uint64> ValidationErrors{0};
 std::atomic<bool> ValidationAvailable{false};
 bool CapacityHit=false; // render thread only, one synchronous Submit transaction
+std::atomic<uint64> LastCompleted{0};
 bool LedgerEnabled(){static const bool Enabled=FParse::Param(FCommandLine::Get(),TEXT("SensorNativeLedger"));return Enabled;}
 bool Succeeded(HRESULT Result,FString& Error,const TCHAR* Operation)
 {
@@ -31,8 +32,11 @@ struct FBuffer
 {
     TRefCountPtr<ID3D12Resource> Resource;
     uint64 Size=0;
+    uint64 LastUseFence=0;
+    const TCHAR* Purpose=TEXT("Buffer");
+    TRefCountPtr<ID3D12Device> LedgerDevice;
     void* Mapped=nullptr;
-    ~FBuffer(){if(Resource&&LedgerEnabled())UE_LOG(LogTemp,Display,TEXT("[SensorNativeLedger] release VA=0x%llx bytes=%llu"),uint64(Resource->GetGPUVirtualAddress()),Size);if(Resource&&Mapped)Resource->Unmap(0,nullptr);if(Size)Bytes.fetch_sub(Size);}
+    ~FBuffer(){if(Resource&&LedgerEnabled())UE_LOG(LogTemp,Display,TEXT("[SensorNativeLedger] release VA=0x%llx bytes=%llu role=%s last_use=%llu completed=%llu device=0x%08x"),uint64(Resource->GetGPUVirtualAddress()),Size,Purpose,LastUseFence,LastCompleted.load(),LedgerDevice?uint32(LedgerDevice->GetDeviceRemovedReason()):0);if(Resource&&Mapped)Resource->Unmap(0,nullptr);if(Size)Bytes.fetch_sub(Size);}
     bool Create(ID3D12Device* Device,uint64 InSize,D3D12_HEAP_TYPE Heap,D3D12_RESOURCE_STATES State,bool Uav,FString& Error)
     {
         // Dedicated committed allocations cannot be relocated by the engine's
@@ -47,7 +51,8 @@ struct FBuffer
         if(!Succeeded(Device->CreateCommittedResource(&Properties,D3D12_HEAP_FLAG_NONE,&Desc,State,nullptr,IID_PPV_ARGS(Resource.GetInitReference())),Error,TEXT("CreateCommittedResource")))return false;
         Size=InSize;Bytes.fetch_add(Size);PeakBytes.store(FMath::Max(PeakBytes.load(),Bytes.load()));
         Resource->SetName(L"SensorOwnedPersistent");
-        if(LedgerEnabled())UE_LOG(LogTemp,Display,TEXT("[SensorNativeLedger] create VA=0x%llx bytes=%llu heap=%d state=%u"),uint64(Resource->GetGPUVirtualAddress()),Size,int32(Heap),uint32(State));
+        if(LedgerEnabled())LedgerDevice=Device;
+        if(LedgerEnabled())UE_LOG(LogTemp,Display,TEXT("[SensorNativeLedger] create VA=0x%llx bytes=%llu heap=%d state=%u role=%s"),uint64(Resource->GetGPUVirtualAddress()),Size,int32(Heap),uint32(State),Purpose);
         if(Heap!=D3D12_HEAP_TYPE_DEFAULT)
         {
             D3D12_RANGE Range={0,Heap==D3D12_HEAP_TYPE_READBACK?SIZE_T(Size):0};
@@ -56,10 +61,14 @@ struct FBuffer
         return true;
     }
     D3D12_GPU_VIRTUAL_ADDRESS Address()const{return Resource->GetGPUVirtualAddress();}
+    bool BeginWrite(FString& Error)
+    {if(Mapped)return true;D3D12_RANGE Empty={0,0};return Succeeded(Resource->Map(0,&Empty,&Mapped),Error,TEXT("upload Map"));}
+    void EndWrite(uint64 WrittenBytes)
+    {FPlatformMisc::MemoryBarrier();D3D12_RANGE Written={0,SIZE_T(WrittenBytes)};Resource->Unmap(0,&Written);Mapped=nullptr;}
 };
 using FBufferPtr=TSharedPtr<FBuffer,ESPMode::ThreadSafe>;
-FBufferPtr NewBuffer(ID3D12Device* Device,uint64 Size,D3D12_HEAP_TYPE Heap,D3D12_RESOURCE_STATES State,bool Uav,FString& Error)
-{auto Result=MakeShared<FBuffer,ESPMode::ThreadSafe>();return Result->Create(Device,Size,Heap,State,Uav,Error)?Result:FBufferPtr();}
+FBufferPtr NewBuffer(ID3D12Device* Device,uint64 Size,D3D12_HEAP_TYPE Heap,D3D12_RESOURCE_STATES State,bool Uav,FString& Error,const TCHAR* Purpose=TEXT("Buffer"))
+{auto Result=MakeShared<FBuffer,ESPMode::ThreadSafe>();Result->Purpose=Purpose;return Result->Create(Device,Size,Heap,State,Uav,Error)?Result:FBufferPtr();}
 void UavBarrier(ID3D12GraphicsCommandList4* List)
 {D3D12_RESOURCE_BARRIER B={};B.Type=D3D12_RESOURCE_BARRIER_TYPE_UAV;List->ResourceBarrier(1,&B);}
 struct FBlas
@@ -72,7 +81,8 @@ struct FScene
     TArray<TSharedPtr<FBlas,ESPMode::ThreadSafe>> Blases;
     TArray<uint64> Revisions;
     TArray<FTransform> Poses;
-    FBufferPtr Instances,Storage,Scratch,Constants;
+    FBufferPtr Instances,Storage,Scratch;
+    FMatrix44f Normals[4];
     uint64 LastUse=0;
     bool Matches(const TArray<FSensorRtMesh>& Meshes)const
     {
@@ -87,6 +97,7 @@ struct FJob
     TRefCountPtr<ID3D12GraphicsCommandList4> List;
     FBufferPtr Rays,Results,Readback,Constants;
     TSharedPtr<FScene,ESPMode::ThreadSafe> Scene;
+    TArray<FBufferPtr> KeepAlive;
     int32 Count=0;
     uint64 FenceValue=0;
     uint64 BufferBytes()const{return Rays->Size+Results->Size+Readback->Size+Constants->Size;}
@@ -145,7 +156,7 @@ public:
         D3D12_COMPUTE_PIPELINE_STATE_DESC Desc={};Desc.pRootSignature=Root;Desc.CS={SensorNativeRayQueryDxil,sizeof(SensorNativeRayQueryDxil)};Desc.NodeMask=1;
         return Succeeded(Device->CreateComputePipelineState(&Desc,IID_PPV_ARGS(Pipeline.GetInitReference())),Error,TEXT("CreateComputePipelineState"));
     }
-    bool Complete(uint64 Value)const{return Fence->GetCompletedValue()>=Value;}
+    bool Complete(uint64 Value)const{const uint64 Done=Fence->GetCompletedValue();LastCompleted.store(Done);return Done>=Value;}
     bool Validate(FString& Error)
     {
         if(!InfoQueue)return true;
@@ -162,7 +173,7 @@ public:
     }
     void Return(TSharedPtr<FJob,ESPMode::ThreadSafe> Job)
     {
-        Job->Scene.Reset();uint64 Total=Job->BufferBytes();for(const auto& P:Free)Total+=P->BufferBytes();
+        check(Complete(Job->FenceValue));Job->KeepAlive.Reset();Job->Scene.Reset();uint64 Total=Job->BufferBytes();for(const auto& P:Free)Total+=P->BufferBytes();
         if(Free.Num()<4&&Total<=MaxFreeBytes)Free.Add(MoveTemp(Job));
     }
     void Collect()
@@ -176,10 +187,10 @@ public:
         if(!Succeeded(Device->CreateCommandList(1,ListType,Job->Allocator,nullptr,IID_PPV_ARGS(Job->List.GetInitReference())),Error,TEXT("CreateCommandList")))return {};
         if(!Succeeded(Job->List->Close(),Error,TEXT("initial Close")))return {};
         Job->List->SetName(L"SensorOwnedLidarList");Job->Allocator->SetName(L"SensorOwnedLidarAllocator");
-        Job->Rays=NewBuffer(Device,uint64(Count)*sizeof(FSensorRtRay),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error);
-        Job->Results=NewBuffer(Device,uint64(Count)*sizeof(FSensorRtHit),D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,true,Error);
-        Job->Readback=NewBuffer(Device,uint64(Count)*sizeof(FSensorRtHit),D3D12_HEAP_TYPE_READBACK,D3D12_RESOURCE_STATE_COPY_DEST,false,Error);
-        Job->Constants=NewBuffer(Device,512,D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error);
+        Job->Rays=NewBuffer(Device,uint64(Count)*sizeof(FSensorRtRay),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("Job.Rays"));
+        Job->Results=NewBuffer(Device,uint64(Count)*sizeof(FSensorRtHit),D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,true,Error,TEXT("Job.Results"));
+        Job->Readback=NewBuffer(Device,uint64(Count)*sizeof(FSensorRtHit),D3D12_HEAP_TYPE_READBACK,D3D12_RESOURCE_STATE_COPY_DEST,false,Error,TEXT("Job.Readback"));
+        Job->Constants=NewBuffer(Device,512,D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("Job.Constants"));
         if(!Job->Rays||!Job->Results||!Job->Readback||!Job->Constants)return {};
         ++PacketCreates;return Job;
     }
@@ -187,11 +198,12 @@ public:
     {
         for(auto& B:Blases)if(B->Revision==Mesh.Revision){B->LastUse=++Clock;return B;}
         auto B=MakeShared<FBlas,ESPMode::ThreadSafe>();B->Revision=Mesh.Revision;B->LastUse=++Clock;
-        B->Vertices=NewBuffer(Device,uint64(Mesh.Vertices->Num())*sizeof(FVector3f),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error);
-        B->Surfaces=NewBuffer(Device,uint64(Mesh.NormalsAndSurfaces->Num())*sizeof(FVector4f),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error);
+        B->Vertices=NewBuffer(Device,uint64(Mesh.Vertices->Num())*sizeof(FVector3f),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("B.Vertices"));
+        B->Surfaces=NewBuffer(Device,uint64(Mesh.NormalsAndSurfaces->Num())*sizeof(FVector4f),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("B.Surfaces"));
         if(!B->Vertices||!B->Surfaces)return {};
         FMemory::Memcpy(B->Vertices->Mapped,Mesh.Vertices->GetData(),Mesh.Vertices->Num()*sizeof(FVector3f));
         FMemory::Memcpy(B->Surfaces->Mapped,Mesh.NormalsAndSurfaces->GetData(),Mesh.NormalsAndSurfaces->Num()*sizeof(FVector4f));
+        B->Vertices->EndWrite(Mesh.Vertices->Num()*sizeof(FVector3f));B->Surfaces->EndWrite(Mesh.NormalsAndSurfaces->Num()*sizeof(FVector4f));
         D3D12_RAYTRACING_GEOMETRY_DESC Geometry={};Geometry.Type=D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;Geometry.Flags=D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
         Geometry.Triangles.VertexBuffer.StartAddress=B->Vertices->Address();Geometry.Triangles.VertexBuffer.StrideInBytes=sizeof(FVector3f);
         Geometry.Triangles.VertexCount=Mesh.Vertices->Num();Geometry.Triangles.VertexFormat=DXGI_FORMAT_R32G32B32_FLOAT;
@@ -199,8 +211,8 @@ public:
         Inputs.DescsLayout=D3D12_ELEMENTS_LAYOUT_ARRAY;Inputs.NumDescs=1;Inputs.pGeometryDescs=&Geometry;
         Inputs.Flags=D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_BUILD;
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO Size={};Device->GetRaytracingAccelerationStructurePrebuildInfo(&Inputs,&Size);
-        B->Storage=NewBuffer(Device,Size.ResultDataMaxSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,true,Error);
-        B->Scratch=NewBuffer(Device,Size.ScratchDataSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,true,Error);
+        B->Storage=NewBuffer(Device,Size.ResultDataMaxSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,true,Error,TEXT("B.Storage"));
+        B->Scratch=NewBuffer(Device,Size.ScratchDataSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,true,Error,TEXT("B.Scratch"));
         if(!B->Storage||!B->Scratch)return {};
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC Build={};Build.Inputs=Inputs;Build.DestAccelerationStructureData=B->Storage->Address();Build.ScratchAccelerationStructureData=B->Scratch->Address();
         List->BuildRaytracingAccelerationStructure(&Build,0,nullptr);UavBarrier(List);++BlasBuilds;
@@ -222,18 +234,17 @@ public:
             Instance.InstanceID=I;Instance.InstanceMask=0xff;Instance.AccelerationStructure=B->Storage->Address();Instances.Add(Instance);
         }
         if(Instances.IsEmpty()){Error=TEXT("native LiDAR empty collision TLAS");return {};}
-        S->Instances=NewBuffer(Device,Instances.Num()*sizeof(D3D12_RAYTRACING_INSTANCE_DESC),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error);
-        S->Constants=NewBuffer(Device,512,D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error);
-        if(!S->Instances||!S->Constants)return {};
+        S->Instances=NewBuffer(Device,Instances.Num()*sizeof(D3D12_RAYTRACING_INSTANCE_DESC),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("S.Instances"));
+        if(!S->Instances)return {};
         FMemory::Memcpy(S->Instances->Mapped,Instances.GetData(),Instances.Num()*sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
-        auto* Normals=static_cast<FMatrix44f*>(S->Constants->Mapped);
-        for(int32 I=0;I<4;++I)Normals[I]=I<Meshes.Num()?FMatrix44f(Meshes[I].LocalToWorld.ToInverseMatrixWithScale().GetTransposed()):FMatrix44f::Identity;
+        S->Instances->EndWrite(Instances.Num()*sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
+        for(int32 I=0;I<4;++I)S->Normals[I]=I<Meshes.Num()?FMatrix44f(Meshes[I].LocalToWorld.ToInverseMatrixWithScale().GetTransposed()):FMatrix44f::Identity;
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS Inputs={};Inputs.Type=D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
         Inputs.DescsLayout=D3D12_ELEMENTS_LAYOUT_ARRAY;Inputs.NumDescs=Instances.Num();Inputs.InstanceDescs=S->Instances->Address();
         Inputs.Flags=D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO Size={};Device->GetRaytracingAccelerationStructurePrebuildInfo(&Inputs,&Size);
-        S->Storage=NewBuffer(Device,Size.ResultDataMaxSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,true,Error);
-        S->Scratch=NewBuffer(Device,Size.ScratchDataSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,true,Error);
+        S->Storage=NewBuffer(Device,Size.ResultDataMaxSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,true,Error,TEXT("S.Storage"));
+        S->Scratch=NewBuffer(Device,Size.ScratchDataSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,true,Error,TEXT("S.Scratch"));
         if(!S->Storage||!S->Scratch)return {};
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC Build={};Build.Inputs=Inputs;Build.DestAccelerationStructureData=S->Storage->Address();Build.ScratchAccelerationStructureData=S->Scratch->Address();
         List->BuildRaytracingAccelerationStructure(&Build,0,nullptr);UavBarrier(List);++SceneBuilds;
@@ -283,11 +294,13 @@ TSharedPtr<ITicket,ESPMode::ThreadSafe> Submit(const TArray<FSensorRtMesh>& Mesh
     ON_SCOPE_EXIT{if(!Submitted){Backend->Scenes.Reset();Backend->Blases.Reset();}};
     if(!Succeeded(Job->Allocator->Reset(),Error,TEXT("allocator Reset"))||!Succeeded(Job->List->Reset(Job->Allocator,Backend->Pipeline),Error,TEXT("list Reset")))return {};
     Job->Scene=Backend->GetScene(Meshes,Job->List,Error);if(!Job->Scene)return {};
+    if(!Job->Rays->BeginWrite(Error)||!Job->Constants->BeginWrite(Error))return {};
     uint32 Offset=0;for(const auto& Part:Parts){const uint32 Size=Part.Num()*sizeof(FSensorRtRay);FMemory::Memcpy(static_cast<uint8*>(Job->Rays->Mapped)+Offset,Part.GetData(),Size);Offset+=Size;}
     // The immutable matrices are shared; the count/CBV is per fenced job.
     // Never overwrite another in-flight dispatch's constant allocation.
-    FMemory::Memcpy(Job->Constants->Mapped,Job->Scene->Constants->Mapped,256);
+    FMemory::Memcpy(Job->Constants->Mapped,Job->Scene->Normals,sizeof(Job->Scene->Normals));
     FMemory::Memcpy(static_cast<uint8*>(Job->Constants->Mapped)+256,&Count,sizeof(Count));
+    Job->Rays->EndWrite(uint64(Count)*sizeof(FSensorRtRay));Job->Constants->EndWrite(256+sizeof(Count));
     Job->List->SetComputeRootSignature(Backend->Root);
     Job->List->SetComputeRootShaderResourceView(0,Job->Scene->Storage->Address());
     Job->List->SetComputeRootShaderResourceView(1,Job->Rays->Address());
@@ -301,6 +314,18 @@ TSharedPtr<ITicket,ESPMode::ThreadSafe> Submit(const TArray<FSensorRtMesh>& Mesh
     Job->List->ResourceBarrier(1,&Transition);Job->List->CopyBufferRegion(Job->Readback->Resource,0,Job->Results->Resource,0,uint64(Count)*sizeof(FSensorRtHit));
     Swap(Transition.Transition.StateBefore,Transition.Transition.StateAfter);Job->List->ResourceBarrier(1,&Transition);
     if(!Succeeded(Job->List->Close(),Error,TEXT("Close")))return {};
+    // Explicitly pin every address recorded into this command list. This is
+    // independent of cache ownership and includes BLAS build inputs/scratch.
+    const uint64 Value=Backend->NextFence+1;
+    auto Pin=[&](const FBufferPtr& B){if(B){B->LastUseFence=FMath::Max(B->LastUseFence,Value);Job->KeepAlive.Add(B);}};
+    Pin(Job->Rays);Pin(Job->Results);Pin(Job->Readback);Pin(Job->Constants);
+    Pin(Job->Scene->Instances);Pin(Job->Scene->Storage);Pin(Job->Scene->Scratch);
+    for(const auto& B:Job->Scene->Blases)if(B){Pin(B->Vertices);Pin(B->Surfaces);Pin(B->Storage);Pin(B->Scratch);}
+    if(LedgerEnabled())
+    {
+        UE_LOG(LogTemp,Display,TEXT("[SensorNativeSubmit] fence=%llu completed=%llu TLAS=0x%llx constants=0x%llx count=%d"),Value,LastCompleted.load(),uint64(Job->Scene->Storage->Address()),uint64(Job->Constants->Address()),Count);
+        for(int32 I=0;I<Job->Scene->Blases.Num();++I)if(const auto& B=Job->Scene->Blases[I])UE_LOG(LogTemp,Display,TEXT("[SensorNativeBinding] fence=%llu mesh=%d surface=0x%llx blas=0x%llx"),Value,I,uint64(B->Surfaces->Address()),uint64(B->Storage->Address()));
+    }
     ID3D12CommandList* Lists[]={Job->List};Backend->Queue->ExecuteCommandLists(1,Lists);
     Submitted=true;
     Job->FenceValue=++Backend->NextFence;
