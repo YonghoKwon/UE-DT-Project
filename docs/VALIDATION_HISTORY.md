@@ -934,3 +934,15 @@ cut 순서별 RSS/Commit/RHIMisc: crash-off11.392/8.766/6.976,gpu-stats-off24.23
 Editor/Development빌드·Python40·순수7·관련RHI13Success/1Fail/0skip(반복실행기준). HATCH03.DigRuntimeRhi의8MiB rawRSS/retainedRSS/Commit3assert실패는그대로남겼다. RTon실제Rev7 HWRT 1Camera+1Lidar/offscreen1920×1080/10+30초/ABAB3블록12구간은FPS감소.000257%/p95변화0/GT증가.480829%/GPU감소5.722628%로2%통과했다. samplerGT평균2.529~2.804ms/표본,최대10.098ms다.
 
 개인253/보호483원본집합·SHA복원,DTCore/gitlink·ConfigGame·PixelStreaming·운영맵/uasset·Claude메모기존상태보존. 소유패키지/현재ABAB사본5729파일16,875,385,127bytes를검증후파일별삭제(빈폴더유지),trace생성0. 엔진/드라이버/allocator보존과계측밖native경로는여전히가설이며최종2시간/원래5쌍·전체release·직접mouse/회사수용은미수행이다. 기준완화·push/PR/외부merge없음(승인된LLM로컬병합만수행). [상세](MEMORY_FIX_26f_STAGE45.md)·[RESULT](../Saved/Reports/MEMORY-FIX-26f/RESULT.md)·[result](../Saved/Reports/MEMORY-FIX-26f/result.json)·[mergecheck](../Saved/Reports/MEMORY-FIX-26f/merge-check.json).
+
+## 2026-10-26 MEMORY-FIX-26f — GPU 제출·수명 최적화 시도 및 안전 fallback
+
+자율추적기준a2fd42d.9d8a255는호환센서요청batch와fencedGPU packet재사용, e6d009f는mainrender전Scheduler제출, f436073은정적hit/missrecord와package고정preview재사용, d323e98은명시7200초지원이다. 프로젝트7태그off/동일RHIMisc를위한engineLLMon,trace없음,Rev7×3/PCD기본/preview기본/요청20Hz,1920×1080offscreen,font100/UMG1,binned2,controls1·1·1/timepref0/Trim0이다.
+
+첫60분e6꼬리RSS3.274/Commit.505/RHI6.363MiB/h·17Hz로목표미달. 추가수정f436의60분은-.547/-1.014/-.111·20Hz, d323의2시간2회마지막40분은1.759/2.466/.070과4.771/4.801/-.007·20Hz로중간소스에서통과했다. 모든이전장시간원본을보존했다.
+
+그러나d323원래5쌍수집은pair3controlD3D12UpdateResidency/GPUmaskassertion으로중단됐다. UE5.3D3D12는SingleFrame RTscene만지원하고build시rawresidencyhandle을저장한다. 정확한handle깨짐원인전체는미확정이나crossframe재사용의안전근거가부족하여3485774에서캐시hit를같은렌더프레임으로제한했다. byte/pointoracle와8MiB/150ms/20Hz/2%기준은유지했다. 이후추가장시간메모리최적화실험은중단했고이전SHA의장시간통과를최종소스PASS로이월하지않는다.
+
+348의안전RHI4Success/0skip,Editor/Development/Shippingbuild,Development/Shipping30초smoke통과. 최종5쌍10실행에서동일residency크래시는관찰되지않았지만absolute8MiB와dig-control8MiB모두FAIL(Commit차이중앙값90.926MiB),pair2의150ms GT/콜백실패도보존했다. RTonABAB3블록12구간(a2→348,1Camera+1Rev7실제HWRT/offscreen/10+30초)은FPS감소.000470%/p95변화0/GT-.154541%/GPU-3.598122%로2%통과다.
+
+직접UI는Windows잠금화면확인후0input/미수행,해제·우회하지않았다. 최종quick/release관련/layer/guard/schema/보호·정리·mergecheck는최종result.json을따른다. [상세](MEMORY_FIX_26f_GPU_SUBMISSION.md)·[재작성계획](LIDAR_GPU_ACQUISITION_REWRITE_PLAN_26f.md)·[RESULT](../Saved/Reports/MEMORY-FIX-26f/RESULT.md). #26미해결,기준완화없음,push/merge없음.

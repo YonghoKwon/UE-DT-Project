@@ -76,7 +76,7 @@ allocation 후속(기준a64dcc8/실측f1236f6): idle trace15분과4개 cut 및 �
 
 26e(기준15326e6/Runtime eb4d515): 큰 future 결과3경로를 이동 소비하고 해치 FResult를 move-only로 만들었다. package20분 trace2회/비추적60분 모두 누수 의심, 비추적 RSS17.50/Commit13.84/RHIMisc11.81MiB/h·UObject0이다. query 배열·bounded profiler cache·PCD encode만 두 새 trace의 증가 경로 후보로 남겼으며 point lease1개+25MiB 등 단일 실행 차이를 누수로 단정하지 않았다. 관련22 Success/1기존 Fail/0 Skip, 기준에서도 같은4assertion 재현·quick/layer/guard 통과지만 RT on ABAB1블록 GPU+2.4487% FAIL을 유지한다. 기존 RSS 수용·기준과 제품 기본값은 유지한다. [조건·콜스택·정리 제한](MEMORY_OBSERVATION_26e.md)·[결과](../Saved/Reports/MEMORY-26e/RESULT.md).
 
-26f 해결 계획2단계 통합·4/5단계 완료(전체기준 `d8048bf`, Runtime `f8dc70d`): LLM 태그7개와 분석기 확장을 통합하고, 같은 Development 패키지로 기본조건+우리코드5개 분리조건을 각30분 실행했다. 기존 흔들림·처리량 기준을 통과한 메모리 개선 후보가 없어 제품 개선 수정은 적용하지 않았다. 추가60분 기본확인의 RSS/Commit/RHIMisc 꼬리는18.237/15.014/11.819MiB/h로 목표 미달이며 #26은 미해결이다. RTon ABAB3블록2%는 통과했고, 관련HATCH03의 기존8MiB3assert는 실패로 보존했다. 최종2시간/원래5쌍은6단계 별도 지시 대상이다. [방법·표·한계](MEMORY_FIX_26f_STAGE45.md)·[이전1·3단계](MEMORY_FIX_26f_STAGE13.md)·[결과](../Saved/Reports/MEMORY-FIX-26f/RESULT.md).
+26f GPU 제출·수명 추적(기준 `a2fd42d`, 최종 Runtime `3485774`): 배치·fenced GPU packet·고정 preview 재사용을 구현했다. 중간 SHA의 idle60분·2시간2회는8/8/2MiB/h와실제20Hz를통과했지만,반복디깅검증에서residency크래시가발견되어RTscene재사용을같은렌더프레임으로제한했다. **이전SHA장시간통과를최종소스에이월하지않으며#26은미해결**이다. 최종소스의원래5쌍8MiB·150ms기준은실패,RTonABAB2%와Development/Shipping30초smoke는통과했다. 추가메모리수정은중단하고재작성계획을남겼다. [결과·검증범위](MEMORY_FIX_26f_GPU_SUBMISSION.md)·[재작성계획](LIDAR_GPU_ACQUISITION_REWRITE_PLAN_26f.md)·[RESULT](../Saved/Reports/MEMORY-FIX-26f/RESULT.md).
 
 ## FOLLOWUP-28 — Rev7×3 PCD 송신 공정성
 
