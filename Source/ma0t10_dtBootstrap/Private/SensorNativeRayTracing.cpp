@@ -358,6 +358,18 @@ TSharedPtr<ITicket,ESPMode::ThreadSafe> Submit(const TArray<FSensorRtMesh>& Mesh
     bool Submitted=false;
     ON_SCOPE_EXIT{if(!Submitted){Backend->Scenes.Reset();Backend->Blases.Reset();}};
     if(!Succeeded(Job->Allocator->Reset(),Error,TEXT("allocator Reset"))||!Succeeded(Job->List->Reset(Job->Allocator,Backend->Pipeline),Error,TEXT("list Reset")))return {};
+    if(Backend->ScopedGbv)
+    {
+        TRefCountPtr<ID3D12DebugCommandList1> Debug;
+        if(!Succeeded(Job->List->QueryInterface(IID_PPV_ARGS(Debug.GetInitReference())),Error,TEXT("GBV reset list")))return {};
+        D3D12_DEBUG_COMMAND_LIST_GPU_BASED_VALIDATION_SETTINGS Settings={D3D12_GPU_BASED_VALIDATION_SHADER_PATCH_MODE_UNGUARDED_VALIDATION};
+        if(!Succeeded(Debug->SetDebugParameter(D3D12_DEBUG_COMMAND_LIST_PARAMETER_GPU_BASED_VALIDATION_SETTINGS,&Settings,sizeof(Settings)),Error,TEXT("GBV after reset")))return {};
+        D3D12_DEBUG_COMMAND_LIST_GPU_BASED_VALIDATION_SETTINGS Readback={};
+        if(!Succeeded(Debug->GetDebugParameter(D3D12_DEBUG_COMMAND_LIST_PARAMETER_GPU_BASED_VALIDATION_SETTINGS,&Readback,sizeof(Readback)),Error,TEXT("GBV verify after reset")))return {};
+        if(Readback.ShaderPatchMode!=Settings.ShaderPatchMode){Error=TEXT("native GBV patch mode differs after Reset");return {};}
+        Job->List->SetPipelineState(Backend->Pipeline);
+        if(Backend->NextFence==0)UE_LOG(LogTemp,Display,TEXT("[SensorNativeGBV] native list patch mode verified after Reset=%d"),int32(Readback.ShaderPatchMode));
+    }
     Job->Scene=Backend->GetScene(Meshes,Job->List,Error);if(!Job->Scene)return {};
     if(!Job->Rays->BeginWrite(Error)||!Job->Constants->BeginWrite(Error))return {};
     uint32 Offset=0;for(const auto& Part:Parts){const uint32 Size=Part.Num()*sizeof(FSensorRtRay);FMemory::Memcpy(static_cast<uint8*>(Job->Rays->Mapped)+Offset,Part.GetData(),Size);Offset+=Size;}

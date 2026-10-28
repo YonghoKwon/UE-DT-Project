@@ -51,6 +51,8 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
     int32 Port=0, Phase=0, WarmEdits=0, Samples=0, SensorCount=3;
     bool Finished=false, Failed=false, Llm=false;
     bool Investigation=false, TraceCanaryEnabled=false, DepthProjection=false, SkipWarmEdits=false, Isolation=false;
+    bool AcquisitionOff=false, OutputsOff=false, CutApplied=false;
+    double CutReadyAt=0;
     int32 CanaryStage=0;
     TArray<uint8> TraceCanary;
     TArray<uint8> CameraTagCanary;
@@ -120,7 +122,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
     void Finish(bool Complete,const FString& Reason)
     {
         if(Finished)return;Finished=true;Failed=!FinishHatchMemoryExperiment(Complete&&!Failed)||Failed;
-        auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("type"),TEXT("summary"));R->SetObjectField(TEXT("pcd"),Pcd(Complete));
+        auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("type"),TEXT("summary"));R->SetObjectField(TEXT("pcd"),Pcd(Complete&&!AcquisitionOff&&!OutputsOff));
         R->SetStringField(TEXT("reason"),Reason);R->SetBoolField(TEXT("complete"),Complete&&!Failed);R->SetBoolField(TEXT("diagnostic_only"),true);
         if(Complete&&!Failed){TRACE_BOOKMARK(TEXT("MEMORY26B_END"));}else{TRACE_BOOKMARK(TEXT("MEMORY26B_CANCEL"));}
         R->SetNumberField(TEXT("sample_count"),Samples);R->SetNumberField(TEXT("measurement_seconds"),Started?FPlatformTime::Seconds()-Started:0);
@@ -134,7 +136,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         // world/output before engine PreExit tears down scene-view delegates.
         // No stop/drain cost enters memory samples or their GT cost values.
         if(Host.IsValid()&&Host->Simulation)for(int32 I=0;I<3;++I)if(auto* A=Host->Simulation->SensorAt(I))A->StopSensor();
-        if(Publisher.IsValid())Publisher->StopAllStreams(TEXT("*"));
+        if(Publisher.IsValid())Publisher->StopAllStreams(TEXT(""));
         if(World.IsValid())if(auto* View=World->GetGameViewport())View->bDisableWorldRendering=true;
         FlushRenderingCommands();
         FPlatformMisc::RequestExitWithStatus(false,Complete&&!Failed&&Saved?0:2);
@@ -175,9 +177,10 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         R->SetNumberField(TEXT("camera_gt_tag_canary_bytes"),CameraTagCanary.Num());
         R->SetBoolField(TEXT("project_tags_enabled"),MA0T10MemoryTags::IsEnabled());
         R->SetBoolField(TEXT("investigation"),Investigation);R->SetBoolField(TEXT("trace_canary"),TraceCanaryEnabled);R->SetStringField(TEXT("trace_bookmarks"),TEXT("MEMORY26B_BEGIN/END; shared allocation-query contract"));
-        R->SetBoolField(TEXT("sampler_enabled"),true);R->SetBoolField(TEXT("pcd_loopback"),true);R->SetBoolField(TEXT("pcd_default_compressed"),Publisher->GetPcdSendOptions(TEXT("")).bCompressed);
+        R->SetBoolField(TEXT("sampler_enabled"),true);R->SetBoolField(TEXT("pcd_loopback"),!AcquisitionOff&&!OutputsOff);R->SetBoolField(TEXT("pcd_default_compressed"),Publisher->GetPcdSendOptions(TEXT("")).bCompressed);
         R->SetStringField(TEXT("workload"),SkipWarmEdits?TEXT("diagnostic fixed geometry; no warm Dig/restore;35s warmup"):TEXT("packaged idle;17 public Dig near-surface ray cycles with fresh analysis, restore,35s warmup; no Editor automation history"));
         R->SetNumberField(TEXT("diagnostic_sensor_count"),SensorCount);R->SetBoolField(TEXT("diagnostic_depth_projection"),DepthProjection);R->SetBoolField(TEXT("diagnostic_revision_changes"),!SkipWarmEdits);
+        R->SetBoolField(TEXT("diagnostic_acquisition_off"),AcquisitionOff);R->SetBoolField(TEXT("diagnostic_outputs_off"),OutputsOff);
         R->SetStringField(TEXT("source_commit"),SourceCommit);R->SetStringField(TEXT("started_utc"),FDateTime::UtcNow().ToIso8601());
         R->SetStringField(TEXT("allocator"),GMalloc->GetDescriptiveName());
         if(Host.IsValid()&&Host->Monitor)R->SetNumberField(TEXT("font_percent"),Host->Monitor->GetFontScale()*100);
@@ -215,8 +218,9 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
             // Match the Editor row's fixed ten counters, including zero tags.
             for(const TCHAR* Name:{TEXT("Physics"),TEXT("ChaosTrimesh"),TEXT("UObject"),TEXT("UI"),TEXT("RHIMisc"),TEXT("Textures"),TEXT("FMallocUnused"),TEXT("Hatch/CargoCook"),TEXT("Hatch/RayTree"),TEXT("Hatch/CargoUpdate")})
                 Watched->SetNumberField(Name,double(DefaultTags.FindRef(FName(Name))));
-            for(const TCHAR* Name:{TEXT("Untracked"),TEXT("TrackedTotal"),TEXT("Total"),TEXT("FMalloc")})
+            for(const TCHAR* Name:{TEXT("Untracked"),TEXT("TrackedTotal"),TEXT("Total"),TEXT("FMalloc"),TEXT("ThreadStack"),TEXT("EngineMisc"),TEXT("RenderTargets")})
                 if(const auto* V=DefaultTags.Find(FName(Name)))Watched->SetNumberField(Name,double(*V));
+            auto Platform=MakeShared<FJsonObject>();for(const TCHAR* Name:{TEXT("ThreadStackPlatform"),TEXT("FMalloc"),TEXT("PlatformUntracked"),TEXT("GraphicsPlatform"),TEXT("PlatformTotal"),TEXT("PlatformOverhead")})if(const auto* V=PlatformTags.Find(FName(Name)))Platform->SetNumberField(Name,double(*V));R->SetObjectField(TEXT("llm_platform"),Platform);
             // Retain every observed project leaf, even below top16. An absent
             // tag stays absent; it is not evidence of a measured zero.
             if(MA0T10MemoryTags::IsEnabled())for(const TCHAR* Name:MA0T10MemoryTags::Names)
@@ -243,7 +247,8 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
                 J->SetNumberField(TEXT("horizontal_samples"),Scan->HorizontalSamples);J->SetNumberField(TEXT("vertical_channels"),Scan->VerticalChannels);J->SetNumberField(TEXT("requested_hz"),Status.RequestedAcquisitionRateHz);
                 J->SetNumberField(TEXT("preview_point_budget"),Scan->GetPreviewPolicyState().MaxPoints);J->SetNumberField(TEXT("visible_preview_points"),A->VisualizationComponent->GetVisiblePointCount());
                 const auto ExpectedBackend=DepthProjection?EVirtualLidarAcquisitionBackend::GpuDepthProjection:EVirtualLidarAcquisitionBackend::HardwareRayTracing;
-                if(!A->IsSensorRunning()||State.LidarProfile!=EVirtualLidarDeviceProfile::OusterOS1_64_Rev7||Scan->HorizontalSamples!=1024||Scan->VerticalChannels!=64||!FMath::IsNearlyEqual(Status.RequestedAcquisitionRateHz,20.f)||Scan->GetPreviewPolicyState().MaxPoints!=12000||A->VisualizationComponent->GetVisiblePointCount()<=0||Scan->GetActiveAcquisitionBackend()!=ExpectedBackend)Failed=true;
+                const bool PreviewValid=OutputsOff?A->VisualizationComponent->GetVisiblePointCount()==0:A->VisualizationComponent->GetVisiblePointCount()>0;
+                if(A->IsSensorRunning()==AcquisitionOff||State.LidarProfile!=EVirtualLidarDeviceProfile::OusterOS1_64_Rev7||Scan->HorizontalSamples!=1024||Scan->VerticalChannels!=64||(!AcquisitionOff&&!FMath::IsNearlyEqual(Status.RequestedAcquisitionRateHz,20.f))||Scan->GetPreviewPolicyState().MaxPoints!=12000||!PreviewValid||Scan->GetActiveAcquisitionBackend()!=ExpectedBackend)Failed=true;
                 Sensors->SetObjectField(A->GetSensorId(),J);
             }
             R->SetObjectField(TEXT("sensors"),Sensors);R->SetNumberField(TEXT("previous_sample_total_gt_ms"),PreviousCost);R->SetNumberField(TEXT("restores"),0);
@@ -260,6 +265,7 @@ public:
         FParse::Value(FCommandLine::Get(),TEXT("HatchMemorySensorCount="),SensorCount);
         DepthProjection=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDepthProjection"));SkipWarmEdits=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryNoRevisionChanges"));
         Isolation=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryIsolation"));
+        AcquisitionOff=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAcquisitionOff"));OutputsOff=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryOutputsOff"));
         Investigation=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryInvestigation"));TraceCanaryEnabled=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryTraceCanary"));
         const bool FinalSoak=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryFinalValidation"));
         const bool ValidDuration=Investigation?(Seconds>=900&&Seconds<=1200):(Seconds==30||(Seconds>=1800&&Seconds<=3600)||(FinalSoak&&Seconds==7200));
@@ -308,7 +314,19 @@ public:
         }
         if(Phase==2)
         {
-            if(Now-Changed<35)return;if(!Begin(*S)){Finish(false,TEXT("fresh output or viewport validation failed"));return;}Phase=3;Sample(*S);return;
+            if(Now-Changed<35)return;
+            if((AcquisitionOff||OutputsOff)&&!CutApplied)
+            {
+                for(int32 I=0;I<SensorCount;++I)if(auto* A=S->SensorAt(I))
+                {
+                    if(AcquisitionOff)A->StopSensor();
+                    if(OutputsOff)A->VisualizationComponent->SetWorldPointCloudEnabled(false);
+                }
+                if(Publisher.IsValid())Publisher->StopAllStreams(TEXT(""));
+                CutApplied=true;CutReadyAt=Now+5;return;
+            }
+            if(CutApplied&&Now<CutReadyAt)return;
+            if(!Begin(*S)){Finish(false,TEXT("fresh output or viewport validation failed"));return;}Phase=3;Sample(*S);return;
         }
         // The measured idle sampler does not require analysis completion: a
         // stalled measurement/analysis cannot silently suppress memory samples.
@@ -321,7 +339,7 @@ public:
         {
             Sample(*S);if(Now-Started>=Seconds)
             {
-                for(int32 I=0;I<SensorCount;++I)if(auto* A=S->SensorAt(I))if(A->ScanComponent->GetRuntimeStatus().FrameId<=FramesBefore.FindRef(A->GetSensorId()))Failed=true;
+                for(int32 I=0;I<SensorCount;++I)if(auto* A=S->SensorAt(I)){const auto Frame=A->ScanComponent->GetRuntimeStatus().FrameId;const auto Before=FramesBefore.FindRef(A->GetSensorId());if(AcquisitionOff?Frame!=Before:Frame<=Before)Failed=true;}
                 Finish(true,TEXT("finished"));
             }
         }
