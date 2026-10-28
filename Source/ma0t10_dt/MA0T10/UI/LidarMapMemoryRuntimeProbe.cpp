@@ -30,7 +30,7 @@ class FLidarMapMemoryProbe final:public FTickableGameObject
     TMap<FName,uint64> DefaultTags,PlatformTags;
     double Created=FPlatformTime::Seconds(),Ready=0,Started=0,Next=0,Seconds=3600,PreviousCost=0,MaxCost=0,TotalCost=0;
     int32 Samples=0,ExpectedSensors=-1;
-    bool Off=false,Configured=false,Finished=false,Failed=false;
+    bool Off=false,ForceHardware=false,Configured=false,Finished=false,Failed=false;
     bool Write(const TSharedRef<FJsonObject>& Row)
     {
         if(!File)return false;FString Text;FJsonSerializer::Serialize(Row,TJsonWriterFactory<TCHAR,TCondensedJsonPrintPolicy<TCHAR>>::Create(&Text));Text+=TEXT("\n");
@@ -63,6 +63,7 @@ class FLidarMapMemoryProbe final:public FTickableGameObject
         for(TActorIterator<AVirtualLidarSensorActor> I(World.Get());I;++I)
         {
             ++Count;auto* Scan=I->ScanComponent.Get();const auto Status=Scan->GetRuntimeStatus();auto S=MakeShared<FJsonObject>();
+            if(ForceHardware&&(!I->IsSensorRunning()||Scan->GetActiveAcquisitionBackend()!=EVirtualLidarAcquisitionBackend::HardwareRayTracing))Failed=true;
             S->SetNumberField(TEXT("frame_id"),double(Status.FrameId));S->SetBoolField(TEXT("running"),I->IsSensorRunning());S->SetNumberField(TEXT("requested_hz"),Status.RequestedAcquisitionRateHz);S->SetNumberField(TEXT("active_acquisition_backend"),int32(Scan->GetActiveAcquisitionBackend()));
             S->SetNumberField(TEXT("horizontal_samples"),Scan->HorizontalSamples);S->SetNumberField(TEXT("vertical_channels"),Scan->VerticalChannels);S->SetNumberField(TEXT("visible_preview_points"),I->VisualizationComponent->GetVisiblePointCount());Sensors->SetObjectField(I->GetSensorId(),S);
         }
@@ -76,7 +77,8 @@ public:
     explicit FLidarMapMemoryProbe(FString In):Directory(MoveTemp(In))
     {
         FParse::Value(FCommandLine::Get(),TEXT("LidarMapMemorySeconds="),Seconds);FParse::Value(FCommandLine::Get(),TEXT("LidarMapMemoryCancel="),CancelFile);Off=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryAllOff"));
-        Failed=Seconds!=30&&Seconds!=3600;IFileManager::Get().MakeDirectory(*Directory,true);const FString Path=Directory/TEXT("memory-trend.jsonl");if(IFileManager::Get().FileExists(*Path))Failed=true;else File.Reset(IFileManager::Get().CreateFileWriter(*Path,FILEWRITE_AllowRead));if(!File)Failed=true;
+        ForceHardware=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryHardware"));
+        Failed=(Seconds!=30&&Seconds!=3600)||(Off&&ForceHardware);IFileManager::Get().MakeDirectory(*Directory,true);const FString Path=Directory/TEXT("memory-trend.jsonl");if(IFileManager::Get().FileExists(*Path))Failed=true;else File.Reset(IFileManager::Get().CreateFileWriter(*Path,FILEWRITE_AllowRead));if(!File)Failed=true;
     }
     TStatId GetStatId()const override{RETURN_QUICK_DECLARE_CYCLE_STAT(FLidarMapMemoryProbe,STATGROUP_Tickables);}
     void Tick(float)override
@@ -94,12 +96,17 @@ public:
                 bool Found=false;for(TActorIterator<AShipHatchSimulation> I(World.Get());I;++I){if(I->IsGenerating())return;Found=true;for(int32 J=0;J<3;++J)I->SetFieldSensor(J,false,I->FieldProfiles[J]);}
                 if(!Found){Finish(false,TEXT("all-off baseline requires hatch public sensor selection"));return;}
             }
-            Configured=true;Ready=Now+(Off?35:0);return;
+            if(ForceHardware)for(TActorIterator<AVirtualLidarSensorActor> I(World.Get());I;++I)
+            {FString Error;if(!I->SetLidarAcquisitionBackend(EVirtualLidarAcquisitionBackend::HardwareRayTracing,Error)){Finish(false,TEXT("diagnostic hardware backend selection rejected"));return;}}
+            Configured=true;Ready=Now+((Off||ForceHardware)?35:0);return;
         }
         if(Now<Ready)return;
         if(!Started)
         {
             auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("type"),TEXT("metadata"));R->SetStringField(TEXT("map"),World->GetMapName());R->SetBoolField(TEXT("all_lidar_off"),Off);R->SetStringField(TEXT("scope"),TEXT("Default map devices/settings/output retained; explicit all-off prevents hatch LiDAR creation. Diagnostic sampler only; no map/save write."));R->SetNumberField(TEXT("requested_seconds"),Seconds);R->SetNumberField(TEXT("interval_seconds"),5);
+            R->SetBoolField(TEXT("diagnostic_force_hardware"),ForceHardware);
+            R->SetStringField(TEXT("started_utc"),(FDateTime::UtcNow()-FTimespan::FromSeconds(FPlatformTime::Seconds()-Now)).ToIso8601());
+            if(ForceHardware)R->SetStringField(TEXT("scope"),TEXT("Explicit diagnostic hardware backend through Actor API after map initialization; profile/quality/output retained; no map/save write, no product default change."));
             R->SetStringField(TEXT("configuration"),
 #if UE_BUILD_SHIPPING
                 TEXT("Shipping")

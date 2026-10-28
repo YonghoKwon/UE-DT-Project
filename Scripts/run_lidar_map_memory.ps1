@@ -3,11 +3,13 @@ param(
  [Parameter(Mandatory=$true)][string]$ReportRoot,
  [ValidateSet('ShipHatchTestMap','SlabScenarioValidationMap','CoilLoadingTestMap')][string]$Map='ShipHatchTestMap',
  [ValidateSet(30,3600)][int]$Seconds=3600,
- [switch]$AllLidarOff
+ [switch]$AllLidarOff,
+ [switch]$ForceHardware
 )
 $ErrorActionPreference='Stop';$root=Split-Path -Parent $PSScriptRoot
 $Executable=(Resolve-Path -LiteralPath $Executable).Path;$ReportRoot=[IO.Path]::GetFullPath($ReportRoot)
 if(Test-Path -LiteralPath $ReportRoot){throw 'Fresh report directory required'}
+if($AllLidarOff -and $ForceHardware){throw 'Conflicting all-off/hardware diagnostic conditions'}
 if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole,ShaderCompileWorker,ma0t10_dt,ma0t10_dt-Win64-Shipping -ErrorAction SilentlyContinue){throw 'Other Unreal work active'}
 New-Item -ItemType Directory -Path $ReportRoot|Out-Null
 $game=$null;$monitor=$null;$failure='';$video=$false;$clock=$false
@@ -25,6 +27,7 @@ try{
  $args=@("/Game/MA0T10/Maps/Tests/$Map",'-d3d12','-llm','-NoProjectMemoryTags','-nosound','-unattended','-nop4','-nosplash','-windowed','-RenderOffscreen','-ForceRes','-ResX=1920','-ResY=1080',
   '-ExecCmds=t.MaxFPS 60,r.VSync 0,t.IdleWhenNotForeground 0,Slate.bAllowThrottling 0',"-UserDir=$ReportRoot/user","-LidarMapMemoryReport=$ReportRoot","-LidarMapMemorySeconds=$Seconds","-LidarMapMemoryCancel=$ReportRoot/cancel.request","-abslog=$ReportRoot/game.log")
  if($AllLidarOff){$args+='-LidarMapMemoryAllOff'}
+ if($ForceHardware){$args+='-LidarMapMemoryHardware'}
  $game=Start-Process -FilePath $Executable -ArgumentList @($args|ForEach-Object{'"'+$_+'"'}) -WindowStyle Hidden -PassThru -RedirectStandardOutput "$ReportRoot/console.log" -RedirectStandardError "$ReportRoot/stderr.log";$null=$game.Handle
  @{Pid=$game.Id;Executable=$Executable;Utc=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json|Set-Content -Encoding UTF8 "$ReportRoot/owned-process.json"
  $m=@("$root/Scripts/record_process_counters.py",'--pid',"$($game.Id)",'--output',"$ReportRoot/os-counters.jsonl",'--stop-file',"$ReportRoot/os.stop",'--interval','5')
@@ -49,7 +52,7 @@ try{
 finally{
  if($game -and !$game.HasExited){[IO.File]::WriteAllText("$ReportRoot/cancel.request",'launcher failed; orderly owned process shutdown requested');if(!$game.WaitForExit(15000)){$failure+='; owned game did not exit after cancel'}}
  [IO.File]::WriteAllText("$ReportRoot/os.stop",'done');if($monitor){[void]$monitor.WaitForExit(10000)}
- @{Valid=(!$failure);Failure=$failure;VideoDecodeDetected=$video;Map=$Map;AllLidarOff=[bool]$AllLidarOff;Seconds=$Seconds;GameExit=$(if($game){$game.ExitCode}else{$null});Executable=$Executable;NativeSelection='automatic validated driver/configuration policy, never forced';Scope='Packaged additional map observation; OS private Commit and private Working Set kept distinct'}|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 "$ReportRoot/run-manifest.json"
+ @{Valid=(!$failure);Failure=$failure;VideoDecodeDetected=$video;Map=$Map;AllLidarOff=[bool]$AllLidarOff;ForceHardware=[bool]$ForceHardware;Seconds=$Seconds;GameExit=$(if($game){$game.ExitCode}else{$null});Executable=$Executable;NativeSelection='automatic validated driver/configuration policy; optional sensorHardware diagnostic, never forceNative bypass';Scope='Packaged additional map observation; OS private Commit and private Working Set kept distinct'}|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 "$ReportRoot/run-manifest.json"
 }
 if($failure){throw $failure}
 if($Seconds -eq 3600){& python "$root/Scripts/analyze_lidar_map_memory.py" $ReportRoot;if($LASTEXITCODE -ne 0){throw 'Map/OS analysis failed'}}
