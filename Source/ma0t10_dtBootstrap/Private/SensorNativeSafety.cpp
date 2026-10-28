@@ -1,7 +1,6 @@
 #include "SensorNativeSafety.h"
 #include "GenericPlatform/GenericPlatformDriver.h"
 #include "HAL/FileManager.h"
-#include "HAL/PlatformMisc.h"
 #include "HAL/PlatformProcess.h"
 #include "Misc/Crc.h"
 #include "Misc/Paths.h"
@@ -13,7 +12,13 @@ namespace SensorNativeSafety
 namespace
 {
 std::atomic<bool> Disabled{false},Warned{false};
-const FGPUDriverInfo& DriverInfo(){static const auto Info=FPlatformMisc::GetGPUDriverInfo(GRHIAdapterName);return Info;}
+const FGPUDriverInfo& DriverInfo()
+{
+    // RHI captured these at device initialization. GetGPUDriverInfo itself reads
+    // game-thread-only CVars and must not run lazily from render-thread dispatch.
+    static const FGPUDriverInfo Info=[](){FGPUDriverInfo I;I.VendorId=GRHIVendorId;I.DeviceDescription=GRHIAdapterName;I.UserDriverVersion=GRHIAdapterUserDriverVersion;return I;}();
+    return Info;
+}
 const FString& MarkerPath()
 {
     static const FString Path=FPaths::ProjectSavedDir()/TEXT("NativeLidarSafety")/FString::Printf(TEXT("active-%08x.guard"),FCrc::StrCrc32(*(DriverInfo().DeviceDescription+TEXT("|")+DriverInfo().UserDriverVersion)));
