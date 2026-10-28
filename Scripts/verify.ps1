@@ -64,7 +64,12 @@ $sourceFingerprint = @{}
 $failure = ''
 $head = (Get-GitLines -Arguments @('rev-parse', 'HEAD')) -join ''
 $submodule = (Get-GitLines -Arguments @('-C', 'Plugins/DTCore', 'rev-parse', 'HEAD')) -join ''
+$priorAcceptanceX = $env:MA0T10_ACCEPTANCE_RES_X
+$priorAcceptanceY = $env:MA0T10_ACCEPTANCE_RES_Y
 try {
+    # Release includes native environment captures whose existing contract is
+    # 1920x1080. Declare that fixture condition for child Editors and restore it.
+    if ($Level -eq 'release') { $env:MA0T10_ACCEPTANCE_RES_X = '1920'; $env:MA0T10_ACCEPTANCE_RES_Y = '1080' }
     Invoke-Step 'diff-check' { & git -C $root diff --check; if ($LASTEXITCODE -ne 0) { throw 'Worktree whitespace check failed' }; & git -C $root diff --cached --check; if ($LASTEXITCODE -ne 0) { throw 'Index whitespace check failed' } }
     Invoke-Step 'dtcore-guard' { & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_dtcore_submodule_guard.ps1" -FailOnViolation -Json; if ($LASTEXITCODE -ne 0) { throw 'DTCore guard failed' } }
     Invoke-Step 'layer-gate' { & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_architecture_layers.ps1" -Json; if ($LASTEXITCODE -ne 0) { throw 'Layer gate failed' } }
@@ -136,6 +141,8 @@ try {
     }
 } catch { $failure = $_.Exception.Message }
 finally {
+    $env:MA0T10_ACCEPTANCE_RES_X = $priorAcceptanceX
+    $env:MA0T10_ACCEPTANCE_RES_Y = $priorAcceptanceY
     try { Read-Tests; if (@($testResults | Where-Object { $_.State -notin @('Success', 'Skip') }).Count) { throw 'Automation contains Failed/NotRun tests' } }
     catch { if (-not $failure) { $failure = $_.Exception.Message } }
     try {
