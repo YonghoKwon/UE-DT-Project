@@ -243,16 +243,28 @@ public:
         if(!Job->Rays||!Job->Results||!Job->Readback||!Job->Constants)return {};
         ++PacketCreates;return Job;
     }
-    TSharedPtr<FBlas,ESPMode::ThreadSafe> GetBlas(const FSensorRtMesh& Mesh,ID3D12GraphicsCommandList4* List,FString& Error)
+    TSharedPtr<FBlas,ESPMode::ThreadSafe> GetBlas(const FSensorRtMesh& Mesh,ID3D12GraphicsCommandList4* List,uint64 MinSurfaceBytes,FString& Error)
     {
-        for(auto& B:Blases)if(B->Revision==Mesh.Revision){B->LastUse=++Clock;return B;}
+        // The compiled ternary eagerly loads all four metadata SRVs before
+        // selecting a mesh. Root SRVs have no descriptor bounds, so every
+        // binding must cover the largest primitive-index domain in the scene.
+        // Grow by replacement only: old submitted roots stay pinned by jobs.
+        const uint64 SurfaceBytes=FMath::Max(MinSurfaceBytes,uint64(Mesh.NormalsAndSurfaces->Num())*sizeof(FVector4f));
+        auto EnsureSurfaces=[&](FBlas& B)
+        {
+            if(B.Surfaces&&B.Surfaces->Size>=SurfaceBytes)return true;
+            auto Surfaces=NewBuffer(Device,SurfaceBytes,D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("B.Surfaces"));
+            if(!Surfaces)return false;
+            FMemory::Memzero(Surfaces->Mapped,Surfaces->Size);
+            FMemory::Memcpy(Surfaces->Mapped,Mesh.NormalsAndSurfaces->GetData(),Mesh.NormalsAndSurfaces->Num()*sizeof(FVector4f));
+            Surfaces->EndWrite(Surfaces->Size);B.Surfaces=MoveTemp(Surfaces);return true;
+        };
+        for(auto& B:Blases)if(B->Revision==Mesh.Revision){B->LastUse=++Clock;return EnsureSurfaces(*B)?B:TSharedPtr<FBlas,ESPMode::ThreadSafe>();}
         auto B=MakeShared<FBlas,ESPMode::ThreadSafe>();B->Revision=Mesh.Revision;B->LastUse=++Clock;
         B->Vertices=NewBuffer(Device,uint64(Mesh.Vertices->Num())*sizeof(FVector3f),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("B.Vertices"));
-        B->Surfaces=NewBuffer(Device,uint64(Mesh.NormalsAndSurfaces->Num())*sizeof(FVector4f),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("B.Surfaces"));
-        if(!B->Vertices||!B->Surfaces)return {};
+        if(!B->Vertices||!EnsureSurfaces(*B))return {};
         FMemory::Memcpy(B->Vertices->Mapped,Mesh.Vertices->GetData(),Mesh.Vertices->Num()*sizeof(FVector3f));
-        FMemory::Memcpy(B->Surfaces->Mapped,Mesh.NormalsAndSurfaces->GetData(),Mesh.NormalsAndSurfaces->Num()*sizeof(FVector4f));
-        B->Vertices->EndWrite(Mesh.Vertices->Num()*sizeof(FVector3f));B->Surfaces->EndWrite(Mesh.NormalsAndSurfaces->Num()*sizeof(FVector4f));
+        B->Vertices->EndWrite(Mesh.Vertices->Num()*sizeof(FVector3f));
         D3D12_RAYTRACING_GEOMETRY_DESC Geometry={};Geometry.Type=D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;Geometry.Flags=D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
         Geometry.Triangles.VertexBuffer.StartAddress=B->Vertices->Address();Geometry.Triangles.VertexBuffer.StrideInBytes=sizeof(FVector3f);
         Geometry.Triangles.VertexCount=Mesh.Vertices->Num();Geometry.Triangles.VertexFormat=DXGI_FORMAT_R32G32B32_FLOAT;
@@ -273,12 +285,13 @@ public:
     {
         for(auto& S:Scenes)if(S->Matches(Meshes)){S->LastUse=++Clock;return S;}
         auto S=MakeShared<FScene,ESPMode::ThreadSafe>();S->LastUse=++Clock;
+        uint64 MinSurfaceBytes=0;for(const auto& M:Meshes)if(M.Vertices&&!M.Vertices->IsEmpty())MinSurfaceBytes=FMath::Max(MinSurfaceBytes,uint64(M.Vertices->Num()/3)*sizeof(FVector4f));
         TArray<D3D12_RAYTRACING_INSTANCE_DESC> Instances;
         for(int32 I=0;I<Meshes.Num();++I)
         {
             const auto& Mesh=Meshes[I];S->Revisions.Add(Mesh.Revision);S->Poses.Add(Mesh.LocalToWorld);S->Blases.Add({});
             if(!Mesh.Vertices||Mesh.Vertices->IsEmpty())continue;
-            auto B=GetBlas(Mesh,List,Error);if(!B)return {};S->Blases[I]=B;
+            auto B=GetBlas(Mesh,List,MinSurfaceBytes,Error);if(!B)return {};S->Blases[I]=B;
             D3D12_RAYTRACING_INSTANCE_DESC Instance={};const FMatrix M=Mesh.LocalToWorld.ToMatrixWithScale();
             for(int32 Row=0;Row<3;++Row)for(int32 Column=0;Column<4;++Column)Instance.Transform[Row][Column]=float(M.M[Column][Row]);
             Instance.InstanceID=I;Instance.InstanceMask=0xff;Instance.AccelerationStructure=B->Storage->Address();Instances.Add(Instance);
@@ -376,7 +389,7 @@ TSharedPtr<ITicket,ESPMode::ThreadSafe> Submit(const TArray<FSensorRtMesh>& Mesh
     if(LedgerEnabled())
     {
         UE_LOG(LogTemp,Display,TEXT("[SensorNativeSubmit] fence=%llu completed=%llu TLAS=0x%llx constants=0x%llx rays=0x%llx results=0x%llx count=%d SBT=none local_root=none native_inline=1"),Value,LastCompleted.load(),uint64(Job->Scene->Storage->Address()),uint64(Job->Constants->Address()),uint64(Job->Rays->Address()),uint64(Job->Results->Address()),Count);
-        for(int32 I=0;I<Job->Scene->Blases.Num();++I)if(const auto& B=Job->Scene->Blases[I])UE_LOG(LogTemp,Display,TEXT("[SensorNativeBinding] fence=%llu mesh=%d surface=0x%llx blas=0x%llx"),Value,I,uint64(B->Surfaces->Address()),uint64(B->Storage->Address()));
+        for(int32 I=0;I<Job->Scene->Blases.Num();++I)if(const auto& B=Job->Scene->Blases[I])UE_LOG(LogTemp,Display,TEXT("[SensorNativeBinding] fence=%llu mesh=%d surface=0x%llx blas=0x%llx surface_bytes=%llu"),Value,I,uint64(B->Surfaces->Address()),uint64(B->Storage->Address()),B->Surfaces->Size);
     }
     ID3D12CommandList* Lists[]={Job->List};Backend->Queue->ExecuteCommandLists(1,Lists);
     Submitted=true;
