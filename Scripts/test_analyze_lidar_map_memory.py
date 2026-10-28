@@ -40,6 +40,25 @@ class MapMemoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Incomplete'):
             analyze(self.path)
 
+    def test_disabled_llm_fixed_zero_is_not_rhi_evidence(self):
+        self.rows[0]['llm_enabled'] = False
+        for row in self.rows[1:-1]:
+            row['llm_default']['RHIMisc'] = 0
+        self.save()
+        self.assertNotIn('RHIMisc', analyze(self.path)['Tail20'])
+
+    def test_os_counter_pid_reuse_rejected(self):
+        self.os[-1]['pid'] = 123
+        self.save()
+        with self.assertRaisesRegex(ValueError, 'identity'):
+            analyze(self.path)
+
+    def test_interior_os_failure_is_not_silently_skipped(self):
+        self.os[200] = dict(utc=self.os[200]['utc'], monitor_error='access denied')
+        self.save()
+        with self.assertRaisesRegex(ValueError, 'inside'):
+            analyze(self.path)
+
     def test_all_off_rejects_sensor_rt_work(self):
         self.rows[-2]['rhi_submission']['dispatches'] = 1; self.save()
         with self.assertRaisesRegex(ValueError, 'RT work'):
