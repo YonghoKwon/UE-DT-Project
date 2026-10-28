@@ -1,4 +1,5 @@
 #include "HatchMemoryRuntimeProbe.h"
+#include "LidarMapMemoryRuntimeProbe.h"
 #include "HatchMemoryExperimentDiagnostics.h"
 #include "MA0T10MemoryTags.h"
 #include "SensorOwnedRayTracing.h"
@@ -48,7 +49,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
     TUniquePtr<TGuardValue<bool>> ScreenMessages;
     double Created=FPlatformTime::Seconds(), NextPoll=0, Changed=0, Started=0, LastSample=-1;
     double Seconds=3600, Interval=5, PreviousCost=0, CostSum=0, CostMax=0;
-    int32 Port=0, Phase=0, WarmEdits=0, Samples=0, SensorCount=3;
+    int32 Port=0, Phase=0, WarmEdits=0, Samples=0, SensorCount=3, WarmDigTarget=17, RestoredAt=0;
     bool Finished=false, Failed=false, Llm=false;
     bool Investigation=false, TraceCanaryEnabled=false, DepthProjection=false, SkipWarmEdits=false, Isolation=false;
     bool AcquisitionOff=false, OutputsOff=false, CutApplied=false;
@@ -178,7 +179,8 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         R->SetBoolField(TEXT("project_tags_enabled"),MA0T10MemoryTags::IsEnabled());
         R->SetBoolField(TEXT("investigation"),Investigation);R->SetBoolField(TEXT("trace_canary"),TraceCanaryEnabled);R->SetStringField(TEXT("trace_bookmarks"),TEXT("MEMORY26B_BEGIN/END; shared allocation-query contract"));
         R->SetBoolField(TEXT("sampler_enabled"),true);R->SetBoolField(TEXT("pcd_loopback"),!AcquisitionOff&&!OutputsOff);R->SetBoolField(TEXT("pcd_default_compressed"),Publisher->GetPcdSendOptions(TEXT("")).bCompressed);
-        R->SetStringField(TEXT("workload"),SkipWarmEdits?TEXT("diagnostic fixed geometry; no warm Dig/restore;35s warmup"):TEXT("packaged idle;17 public Dig near-surface ray cycles with fresh analysis, restore,35s warmup; no Editor automation history"));
+        R->SetStringField(TEXT("workload"),SkipWarmEdits?TEXT("diagnostic fixed geometry; no warm Dig/restore;35s warmup"):FString::Printf(TEXT("packaged idle;%d public near-surface Digs with fresh analysis, restore every17Digs,35s warmup; no Editor automation history"),WarmDigTarget));
+        R->SetNumberField(TEXT("requested_warm_digs"),WarmDigTarget);
         R->SetNumberField(TEXT("diagnostic_sensor_count"),SensorCount);R->SetBoolField(TEXT("diagnostic_depth_projection"),DepthProjection);R->SetBoolField(TEXT("diagnostic_revision_changes"),!SkipWarmEdits);
         R->SetBoolField(TEXT("diagnostic_acquisition_off"),AcquisitionOff);R->SetBoolField(TEXT("diagnostic_outputs_off"),OutputsOff);
         R->SetStringField(TEXT("source_commit"),SourceCommit);R->SetStringField(TEXT("started_utc"),FDateTime::UtcNow().ToIso8601());
@@ -263,13 +265,14 @@ public:
         FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryPcdLoopbackPort="),Port);FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryCancelFile="),CancelFile);
         FParse::Value(FCommandLine::Get(),TEXT("HatchSourceCommit="),SourceCommit);
         FParse::Value(FCommandLine::Get(),TEXT("HatchMemorySensorCount="),SensorCount);
+        const bool Stress=FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryWarmDigCount="),WarmDigTarget);
         DepthProjection=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDepthProjection"));SkipWarmEdits=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryNoRevisionChanges"));
         Isolation=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryIsolation"));
         AcquisitionOff=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAcquisitionOff"));OutputsOff=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryOutputsOff"));
         Investigation=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryInvestigation"));TraceCanaryEnabled=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryTraceCanary"));
         const bool FinalSoak=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryFinalValidation"));
         const bool ValidDuration=Investigation?(Seconds>=900&&Seconds<=1200):(Seconds==30||(Seconds>=1800&&Seconds<=3600)||(FinalSoak&&Seconds==7200));
-        Failed=!FMath::IsFinite(Seconds)||!FMath::IsFinite(Interval)||!ValidDuration||(TraceCanaryEnabled&&Seconds!=30)||Interval<5||Interval>30||Port<1024||Port>65535||SensorCount<1||SensorCount>3;
+        Failed=!FMath::IsFinite(Seconds)||!FMath::IsFinite(Interval)||!ValidDuration||(TraceCanaryEnabled&&Seconds!=30)||Interval<5||Interval>30||Port<1024||Port>65535||SensorCount<1||SensorCount>3||(Stress&&(Seconds!=30||SensorCount!=3||WarmDigTarget<17||WarmDigTarget>1000));
     }
     TStatId GetStatId() const override {RETURN_QUICK_DECLARE_CYCLE_STAT(FHatchMemoryRuntimeProbe,STATGROUP_Tickables);}
     ETickableTickType GetTickableTickType() const override {return ETickableTickType::Always;}
@@ -300,9 +303,11 @@ public:
         {
             if(Isolation&&Now-Changed<2)return;
             if(SkipWarmEdits){Changed=Now;Phase=2;return;}
-            if(WarmEdits<17)
+            if(WarmEdits<WarmDigTarget)
             {
-                const int32 I=WarmEdits;const double X=4+I%5;double Y=((I/5)%5-2)*3.;if(FMath::IsNearlyEqual(Y,-3.))Y=-4.5;
+                if(WarmEdits>0&&WarmEdits%17==0&&RestoredAt!=WarmEdits)
+                {if(!S->RestoreCargo()){Finish(false,TEXT("stress restore rejected"));return;}RestoredAt=WarmEdits;return;}
+                const int32 I=WarmEdits%17;const double X=4+I%5;double Y=((I/5)%5-2)*3.;if(FMath::IsNearlyEqual(Y,-3.))Y=-4.5;
                 // Public cargo API warmup, with a near-surface ray to avoid
                 // selecting the overhead cab. This is not a mouse/UI test.
                 const FVector Origin(X*100,Y*100,(S->Surface().Height(X,Y)+1)*100);
@@ -350,6 +355,7 @@ TUniquePtr<FHatchMemoryRuntimeProbe> HatchMemoryProbe;
 
 void StartHatchMemoryRuntimeProbe()
 {
+    StartLidarMapMemoryRuntimeProbe();
     FString Directory;if(FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryRuntimeReport="),Directory)&&!Directory.IsEmpty())HatchMemoryProbe=MakeUnique<FHatchMemoryRuntimeProbe>(MoveTemp(Directory));
 }
-void StopHatchMemoryRuntimeProbe(){HatchMemoryProbe.Reset();}
+void StopHatchMemoryRuntimeProbe(){HatchMemoryProbe.Reset();StopLidarMapMemoryRuntimeProbe();}

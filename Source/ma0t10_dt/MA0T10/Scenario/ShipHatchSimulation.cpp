@@ -21,6 +21,8 @@
 #include "EngineUtils.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "HAL/LowLevelMemTracker.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 namespace
 {
@@ -374,6 +376,15 @@ bool AShipHatchSimulation::SetSensorSelection(bool EnableMLX,bool EnableLivox,bo
 }
 void AShipHatchSimulation::ConfigureSensors()
 {
+    // Explicit laboratory all-off baseline: prevent any LiDAR creation (and
+    // its initial RT work), rather than retaining stopped scan/preview state.
+    // This never changes a map or persistent sensor setting.
+    FString ProbeDirectory;
+    if(FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryAllOff"))&&FParse::Value(FCommandLine::Get(),TEXT("LidarMapMemoryReport="),ProbeDirectory)&&!ProbeDirectory.IsEmpty())
+    {
+        for(auto* A:{MLX.Get(),Livox.Get(),CabRight.Get()})if(IsValid(A)){A->StopSensor();A->Destroy();}
+        MLX=nullptr;Livox=nullptr;CabRight=nullptr;bMLX=false;bLivox=false;bCabRight=false;return;
+    }
     FrameGates[0]=MLX?MLX->ScanComponent->GetRuntimeStatus().FrameId:-1;
     FrameGates[1]=Livox?Livox->ScanComponent->GetRuntimeStatus().FrameId:-1;
     FrameGates[2]=CabRight?CabRight->ScanComponent->GetRuntimeStatus().FrameId:-1;
