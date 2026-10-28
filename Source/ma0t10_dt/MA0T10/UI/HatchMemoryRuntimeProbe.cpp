@@ -238,6 +238,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
             Gpu->SetNumberField(TEXT("native_scene_builds"),Stats.NativeSceneBuilds);Gpu->SetNumberField(TEXT("native_bytes"),Stats.NativeBytes);Gpu->SetNumberField(TEXT("native_peak_bytes"),Stats.NativePeakBytes);
             Gpu->SetBoolField(TEXT("native_validation_available"),Stats.NativeValidationAvailable);
             Gpu->SetNumberField(TEXT("native_fallbacks"),Stats.NativeFallbacks);
+            Gpu->SetNumberField(TEXT("native_buffer_creates"),Stats.NativeBufferCreates);Gpu->SetNumberField(TEXT("native_buffer_reuses"),Stats.NativeBufferReuses);
             Gpu->SetNumberField(TEXT("inline_dispatches"),Stats.InlineDispatches);Gpu->SetNumberField(TEXT("scene_storage_creates"),Stats.SceneStorageCreates);Gpu->SetNumberField(TEXT("scene_storage_reuses"),Stats.SceneStorageReuses);
             if(Stats.NativeValidationAvailable)Gpu->SetNumberField(TEXT("native_validation_errors"),Stats.NativeValidationErrors);
             for(int32 I=0;I<SensorCount;++I)

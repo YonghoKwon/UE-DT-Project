@@ -1,6 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "MA0T10MemoryTags.h"
+#include "SensorOwnedRayTracing.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
@@ -393,6 +394,11 @@ class FHatchDig final:public IAutomationLatentCommand
     }
     void MemoryDetails(const TCHAR* Boundary,const AShipHatchSimulation& Simulation)
     {
+        const auto Native=SensorOwnedRayTracing::GetSubmissionStats();auto NativeCounts=MakeShared<FJsonObject>();
+        NativeCounts->SetNumberField(TEXT("buffer_creates"),Native.NativeBufferCreates);NativeCounts->SetNumberField(TEXT("buffer_reuses"),Native.NativeBufferReuses);
+        NativeCounts->SetNumberField(TEXT("live_bytes"),double(Native.NativeBytes));NativeCounts->SetNumberField(TEXT("peak_bytes"),double(Native.NativePeakBytes));
+        NativeCounts->SetNumberField(TEXT("blas_builds"),Native.NativeBlasBuilds);NativeCounts->SetNumberField(TEXT("scene_builds"),Native.NativeSceneBuilds);NativeCounts->SetNumberField(TEXT("dispatches"),Native.NativeDispatches);
+        Result->SetObjectField(FString(Boundary)+TEXT("_native_resources"),NativeCounts);
         auto Pools=MakeShared<FJsonObject>();
         for(const auto* Actor:{Simulation.MLX.Get(),Simulation.Livox.Get(),Simulation.CabRight.Get()})
             if(Actor&&Actor->ScanComponent)Pools->SetNumberField(Actor->GetSensorId(),double(Actor->ScanComponent->GetScenePointPoolFallbacksForTesting()));

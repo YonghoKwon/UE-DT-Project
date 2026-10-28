@@ -55,6 +55,7 @@ namespace SensorOwnedRayTracing
         bool NativeValidationAvailable=false;
         uint64 NativeFallbacks=0;
         uint64 InlineDispatches=0,SceneStorageCreates=0,SceneStorageReuses=0;
+        uint64 NativeBufferCreates=0,NativeBufferReuses=0;
     };
     MA0T10_DTBOOTSTRAP_API FSubmissionStats GetSubmissionStats();
     /** Submit immutable admissions before main-view rendering, once per scheduler tick. */

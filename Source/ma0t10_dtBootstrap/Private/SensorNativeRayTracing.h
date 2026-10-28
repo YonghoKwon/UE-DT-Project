@@ -13,7 +13,7 @@ namespace SensorNativeRayTracing
         virtual ~ITicket()=default;
         virtual bool Poll(TArray<FSensorRtHit>& Hits,FString& Error,bool Cancelled)=0;
     };
-    struct FStats { uint64 Dispatches=0,BlasBuilds=0,SceneBuilds=0,PacketCreates=0,PacketReuses=0,Bytes=0,PeakBytes=0,ValidationErrors=0; bool ValidationAvailable=false; };
+    struct FStats { uint64 Dispatches=0,BlasBuilds=0,SceneBuilds=0,PacketCreates=0,PacketReuses=0,Bytes=0,PeakBytes=0,ValidationErrors=0; bool ValidationAvailable=false; uint64 BufferCreates=0,BufferReuses=0; };
     bool IsSupported();
     TSharedPtr<ITicket,ESPMode::ThreadSafe> Submit(const TArray<FSensorRtMesh>& Meshes,const TArray<TConstArrayView<FSensorRtRay>>& Parts,FString& Error,bool& BudgetLimited);
     FStats GetStats();

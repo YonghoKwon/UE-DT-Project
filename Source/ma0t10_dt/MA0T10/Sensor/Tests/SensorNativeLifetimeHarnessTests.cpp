@@ -67,6 +67,7 @@ class FNativeLifetimeHarness final:public IAutomationLatentCommand
         FString Root;if(!FParse::Value(FCommandLine::Get(),TEXT("ReportExportPath="),Root))Root=FPaths::ProjectSavedDir()/TEXT("Reports/LIDAR-NATIVE-LIFETIME-26h/harness");
         IFileManager::Get().MakeDirectory(*Root,true);
         const auto Stats=SensorOwnedRayTracing::GetSubmissionStats();auto J=MakeShared<FJsonObject>();
+        if(Complete&&!FParse::Param(FCommandLine::Get(),TEXT("SensorNativeNoGeometryPool")))Test->TestTrue(TEXT("geometry pool reused fenced native buffers"),Stats.NativeBufferReuses>Before.NativeBufferReuses);
         J->SetBoolField(TEXT("complete"),Complete);J->SetBoolField(TEXT("valid"),Complete&&!Test->HasAnyErrors());
         J->SetNumberField(TEXT("completed_iterations"),Iteration);J->SetNumberField(TEXT("requested_iterations"),Target);
         J->SetNumberField(TEXT("rays_per_sensor"),Rays.Num());J->SetNumberField(TEXT("sensor_count"),1);
@@ -77,6 +78,7 @@ class FNativeLifetimeHarness final:public IAutomationLatentCommand
         J->SetNumberField(TEXT("native_blas_build_delta"),Stats.NativeBlasBuilds-Before.NativeBlasBuilds);
         J->SetNumberField(TEXT("native_tlas_build_delta"),Stats.NativeSceneBuilds-Before.NativeSceneBuilds);
         J->SetNumberField(TEXT("native_bytes"),Stats.NativeBytes);J->SetNumberField(TEXT("native_peak_bytes"),Stats.NativePeakBytes);
+        J->SetNumberField(TEXT("native_buffer_creates"),Stats.NativeBufferCreates);J->SetNumberField(TEXT("native_buffer_reuses"),Stats.NativeBufferReuses);
         J->SetBoolField(TEXT("debug_interface_observed"),Stats.NativeValidationAvailable);
         if(Stats.NativeValidationAvailable)J->SetNumberField(TEXT("debug_error_delta"),Stats.NativeValidationErrors-Before.NativeValidationErrors);
         J->SetStringField(TEXT("scope"),TEXT("Synthetic fixed scene; one sensor; cargo geometry edits/cache eviction; full65536 analytic points plus periodic fresh-engine whole-byte oracle. Production Dig integration is a separate gate."));

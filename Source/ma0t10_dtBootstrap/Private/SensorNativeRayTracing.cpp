@@ -5,6 +5,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include <atomic>
+#include <initializer_list>
 #if PLATFORM_WINDOWS && RHI_RAYTRACING
 #include "ID3D12DynamicRHI.h"
 #include <d3d12sdklayers.h>
@@ -21,9 +22,11 @@ constexpr uint64 MaxFreeBytes=64ull*1024*1024;
 std::atomic<uint64> Bytes{0},PeakBytes{0},Dispatches{0},BlasBuilds{0},SceneBuilds{0},PacketCreates{0},PacketReuses{0};
 std::atomic<uint64> ValidationErrors{0};
 std::atomic<bool> ValidationAvailable{false};
+std::atomic<uint64> BufferCreates{0},BufferReuses{0};
 bool CapacityHit=false; // render thread only, one synchronous Submit transaction
 std::atomic<uint64> LastCompleted{0};
 bool LedgerEnabled(){static const bool Enabled=FParse::Param(FCommandLine::Get(),TEXT("SensorNativeLedger"));return Enabled;}
+bool GeometryPoolEnabled(){static const bool Enabled=!FParse::Param(FCommandLine::Get(),TEXT("SensorNativeNoGeometryPool"));return Enabled;}
 bool Succeeded(HRESULT Result,FString& Error,const TCHAR* Operation)
 {
     if(SUCCEEDED(Result))return true;
@@ -50,6 +53,7 @@ struct FBuffer
         Desc.Height=1;Desc.DepthOrArraySize=1;Desc.MipLevels=1;Desc.SampleDesc.Count=1;Desc.Layout=D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
         Desc.Flags=Uav?D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS:D3D12_RESOURCE_FLAG_NONE;
         if(!Succeeded(Device->CreateCommittedResource(&Properties,D3D12_HEAP_FLAG_NONE,&Desc,State,nullptr,IID_PPV_ARGS(Resource.GetInitReference())),Error,TEXT("CreateCommittedResource")))return false;
+        ++BufferCreates;
         Size=InSize;Bytes.fetch_add(Size);PeakBytes.store(FMath::Max(PeakBytes.load(),Bytes.load()));
         Resource->SetName(L"SensorOwnedPersistent");
         if(LedgerEnabled())Resource->SetName(*FString::Printf(TEXT("SensorOwned/%s/0x%llx/%llu"),Purpose,uint64(Resource->GetGPUVirtualAddress()),Size));
@@ -246,26 +250,55 @@ public:
         if(!Job->Rays||!Job->Results||!Job->Readback||!Job->Constants)return {};
         ++PacketCreates;return Job;
     }
-    TSharedPtr<FBlas,ESPMode::ThreadSafe> GetBlas(const FSensorRtMesh& Mesh,ID3D12GraphicsCommandList4* List,uint64 MinSurfaceBytes,FString& Error)
+    bool Idle(std::initializer_list<FBufferPtr> Buffers)
+    {
+        const uint64 Done=Fence->GetCompletedValue();LastCompleted.store(Done);
+        if(Done==MAX_uint64)return false;
+        for(const auto& Buffer:Buffers)if(Buffer&&Buffer->LastUseFence>Done)return false;
+        return true;
+    }
+    bool EnsureBuffer(FBufferPtr& Buffer,uint64 Size,D3D12_HEAP_TYPE Heap,D3D12_RESOURCE_STATES State,bool Uav,FString& Error,const TCHAR* Purpose)
+    {
+        if(GeometryPoolEnabled()&&Buffer&&Buffer->Size>=Size&&Idle({Buffer})){++BufferReuses;return true;}
+        Buffer=NewBuffer(Device,Size,Heap,State,Uav,Error,Purpose);return Buffer.IsValid();
+    }
+    TSharedPtr<FBlas,ESPMode::ThreadSafe> GetBlas(const FSensorRtMesh& Mesh,const TArray<FSensorRtMesh>& DesiredMeshes,ID3D12GraphicsCommandList4* List,uint64 MinSurfaceBytes,FString& Error)
     {
         // The compiled ternary eagerly loads all four metadata SRVs before
         // selecting a mesh. Root SRVs have no descriptor bounds, so every
         // binding must cover the largest primitive-index domain in the scene.
         // Grow by replacement only: old submitted roots stay pinned by jobs.
         const uint64 SurfaceBytes=FMath::Max(MinSurfaceBytes,uint64(Mesh.NormalsAndSurfaces->Num())*sizeof(FVector4f));
-        auto EnsureSurfaces=[&](FBlas& B)
+        auto EnsureSurfaces=[&](FBlas& B,bool Refresh)
         {
-            if(B.Surfaces&&B.Surfaces->Size>=SurfaceBytes)return true;
-            auto Surfaces=NewBuffer(Device,SurfaceBytes,D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("B.Surfaces"));
+            if(!Refresh&&B.Surfaces&&B.Surfaces->Size>=SurfaceBytes)return true;
+            FBufferPtr Surfaces;
+            if(Refresh&&GeometryPoolEnabled()&&B.Surfaces&&B.Surfaces->Size>=SurfaceBytes&&Idle({B.Surfaces})){Surfaces=B.Surfaces;++BufferReuses;}
+            else Surfaces=NewBuffer(Device,SurfaceBytes,D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("B.Surfaces"));
             if(!Surfaces)return false;
+            if(!Surfaces->BeginWrite(Error))return false;
             FMemory::Memzero(Surfaces->Mapped,Surfaces->Size);
             FMemory::Memcpy(Surfaces->Mapped,Mesh.NormalsAndSurfaces->GetData(),Mesh.NormalsAndSurfaces->Num()*sizeof(FVector4f));
             Surfaces->EndWrite(Surfaces->Size);B.Surfaces=MoveTemp(Surfaces);return true;
         };
-        for(auto& B:Blases)if(B->Revision==Mesh.Revision){B->LastUse=++Clock;return EnsureSurfaces(*B)?B:TSharedPtr<FBlas,ESPMode::ThreadSafe>();}
-        auto B=MakeShared<FBlas,ESPMode::ThreadSafe>();B->Revision=Mesh.Revision;B->LastUse=++Clock;
-        B->Vertices=NewBuffer(Device,uint64(Mesh.Vertices->Num())*sizeof(FVector3f),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("B.Vertices"));
-        if(!B->Vertices||!EnsureSurfaces(*B))return {};
+        for(auto& B:Blases)if(B->Revision==Mesh.Revision){B->LastUse=++Clock;return EnsureSurfaces(*B,false)?B:TSharedPtr<FBlas,ESPMode::ThreadSafe>();}
+        TSharedPtr<FBlas,ESPMode::ThreadSafe> B;
+        int32 ReuseIndex=INDEX_NONE;
+        if(GeometryPoolEnabled())for(int32 I=0;I<Blases.Num();++I)
+        {
+            // Cache-only ownership excludes every cached/in-flight TLAS and
+            // recording job. Explicit fence checks also exclude GPU use.
+            const auto& Candidate=Blases[I];
+            // A later mesh in this same request may need a currently cache-only
+            // static BLAS. Do not steal its slot and rebuild it unnecessarily.
+            const bool Desired=DesiredMeshes.ContainsByPredicate([&](const FSensorRtMesh& M){return M.Revision==Candidate->Revision;});
+            if(!Desired&&Candidate.GetSharedReferenceCount()==1&&Idle({Candidate->Vertices,Candidate->Surfaces,Candidate->Storage,Candidate->Scratch})&&(ReuseIndex==INDEX_NONE||Candidate->LastUse<Blases[ReuseIndex]->LastUse))ReuseIndex=I;
+        }
+        if(ReuseIndex!=INDEX_NONE){B=MoveTemp(Blases[ReuseIndex]);Blases.RemoveAt(ReuseIndex);}
+        if(!B)B=MakeShared<FBlas,ESPMode::ThreadSafe>();
+        else if(LedgerEnabled())UE_LOG(LogTemp,Display,TEXT("[SensorNativeReuse] role=BLAS old_revision=%llu new_revision=%llu completed=%llu vertex_last_use=%llu"),B->Revision,Mesh.Revision,LastCompleted.load(),B->Vertices?B->Vertices->LastUseFence:0);
+        B->Revision=Mesh.Revision;B->LastUse=++Clock;
+        if(!EnsureBuffer(B->Vertices,uint64(Mesh.Vertices->Num())*sizeof(FVector3f),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("B.Vertices"))||!EnsureSurfaces(*B,true)||!B->Vertices->BeginWrite(Error))return {};
         FMemory::Memcpy(B->Vertices->Mapped,Mesh.Vertices->GetData(),Mesh.Vertices->Num()*sizeof(FVector3f));
         B->Vertices->EndWrite(Mesh.Vertices->Num()*sizeof(FVector3f));
         D3D12_RAYTRACING_GEOMETRY_DESC Geometry={};Geometry.Type=D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;Geometry.Flags=D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
@@ -275,10 +308,11 @@ public:
         Inputs.DescsLayout=D3D12_ELEMENTS_LAYOUT_ARRAY;Inputs.NumDescs=1;Inputs.pGeometryDescs=&Geometry;
         Inputs.Flags=D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_BUILD;
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO Size={};Device->GetRaytracingAccelerationStructurePrebuildInfo(&Inputs,&Size);
-        B->Storage=NewBuffer(Device,Size.ResultDataMaxSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,true,Error,TEXT("B.Storage"));
-        B->Scratch=NewBuffer(Device,Size.ScratchDataSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,true,Error,TEXT("B.Scratch"));
-        if(!B->Storage||!B->Scratch)return {};
+        if(!EnsureBuffer(B->Storage,Size.ResultDataMaxSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,true,Error,TEXT("B.Storage"))||!EnsureBuffer(B->Scratch,Size.ScratchDataSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,true,Error,TEXT("B.Scratch")))return {};
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC Build={};Build.Inputs=Inputs;Build.DestAccelerationStructureData=B->Storage->Address();Build.ScratchAccelerationStructureData=B->Scratch->Address();
+        // DXR AS buffers keep their AS state. Order previous traversal reads
+        // before a full rebuild into reused storage, then publish build writes.
+        if(GeometryPoolEnabled())UavBarrier(List);
         List->BuildRaytracingAccelerationStructure(&Build,0,nullptr);UavBarrier(List);++BlasBuilds;
         if(LedgerEnabled())UE_LOG(LogTemp,Display,TEXT("[SensorNativeBlasBuild] next_fence=%llu revision=%llu vertices=0x%llx vertex_bytes=%llu vertex_count=%d stride=%u surfaces=0x%llx result=0x%llx scratch=0x%llx sourceAS=0 refit=0 node_mask=1 created_resident=1 MakeResident=0 Evict=0 cpu_desc=%p"),NextFence+1,Mesh.Revision,uint64(B->Vertices->Address()),B->Vertices->Size,Mesh.Vertices->Num(),uint32(sizeof(FVector3f)),uint64(B->Surfaces->Address()),uint64(B->Storage->Address()),uint64(B->Scratch->Address()),&Geometry);
         if(Blases.Num()>=8){int32 Old=0;for(int32 I=1;I<Blases.Num();++I)if(Blases[I]->LastUse<Blases[Old]->LastUse)Old=I;Blases.RemoveAt(Old);}
@@ -287,22 +321,30 @@ public:
     TSharedPtr<FScene,ESPMode::ThreadSafe> GetScene(const TArray<FSensorRtMesh>& Meshes,ID3D12GraphicsCommandList4* List,FString& Error)
     {
         for(auto& S:Scenes)if(S->Matches(Meshes)){S->LastUse=++Clock;return S;}
-        auto S=MakeShared<FScene,ESPMode::ThreadSafe>();S->LastUse=++Clock;
+        TSharedPtr<FScene,ESPMode::ThreadSafe> S;
+        if(GeometryPoolEnabled())for(int32 I=0;I<Scenes.Num();++I)
+        {
+            const auto& Candidate=Scenes[I];
+            if(Candidate.GetSharedReferenceCount()==1&&Idle({Candidate->Instances,Candidate->Storage,Candidate->Scratch}))
+            {S=MoveTemp(Scenes[I]);Scenes.RemoveAt(I);S->Blases.Reset();S->Revisions.Reset();S->Poses.Reset();break;}
+        }
+        if(!S)S=MakeShared<FScene,ESPMode::ThreadSafe>();
+        else if(LedgerEnabled())UE_LOG(LogTemp,Display,TEXT("[SensorNativeReuse] role=TLAS completed=%llu storage_last_use=%llu"),LastCompleted.load(),S->Storage?S->Storage->LastUseFence:0);
+        S->LastUse=++Clock;
         uint64 MinSurfaceBytes=0;for(const auto& M:Meshes)if(M.Vertices&&!M.Vertices->IsEmpty())MinSurfaceBytes=FMath::Max(MinSurfaceBytes,uint64(M.Vertices->Num()/3)*sizeof(FVector4f));
         TArray<D3D12_RAYTRACING_INSTANCE_DESC> Instances;
         for(int32 I=0;I<Meshes.Num();++I)
         {
             const auto& Mesh=Meshes[I];S->Revisions.Add(Mesh.Revision);S->Poses.Add(Mesh.LocalToWorld);S->Blases.Add({});
             if(!Mesh.Vertices||Mesh.Vertices->IsEmpty())continue;
-            auto B=GetBlas(Mesh,List,MinSurfaceBytes,Error);if(!B)return {};S->Blases[I]=B;
+            auto B=GetBlas(Mesh,Meshes,List,MinSurfaceBytes,Error);if(!B)return {};S->Blases[I]=B;
             D3D12_RAYTRACING_INSTANCE_DESC Instance={};const FMatrix M=Mesh.LocalToWorld.ToMatrixWithScale();
             for(int32 Row=0;Row<3;++Row)for(int32 Column=0;Column<4;++Column)Instance.Transform[Row][Column]=float(M.M[Column][Row]);
             Instance.InstanceID=I;Instance.InstanceMask=0xff;Instance.AccelerationStructure=B->Storage->Address();Instances.Add(Instance);
             if(LedgerEnabled())UE_LOG(LogTemp,Display,TEXT("[SensorNativeTlasInstance] next_fence=%llu instance=%d revision=%llu BLAS=0x%llx vertices=0x%llx surfaces=0x%llx"),NextFence+1,I,Mesh.Revision,uint64(B->Storage->Address()),uint64(B->Vertices->Address()),uint64(B->Surfaces->Address()));
         }
         if(Instances.IsEmpty()){Error=TEXT("native LiDAR empty collision TLAS");return {};}
-        S->Instances=NewBuffer(Device,Instances.Num()*sizeof(D3D12_RAYTRACING_INSTANCE_DESC),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("S.Instances"));
-        if(!S->Instances)return {};
+        if(!EnsureBuffer(S->Instances,Instances.Num()*sizeof(D3D12_RAYTRACING_INSTANCE_DESC),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("S.Instances"))||!S->Instances->BeginWrite(Error))return {};
         FMemory::Memcpy(S->Instances->Mapped,Instances.GetData(),Instances.Num()*sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
         S->Instances->EndWrite(Instances.Num()*sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
         for(int32 I=0;I<4;++I)S->Normals[I]=I<Meshes.Num()?FMatrix44f(Meshes[I].LocalToWorld.ToInverseMatrixWithScale().GetTransposed()):FMatrix44f::Identity;
@@ -310,10 +352,9 @@ public:
         Inputs.DescsLayout=D3D12_ELEMENTS_LAYOUT_ARRAY;Inputs.NumDescs=Instances.Num();Inputs.InstanceDescs=S->Instances->Address();
         Inputs.Flags=D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
         D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO Size={};Device->GetRaytracingAccelerationStructurePrebuildInfo(&Inputs,&Size);
-        S->Storage=NewBuffer(Device,Size.ResultDataMaxSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,true,Error,TEXT("S.Storage"));
-        S->Scratch=NewBuffer(Device,Size.ScratchDataSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,true,Error,TEXT("S.Scratch"));
-        if(!S->Storage||!S->Scratch)return {};
+        if(!EnsureBuffer(S->Storage,Size.ResultDataMaxSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,true,Error,TEXT("S.Storage"))||!EnsureBuffer(S->Scratch,Size.ScratchDataSizeInBytes,D3D12_HEAP_TYPE_DEFAULT,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,true,Error,TEXT("S.Scratch")))return {};
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC Build={};Build.Inputs=Inputs;Build.DestAccelerationStructureData=S->Storage->Address();Build.ScratchAccelerationStructureData=S->Scratch->Address();
+        if(GeometryPoolEnabled())UavBarrier(List);
         List->BuildRaytracingAccelerationStructure(&Build,0,nullptr);UavBarrier(List);++SceneBuilds;
         if(LedgerEnabled())UE_LOG(LogTemp,Display,TEXT("[SensorNativeTlasBuild] next_fence=%llu instances=0x%llx count=%d result=0x%llx scratch=0x%llx sourceAS=0 refit=0 node_mask=1"),NextFence+1,uint64(S->Instances->Address()),Instances.Num(),uint64(S->Storage->Address()),uint64(S->Scratch->Address()));
         if(Scenes.Num()>=4){int32 Old=0;for(int32 I=1;I<Scenes.Num();++I)if(Scenes[I]->LastUse<Scenes[Old]->LastUse)Old=I;Scenes.RemoveAt(Old);}
@@ -423,7 +464,7 @@ bool IsSupported()
     static const bool Supported=[Rhi](){D3D12_FEATURE_DATA_D3D12_OPTIONS5 Options={};return SUCCEEDED(Rhi->RHIGetDevice(0)->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5,&Options,sizeof(Options)))&&Options.RaytracingTier>=D3D12_RAYTRACING_TIER_1_1;}();
     return Supported;
 }
-FStats GetStats(){return {Dispatches.load(),BlasBuilds.load(),SceneBuilds.load(),PacketCreates.load(),PacketReuses.load(),Bytes.load(),PeakBytes.load(),ValidationErrors.load(),ValidationAvailable.load()};}
+FStats GetStats(){return {Dispatches.load(),BlasBuilds.load(),SceneBuilds.load(),PacketCreates.load(),PacketReuses.load(),Bytes.load(),PeakBytes.load(),ValidationErrors.load(),ValidationAvailable.load(),BufferCreates.load(),BufferReuses.load()};}
 void Shutdown(){check(IsInRenderingThread());if(Backend){Backend->Drain();const bool Healthy=!Backend->Faulted&&SUCCEEDED(Backend->Device->GetDeviceRemovedReason());Backend.Reset();SensorNativeSafety::EndSession(Healthy);}}
 }
 #else
