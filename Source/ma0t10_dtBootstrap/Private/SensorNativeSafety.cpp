@@ -52,6 +52,18 @@ bool IsValidatedConfiguration(uint32 VendorId,const FString& Adapter,const FStri
     TArray<FString> Parts;Driver.ParseIntoArray(Parts,TEXT("."),false);
     return Parts.Num()==2&&Parts[0].IsNumeric()&&Parts[1].IsNumeric()&&FCString::Atoi(*Parts[0])==621&&FCString::Atoi(*Parts[1])==1;
 }
+bool IsProvenEngineDepthBarrier(uint32 MessageId,const FString& Description)
+{
+    // SDK D3D12_MESSAGE_ID_RESOURCE_BARRIER_BEFORE_AFTER_MISMATCH=527.
+    // Both owner names and the precise error are required. Native owns only
+    // buffers/AS and SensorOwnedLidarList, never the renderer's SceneDepthZ.
+    return MessageId==527
+        &&Description.Contains(TEXT("Using ResourceBarrier on Command List ("),ESearchCase::CaseSensitive)
+        &&Description.Contains(TEXT(":'FD3D12CommandList (GPU 0)')"),ESearchCase::CaseSensitive)
+        &&Description.Contains(TEXT(":'SceneDepthZ')"),ESearchCase::CaseSensitive)
+        &&Description.Contains(TEXT("Before state ("),ESearchCase::CaseSensitive)
+        &&Description.Contains(TEXT("specified by transition barrier does not match with the state"),ESearchCase::CaseSensitive);
+}
 bool CanAttempt(bool Explicit)
 {
     if(Disabled.load())return false;

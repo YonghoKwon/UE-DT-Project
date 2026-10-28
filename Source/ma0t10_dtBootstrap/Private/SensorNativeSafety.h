@@ -17,6 +17,7 @@ namespace SensorNativeSafety
         void End(bool Healthy);
     };
     bool IsValidatedConfiguration(uint32 VendorId,const FString& Adapter,const FString& Driver);
+    bool IsProvenEngineDepthBarrier(uint32 MessageId,const FString& Description);
     bool CanAttempt(bool Explicit);
     bool BeginSession(FString& Error);
     void DisableForSession(const FString& Reason);

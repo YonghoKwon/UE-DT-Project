@@ -208,7 +208,8 @@ public:
                 const FString Description=UTF8_TO_TCHAR(Message->pDescription);
                 const bool KnownEngineWarmup=Description.Contains(TEXT("ReflectionCubeTexture"))||Description.Contains(TEXT("LongTaskRenderTarget"));
                 const bool KnownEngineProbe=Description.Contains(TEXT("CreateDescriptorHeap"))&&Description.Contains(TEXT("2000000"))&&Description.Contains(TEXT("1000000"));
-                if(ScopedGbv&&(KnownEngineWarmup||KnownEngineProbe))
+                const bool ProvenEngineDepth=Message->Severity==D3D12_MESSAGE_SEVERITY_ERROR&&SensorNativeSafety::IsProvenEngineDepthBarrier(uint32(Message->ID),Description);
+                if(ScopedGbv&&(KnownEngineWarmup||KnownEngineProbe||ProvenEngineDepth))
                 {UE_LOG(LogTemp,Warning,TEXT("[SensorNativeExcludedEngineDebug] id=%d %s"),int32(Message->ID),*Description);}
                 else {++ValidationErrors;Error=FString::Printf(TEXT("D3D12 validation during native acquisition: %s"),*Description);Faulted=true;SensorNativeSafety::DisableForSession(Error);}
             }
