@@ -76,7 +76,9 @@ foreach ($TestGroup in $TestGroups) {
     if ($ReportRoot) {
         $runDirectory = Join-Path $ReportRoot ($TestGroup -replace '[^a-zA-Z0-9_.-]', '_')
         New-Item -ItemType Directory -Force -Path $runDirectory | Out-Null
-        $automationArgs += @('-RenderOffscreen', '-NoVSync', "-ReportExportPath=$runDirectory", "-HatchReport=$runDirectory/measurements", "-abslog=$runDirectory/automation.log")
+        # A successful Automation Quit can force process exit before module
+        # teardown. Give every process its own saved/native safety state.
+        $automationArgs += @('-RenderOffscreen', '-NoVSync', "-ReportExportPath=$runDirectory", "-HatchReport=$runDirectory/measurements", "-abslog=$runDirectory/automation.log", "-UserDir=$runDirectory/user")
         $quotedArgs = @($automationArgs | ForEach-Object { '"' + $_ + '"' })
         $process = Start-Process $EditorCmd -ArgumentList $quotedArgs -WindowStyle Hidden -Wait -PassThru `
             -RedirectStandardOutput (Join-Path $runDirectory 'console.log') -RedirectStandardError (Join-Path $runDirectory 'stderr.log')

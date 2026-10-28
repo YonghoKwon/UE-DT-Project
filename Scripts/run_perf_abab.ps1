@@ -107,6 +107,7 @@ $manifest = [ordered]@{
     ReceiverSha256 = (Get-Sha256 "$root/Tools/Artemis/pcd_loopback_probe.py")
     NativeLzfValidatorSha256 = $(if ($NativeLzfValidatorPath) { Get-Sha256 $NativeLzfValidatorPath } else { '' })
     BackgroundCpuSnapshots = 'runs/<run>.background-cpu.json; informational, not used in verdict'
+    FreshUserDirectoryPerRun = $true
     Map = "/Game/MA0T10/Maps/Tests/$mapName"; Viewport = '1920x1080'; Rhi = 'D3D12'; RayTracing = $RayTracing
     Pairs = $pairList; Display = $Display; Blocks = $Blocks; WarmupSeconds = 10; MeasurementSeconds = $MeasurementSeconds
     ThresholdPercent = $ThresholdPercent; Gpu = $gpu; Os = [Environment]::OSVersion.ToString()
@@ -162,6 +163,10 @@ try {
                         if ($ScheduledBackend -eq 'Cpu') { $arguments += '-GpuLidarCpu' }
                         if ($ScheduledPcdLoopbackPort) { $arguments += "-GpuLidarPcdLoopbackPort=$ScheduledPcdLoopbackPort" }
                     }
+                    # Automation exits forcibly even on success. Isolate its
+                    # saved state so one run's native safety guard cannot switch
+                    # the next run to RHI (and keep identical fresh state A/B).
+                    $arguments += "`"-UserDir=$runs/$name.user`""
                     if ($offscreen) { $arguments += '-RenderOffscreen' }
                     if ($Workload -eq 'Perf01') {
                         $arguments += "-Perf01LidarProfile=$LidarProfile"
