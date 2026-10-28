@@ -1,5 +1,6 @@
 #include "SensorOwnedRayTracing.h"
 #include "SensorNativeRayTracing.h"
+#include "SensorNativeSafety.h"
 #include "MA0T10MemoryTags.h"
 #include "Memory26Diagnostics.h"
 #include "GlobalShader.h"
@@ -291,7 +292,7 @@ public:
             if(Members.IsEmpty())Parts.Add(Request.Rays);else for(const auto& M:Members)Parts.Add(M->Request.Rays);
             bool BudgetLimited=false;NativeTicket=SensorNativeRayTracing::Submit(Request.Meshes,Parts,Failure,BudgetLimited);
             if(NativeTicket)return;
-            if(!BudgetLimited){Complete();return;}
+            if(!BudgetLimited){SensorNativeSafety::DisableForSession(Failure);Complete();return;}
             // No native work was submitted. Preserve the previous supported
             // geometry/ray limits via the safe engine path, never lower quality.
             ++RtSubmissionCounters.NativeFallbacks;Failure.Reset();
@@ -531,8 +532,9 @@ void SensorOwnedRayTracing::RecycleHitArray(TArray<FSensorRtHit>&& Hits)
 bool SensorOwnedRayTracing::UsesNativeBackend()
 {
     static const bool Engine=FParse::Param(FCommandLine::Get(),TEXT("SensorRtEngine"));
+    static const bool Rhi=FParse::Param(FCommandLine::Get(),TEXT("SensorRtRhi"));
     static const bool Explicit=FParse::Param(FCommandLine::Get(),TEXT("SensorRtNative"));
-    return Explicit&&!Engine&&Optimized()&&SensorNativeRayTracing::IsSupported();
+    return !Engine&&!Rhi&&Optimized()&&SensorNativeRayTracing::IsSupported()&&SensorNativeSafety::CanAttempt(Explicit);
 }
 bool SensorOwnedRayTracing::UsesInlineBackend()
 {

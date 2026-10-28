@@ -1,4 +1,5 @@
 #include "SensorNativeRayTracing.h"
+#include "SensorNativeSafety.h"
 #include "RenderingThread.h"
 #include "Misc/ScopeExit.h"
 #include "Misc/CommandLine.h"
@@ -168,7 +169,8 @@ public:
         if(!Succeeded(D3D12SerializeRootSignature(&RootDesc,D3D_ROOT_SIGNATURE_VERSION_1,Serialized.GetInitReference(),Errors.GetInitReference()),Error,TEXT("SerializeRootSignature")))return false;
         if(!Succeeded(Device->CreateRootSignature(1,Serialized->GetBufferPointer(),Serialized->GetBufferSize(),IID_PPV_ARGS(Root.GetInitReference())),Error,TEXT("CreateRootSignature")))return false;
         D3D12_COMPUTE_PIPELINE_STATE_DESC Desc={};Desc.pRootSignature=Root;Desc.CS={SensorNativeRayQueryDxil,sizeof(SensorNativeRayQueryDxil)};Desc.NodeMask=1;
-        return Succeeded(Device->CreateComputePipelineState(&Desc,IID_PPV_ARGS(Pipeline.GetInitReference())),Error,TEXT("CreateComputePipelineState"));
+        if(!Succeeded(Device->CreateComputePipelineState(&Desc,IID_PPV_ARGS(Pipeline.GetInitReference())),Error,TEXT("CreateComputePipelineState")))return false;
+        return SensorNativeSafety::BeginSession(Error);
     }
     void ReportDred()
     {
@@ -208,7 +210,7 @@ public:
                 const bool KnownEngineProbe=Description.Contains(TEXT("CreateDescriptorHeap"))&&Description.Contains(TEXT("2000000"))&&Description.Contains(TEXT("1000000"));
                 if(ScopedGbv&&(KnownEngineWarmup||KnownEngineProbe))
                 {UE_LOG(LogTemp,Warning,TEXT("[SensorNativeExcludedEngineDebug] id=%d %s"),int32(Message->ID),*Description);}
-                else {++ValidationErrors;Error=FString::Printf(TEXT("D3D12 validation during native acquisition: %s"),*Description);Faulted=true;}
+                else {++ValidationErrors;Error=FString::Printf(TEXT("D3D12 validation during native acquisition: %s"),*Description);Faulted=true;SensorNativeSafety::DisableForSession(Error);}
             }
         }
         LastMessage=Count;return !Faulted;
@@ -340,7 +342,11 @@ public:
     {
         check(IsInRenderingThread());if(!Job)return true;
         if(!Backend->Complete(Job->FenceValue))return false;
-        if(FAILED(Backend->Device->GetDeviceRemovedReason()))Error=TEXT("native LiDAR device removed");
+        if(FAILED(Backend->Device->GetDeviceRemovedReason()))
+        {
+            Error=TEXT("native LiDAR device removed");Backend->Faulted=true;
+            SensorNativeSafety::DisableForSession(Error);
+        }
         else if(Backend->Validate(Error)&&!Cancelled){Hits.SetNumUninitialized(Job->Count);FMemory::Memcpy(Hits.GetData(),Job->Readback->Mapped,Job->Count*sizeof(FSensorRtHit));}
         Backend->Return(MoveTemp(Job));return true;
     }
@@ -417,7 +423,7 @@ bool IsSupported()
     return Supported;
 }
 FStats GetStats(){return {Dispatches.load(),BlasBuilds.load(),SceneBuilds.load(),PacketCreates.load(),PacketReuses.load(),Bytes.load(),PeakBytes.load(),ValidationErrors.load(),ValidationAvailable.load()};}
-void Shutdown(){check(IsInRenderingThread());if(Backend){Backend->Drain();Backend.Reset();}}
+void Shutdown(){check(IsInRenderingThread());if(Backend){Backend->Drain();const bool Healthy=!Backend->Faulted&&SUCCEEDED(Backend->Device->GetDeviceRemovedReason());Backend.Reset();SensorNativeSafety::EndSession(Healthy);}}
 }
 #else
 namespace SensorNativeRayTracing
