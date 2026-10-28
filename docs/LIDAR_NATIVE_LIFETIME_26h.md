@@ -1,6 +1,6 @@
 # LIDAR-NATIVE-LIFETIME-26h — native 수명 재현 조사
 
-기준 `09c5e60`, branch `fix/lidar-native-lifetime-26h`. **수명 버그 수정이나 #26 해결을 주장하지 않는다.** Native 기본값은 기존처럼 진단 opt-in으로 유지한다. [RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/RESULT.md)와 result.json이 실제 gate 범위의 원본이다.
+기준 `09c5e60`, branch `fix/lidar-native-lifetime-26h`. **수명 버그 수정이나 #26 해결을 주장하지 않는다.** Native 기본값은 기존처럼 진단 opt-in으로 유지한다. 2026-10-28 후속 패키지 측정에서 device removal이 재현되어 최종 검증은 중단했다. [RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/RESULT.md)와 result.json이 실제 gate 범위의 원본이다.
 
 ## 환경과 보존 범위
 
@@ -24,20 +24,18 @@ Runtime의 editor 전용 진단은 `WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR`로
 
 Saved `audit-ledger.py`는 생성/해제 VA generation, build/root 기록 시 live 여부, 기록 fence 이전 해제를 검사한다. 현재 trace에는 해당 위반이 없었다. 이것은 GPU의 모든 숨은 의존성·드라이버 정확성 증명이 아니다.
 
-## 현재 결과와 strict gate
+## 2026-10-28 수용 범위와 패키지 재현
 
-| 실행 | 결과/범위 |
-|---|---|
-| 수정 전 최소 native1000회 | PASS, 65,536점×1000·주기적 fresh engine byte oracle, device removal0 |
-| strict debug-layer 최소1000회 | harness 관측 delta0, 그러나 전체 로그 startup heap 오류1 — 전체0 acceptance 아님 |
-| 실제 해치1000회 +20cancel / DRED·ledger | PASS, device removal0 |
-| 실제 해치1000회 +20cancel / 계측 없음 | PASS, device removal0 |
-| GBV Editor/game 자동화 | FAIL: ReflectionCubeTexture layout 또는 LongTaskRenderTarget 초기화 오류; 모두 보존 |
-| GBV viewport 없는 commandlet / strict 전체 | FAIL: startup descriptor heap probe 오류1 |
-| GBV native-only commandlet / native 시작 이후 scope | 1000회·65,536점 analytic 완료, 추가 오류0. Startup 오류는 로그에 남고 이 실행은 strict 전체0 수용 자료가 아님 |
+명시적 사용자 결정에 따라 engine startup2M descriptor heap capability probe 오류1과 engine warm-up 오류를 native 자원 검증과 범위 분리했다. 원문·line·source/log SHA는 Saved native-validation-scope.json에 보존한다. 기준 완화가 아니며 native 자원 오류0은 유지한다. 전체프로세스오류0으로보고하지않는다.
 
-엔진 `D3D12Adapter.cpp`의 tier3 capability probe는 `2 * D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_2` 크기의 임시 heap을 의도적으로 만들고 실패 시1M으로 fallback한다. 이것이2M/1M debug 메시지의 위치다. 일반 global/bindless heap 크기를 process-only 진단 옵션으로 바꾸어도 probe는 유지됐다. 실패 시험을 삭제하거나 메시지를 걸러0으로 만들지 않았다. 시도한 heap override 코드는 효과가 없어 최종 제품 코드에서 제거했다. Engine rendering startup/negative probe 오류와 native lifetime 오류를 혼동하지 않는다.
+최소harness·실제해치·계측없는실제해치는각1000회crash0이지만, 동일Development패키지/Rev7×3/PCD/preview기본은 준비 중DEVICE_REMOVED(HUNG)/PageFault로실패했다. ledger+DRED실행에서도재현되어native기본복귀와60분이후gate를중단했다. 첫faultVA0x3A42E1000,65536bytes. 두번째실행은74native제출까지기록주소/fence위반0이지만PageFault가있어overallFAIL이다. GPUcrash수집5분정체후소유진단프로세스만종료했다. 작은fixture성공을패키지성공으로확장하지않는다.
 
-현재 환경에서는26g의 device removal을 재현하지 못했고, 해제 후 참조 지점을 특정하지 못했다. 드라이버 변화와 기존 overlay의 영향을 분리하지 못해 speculative한 lifetime 수정을 넣지 않았다. **strict 전체 debug 오류0 게이트를 통과 처리하지 않아 native 기본 복귀·Development60분·2시간×2·원래5쌍·RTonABAB2%·Shipping/full release·야간8시간은 진행하지 않는다.** 원래 기준과50회 회귀·20Hz/품질/PCD/wire/FIFO 정책을 바꾸지 않았다.
+| 항목 | native60 MiB/h | fallback60 꼬리20분 MiB/h | 목표 | fallback 판정 |
+|---|---|---:|---:|---|
+| RSS | 미산출: 준비 구간 device removal | +17.409 | ≤8 | FAIL |
+| Commit | 미산출: 준비 구간 device removal | +19.235 | ≤8 | FAIL |
+| RHIMisc | 미산출: 준비 구간 device removal | +8.040 | ≤2 | FAIL |
 
-후속 검토 입력은 (1) 같은 driver/의존성에서 이전 device-removal 재현 환경 확보, (2) 엔진의 의도된 negative capability probe와 native 검증 구간의 수용 범위에 대한 명시적 결정, (3) 재현 시 현재 ledger와 DRED로 정확한 GPU dependency를 대조하는 것이다. 이 문서는 driver 변경·engine patch·기준 예외를 승인하지 않는다.
+Native60분곡선이없어지속장면이메모리증가와무관하다고입증할수없다. 추가후보는3sensor연속배치/geometryrevision교체에서engine/nativequeue·AS/residency의상호작용,미기록GPU의존성,driver경로다. Native는inlinequery/SBT없음/refit0이라nativeSBT를확정원인으로두지않는다. fallbackRayTraceDispatchSBT/querymetadata·driver보존도추가콜스택근거가필요하다. speculative수명변경·engine/DTCore/driver수정없음.
+
+지원RHI fallback60분만대조완료. native2시간×2·원래#26 5쌍·RTonABAB2%·Shipping/release·야간8시간은package crash로NOT_RUN이다. 설정·원래사용자overlay보존과소유패키지/dump정리증거는RESULT/result.json에남긴다. push/PR/merge없음.
