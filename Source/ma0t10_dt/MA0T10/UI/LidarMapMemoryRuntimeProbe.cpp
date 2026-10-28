@@ -113,7 +113,7 @@ public:
         Next=Now+5;Sample(Now);if(Now-Started>=Seconds)Finish(true,TEXT("finished"));
     }
 };
-TUniquePtr<FLidarMapMemoryProbe> Probe;
+TUniquePtr<FLidarMapMemoryProbe> LidarMapMemoryProbe;
 }
-void StartLidarMapMemoryRuntimeProbe(){FString Directory;if(FParse::Value(FCommandLine::Get(),TEXT("LidarMapMemoryReport="),Directory)&&!Directory.IsEmpty())Probe=MakeUnique<FLidarMapMemoryProbe>(MoveTemp(Directory));}
-void StopLidarMapMemoryRuntimeProbe(){Probe.Reset();}
+void StartLidarMapMemoryRuntimeProbe(){FString Directory;if(FParse::Value(FCommandLine::Get(),TEXT("LidarMapMemoryReport="),Directory)&&!Directory.IsEmpty())LidarMapMemoryProbe=MakeUnique<FLidarMapMemoryProbe>(MoveTemp(Directory));}
+void StopLidarMapMemoryRuntimeProbe(){LidarMapMemoryProbe.Reset();}
