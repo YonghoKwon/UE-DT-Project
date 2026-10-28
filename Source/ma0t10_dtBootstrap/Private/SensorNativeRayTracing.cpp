@@ -125,7 +125,7 @@ public:
         if(GetID3D12DynamicRHI()->RHIGetDeviceNodeMask(0)!=1){Error=TEXT("native LiDAR unsupported GPU node mask");return false;}
         if(!Succeeded(Native->QueryInterface(IID_PPV_ARGS(Device.GetInitReference())),Error,TEXT("ID3D12Device5")))return false;
         if(SUCCEEDED(Native->QueryInterface(IID_PPV_ARGS(InfoQueue.GetInitReference()))))
-        {ValidationAvailable.store(true);LastMessage=InfoQueue->GetNumStoredMessagesAllowedByRetrievalFilter();}
+        {ValidationAvailable.store(true);LastMessage=FParse::Param(FCommandLine::Get(),TEXT("SensorNativeStrictValidation"))?0:InfoQueue->GetNumStoredMessagesAllowedByRetrievalFilter();}
         D3D12_FEATURE_DATA_D3D12_OPTIONS5 Options={};
         if(!Succeeded(Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5,&Options,sizeof(Options)),Error,TEXT("DXR capability")))return false;
         if(Options.RaytracingTier<D3D12_RAYTRACING_TIER_1_1){Error=TEXT("native LiDAR requires DXR 1.1 inline queries");return false;}
@@ -216,6 +216,7 @@ public:
         if(!B->Storage||!B->Scratch)return {};
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC Build={};Build.Inputs=Inputs;Build.DestAccelerationStructureData=B->Storage->Address();Build.ScratchAccelerationStructureData=B->Scratch->Address();
         List->BuildRaytracingAccelerationStructure(&Build,0,nullptr);UavBarrier(List);++BlasBuilds;
+        if(LedgerEnabled())UE_LOG(LogTemp,Display,TEXT("[SensorNativeBlasBuild] next_fence=%llu revision=%llu vertices=0x%llx vertex_bytes=%llu vertex_count=%d stride=%u surfaces=0x%llx result=0x%llx scratch=0x%llx sourceAS=0 refit=0 node_mask=1 created_resident=1 MakeResident=0 Evict=0 cpu_desc=%p"),NextFence+1,Mesh.Revision,uint64(B->Vertices->Address()),B->Vertices->Size,Mesh.Vertices->Num(),uint32(sizeof(FVector3f)),uint64(B->Surfaces->Address()),uint64(B->Storage->Address()),uint64(B->Scratch->Address()),&Geometry);
         if(Blases.Num()>=8){int32 Old=0;for(int32 I=1;I<Blases.Num();++I)if(Blases[I]->LastUse<Blases[Old]->LastUse)Old=I;Blases.RemoveAt(Old);}
         Blases.Add(B);return B;
     }
@@ -232,6 +233,7 @@ public:
             D3D12_RAYTRACING_INSTANCE_DESC Instance={};const FMatrix M=Mesh.LocalToWorld.ToMatrixWithScale();
             for(int32 Row=0;Row<3;++Row)for(int32 Column=0;Column<4;++Column)Instance.Transform[Row][Column]=float(M.M[Column][Row]);
             Instance.InstanceID=I;Instance.InstanceMask=0xff;Instance.AccelerationStructure=B->Storage->Address();Instances.Add(Instance);
+            if(LedgerEnabled())UE_LOG(LogTemp,Display,TEXT("[SensorNativeTlasInstance] next_fence=%llu instance=%d revision=%llu BLAS=0x%llx vertices=0x%llx surfaces=0x%llx"),NextFence+1,I,Mesh.Revision,uint64(B->Storage->Address()),uint64(B->Vertices->Address()),uint64(B->Surfaces->Address()));
         }
         if(Instances.IsEmpty()){Error=TEXT("native LiDAR empty collision TLAS");return {};}
         S->Instances=NewBuffer(Device,Instances.Num()*sizeof(D3D12_RAYTRACING_INSTANCE_DESC),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("S.Instances"));
@@ -248,6 +250,7 @@ public:
         if(!S->Storage||!S->Scratch)return {};
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC Build={};Build.Inputs=Inputs;Build.DestAccelerationStructureData=S->Storage->Address();Build.ScratchAccelerationStructureData=S->Scratch->Address();
         List->BuildRaytracingAccelerationStructure(&Build,0,nullptr);UavBarrier(List);++SceneBuilds;
+        if(LedgerEnabled())UE_LOG(LogTemp,Display,TEXT("[SensorNativeTlasBuild] next_fence=%llu instances=0x%llx count=%d result=0x%llx scratch=0x%llx sourceAS=0 refit=0 node_mask=1"),NextFence+1,uint64(S->Instances->Address()),Instances.Num(),uint64(S->Storage->Address()),uint64(S->Scratch->Address()));
         if(Scenes.Num()>=4){int32 Old=0;for(int32 I=1;I<Scenes.Num();++I)if(Scenes[I]->LastUse<Scenes[Old]->LastUse)Old=I;Scenes.RemoveAt(Old);}
         Scenes.Add(S);return S;
     }
@@ -323,7 +326,7 @@ TSharedPtr<ITicket,ESPMode::ThreadSafe> Submit(const TArray<FSensorRtMesh>& Mesh
     for(const auto& B:Job->Scene->Blases)if(B){Pin(B->Vertices);Pin(B->Surfaces);Pin(B->Storage);Pin(B->Scratch);}
     if(LedgerEnabled())
     {
-        UE_LOG(LogTemp,Display,TEXT("[SensorNativeSubmit] fence=%llu completed=%llu TLAS=0x%llx constants=0x%llx count=%d"),Value,LastCompleted.load(),uint64(Job->Scene->Storage->Address()),uint64(Job->Constants->Address()),Count);
+        UE_LOG(LogTemp,Display,TEXT("[SensorNativeSubmit] fence=%llu completed=%llu TLAS=0x%llx constants=0x%llx rays=0x%llx results=0x%llx count=%d SBT=none local_root=none native_inline=1"),Value,LastCompleted.load(),uint64(Job->Scene->Storage->Address()),uint64(Job->Constants->Address()),uint64(Job->Rays->Address()),uint64(Job->Results->Address()),Count);
         for(int32 I=0;I<Job->Scene->Blases.Num();++I)if(const auto& B=Job->Scene->Blases[I])UE_LOG(LogTemp,Display,TEXT("[SensorNativeBinding] fence=%llu mesh=%d surface=0x%llx blas=0x%llx"),Value,I,uint64(B->Surfaces->Address()),uint64(B->Storage->Address()));
     }
     ID3D12CommandList* Lists[]={Job->List};Backend->Queue->ExecuteCommandLists(1,Lists);

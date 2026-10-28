@@ -25,7 +25,7 @@ namespace
 {
 class FGpuLifetimeRun final:public IAutomationLatentCommand
 {
- FAutomationTestBase* Test;int Phase=0,Edits=0,Cancels=0;double Started=FPlatformTime::Seconds(),Pause=0,EditStarted=0,LastLog=0,DigFinished=0;
+ FAutomationTestBase* Test;int Phase=0,Edits=0,Cancels=0,TargetDigs=50;double Started=FPlatformTime::Seconds(),Pause=0,EditStarted=0,LastLog=0,DigFinished=0;
  AShipHatchSimulation* Sim=nullptr;AVirtualLidarSensorActor* Sensor=nullptr;AActor* Cargo=nullptr;UVirtualLidarSurfaceResponseComponent* Optical=nullptr;
  FTransform OriginalPose;TArray<FName> OriginalTags;float OriginalReflectivity=0;
  int64 Baseline=0;uint64 MemoryBefore=0,MemoryPeak=0;TArray<TSharedPtr<FJsonValue>> Samples;
@@ -44,13 +44,15 @@ class FGpuLifetimeRun final:public IAutomationLatentCommand
   R->SetNumberField(TEXT("rss_before_bytes"),MemoryBefore);R->SetNumberField(TEXT("rss_after_bytes"),FPlatformMemory::GetStats().UsedPhysical);R->SetNumberField(TEXT("rss_peak_bytes"),MemoryPeak);
   R->SetNumberField(TEXT("dig_wall_seconds"),FPlatformTime::Seconds()-EditStarted);R->SetArrayField(TEXT("samples"),Samples);R->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());
   R->SetStringField(TEXT("rss_policy"),TEXT("measurement only; no RSS acceptance assertion; HATCH06 #26 remains separate"));
-  FString Text;FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Text));IFileManager::Get().MakeDirectory(*Root(),true);FFileHelper::SaveStringToFile(Text,*(Root()/TEXT("gpu-50-digs-rss.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+  R->SetNumberField(TEXT("requested_digs"),TargetDigs);R->SetBoolField(TEXT("native_selected"),SensorOwnedRayTracing::UsesNativeBackend());
+  const auto Gpu=SensorOwnedRayTracing::GetSubmissionStats();R->SetBoolField(TEXT("debug_interface_observed"),Gpu.NativeValidationAvailable);if(Gpu.NativeValidationAvailable)R->SetNumberField(TEXT("debug_errors"),Gpu.NativeValidationErrors);
+  FString Text;FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Text));IFileManager::Get().MakeDirectory(*Root(),true);FFileHelper::SaveStringToFile(Text,*(Root()/(TargetDigs==50?TEXT("gpu-50-digs-rss.json"):TEXT("gpu-1000-digs-rss.json"))),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
  }
 public:
- explicit FGpuLifetimeRun(FAutomationTestBase* T):Test(T){}
+ explicit FGpuLifetimeRun(FAutomationTestBase* T,int InTarget=50):Test(T),TargetDigs(InTarget){}
  bool Update() override
  {
-  const double Now=FPlatformTime::Seconds();if(Now-Started>180){Test->AddError(TEXT("GPU lifetime/50-dig validation timeout"));RestoreIdentity();Save();return true;}
+  const double Now=FPlatformTime::Seconds();if(Now-Started>(TargetDigs==50?180:1800)){Test->AddError(TEXT("GPU lifetime/dig validation timeout"));RestoreIdentity();Save();return true;}
   if(Phase==0)
   {
    UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();if(!World||!FinalAcceptanceViewportReady(World))return false;
@@ -92,8 +94,21 @@ public:
   }
   if(Phase==3)
   {
-   const double X=5+(Edits%5)*.2,Y=-5+(Edits/5%5)*.2;
-   const FVector O=Sim->GetActorTransform().TransformPosition(FVector(X,Y,Sim->HoldDepth+6)*100),D=Sim->GetActorTransform().TransformVectorNoScale(FVector(0,0,-1));
+   double X=5+(Edits%5)*.2,Y=-5+(Edits/5%5)*.2;
+   const FVector D=Sim->GetActorTransform().TransformVectorNoScale(FVector(0,0,-1));
+   if(TargetDigs!=50)
+   {
+    bool Found=false;
+    for(int32 K=0;K<1024&&!Found;++K)
+    {
+     const int32 Cell=(Edits+K)%1024;
+     X=((Cell%32+.5)/32.-.5)*Sim->OpeningLength*.7;Y=((Cell/32+.5)/32.-.5)*Sim->OpeningWidth*.7;
+     const FVector Candidate=Sim->GetActorTransform().TransformPosition(FVector(X,Y,Sim->HoldDepth+6)*100);FVector Hit;
+     Found=Sim->PickCargo(Candidate,D,Hit)&&Hit.Z>.2;
+    }
+    if(!Found){Test->AddError(TEXT("1000-dig fixture has no unoccluded loaded cargo ray inside the opening"));Save();return true;}
+   }
+   const FVector O=Sim->GetActorTransform().TransformPosition(FVector(X,Y,Sim->HoldDepth+6)*100);
    Baseline=Scan->GetRuntimeStatus().FrameId;if(!Sim->Dig(O,D,.7,.15)){Test->AddError(FString::Printf(TEXT("production dig %d was rejected"),Edits+1));Save();return true;}
    for(int I=1;I<3;++I)if(auto* A=Sim->SensorAt(I))A->StopSensor();DigFinished=FPlatformTime::Seconds();++Edits;Phase=4;return false;
   }
@@ -101,12 +116,18 @@ public:
   Test->TestEqual(TEXT("next completed acquisition after every dig is real HWRT"),Scan->GetLastFrameSnapshot()->AcquisitionBackend,EVirtualLidarAcquisitionBackend::HardwareRayTracing);
   Test->TestEqual(TEXT("retained immutable acquisition remains unchanged across cancel/dig/BLAS revisions"),Hash(*Retained),Crc);
   const uint64 Memory=FPlatformMemory::GetStats().UsedPhysical;MemoryPeak=FMath::Max(MemoryPeak,Memory);auto Sample=MakeShared<FJsonObject>();Sample->SetNumberField(TEXT("dig"),Edits);Sample->SetNumberField(TEXT("rss_bytes"),Memory);Sample->SetNumberField(TEXT("surface_revision"),Sim->Revision());Samples.Add(MakeShared<FJsonValueObject>(Sample));
-  if(Edits<50){Phase=3;return false;}
-  Test->TestEqual(TEXT("all fifty production excavations were exercised"),Edits,50);Save();Scan->StopScan();return true;
+  if(Edits<TargetDigs){Phase=3;return false;}
+  Test->TestEqual(TEXT("all requested production excavations were exercised"),Edits,TargetDigs);
+  if(TargetDigs!=50&&FParse::Param(FCommandLine::Get(),TEXT("SensorNativeStrictValidation")))
+  {const auto Gpu=SensorOwnedRayTracing::GetSubmissionStats();Test->TestTrue(TEXT("debug layer interface observed"),Gpu.NativeValidationAvailable);Test->TestEqual(TEXT("debug layer errors zero"),Gpu.NativeValidationErrors,uint64(0));}
+  Save();Scan->StopScan();return true;
  }
 };
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGpuLidarLifetimeTest,"MA0T10.GpuLidar.IdentityCancelAndFiftyDigsRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FGpuLidarLifetimeTest::RunTest(const FString&)
 {if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FGpuLifetimeRun(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNativeProductionLifetimeTest,"HATCH26.NativeProductionThousandDigsRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FNativeProductionLifetimeTest::RunTest(const FString&)
+{if(!SensorOwnedRayTracing::UsesNativeBackend()){AddError(TEXT("native production harness requires -SensorRtNative; no skip"));return false;}if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/ShipHatchTestMap"),true))return false;ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FGpuLifetimeRun(this,1000));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;}
 #endif
