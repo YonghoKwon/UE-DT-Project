@@ -33,11 +33,19 @@ def analyze(directory):
     if off and any(deltas.values()):
         raise ValueError('All-off run contained sensor RT work')
     os_rows = [json.loads(line) for line in (directory / 'os-counters.jsonl').read_text(encoding='utf-8').splitlines()]
-    # Runtime header file creation time is not a timing oracle. Align external
-    # samples with the UTC explicitly recorded by the launcher's measurement watcher.
+    # Prefer the runtime's own UTC. The launcher's polling timestamp can be late,
+    # which would otherwise admit orderly shutdown/decommit into the tail.
     timing = json.loads((directory / 'measurement-clock.json').read_text(encoding='utf-8-sig'))
-    start = datetime.datetime.fromisoformat(timing['FirstCurveObservedUtc']) - datetime.timedelta(seconds=timing['FirstCurveSeconds'])
+    if context['metadata'].get('started_utc'):
+        start = datetime.datetime.fromisoformat(context['metadata']['started_utc'])
+        end_guard = 0
+        clock_source = 'runtime metadata started_utc (written before monotonic start)'
+    else:
+        start = datetime.datetime.fromisoformat(timing['FirstCurveObservedUtc']) - datetime.timedelta(seconds=timing['FirstCurveSeconds'])
+        end_guard = 2 * timing.get('PollingUncertaintySeconds', 5)
+        clock_source = 'launcher watcher; endpoint guarded by twice recorded polling uncertainty'
     selected = []
+    after_window = 0
     for row in os_rows:
         if 'monitor_error' in row:
             error_seconds = (datetime.datetime.fromisoformat(row['utc']) - start).total_seconds()
@@ -46,7 +54,9 @@ def analyze(directory):
             warnings.append('Terminal OS process-exit counter race retained; not converted to zero')
             continue
         row['seconds'] = (datetime.datetime.fromisoformat(row['utc']) - start).total_seconds()
-        if points[-1]['seconds'] - 1200 <= row['seconds'] <= points[-1]['seconds']:
+        if row['seconds'] > points[-1]['seconds'] - end_guard:
+            after_window += 1
+        elif points[-1]['seconds'] - 1200 <= row['seconds']:
             selected.append(row)
     if len(selected) < 225 or selected[-1]['seconds'] - selected[0]['seconds'] < 1170:
         raise ValueError('OS tail counter coverage insufficient')
@@ -59,6 +69,9 @@ def analyze(directory):
     return dict(Valid=True, Complete=True, Configuration=context['metadata']['configuration'],
                 Map=context['metadata'].get('map', 'ShipHatchTestMap (hatch runtime fixture)'), AllLidarOff=off, ActualHz=hz,
                 Tail20=metrics, OsTail20=os_metrics, RhiSubmissionDeltas=deltas, Warnings=warnings,
+                OsWindow=dict(ClockSource=clock_source, EndGuardSeconds=end_guard,
+                              ExcludedAfterMeasurementOrGuard=after_window,
+                              FirstSeconds=selected[0]['seconds'], LastSeconds=selected[-1]['seconds']),
                 Limits='Descriptive additional map/OS comparison, not original8MiB5pair or2h acceptance. PrivateBytes=private Commit per Windows; no caller attribution.')
 
 

@@ -69,6 +69,22 @@ class MapMemoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'OS tail'):
             analyze(self.path)
 
+    def test_runtime_utc_excludes_shutdown_even_with_late_watcher(self):
+        self.rows[0]['started_utc'] = self.origin.isoformat()
+        (self.path/'measurement-clock.json').write_text(json.dumps(dict(FirstCurveObservedUtc=(self.origin+datetime.timedelta(seconds=2)).isoformat(), FirstCurveSeconds=0, PollingUncertaintySeconds=2)))
+        teardown = dict(self.os[-1]);teardown.update(utc=(self.origin+datetime.timedelta(seconds=3601)).isoformat(), private_bytes=0, commit_bytes=0)
+        self.os.append(teardown);self.save();result=analyze(self.path)
+        self.assertGreater(result['OsTail20']['Commit']['slope_per_hour'], 0)
+        self.assertEqual(result['OsWindow']['ExcludedAfterMeasurementOrGuard'], 1)
+        self.assertEqual(result['OsWindow']['EndGuardSeconds'], 0)
+
+    def test_watcher_only_clock_guards_uncertain_shutdown_boundary(self):
+        (self.path/'measurement-clock.json').write_text(json.dumps(dict(FirstCurveObservedUtc=(self.origin+datetime.timedelta(seconds=5)).isoformat(), FirstCurveSeconds=0, PollingUncertaintySeconds=5)))
+        teardown=dict(self.os[-1]);teardown.update(utc=(self.origin+datetime.timedelta(seconds=3602)).isoformat(),private_bytes=0,commit_bytes=0)
+        self.os.append(teardown);self.save();result=analyze(self.path)
+        self.assertGreater(result['OsTail20']['Commit']['slope_per_hour'], 0)
+        self.assertEqual(result['OsWindow']['EndGuardSeconds'], 10)
+
     def test_actors_cannot_disappear_from_averages(self):
         self.rows[-2]['lidar_actor_count'] = 1; self.save()
         with self.assertRaisesRegex(ValueError, 'cohort'):
