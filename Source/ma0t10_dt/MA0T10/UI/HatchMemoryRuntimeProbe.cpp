@@ -31,6 +31,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorRayQuery.h"
 
 namespace
 {
@@ -47,9 +48,9 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
     TUniquePtr<TGuardValue<bool>> ScreenMessages;
     double Created=FPlatformTime::Seconds(), NextPoll=0, Changed=0, Started=0, LastSample=-1;
     double Seconds=3600, Interval=5, PreviousCost=0, CostSum=0, CostMax=0;
-    int32 Port=0, Phase=0, WarmEdits=0, Samples=0;
+    int32 Port=0, Phase=0, WarmEdits=0, Samples=0, SensorCount=3;
     bool Finished=false, Failed=false, Llm=false;
-    bool Investigation=false, TraceCanaryEnabled=false;
+    bool Investigation=false, TraceCanaryEnabled=false, DepthProjection=false, SkipWarmEdits=false, Isolation=false;
     int32 CanaryStage=0;
     TArray<uint8> TraceCanary;
     TArray<uint8> CameraTagCanary;
@@ -70,6 +71,27 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
             if(I>=16)continue;if(Best.Num()==16)Best.Pop(false);Best.Insert(P,I);
         }
         auto R=MakeShared<FJsonObject>();for(const auto& P:Best)R->SetNumberField(P.Key.ToString(),double(P.Value));return R;
+    }
+    void SaveQualityOutsideMeasurement()
+    {
+        if(!DepthProjection||!Host.IsValid()||!Host->Simulation)return;
+        auto Root=MakeShared<FJsonObject>();Root->SetStringField(TEXT("scope"),TEXT("After measurement footer only; up to256 uniformly spaced points/sensor vs static CPU collision snapshot; modeled/noisy returns retained; descriptive, not accuracy acceptance"));
+        for(int32 I=0;I<SensorCount;++I)if(auto* A=Host->Simulation->SensorAt(I))
+        {
+            const auto Frame=A->ScanComponent->GetLastFrameSnapshot();const auto Query=Host->Simulation->CaptureRayQuery(A,ECC_Visibility);
+            if(!Frame||!Frame->Points||!Query)continue;
+            int32 Compared=0,MatchedHits=0,Disagree=0;double Sum=0,Max=0;
+            const int32 Step=FMath::Max(1,Frame->Points->Num()/256);
+            for(int32 J=0;J<Frame->Points->Num()&&Compared<256;J+=Step)
+            {
+                const auto& P=(*Frame->Points)[J];const FVector Start=Frame->AcquisitionTransform.GetLocation();
+                const FVector End=Start+Frame->AcquisitionTransform.TransformVectorNoScale(P.LocalDirection)*Frame->MaxDistanceCm;
+                FHitResult Hit;const bool CpuHit=Query->Trace(Start,End,Hit);++Compared;if(CpuHit!=P.bHit)++Disagree;
+                if(CpuHit&&P.bHit){const double E=FMath::Abs(double(P.Distance)-FVector::Distance(Start,Hit.ImpactPoint));Sum+=E;Max=FMath::Max(Max,E);++MatchedHits;}
+            }
+            auto Row=MakeShared<FJsonObject>();Row->SetNumberField(TEXT("compared"),Compared);Row->SetNumberField(TEXT("matched_hits"),MatchedHits);Row->SetNumberField(TEXT("hit_disagreements"),Disagree);Row->SetNumberField(TEXT("mean_abs_range_error_cm"),MatchedHits?Sum/MatchedHits:0);Row->SetNumberField(TEXT("max_abs_range_error_cm"),Max);Row->SetNumberField(TEXT("frame_id"),double(Frame->FrameId));Root->SetObjectField(A->GetSensorId(),Row);
+        }
+        FString Text;FJsonSerializer::Serialize(Root,TJsonWriterFactory<>::Create(&Text));FFileHelper::SaveStringToFile(Text,*(Directory/TEXT("backend-quality.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     }
     TSharedRef<FJsonObject> Pcd(bool Check=false)
     {
@@ -93,7 +115,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
             J->SetNumberField(TEXT("budget_mib_s"),S.PcdBudgetMiBPerSecond);R->SetObjectField(S.SensorId,J);
             if(Check&&(S.SubmittedFrameCount<=B.SubmittedFrameCount||S.ConsumerReceivedCount<=B.ConsumerReceivedCount||S.ConsumerValidationFailureCount!=B.ConsumerValidationFailureCount||S.EncodeFailureCount!=B.EncodeFailureCount))Failed=true;
         }
-        if(Check&&Count!=3)Failed=true;return R;
+        if(Check&&Count!=SensorCount)Failed=true;return R;
     }
     void Finish(bool Complete,const FString& Reason)
     {
@@ -107,6 +129,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         R->SetNumberField(TEXT("sampler_total_gt_ms"),CostSum);R->SetNumberField(TEXT("sampler_max_gt_ms"),CostMax);
         const bool Saved=Write(R);if(File){Failed=!File->Close()||Failed;File.Reset();}
         if(!Saved){FString Text;FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Text));IFileManager::Get().MakeDirectory(*Directory,true);FFileHelper::SaveStringToFile(Text,*(Directory/TEXT("probe-error.json")));}
+        if(Complete&&!Failed&&Saved)SaveQualityOutsideMeasurement();
         // The observation/footer is complete. Quiesce only this diagnostic's
         // world/output before engine PreExit tears down scene-view delegates.
         // No stop/drain cost enters memory samples or their GT cost values.
@@ -125,10 +148,11 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         FVirtualSensorTransportProfile Profile;Profile.BrokerUrl=FString::Printf(TEXT("tcp://127.0.0.1:%d"),Port);Profile.UserName.Reset();
         Transport->ConfigureTransportProfile(Profile);Transport->SetSessionCredentials(TEXT(""),TEXT(""));
         auto* P=NewObject<UVirtualSensorStreamPublisherComponent>(&S);S.AddInstanceComponent(P);P->SetTransportComponent(Transport);P->RegisterComponent();Publisher=P;
-        for(int32 I=0;I<3;++I)
+        for(int32 I=0;I<SensorCount;++I)
         {
             auto* A=S.SensorAt(I);if(!A||!S.SensorEnabled(I))return false;
             A->StopSensor();A->SetSharedOutputServices(Transport,nullptr,P);
+            if(DepthProjection){FString Error;if(!A->SetLidarAcquisitionBackend(EVirtualLidarAcquisitionBackend::GpuDepthProjection,Error))return false;}
             FVirtualSensorStreamConfig Config;Config.SensorId=A->GetSensorId();Config.StreamKind=EVirtualSensorStreamKind::PointCloud;Config.bEnabled=true;P->ConfigureStream(Config);A->StartSensor();
         }
         return true;
@@ -152,7 +176,8 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         R->SetBoolField(TEXT("project_tags_enabled"),MA0T10MemoryTags::IsEnabled());
         R->SetBoolField(TEXT("investigation"),Investigation);R->SetBoolField(TEXT("trace_canary"),TraceCanaryEnabled);R->SetStringField(TEXT("trace_bookmarks"),TEXT("MEMORY26B_BEGIN/END; shared allocation-query contract"));
         R->SetBoolField(TEXT("sampler_enabled"),true);R->SetBoolField(TEXT("pcd_loopback"),true);R->SetBoolField(TEXT("pcd_default_compressed"),Publisher->GetPcdSendOptions(TEXT("")).bCompressed);
-        R->SetStringField(TEXT("workload"),TEXT("packaged idle;17 public Dig near-surface ray cycles with fresh analysis, restore,35s warmup; no Editor automation history"));
+        R->SetStringField(TEXT("workload"),SkipWarmEdits?TEXT("diagnostic fixed geometry; no warm Dig/restore;35s warmup"):TEXT("packaged idle;17 public Dig near-surface ray cycles with fresh analysis, restore,35s warmup; no Editor automation history"));
+        R->SetNumberField(TEXT("diagnostic_sensor_count"),SensorCount);R->SetBoolField(TEXT("diagnostic_depth_projection"),DepthProjection);R->SetBoolField(TEXT("diagnostic_revision_changes"),!SkipWarmEdits);
         R->SetStringField(TEXT("source_commit"),SourceCommit);R->SetStringField(TEXT("started_utc"),FDateTime::UtcNow().ToIso8601());
         R->SetStringField(TEXT("allocator"),GMalloc->GetDescriptiveName());
         if(Host.IsValid()&&Host->Monitor)R->SetNumberField(TEXT("font_percent"),Host->Monitor->GetFontScale()*100);
@@ -170,7 +195,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         if(World.IsValid())if(auto* V=World->GetGameViewport();V&&V->Viewport){const auto Size=V->Viewport->GetSizeXY();R->SetNumberField(TEXT("viewport_x"),Size.X);R->SetNumberField(TEXT("viewport_y"),Size.Y);ViewportValid=Size==FIntPoint(1920,1080);}
         if(!Write(R)||!ViewportValid)return false;
         for(const auto& Status:Publisher->GetStreamStatuses())if(Status.StreamKind==EVirtualSensorStreamKind::PointCloud)PcdBefore.Add(Status.SensorId,Status);
-        for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))FramesBefore.Add(A->GetSensorId(),A->ScanComponent->GetRuntimeStatus().FrameId);
+        for(int32 I=0;I<SensorCount;++I)if(auto* A=S.SensorAt(I))FramesBefore.Add(A->GetSensorId(),A->ScanComponent->GetRuntimeStatus().FrameId);
         Started=FPlatformTime::Seconds();if(!BeginHatchMemoryExperiment(Directory))return false;TRACE_BOOKMARK(TEXT("MEMORY26B_BEGIN"));return true;
     }
     void Sample(AShipHatchSimulation& S)
@@ -209,7 +234,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
             Gpu->SetNumberField(TEXT("native_fallbacks"),Stats.NativeFallbacks);
             Gpu->SetNumberField(TEXT("inline_dispatches"),Stats.InlineDispatches);Gpu->SetNumberField(TEXT("scene_storage_creates"),Stats.SceneStorageCreates);Gpu->SetNumberField(TEXT("scene_storage_reuses"),Stats.SceneStorageReuses);
             if(Stats.NativeValidationAvailable)Gpu->SetNumberField(TEXT("native_validation_errors"),Stats.NativeValidationErrors);
-            for(int32 I=0;I<3;++I)
+            for(int32 I=0;I<SensorCount;++I)
             {
                 auto* A=S.SensorAt(I);if(!A){Failed=true;continue;}const auto* Scan=A->ScanComponent.Get();const auto& Status=Scan->GetRuntimeStatus();
                 FVirtualSensorEditableState State;A->ReadEditableState(State);auto J=MakeShared<FJsonObject>();
@@ -217,7 +242,8 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
                 J->SetBoolField(TEXT("running"),A->IsSensorRunning());J->SetStringField(TEXT("profile"),UEnum::GetValueAsString(State.LidarProfile));
                 J->SetNumberField(TEXT("horizontal_samples"),Scan->HorizontalSamples);J->SetNumberField(TEXT("vertical_channels"),Scan->VerticalChannels);J->SetNumberField(TEXT("requested_hz"),Status.RequestedAcquisitionRateHz);
                 J->SetNumberField(TEXT("preview_point_budget"),Scan->GetPreviewPolicyState().MaxPoints);J->SetNumberField(TEXT("visible_preview_points"),A->VisualizationComponent->GetVisiblePointCount());
-                if(!A->IsSensorRunning()||State.LidarProfile!=EVirtualLidarDeviceProfile::OusterOS1_64_Rev7||Scan->HorizontalSamples!=1024||Scan->VerticalChannels!=64||!FMath::IsNearlyEqual(Status.RequestedAcquisitionRateHz,20.f)||Scan->GetPreviewPolicyState().MaxPoints!=12000||A->VisualizationComponent->GetVisiblePointCount()<=0||Scan->GetActiveAcquisitionBackend()!=EVirtualLidarAcquisitionBackend::HardwareRayTracing)Failed=true;
+                const auto ExpectedBackend=DepthProjection?EVirtualLidarAcquisitionBackend::GpuDepthProjection:EVirtualLidarAcquisitionBackend::HardwareRayTracing;
+                if(!A->IsSensorRunning()||State.LidarProfile!=EVirtualLidarDeviceProfile::OusterOS1_64_Rev7||Scan->HorizontalSamples!=1024||Scan->VerticalChannels!=64||!FMath::IsNearlyEqual(Status.RequestedAcquisitionRateHz,20.f)||Scan->GetPreviewPolicyState().MaxPoints!=12000||A->VisualizationComponent->GetVisiblePointCount()<=0||Scan->GetActiveAcquisitionBackend()!=ExpectedBackend)Failed=true;
                 Sensors->SetObjectField(A->GetSensorId(),J);
             }
             R->SetObjectField(TEXT("sensors"),Sensors);R->SetNumberField(TEXT("previous_sample_total_gt_ms"),PreviousCost);R->SetNumberField(TEXT("restores"),0);
@@ -231,10 +257,13 @@ public:
         FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryRuntimeSeconds="),Seconds);FParse::Value(FCommandLine::Get(),TEXT("HatchMemorySampleSeconds="),Interval);
         FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryPcdLoopbackPort="),Port);FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryCancelFile="),CancelFile);
         FParse::Value(FCommandLine::Get(),TEXT("HatchSourceCommit="),SourceCommit);
+        FParse::Value(FCommandLine::Get(),TEXT("HatchMemorySensorCount="),SensorCount);
+        DepthProjection=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDepthProjection"));SkipWarmEdits=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryNoRevisionChanges"));
+        Isolation=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryIsolation"));
         Investigation=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryInvestigation"));TraceCanaryEnabled=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryTraceCanary"));
         const bool FinalSoak=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryFinalValidation"));
         const bool ValidDuration=Investigation?(Seconds>=900&&Seconds<=1200):(Seconds==30||(Seconds>=1800&&Seconds<=3600)||(FinalSoak&&Seconds==7200));
-        Failed=!FMath::IsFinite(Seconds)||!FMath::IsFinite(Interval)||!ValidDuration||(TraceCanaryEnabled&&Seconds!=30)||Interval<5||Interval>30||Port<1024||Port>65535;
+        Failed=!FMath::IsFinite(Seconds)||!FMath::IsFinite(Interval)||!ValidDuration||(TraceCanaryEnabled&&Seconds!=30)||Interval<5||Interval>30||Port<1024||Port>65535||SensorCount<1||SensorCount>3;
     }
     TStatId GetStatId() const override {RETURN_QUICK_DECLARE_CYCLE_STAT(FHatchMemoryRuntimeProbe,STATGROUP_Tickables);}
     ETickableTickType GetTickableTickType() const override {return ETickableTickType::Always;}
@@ -256,11 +285,15 @@ public:
         if(Phase<3&&(S->IsGenerating()||!M->GetAnalysis()))return;
         if(Phase==0)
         {
-            if(!ConfigurePcd(*S)){Finish(false,TEXT("three enabled map sensors required"));return;}
+            if(SensorCount!=3)for(int32 I=0;I<3;++I)S->SetFieldSensor(I,I<SensorCount,S->FieldProfiles[I]);
+            if(!ConfigurePcd(*S)){Finish(false,TEXT("selected enabled map sensors required"));return;}
+            Changed=Now;if(Isolation)UE_LOG(LogTemp,Display,TEXT("[HatchMemoryIsolation] configured sensors=%d depth=%d revision_changes=%d;2s settling before warmup"),SensorCount,DepthProjection?1:0,SkipWarmEdits?0:1);
             ScreenMessages=MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled,false);M->SetFontPercent(100);M->SelectView(1);M->SetSplitView(false);M->SetCameraPreset(0);Phase=1;return;
         }
         if(Phase==1)
         {
+            if(Isolation&&Now-Changed<2)return;
+            if(SkipWarmEdits){Changed=Now;Phase=2;return;}
             if(WarmEdits<17)
             {
                 const int32 I=WarmEdits;const double X=4+I%5;double Y=((I/5)%5-2)*3.;if(FMath::IsNearlyEqual(Y,-3.))Y=-4.5;
@@ -268,6 +301,7 @@ public:
                 // selecting the overhead cab. This is not a mouse/UI test.
                 const FVector Origin(X*100,Y*100,(S->Surface().Height(X,Y)+1)*100);
                 if(!S->Dig(S->GetActorTransform().TransformPosition(Origin),S->GetActorTransform().TransformVector(FVector(0,0,-1)),2,1.5)){Finish(false,TEXT("warm Dig rejected"));return;}
+                if(Isolation)UE_LOG(LogTemp,Display,TEXT("[HatchMemoryIsolation] warm_dig=%d surface_revision=%llu"),WarmEdits+1,S->Revision());
                 ++WarmEdits;return;
             }
             if(!S->RestoreCargo()){Finish(false,TEXT("warm restore rejected"));return;}Changed=Now;Phase=2;return;
@@ -287,7 +321,7 @@ public:
         {
             Sample(*S);if(Now-Started>=Seconds)
             {
-                for(int32 I=0;I<3;++I)if(auto* A=S->SensorAt(I))if(A->ScanComponent->GetRuntimeStatus().FrameId<=FramesBefore.FindRef(A->GetSensorId()))Failed=true;
+                for(int32 I=0;I<SensorCount;++I)if(auto* A=S->SensorAt(I))if(A->ScanComponent->GetRuntimeStatus().FrameId<=FramesBefore.FindRef(A->GetSensorId()))Failed=true;
                 Finish(true,TEXT("finished"));
             }
         }

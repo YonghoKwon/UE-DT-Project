@@ -51,6 +51,7 @@ struct FBuffer
         if(!Succeeded(Device->CreateCommittedResource(&Properties,D3D12_HEAP_FLAG_NONE,&Desc,State,nullptr,IID_PPV_ARGS(Resource.GetInitReference())),Error,TEXT("CreateCommittedResource")))return false;
         Size=InSize;Bytes.fetch_add(Size);PeakBytes.store(FMath::Max(PeakBytes.load(),Bytes.load()));
         Resource->SetName(L"SensorOwnedPersistent");
+        if(LedgerEnabled())Resource->SetName(*FString::Printf(TEXT("SensorOwned/%s/0x%llx/%llu"),Purpose,uint64(Resource->GetGPUVirtualAddress()),Size));
         if(LedgerEnabled())LedgerDevice=Device;
         if(LedgerEnabled())UE_LOG(LogTemp,Display,TEXT("[SensorNativeLedger] create VA=0x%llx bytes=%llu heap=%d state=%u role=%s"),uint64(Resource->GetGPUVirtualAddress()),Size,int32(Heap),uint32(State),Purpose);
         if(Heap!=D3D12_HEAP_TYPE_DEFAULT)
@@ -117,6 +118,8 @@ public:
     uint64 NextFence=0,Clock=0;
     uint64 LastMessage=0;
     bool Faulted=false;
+    bool DredReported=false;
+    bool ScopedGbv=false;
     D3D12_COMMAND_LIST_TYPE ListType=D3D12_COMMAND_LIST_TYPE_DIRECT;
     bool Initialize(FString& Error)
     {
@@ -124,6 +127,17 @@ public:
         auto* Native=GetID3D12DynamicRHI()->RHIGetDevice(0);
         if(GetID3D12DynamicRHI()->RHIGetDeviceNodeMask(0)!=1){Error=TEXT("native LiDAR unsupported GPU node mask");return false;}
         if(!Succeeded(Native->QueryInterface(IID_PPV_ARGS(Device.GetInitReference())),Error,TEXT("ID3D12Device5")))return false;
+        ScopedGbv=FParse::Param(FCommandLine::Get(),TEXT("SensorNativeScopedGBV"));
+        if(ScopedGbv)
+        {
+            TRefCountPtr<ID3D12DebugDevice1> Debug;
+            if(!Succeeded(Device->QueryInterface(IID_PPV_ARGS(Debug.GetInitReference())),Error,TEXT("GBV debug device")))return false;
+            D3D12_DEBUG_DEVICE_GPU_BASED_VALIDATION_SETTINGS Settings={};Settings.MaxMessagesPerCommandList=256;
+            Settings.DefaultShaderPatchMode=D3D12_GPU_BASED_VALIDATION_SHADER_PATCH_MODE_NONE;
+            Settings.PipelineStateCreateFlags=D3D12_GPU_BASED_VALIDATION_PIPELINE_STATE_CREATE_FLAG_FRONT_LOAD_CREATE_UNGUARDED_VALIDATION_SHADERS;
+            if(!Succeeded(Debug->SetDebugParameter(D3D12_DEBUG_DEVICE_PARAMETER_GPU_BASED_VALIDATION_SETTINGS,&Settings,sizeof(Settings)),Error,TEXT("GBV diagnostic default patch mode")))return false;
+            UE_LOG(LogTemp,Display,TEXT("[SensorNativeGBV] diagnostic process: default shader patch NONE; native lists override UNGUARDED; device GBV must be enabled before creation"));
+        }
         if(SUCCEEDED(Native->QueryInterface(IID_PPV_ARGS(InfoQueue.GetInitReference()))))
         {ValidationAvailable.store(true);LastMessage=FParse::Param(FCommandLine::Get(),TEXT("SensorNativeStrictValidation"))?0:InfoQueue->GetNumStoredMessagesAllowedByRetrievalFilter();}
         D3D12_FEATURE_DATA_D3D12_OPTIONS5 Options={};
@@ -156,7 +170,28 @@ public:
         D3D12_COMPUTE_PIPELINE_STATE_DESC Desc={};Desc.pRootSignature=Root;Desc.CS={SensorNativeRayQueryDxil,sizeof(SensorNativeRayQueryDxil)};Desc.NodeMask=1;
         return Succeeded(Device->CreateComputePipelineState(&Desc,IID_PPV_ARGS(Pipeline.GetInitReference())),Error,TEXT("CreateComputePipelineState"));
     }
-    bool Complete(uint64 Value)const{const uint64 Done=Fence->GetCompletedValue();LastCompleted.store(Done);return Done>=Value;}
+    void ReportDred()
+    {
+        if(DredReported||!LedgerEnabled())return;DredReported=true;
+        TRefCountPtr<ID3D12DeviceRemovedExtendedData1> Dred;
+        if(FAILED(Device->QueryInterface(IID_PPV_ARGS(Dred.GetInitReference()))))return;
+        D3D12_DRED_PAGE_FAULT_OUTPUT1 Page={};const HRESULT PageResult=Dred->GetPageFaultAllocationOutput1(&Page);
+        UE_LOG(LogTemp,Error,TEXT("[SensorNativeDRED] result=0x%08x faultVA=0x%llx removed=0x%08x"),uint32(PageResult),uint64(Page.PageFaultVA),uint32(Device->GetDeviceRemovedReason()));
+        if(SUCCEEDED(PageResult))for(int32 Deleted=0;Deleted<2;++Deleted)
+        {
+            auto* Node=Deleted?Page.pHeadRecentFreedAllocationNode:Page.pHeadExistingAllocationNode;
+            for(int32 I=0;Node&&I<256;++I,Node=Node->pNext)
+                UE_LOG(LogTemp,Error,TEXT("[SensorNativeDREDAllocation] deleted=%d type=%d name=%s"),Deleted,int32(Node->AllocationType),Node->ObjectNameW?Node->ObjectNameW:TEXT("<unnamed>"));
+        }
+        D3D12_DRED_AUTO_BREADCRUMBS_OUTPUT1 Crumbs={};
+        if(SUCCEEDED(Dred->GetAutoBreadcrumbsOutput1(&Crumbs)))
+            for(auto* N=Crumbs.pHeadAutoBreadcrumbNode;N;N=N->pNext)
+            {
+                const uint32 Last=N->pLastBreadcrumbValue?*N->pLastBreadcrumbValue:0;
+                UE_LOG(LogTemp,Error,TEXT("[SensorNativeDREDBreadcrumb] list=%s queue=%s last=%u count=%u"),N->pCommandListDebugNameW?N->pCommandListDebugNameW:TEXT("<unnamed>"),N->pCommandQueueDebugNameW?N->pCommandQueueDebugNameW:TEXT("<unnamed>"),Last,N->BreadcrumbCount);
+            }
+    }
+    bool Complete(uint64 Value){const uint64 Done=Fence->GetCompletedValue();LastCompleted.store(Done);if(Done==MAX_uint64)ReportDred();return Done>=Value;}
     bool Validate(FString& Error)
     {
         if(!InfoQueue)return true;
@@ -167,7 +202,14 @@ public:
             SIZE_T Size=0;InfoQueue->GetMessage(I,nullptr,&Size);if(!Size)continue;
             TArray<uint8> Storage;Storage.SetNumUninitialized(Size);auto* Message=reinterpret_cast<D3D12_MESSAGE*>(Storage.GetData());
             if(SUCCEEDED(InfoQueue->GetMessage(I,Message,&Size))&&(Message->Severity==D3D12_MESSAGE_SEVERITY_ERROR||Message->Severity==D3D12_MESSAGE_SEVERITY_CORRUPTION))
-            {++ValidationErrors;Error=FString::Printf(TEXT("D3D12 validation during native acquisition: %s"),UTF8_TO_TCHAR(Message->pDescription));Faulted=true;}
+            {
+                const FString Description=UTF8_TO_TCHAR(Message->pDescription);
+                const bool KnownEngineWarmup=Description.Contains(TEXT("ReflectionCubeTexture"))||Description.Contains(TEXT("LongTaskRenderTarget"));
+                const bool KnownEngineProbe=Description.Contains(TEXT("CreateDescriptorHeap"))&&Description.Contains(TEXT("2000000"))&&Description.Contains(TEXT("1000000"));
+                if(ScopedGbv&&(KnownEngineWarmup||KnownEngineProbe))
+                {UE_LOG(LogTemp,Warning,TEXT("[SensorNativeExcludedEngineDebug] id=%d %s"),int32(Message->ID),*Description);}
+                else {++ValidationErrors;Error=FString::Printf(TEXT("D3D12 validation during native acquisition: %s"),*Description);Faulted=true;}
+            }
         }
         LastMessage=Count;return !Faulted;
     }
@@ -185,6 +227,13 @@ public:
         auto Job=MakeShared<FJob,ESPMode::ThreadSafe>();Job->Count=Count;
         if(!Succeeded(Device->CreateCommandAllocator(ListType,IID_PPV_ARGS(Job->Allocator.GetInitReference())),Error,TEXT("CreateCommandAllocator")))return {};
         if(!Succeeded(Device->CreateCommandList(1,ListType,Job->Allocator,nullptr,IID_PPV_ARGS(Job->List.GetInitReference())),Error,TEXT("CreateCommandList")))return {};
+        if(ScopedGbv)
+        {
+            TRefCountPtr<ID3D12DebugCommandList1> Debug;
+            if(!Succeeded(Job->List->QueryInterface(IID_PPV_ARGS(Debug.GetInitReference())),Error,TEXT("GBV native list")))return {};
+            D3D12_DEBUG_COMMAND_LIST_GPU_BASED_VALIDATION_SETTINGS Settings={D3D12_GPU_BASED_VALIDATION_SHADER_PATCH_MODE_UNGUARDED_VALIDATION};
+            if(!Succeeded(Debug->SetDebugParameter(D3D12_DEBUG_COMMAND_LIST_PARAMETER_GPU_BASED_VALIDATION_SETTINGS,&Settings,sizeof(Settings)),Error,TEXT("GBV native patch mode")))return {};
+        }
         if(!Succeeded(Job->List->Close(),Error,TEXT("initial Close")))return {};
         Job->List->SetName(L"SensorOwnedLidarList");Job->Allocator->SetName(L"SensorOwnedLidarAllocator");
         Job->Rays=NewBuffer(Device,uint64(Count)*sizeof(FSensorRtRay),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("Job.Rays"));

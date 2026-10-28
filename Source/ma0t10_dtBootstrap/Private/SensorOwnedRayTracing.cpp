@@ -481,7 +481,8 @@ void FlushSubmissions()
             auto First=Pending[0];Pending.RemoveAt(0);
             if(First->Cancelled.load()){First->Complete();continue;}
             TArray<TSharedPtr<FScan,ESPMode::ThreadSafe>> Group;Group.Add(First);
-            if(First->Reusable())for(int32 I=0;I<Pending.Num();)
+            static const bool NoBatch=FParse::Param(FCommandLine::Get(),TEXT("SensorRtNoBatch"));
+            if(First->Reusable()&&!NoBatch)for(int32 I=0;I<Pending.Num();)
             {
                 if(Pending[I]->Reusable()&&SameScene(First->Request,Pending[I]->Request))
                 {Group.Add(Pending[I]);Pending.RemoveAt(I);}else ++I;
