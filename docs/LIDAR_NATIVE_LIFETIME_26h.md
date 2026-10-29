@@ -73,3 +73,23 @@ DTCore·Config/Game.ini·Samples/PixelStreaming·SensorTestMap·초기 사용자
 진단 snapshot request/ack 경계·명시 CPU 참조·Editor 전용 충돌 재쿠킹 생략 토글을 작성하고 Editor 빌드했다. 재쿠킹 생략은 의도적으로 stale collision인 할당 분리이며 제품/수용 검증에 사용할 수 없다. 8MiB/150ms assertion은 변경하지 않았다. 새 토글의 실제 RHI 회귀·Shipping 재측정·30분 디깅·원인 수정·수정 후5쌍/1000회/byte oracle/ABAB은 미수행이다. 기존 #26 실패는 그대로다.
 
 자세한 표·그림·출처·환경 제한·복원/정리·재개 조건은 [r17 RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r17/RESULT.md), result.json, merge-check.json을 참조한다. 초기 사용자 변경12파일·보호 경로·기준을 보존하고 질문 없이 중단 지점의 결과만 커밋한다. 외부 검증 종료 후 새 실행 label과 깨끗한 환경에서 비교를 다시 시작해야 한다.
+
+## 2026-10-29 r18: 깨끗한 패키지 비교·디깅 실패 재현
+
+재개 기준 `e89c968`. 외부 Editor를 감시하고 중첩된 Shipping45분/3분 시도를 취소·보존한 뒤 재실행했다. 같은 runtime 소스·native3대·NoLLM·Slate0·60FPS·동일 외부5초 샘플러의 깨끗한60분 꼬리는 Shipping WS/Commit **4.782/3.040**, Development **-.527/-.805MiB/h**다. 실제 약19.996/19.997Hz,fallback0. 다만10~60분 전체는 Shipping34.929/36.918,Development7.915/8.776이므로 전체 증가나 #26 해결을 선언하지 않는다. WS만 기준 밖으로 증가한 새 실행이 없어 EmptyWorkingSet 진단은 미수행이다.
+
+|원래5쌍,MiB|1|2|3|4|5|
+|---|---:|---:|---:|---:|---:|
+|Dig Commit|94.504|82.566|71.914|139.355|95.445|
+|Idle Commit|-10.449|-5.523|-17.773|-12.316|-5.930|
+|Dig RSS|1.910|-5.203|7.055|3.730|5.039|
+
+원래 조건90초·50회/0회·snapshot gate 없음·같은SHA `003f23c`로 Commit 절대/차이5/5FAIL, RSS 절대5/5PASS·차이3/5FAIL, 예상 밖 기능/150ms 오류0이다. 기준8을 유지한다.
+
+VMMap 경계 계측에서는 증가가 작았으나 원래 조건 실패를 가렸다. 무계측 재확인은 CPU-RTon Commit140.199/RT-off133.922/재쿠킹 생략76.242/cargo렌더제출 생략110.660/점미리보기off55.152MiB로 모두8실패다. BLAS·물리·cargo렌더·preview 중 하나를 원인으로 확정하지 않는다. 경계 대기만으로 Untracked 순증가가 작아졌지만 실제 뒤 경계도2~4초여서 앞/뒤 효과를 완전히 분리하지 못했다. 짧은 외부 counter burst에서도 ACK 전 큰 직접 회수는 보이지 않았으며 이후 재생성·프로세스 종료값은 제외했다.
+
+30분1804초·882dig·17복원은 기존 분석기 **누수 의심**을 유지한다. 내부 마지막1/3 RSS/Commit14.969/60.856,외부OS8.762/-17.320MiB/h다. 큰 일시 변동·관측 위상 차이가 있고 상한은 단조 증가하지 않았지만 안정화/누수 부재로 바꾸지 않는다. UObject 마지막1/3기울기0,RHIMisc.269MiB/h이며 NoLLM 패키지의 미측정RHIMisc와 혼동하지 않는다.
+
+새 코드는 분석기의 중첩/감시공백 거부와 Editor 전용 audit+`HatchMemorySkipCargoRender` 진단뿐이다. 후자는 CPU표면·물리·센서는 갱신하되 시각표면이 stale이며 제품/수용 경로가 아니다. 제품 기본값·품질·Hz·엔진/DTCore/드라이버·기존 assertion 변경0. source는 이미 같은 topology에서 UpdateMeshSection을 쓰고 privateproxy cast 때문에 CreateSceneProxy만 대체하는 것은 안전하지 않다. 원인이 확정되지 않아 추정에 기반한 렌더러 재작성이나 물리 생략을 제품에 적용하지 않았다.
+
+다음 추적은 무계측 재현 상태의 Stop/GC/Drain/EndFrame 주위 할당·VirtualAlloc 수명/스택을 대조해 공통 분석/UI·RHI/드라이버·비동기 수명을 구분하는 것이다. 이번에 새 ETW/heap stack attribution은 수행하지 않았다. 자세한 수치·한계·보존·정리는 [r18 RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r18/RESULT.md), result.json, merge-check.json을 따른다. #26은 미해결이며 이전 통과나 진단 대기 결과로 원래 실패를 대체하지 않는다.
