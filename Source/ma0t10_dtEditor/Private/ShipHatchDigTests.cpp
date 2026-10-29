@@ -419,6 +419,7 @@ class FHatchDig final:public IAutomationLatentCommand
         Result->SetBoolField(TEXT("external_snapshot_gate"),FParse::Param(FCommandLine::Get(),TEXT("HatchMemorySnapshotGate")));
         Result->SetBoolField(TEXT("diagnostic_cpu_reference"),FParse::Param(FCommandLine::Get(),TEXT("HatchCpuReference")));
         Result->SetBoolField(TEXT("diagnostic_skip_cargo_cook"),FParse::Param(FCommandLine::Get(),TEXT("HatchMemorySkipCargoCook")));
+        Result->SetBoolField(TEXT("diagnostic_skip_cargo_render"),FParse::Param(FCommandLine::Get(),TEXT("HatchMemorySkipCargoRender")));
         const auto Native=SensorOwnedRayTracing::GetSubmissionStats();auto NativeCounts=MakeShared<FJsonObject>();
         NativeCounts->SetNumberField(TEXT("buffer_creates"),Native.NativeBufferCreates);NativeCounts->SetNumberField(TEXT("buffer_reuses"),Native.NativeBufferReuses);
         NativeCounts->SetNumberField(TEXT("live_bytes"),double(Native.NativeBytes));NativeCounts->SetNumberField(TEXT("peak_bytes"),double(Native.NativePeakBytes));

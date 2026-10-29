@@ -45,6 +45,17 @@ void Mesh(UProceduralMeshComponent* M,const TArray<FVector>& V,const TArray<int3
     const auto* Existing=M->GetProcMeshSection(0);
     bool SameTopology=Existing&&Existing->ProcVertexBuffer.Num()==V.Num()&&Existing->ProcIndexBuffer.Num()==T.Num();
     if(SameTopology)for(int32 I=0;I<T.Num();++I)if(Existing->ProcIndexBuffer[I]!=uint32(T[I])){SameTopology=false;break;}
+#if WITH_EDITOR
+    // Allocation attribution only: keep authoritative CPU triangles/collision,
+    // deliberately leave this cargo render proxy stale. Never a product path.
+    if(SameTopology&&M->GetOwner()&&M->GetOwner()->ActorHasTag(TEXT("HatchCargo"))&&
+        FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit"))&&FParse::Param(FCommandLine::Get(),TEXT("HatchMemorySkipCargoRender")))
+    {
+        auto* Section=M->GetProcMeshSection(0);Section->SectionLocalBox=FBox(V);
+        for(int32 I=0;I<V.Num();++I){auto& P=Section->ProcVertexBuffer[I];P.Position=V[I];P.Normal=N[I];if(Colors.Num()==V.Num())P.Color=Colors[I].ToFColor(false);}
+        return;
+    }
+#endif
     if(SameTopology)
         M->UpdateMeshSection_LinearColor(0,V,N,TArray<FVector2D>(),Colors,TArray<FProcMeshTangent>());
     else M->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),Colors,TArray<FProcMeshTangent>(),true);
