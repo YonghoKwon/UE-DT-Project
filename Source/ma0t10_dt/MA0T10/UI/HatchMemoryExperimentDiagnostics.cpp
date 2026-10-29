@@ -1,5 +1,6 @@
 #include "HatchMemoryExperimentDiagnostics.h"
 #include "Memory26Diagnostics.h"
+#include "CoreGlobals.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/MemoryBase.h"
@@ -26,7 +27,8 @@ struct FExperiment
     TSharedRef<FJsonObject> Controls() const
     {
         auto Out=MakeShared<FJsonObject>();
-        for(const TCHAR* Name:{TEXT("r.gpucrash.collectionenable"),TEXT("r.GPUStatsEnabled"),TEXT("r.RDG.Events"),TEXT("r.D3D12.GPUTimeFromTimestamps")})
+        for(const TCHAR* Name:{TEXT("r.gpucrash.collectionenable"),TEXT("r.GPUStatsEnabled"),TEXT("r.RDG.Events"),TEXT("r.D3D12.GPUTimeFromTimestamps"),
+            TEXT("t.MaxFPS"),TEXT("r.VSync"),TEXT("t.IdleWhenNotForeground"),TEXT("Slate.bAllowThrottling")})
         {
             auto Row=MakeShared<FJsonObject>();const auto* Var=IConsoleManager::Get().FindConsoleVariable(Name);
             Row->SetBoolField(TEXT("present"),Var!=nullptr);if(Var){Row->SetNumberField(TEXT("value"),Var->GetInt());Row->SetNumberField(TEXT("flags"),uint32(Var->GetFlags()));}
@@ -74,6 +76,7 @@ bool SampleHatchMemoryExperiment(double ElapsedSeconds)
         if(!Experiment->Write(Row))return false;
     }
     auto Row=MakeShared<FJsonObject>();Row->SetStringField(TEXT("type"),TEXT("sample"));Row->SetNumberField(TEXT("seconds"),ElapsedSeconds);
+    Row->SetNumberField(TEXT("engine_frame_id"),double(GFrameCounter));
     Row->SetNumberField(TEXT("trim_calls"),Experiment->Calls);Row->SetNumberField(TEXT("trim_total_gt_ms"),Experiment->TotalMs);Row->SetObjectField(TEXT("cvars"),Experiment->Controls());
     Row->SetStringField(TEXT("memory26_case"),Memory26::CaseName());Row->SetObjectField(TEXT("resource_counters"),Experiment->Counters());
     return Experiment->Write(Row);
