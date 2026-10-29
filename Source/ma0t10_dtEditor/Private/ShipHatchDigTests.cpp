@@ -209,6 +209,24 @@ class FHatchDig final:public IAutomationLatentCommand
     TWeakObjectPtr<UVirtualSensorStreamPublisherComponent> MemoryPublisher;
     TWeakObjectPtr<AShipHatchSimulation> MemorySimulation;TMap<FString,int32> CostBackendBefore;
     int32 MemoryPcdPort=0;FString MemoryCancelFile;double NextCancelPoll=0;
+    FString SnapshotBoundary;double SnapshotRequestedAt=0;
+    bool WaitForMemorySnapshot(const TCHAR* Boundary)
+    {
+        if(!FParse::Param(FCommandLine::Get(),TEXT("HatchMemorySnapshotGate")))return false;
+        if(!FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit")))
+        {Test->AddError(TEXT("external memory snapshots require HatchMemoryAudit"));return false;}
+        if(SnapshotBoundary!=Boundary)
+        {
+            SnapshotBoundary=Boundary;SnapshotRequestedAt=FPlatformTime::Seconds();
+            auto Request=MakeShared<FJsonObject>();Request->SetStringField(TEXT("boundary"),Boundary);
+            Request->SetStringField(TEXT("utc"),FDateTime::UtcNow().ToIso8601());Request->SetBoolField(TEXT("diagnostic_only"),true);
+            DigJson(FString::Printf(TEXT("snapshot-%s-request.json"),Boundary),Request);
+        }
+        if(IFileManager::Get().FileExists(*(DigRoot()/FString::Printf(TEXT("snapshot-%s.ack"),Boundary))))return false;
+        if(FPlatformTime::Seconds()-SnapshotRequestedAt>60)
+        {Test->AddError(TEXT("external memory snapshot acknowledgement timed out"));return false;}
+        return true;
+    }
     TMap<FString,FVirtualSensorStreamStatus> PcdBefore;
     bool ConfigureMemoryPcd(AShipHatchSimulation& S)
     {
@@ -394,6 +412,13 @@ class FHatchDig final:public IAutomationLatentCommand
     }
     void MemoryDetails(const TCHAR* Boundary,const AShipHatchSimulation& Simulation)
     {
+        auto Sensors=MakeShared<FJsonObject>();
+        for(int32 I=0;I<3;++I)if(const auto* A=Simulation.SensorAt(I))
+        {auto Sensor=MakeShared<FJsonObject>();Sensor->SetNumberField(TEXT("backend"),int32(A->ScanComponent->GetActiveAcquisitionBackend()));Sensor->SetNumberField(TEXT("frame_id"),double(A->ScanComponent->GetRuntimeStatus().FrameId));Sensors->SetObjectField(A->GetSensorId(),Sensor);}
+        Result->SetObjectField(FString(Boundary)+TEXT("_sensor_backends"),Sensors);
+        Result->SetBoolField(TEXT("external_snapshot_gate"),FParse::Param(FCommandLine::Get(),TEXT("HatchMemorySnapshotGate")));
+        Result->SetBoolField(TEXT("diagnostic_cpu_reference"),FParse::Param(FCommandLine::Get(),TEXT("HatchCpuReference")));
+        Result->SetBoolField(TEXT("diagnostic_skip_cargo_cook"),FParse::Param(FCommandLine::Get(),TEXT("HatchMemorySkipCargoCook")));
         const auto Native=SensorOwnedRayTracing::GetSubmissionStats();auto NativeCounts=MakeShared<FJsonObject>();
         NativeCounts->SetNumberField(TEXT("buffer_creates"),Native.NativeBufferCreates);NativeCounts->SetNumberField(TEXT("buffer_reuses"),Native.NativeBufferReuses);
         NativeCounts->SetNumberField(TEXT("live_bytes"),double(Native.NativeBytes));NativeCounts->SetNumberField(TEXT("peak_bytes"),double(Native.NativePeakBytes));
@@ -504,6 +529,8 @@ public:
         auto& S=*H->Simulation;auto& M=*H->Monitor;if(!Messages)Messages=MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled,false);
         if(Phase==0)
         {
+            if(FParse::Param(FCommandLine::Get(),TEXT("HatchCpuReference")))for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))
+            {FString Reason;Test->TestTrue(TEXT("diagnostic CPU reference selected explicitly"),A->SetLidarAcquisitionBackend(EVirtualLidarAcquisitionBackend::AccurateCpuTrace,Reason));}
             if(!M.GetAnalysis())return false;if(!ConfigureMemoryPcd(S))return true;FHatchDigProbe::Controls(*Test,M);int32 Font=100;FParse::Value(FCommandLine::Get(),TEXT("HatchFontPercent="),Font);M.SetFontPercent(Font);M.SelectView(0);M.SetSplitView(false);M.SetCameraPreset(0);
             S.Coverage(WorkOpening,WorkFloor,WorkArea);Result->SetNumberField(TEXT("opening_fov_percent"),WorkOpening);Result->SetNumberField(TEXT("visible_floor_fov_percent"),WorkFloor);Result->SetNumberField(TEXT("structurally_visible_floor_m2"),WorkArea);Result->SetNumberField(TEXT("mlx_above_deck_m"),S.EffectiveMLXHeight());
             Original=S.Surface().Heights;OriginalVolume=S.Surface().Volume;Phase=1;Changed=Now;return false;
@@ -578,6 +605,7 @@ public:
         if(Phase==50)
         {
             if(Now-Changed<.2||GFrameCounter<BoundaryFrame+3)return false;
+            if(WaitForMemorySnapshot(TEXT("before")))return false;
             DrainBoundary();RawBefore=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();
             Rss=FPlatformMemory::GetStats().UsedPhysical;Commit=FPlatformMemory::GetStats().UsedVirtual;Buffers=S.DigBufferBytes();MeshBytes=S.MeshScratchBytes();
             MemoryDetails(TEXT("before"),S);
@@ -644,6 +672,7 @@ public:
         if(Phase==70)
         {
             if(Now-Changed<.2||GFrameCounter<BoundaryFrame+3)return false;
+            if(WaitForMemorySnapshot(TEXT("after")))return false;
             DrainBoundary();const uint64 RawAfter=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();const auto Memory=FPlatformMemory::GetStats();
             MemoryDetails(TEXT("after"),S);
             SaveCurve();

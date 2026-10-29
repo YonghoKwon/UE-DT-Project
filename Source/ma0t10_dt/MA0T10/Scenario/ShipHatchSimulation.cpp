@@ -282,7 +282,13 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
     if(Refitting)Existing->bEnableCollision=false;
     MeshNX=Current.NX;MeshNY=Current.NY;Mesh(Cargo->Mesh,V,T,&CargoNormals,Colors);
     if(Refitting)Existing->bEnableCollision=true;
-    if(Refitting)
+    bool SkipDiagnosticCook=false;
+#if WITH_EDITOR
+    // Deliberately stale collision is an opt-in allocation isolation only.
+    // Never enabled in a packaged product or an ordinary acceptance run.
+    SkipDiagnosticCook=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit"))&&FParse::Param(FCommandLine::Get(),TEXT("HatchMemorySkipCargoCook"));
+#endif
+    if(Refitting&&!SkipDiagnosticCook)
     {
         // UE 5.3's live triangle refit leaves stale query bounds after refill.
         // Reuse the render buffers and the one BodySetup, but cook its current
