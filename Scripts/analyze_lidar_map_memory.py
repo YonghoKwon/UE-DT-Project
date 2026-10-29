@@ -81,9 +81,14 @@ def analyze(directory):
             raise ValueError('Environment watch time is not increasing')
         if times[0] > 5 or times[-1] < points[-1]['seconds'] - 5:
             raise ValueError('Environment watch does not cover measurement window')
+        max_poll_gap = max((b-a for a,b in zip(times,times[1:])), default=0)
+        # The live watcher polls every2s and may spend up to15s in VMMap.
+        # Endpoint-only or stalled watches cannot certify a clean interval.
+        if max_poll_gap > 30:
+            raise ValueError('Environment watch has an uncovered polling gap')
         environment = dict(Recorded=True, CleanObserved=True, Samples=len(watch),
                            FirstSeconds=times[0], LastSeconds=times[-1],
-                           MaximumPollGapSeconds=max((b-a for a,b in zip(times,times[1:])), default=0),
+                           MaximumPollGapSeconds=max_poll_gap,
                            Scope='Observed process polls only; absence between polls is not proven')
     return dict(Valid=True, Complete=True, Configuration=context['metadata']['configuration'],
                 Map=context['metadata'].get('map', 'ShipHatchTestMap (hatch runtime fixture)'), AllLidarOff=off, ActualHz=hz,

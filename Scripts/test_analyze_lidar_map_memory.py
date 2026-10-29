@@ -117,10 +117,15 @@ class MapMemoryTests(unittest.TestCase):
     def test_clean_watch_and_legacy_no_watch_are_distinguished(self):
         self.save()
         self.assertIsNone(analyze(self.path)['EnvironmentWindow']['CleanObserved'])
-        self.watch([(0,[]),(1200,[]),(2400,[]),(3600,[])])
+        self.watch([(second,[]) for second in range(0,3601,5)])
         result=analyze(self.path)['EnvironmentWindow']
         self.assertTrue(result['CleanObserved'])
-        self.assertEqual(result['Samples'],4)
+        self.assertEqual(result['Samples'],721)
+
+    def test_endpoint_only_watch_cannot_certify_clean_interval(self):
+        self.save(); self.watch([(0,[]),(3600,[])])
+        with self.assertRaisesRegex(ValueError,'polling gap'):
+            analyze(self.path)
 
 
 if __name__ == '__main__':
