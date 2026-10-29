@@ -59,3 +59,17 @@ DTCore·Config/Game.ini·Samples/PixelStreaming·SensorTestMap·초기 사용자
 ## 샘플러 비용
 
 5초 간격의 수집·JSON·write/flush·파괴를 포함한 GT 비용은 해치2시간1회차 평균2.009/최대14.488ms,2회차 평균1.948/최대19.828ms/표본이었다. native 사행 평균0.833/최대6.183ms,코일 평균0.839/최대8.733ms다. 이 비용은 관찰한 실측이며 sampler off/on 상대 게이트를 새로 통과했다고 주장하지 않는다.
+
+## 2026-10-29 r17: Shipping·디깅 Commit 분리 조사 중단
+
+재개 기준은 `6be56b7`이다. 기존 Shipping은 실제 native3대·약20Hz·fallback0이었고, 첫 Development60은 다른 revision 및 내부 샘플러였다. 같은 소스의 Development/Shipping 패키지를 빌드하고 `-NoLLM -SensorRtNative`·같은 외부5초 OS 샘플러 비교를 준비했다. Shipping의 Slate throttling 명령행 미적용은 전용 UserDir 진단 설정으로만 맞췄고 제품 기본값은 변경하지 않았다.
+
+새 Development60분의 외부 마지막20분은 Working Set **+41.546**, Private Working Set **-1.517**, private Commit **-1.480MiB/h**다. 10~60분은 WS+25.391/Commit+18.002로 창에 따라 다르며, WS8기준 실패를 유지한다. VMMap10→40분 Commit은 Private Data+11.539/Heap+.258MiB, Mapped/Image0이다. 전체 WS와 private 할당을 동일시하지 않으며 LLM 비활성을 RHIMisc0으로 해석하지 않는다. GT 샘플러 비용은 평균1.339/최대6.892ms/5초다.
+
+다른 프로젝트의 `DTCore.Soak` NullRHI Editor가40분부터 겹쳤다. 이를 WS 증가의 원인으로 확정하지 않지만 깨끗한 비교 조건이 아니며 새 통과 증거로 세지 않는다. Shipping60과 후속 B 실험은 Editor guard에서 중단됐다. 외부 작업은 조작·종료하지 않았다.
+
+기존90초5쌍 재분석은 Dig Commit 평균+96.377MiB, PlatformUntracked+101.732/FMalloc-5.542MiB다. Physics/ChaosTrimesh·관측 프로젝트 태그·native 신규/live 버퍼의 지배적 순증가는 없다. 4쌍은 처음10회 이후 대체로 비슷한 수준이고1쌍은 변동이 크다. 엔진 ProceduralMesh의 같은 토폴로지 갱신도 엔진 BLAS를 Release/Init한다는 코드 근거와 함께 예약·보존을 우선 후보로 두지만, 실제 누수 부재나30분 수렴은 입증하지 못했다.
+
+진단 snapshot request/ack 경계·명시 CPU 참조·Editor 전용 충돌 재쿠킹 생략 토글을 작성하고 Editor 빌드했다. 재쿠킹 생략은 의도적으로 stale collision인 할당 분리이며 제품/수용 검증에 사용할 수 없다. 8MiB/150ms assertion은 변경하지 않았다. 새 토글의 실제 RHI 회귀·Shipping 재측정·30분 디깅·원인 수정·수정 후5쌍/1000회/byte oracle/ABAB은 미수행이다. 기존 #26 실패는 그대로다.
+
+자세한 표·그림·출처·환경 제한·복원/정리·재개 조건은 [r17 RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r17/RESULT.md), result.json, merge-check.json을 참조한다. 초기 사용자 변경12파일·보호 경로·기준을 보존하고 질문 없이 중단 지점의 결과만 커밋한다. 외부 검증 종료 후 새 실행 label과 깨끗한 환경에서 비교를 다시 시작해야 한다.
