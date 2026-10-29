@@ -90,6 +90,38 @@ class MapMemoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'cohort'):
             analyze(self.path)
 
+    def watch(self, points):
+        (self.path/'slot-watch.jsonl').write_text('\n'.join(json.dumps(dict(
+            Utc=(self.origin+datetime.timedelta(seconds=t)).isoformat(), Foreign=foreign))
+            for t,foreign in points), encoding='utf-8')
+
+    def test_overlap_rejected_even_with_complete_curve(self):
+        self.save(); self.watch([(0,[]),(2400,[dict(Pid=99,Name='UnrealEditor-Cmd')]),(3600,[])])
+        with self.assertRaisesRegex(ValueError, 'overlap'):
+            analyze(self.path)
+
+    def test_rejected_overlap_marker_cannot_be_hidden_by_clean_watch(self):
+        self.save(); self.watch([(0,[]),(3600,[])])
+        (self.path/'environment-overlap.json').write_text('{}')
+        with self.assertRaisesRegex(ValueError, 'overlap'):
+            analyze(self.path)
+
+    def test_late_or_empty_watch_is_not_clean_environment_proof(self):
+        self.save(); self.watch([(100,[]),(3600,[])])
+        with self.assertRaisesRegex(ValueError, 'cover'):
+            analyze(self.path)
+        self.watch([])
+        with self.assertRaisesRegex(ValueError, 'empty'):
+            analyze(self.path)
+
+    def test_clean_watch_and_legacy_no_watch_are_distinguished(self):
+        self.save()
+        self.assertIsNone(analyze(self.path)['EnvironmentWindow']['CleanObserved'])
+        self.watch([(0,[]),(1200,[]),(2400,[]),(3600,[])])
+        result=analyze(self.path)['EnvironmentWindow']
+        self.assertTrue(result['CleanObserved'])
+        self.assertEqual(result['Samples'],4)
+
 
 if __name__ == '__main__':
     unittest.main()
