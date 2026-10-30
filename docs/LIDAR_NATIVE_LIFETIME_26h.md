@@ -93,3 +93,19 @@ VMMap 경계 계측에서는 증가가 작았으나 원래 조건 실패를 가�
 새 코드는 분석기의 중첩/감시공백 거부와 Editor 전용 audit+`HatchMemorySkipCargoRender` 진단뿐이다. 후자는 CPU표면·물리·센서는 갱신하되 시각표면이 stale이며 제품/수용 경로가 아니다. 제품 기본값·품질·Hz·엔진/DTCore/드라이버·기존 assertion 변경0. source는 이미 같은 topology에서 UpdateMeshSection을 쓰고 privateproxy cast 때문에 CreateSceneProxy만 대체하는 것은 안전하지 않다. 원인이 확정되지 않아 추정에 기반한 렌더러 재작성이나 물리 생략을 제품에 적용하지 않았다.
 
 다음 추적은 무계측 재현 상태의 Stop/GC/Drain/EndFrame 주위 할당·VirtualAlloc 수명/스택을 대조해 공통 분석/UI·RHI/드라이버·비동기 수명을 구분하는 것이다. 이번에 새 ETW/heap stack attribution은 수행하지 않았다. 자세한 수치·한계·보존·정리는 [r18 RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r18/RESULT.md), result.json, merge-check.json을 따른다. #26은 미해결이며 이전 통과나 진단 대기 결과로 원래 실패를 대체하지 않는다.
+
+## 2026-10-30 r19: Windows 할당 스택 추적 권한·수집 신뢰성 차단
+
+기준 `276ac77`. 세션1은 RDP이며 RTX4070Ti(621.01)·Remote Display Adapter를 기록했다. 실제 D3D12 선택은 NVIDIA adapter0이지만 엔진 startup의 `SwapChain4.GetReference()`/`EnsureColorSpace` 오류가 발생했다. 오류 원문은 결과 요약에 보존하며 콘솔 환경의 성능·메모리 수용 증거로 세지 않는다.
+
+WPR VirtualAllocation은 `0x80070005`, xperf NT Kernel Logger 및 별도 SystemTraceProvider API는 Access denied(5)로 차단됐다. 기존 Performance Log Users 권한으로 대상 Heap 이벤트는 수집됐지만 검증용 할당에도 스택이 없어 호출 경로 분석에 부적격이었다. 권한·IFEO/GFlags·엔진·드라이버 설정은 변경하지 않았다.
+
+CDB 대체 진단에서 native3대·50회/90.728초의 RSS **+2.531**, Commit **+144.902**, LLM Untracked **+143.898MiB**를 관찰했다. 편집 최대63.357ms이나 engine400/game506.145/callback491.657ms로150ms 실패이며 디버거/기본 debug heap 영향이 있는 별도 진단이다. 기존8MiB/150ms assertion을 유지했다. UObject/ChaosTrimesh 순증가0·RHIMisc-.039MiB는 관측치이며 누수 부재를 뜻하지 않는다.
+
+단일·8스레드 검증 할당은 주소/크기를 대조했지만 실제 Unreal에서는 진입/복귀 누락이 발생했다(첫 완료 수집 missing31646,pending21618). 호출 프레임 대조·late install·debug heap 해제 재시도도 자격 실패했고 외부 ShaderCompileWorker56564 중첩으로 취소됐다. **이 자료의 크기·수명 합산과 상위 증가 스택 순위는 거부**한다. 관찰된 `MiMallocVirtualAlloc`·NVIDIA UMD RVA 스택만으로 증가분 소유자를 확정하지 않는다.
+
+Shipping 기존10~60분 WS/Commit34.929/36.918 대 마지막20분4.782/3.040MiB/h, VMMap10→40분 Private Data+12.543/Heap+.645MiB를 유지한다. 이전 원시 시계열·로그가 정리되어 계단 시각과 GC/송신/streaming 이벤트의 정확한 대조는 불가능하다. 새 Shipping 스택 수집은 커널 ETW 권한 차단으로 미수행이며 새 통과 결과를 만들지 않는다.
+
+추가한 [WPR 수집기](../Scripts/record_windows_memory_trace.ps1)는 기존 정상 실행의 owned-process를 확인하고 고유 instance만 start/stop한다. 자동 권한 상승·영구 설정 변경·타 세션 종료는 하지 않는다. 비관리자 거부·구문 검사만 검증했으며 관리자 실제 수집은 미검증이다. [분석기](../Scripts/analyze_windows_allocations.py)는 reserve/recommit/해제를 구별하고 누락·미완료 collector를 거부한다. ETL은 WPA에서 대상 PID·경계·lost events·정확한 PDB를 확인해야 하며 이 JSON 분석기에 직접 입력하지 않는다.
+
+원인 확정·제품 수정은 없고 사용자 지시대로5번 최종 검증을 시작하지 않았다. 상세 실패/미완료·환경·재실행 명령·정리는 [r19 RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r19/RESULT.md), result.json, merge-check.json을 따른다. #26은 미해결이다.
