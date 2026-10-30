@@ -208,3 +208,61 @@ f307의 유효60분은 전체 WS12.915/Commit12.789MiB/h로FAIL, 꼬리−0.102/
 이전 `stop.request`는 `09:30:32.015652Z`부터 남아 있었다. 이 파일이 새 브로커의 즉시 종료를 유발했을 가능성은 있으나 내부 종료 로그 없이 확정하지 않았다. 이전 파일 사본·해시를 보존하고 최종 stop 요청을 남긴다. 다음 기동은 이전 stop 요청이 정리된 상태에서 `Running`과 PID 생존을 확인해야 한다.
 
 새 게임·ETW 요청·수정·재측정·ABAB·5번 최종 검증은 모두 미수행. r22의 전체 Commit +8.456 MiB/h 실패는 그대로 미해결이며 새 측정으로 재표시하지 않았다. 관리자 브로커가 필요하다. 기존12개 변경·개인 설정·보호 경로·수집기를 보존하고, 새 대용량 파일 없이 결과/merge_check에 차단을 기록했다. 증거: `Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r23/RESULT.md`, `broker-blocker.json`, `package-reuse.json`.
+
+## 2026-10-31 r24: Shipping 계단의 upload heap·driver reset 호출자 확인
+
+기준 HEAD `a950f9e7f8fa79c87f7ca36bf93932cde868c252`, branch `fix/lidar-native-lifetime-26h`. 제품 소스는 `f16ee56`이며 Source/Shader 전체 fingerprint·동결 수집기SHA·Shipping22 stage/archive exe SHA가 일치해 기존 패키지를 재사용했습니다. `f7a4c34` UI 수정과 이전부터 보존된 사용자 Source/Shader overlay가 포함됐습니다. 순수 clean checkout 결과로 표시하지 않습니다. 이번 재개에서 제품 소스·엔진·DTCore·드라이버·맵·설정은 수정하지 않았습니다.
+
+콘솔 세션, RTX4070Ti621.01, D3D12 native 명시, 1920×1080 offscreen, Rev7×3·기본 압축PCD+미리보기·20Hz·LLMoff·binned2·Slate throttling0·내부 자체 수신관찰off. 외부 OS5초/VAD60초/점별 PCD 검증, PID creation identity, 다른 Unreal·디코딩 감시를 유지했습니다. 정상 종료 3604.498초, 환경 중첩·디코딩·native fallback·PCD invalid 모두0, 재시도0회입니다.
+
+| 실행 | 10~60분 WS / Commit (MiB/h) | 마지막20분 WS / Commit (MiB/h) | 범위 |
+|---|---:|---:|---|
+| r22, f16 무추적 | −1368.646 / +8.456 | −41.519 / +6.890 | 전체 Commit FAIL 유지; 큰 WS 회수 원인 미확정 |
+| r24, 같은 f16 ETW 진단 | +15.788 / +12.946 | -8.349 / -8.663 | 진단 INFO; 무추적 acceptance 대체 불가 |
+
+기준(각 구간 WS·Commit ≤8 MiB/h), 준비10분, 전체/꼬리 구간, 표본, OLS는 바꾸지 않았습니다. 이번 진단 수치로 이전 실패를 덮거나 조건을 완화하지 않았습니다.
+
+## ETW 신뢰성과 수지
+
+관리자 브로커 PID24380의 Running·실제 생존을 시작 전에 확인했습니다. collector SHA `EBBDC15C440B33EF7E81A0F8F690D845A33858150AAC86DAE431AA9AF71E90A1` 고정, 수집기 수정 없음. 정상 게임 PID59612, 두 요청 ExitCode0, collector Captured. 디버거·IFEO/GFlags·시스템 설정 변경 없음. 두 ETL 합계 2.251GiB로 각각과 합계 모두16GiB 미만입니다.
+
+| 구간(실제 runtime 분) | ETL GiB | user stack / 실제 alloc | OS Commit 순증가 MiB | 관측 VirtualAlloc 순증가 MiB | OS−VA 잔차 MiB |
+|---|---:|---:|---:|---:|---:|
+| 10.222~35.266 | 1.288 | 1736/1742 | +6.734 | +20.727 | -13.992 |
+| 41.444~58.974 | 0.963 | 1197/1209 | -15.109 | -1.758 | -13.352 |
+
+두 trace의 lost buffers/events0, target unique process key1개·살아 있는 종료 rundown·OS creation FILETIME와 collector creation UTC 일치·OS sample gap≤10초·stack sequence 문제0·unknown allocation flags0을 검사했습니다. trace origin+10초 이후와 종료 rundown−10초 이전의 실제 OS5초 표본을 경계로 썼으며 보간하지 않았습니다. 명목10~35/40~58분과 실제 경계를 구분했습니다.
+
+전체 수지는 닫히지 않습니다. VirtualAlloc은 private backing의 최초 제출자 원장이고 Heap live 객체 원장이 아닙니다. mapped/kernel/driver/누락 메모리 종류나 경계 차이가 잔차로 남을 수 있습니다. 약−14/−13MiB 잔차를 특정 함수에 강제 배분하지 않았습니다. 반면 다음 국소 구간은 OS 변화와 가까워 계단 경로를 확인할 수 있습니다.
+
+| 구간 | OS / VA MiB | 확인 경로 |
+|---|---:|---|
+| 14~17분 | +8.082 / +8.441 | upload heap 경로 +8MiB |
+| 20~24분 | −7.766 / −6.984 | 같은 upload heap 경로 −8MiB |
+| 30~33분 | +6.320 / +6.313 | upload +3.125MiB, NVIDIA command-list reset +2.188MiB 등 |
+| 48~51분 | −6.613 / −6.102 | 후반 반환 구간 |
+| 53~56분 | +7.965 / +8.008 | 같은 upload heap 경로 +8MiB, preview 양·음 변화 상쇄 |
+
+## 특정된 호출 경로와 수명
+
+1. **RHI upload backing**: `NDXGI::CDevice::AllocateCB_0022 → CResource/CHeap::FinalConstruct → CDevice::CreateCommittedResource → FRHIPoolAllocator::TryAllocateInternal → FD3D12DynamicRHI::RHILockBuffer`. texture/TSR history·query heap·PSO 생성으로 추정하지 않았습니다. RHI thread에서 지연 실행돼 개별 원래 vertex-buffer 소유자까지는 이번 provider로 식별하지 못했습니다. 첫 trace에서 이 stack의8MiB COMMIT43건, 그중40건은 이후 단일 covering free/decommit과 대응합니다. 나머지는 부분 해제 가능성을 포함하며 원장 경계는8.0→11.125MiB로 순증가가+3.125MiB입니다. 43×8MiB를 누적 누수로 더하지 않았습니다.
+2. **NVIDIA command-list backing**: `nvwgf2umx.dll → CCommandList::VersionedResetCommandList / CGraphicsCommandList::Reset → FD3D12CommandList::Reset → FD3D12Device::ObtainCommandList`. 첫 구간 순증가 +2.188MiB, 후반 해당 분류의 새 순증가는0입니다. NVIDIA 내부 함수 이름은 private PDB가 없어 RVA로 남겼습니다. 관측상 고수위/예약 후보이지만 드라이버 내부 전체 수명·누수 부재를 확정하지 않았습니다.
+3. **CPU allocator backing**: 최초 제출자 기준 `FVirtualPcdCodec::Encode` +3.129→후반−20.598MiB, `ULidarPlayerDisplayComponent::SendRenderDynamicData_Concurrent` +2.578/+2.578MiB, 기타 cached allocator +7.496/+7.176MiB. 이들은 `FCachedOSPageAllocator::AllocateImpl → FMallocBinned2::MallocExternalLarge/ReallocExternal` 경유입니다. 로컬 UE5.3 `MallocBinned2.h`의64bit cache 상한64블록/64MiB와 `CachedOSPageAllocator.cpp::FreeImpl`의 한도 초과 시 OS 반환을 읽기 전용 확인했습니다. 한도는 그 공용 캐시 하나에 대한 것이며 전체 malloc/driver 보유량 상한으로 일반화하지 않았습니다. PCD/preview 최초 제출자가 실제 live 버퍼 누적 소유자라는 뜻이 아닙니다.
+
+PDB의 GUID/age와 실제 함수 범위를 모두 확인했습니다. 원래 SymTagFunction 범위가 없는 최적화 엔진 구간은 PE RSDS GUID/age·image size 일치, exception-directory의 [BeginAddress,EndAddress), PDB public **function** RVA=BeginAddress, 전체 public-function enumeration에서 unique name1개일 때만 추가 해석했습니다. export/nearest-name 추정은 사용하지 않았고 ICF alias·범위 없음은 미해석으로 남겼습니다. 실제 근거는 각 trace의 `PdbProof`, `unwind-public-proof.json`, `*-symbolized-bounded.json`입니다. 이 방식은 이름의 물리 함수 범위를 확인하며 NVIDIA private 함수 구현이나 원래 게임-thread 자원 이름을 만들어내지 않습니다.
+
+## 수정 판단과 회귀
+
+확인된 큰 변동은 엔진 upload heap 생성·반환이며, 작은 장기 후보는 engine/driver backing과 공용 allocator cache입니다. 우리 live 버퍼가 무한 누적된다는 근거는 확보하지 못했습니다. native BLAS/TLAS·buffer create·native bytes는10~60분 변화0, fallback0이고, 코드의 Raw reservation(global128/stream64MiB/20frames), CPU Ray/Hit 및 codec free-pool(4/32MiB) 상한·receipt 해제를 유지했습니다. free-pool 상한을 in-flight 전체 상한으로 오해하지 않았습니다. 근거 없는 payload/preview 재작성이나 엔진/드라이버/제품 기본값 변경은 하지 않았습니다.
+
+따라서 추가 최소 제품 수정·수정 후 무추적60분·새 byte oracle/RTonABAB는 실행하지 않았습니다. r21의 같은 f16 소스 RHI/PCD 회귀 증거는 남아 있지만 이번 단계 새 실행으로 세지 않았습니다. 이번에는 host 할당 원장 단위10개를 새로 통과했고, fresh quick/layer/guard·보호/개인 설정 해시를 검사합니다. 전체5번 검증·2시간/야간은 금지대로 시작하지 않았습니다.
+
+실측 native3대Hz: os_lidar_boom=19.999471, os_lidar_cabin_01=19.999471, os_lidar_cabin_02=19.999748. 외부218,693프레임 모두 LZF 및 모든 점의XYZ/confidence/validity 검사 통과, invalid0/echo0/subscription0. receipt를 소비자 검증과 혼동하지 않았습니다. sampler GT 비용 평균 1.334ms, 최대 6.872ms/5초이며 ABAB 성능 판정으로 대체하지 않았습니다.
+
+## 남은 한계와 종료
+
+Shipping ≤8MiB/h 해결 승인은 불가합니다. 다음 조사에서는 개별 RHI upload resource 식별과 heap live/free 계측이 있어야 미리보기/송신 임시 버퍼의 재사용을 추가 수정할지 판별할 수 있습니다. 현재 고정 VirtualAllocation 수집기로는 전체 잔차와 driver private 구현까지 닫지 못했습니다. 이전 엔진 토글 실험을 새로운 효과 검증 없이 제품 기본값으로 바꾸지 않았습니다.
+
+두 요청 종료 후 `stop.request`를 기록해 broker Stopped·PID 종료를 확인했습니다. 새 패키지/Insights trace/dump/PerfAbab 없음. ETL과 생성된 원시/심볼 캐시는 요약 후 `r24/cleanup-inventory.json`에 Claude용 목록만 남겼습니다. 이전 대량 정리 차단 경로를 우회·재시도하지 않았습니다. RESULT/result.json/요약JSON·PDB증거는 보존 대상입니다. push/merge/PR 없음.
+
+재현: `r24/run-traced.ps1`, `analyze-on-ready.ps1`, `extract_etw.py`, `analyze_trace.py`, `resolve_stacks.py`, `resolve_unwind.py`와 `dia_public.cpp`/빌드 명령을 reports 아래 보존했습니다. 동결 collector는 별도 사용자 관리자 브로커에서만 실행됐습니다. 현재 head/커밋·gate·보호 경로 상태는 result.json/merge-check.json이 최종입니다.
