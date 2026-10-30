@@ -11,6 +11,12 @@ struct FCodecScratch
     uint64 Bytes() const{return Soa.GetAllocatedSize()+Compressed.GetAllocatedSize()+Hash.GetAllocatedSize();}
 };
 Memory26::TPool<FCodecScratch> CodecPool;
+bool UseCodecScratch()
+{
+    // Reuse is the production path. Explicit baseline/other diagnostic cases
+    // keep their original isolated allocation behavior for comparisons.
+    return Memory26::GetCase()==Memory26::ECase::None||Memory26::Enabled(Memory26::ECase::Pcd);
+}
 constexpr int32 PcdMaxDecodedBytes = 128 * 1024 * 1024;
 const TCHAR* PcdFieldNames[] = {TEXT("x"),TEXT("y"),TEXT("z"),TEXT("intensity"),TEXT("ring"),TEXT("horizontal_index"),TEXT("return_index"),TEXT("return_count"),TEXT("time_offset_ns"),TEXT("validity"),TEXT("confidence")};
 constexpr int32 PcdFieldSizes[] = {4,4,4,2,2,2,1,1,8,1,4};
@@ -90,7 +96,7 @@ static void CompressLzfHash(const TArray<uint8>& Input,TArray<uint8>& Out,TArray
 void FVirtualPcdCodec::CompressLzf(const TArray<uint8>& Input,TArray<uint8>& Out)
 {
     MA0T10_LLM_SCOPE_BYTAG(MA0T10_PcdEncode);
-    if(Memory26::Enabled(Memory26::ECase::Pcd))
+    if(UseCodecScratch())
     {
         auto Scratch=CodecPool.Take(Memory26::ECounter::PcdCreate,Memory26::ECounter::PcdReuse);
         CompressLzfHash(Input,Out,Scratch->Hash);CodecPool.Return(MoveTemp(Scratch));
@@ -148,7 +154,7 @@ bool FVirtualPcdCodec::Encode(const TArray<const FVirtualLidarPoint*>& Points,co
 	else
 	{
         FCodecScratch Local;TUniquePtr<FCodecScratch> Lease;
-        if(Memory26::Enabled(Memory26::ECase::Pcd))Lease=CodecPool.Take(Memory26::ECounter::PcdCreate,Memory26::ECounter::PcdReuse);
+        if(UseCodecScratch())Lease=CodecPool.Take(Memory26::ECounter::PcdCreate,Memory26::ECounter::PcdReuse);
         else Memory26::Count(Memory26::ECounter::PcdCreate);
         auto& Scratch=Lease?*Lease:Local;auto& Soa=Scratch.Soa;auto& Compressed=Scratch.Compressed;
         Soa.Reset();Soa.Reserve(Points.Num()*Step);
