@@ -11,6 +11,7 @@ param(
     [ValidateSet('none','baseline','preview-reuse','scene-reuse','readback-reuse','point-leases4','pcd-scratch-reuse')][string]$CodeCase='none',
     [switch]$CameraTagCanary,
     [switch]$DisableProjectTags,
+    [switch]$ObserveReceive,
     [switch]$Visible,
     [ValidateRange(1024,65535)][int]$Port=18626
 )
@@ -53,7 +54,7 @@ try {
         if(Environment-Sample){$contaminated=$true;throw 'Video decoding detected before measurement; stopped'}
         if($i -lt 2){Start-Sleep -Seconds 2}
     }
-    $probeArgs=@((Join-Path $root 'Tools/Artemis/pcd_loopback_probe.py'),'--port',"$Port",'--report',"$ReportRoot/loopback.json",'--stop-file',$stop,'--native-validator',$NativeValidator,'--sample-limit','0')|ForEach-Object{'"'+$_+'"'}
+    $probeArgs=@((Join-Path $root 'Tools/Artemis/pcd_loopback_probe.py'),'--port',"$Port",'--report',"$ReportRoot/loopback.json",'--stop-file',$stop,'--native-validator',$NativeValidator,'--semantic','--sample-limit','0')|ForEach-Object{'"'+$_+'"'}
     $probe=Start-Process python -ArgumentList $probeArgs -WindowStyle Hidden -PassThru -RedirectStandardOutput "$ReportRoot/probe.log" -RedirectStandardError "$ReportRoot/probe-stderr.log"
     $null=$probe.Handle;$ready=[DateTime]::UtcNow.AddSeconds(15)
     while(!(Test-Path -LiteralPath "$ReportRoot/loopback.json")){
@@ -73,6 +74,7 @@ try {
         "-UserDir=$ReportRoot/user","-HatchMemoryRuntimeReport=$ReportRoot","-HatchMemoryRuntimeSeconds=$Seconds",'-HatchMemorySampleSeconds=5',
         "-HatchMemoryPcdLoopbackPort=$Port","-HatchMemoryCancelFile=$cancel","-HatchSourceCommit=$source","-abslog=$ReportRoot/game.log")
     if($Investigation){$arguments+='-HatchMemoryInvestigation'}
+    if($ObserveReceive){$arguments+='-HatchMemoryObserveReceive'}
     if($FinalSoak){$arguments+='-HatchMemoryFinalValidation'}
     if($MemoryTrace){$arguments+=@('-trace=memory,bookmark',"-tracefile=$ReportRoot/memory.utrace")}
     if($TraceCanary){$arguments+='-HatchMemoryTraceCanary'}
@@ -117,6 +119,16 @@ try {
 }catch{$failure=$_.Exception.Message}
 finally {
     if($probe -and !$probe.HasExited){[IO.File]::WriteAllText($stop,'done');if(!$probe.WaitForExit(10000)){$failure+='; loopback failed normal shutdown'}}
+    try{
+        $rx=Get-Content -Raw -Encoding UTF8 "$ReportRoot/loopback.json"|ConvertFrom-Json
+        if($rx.invalid -ne 0 -or @($rx.errors).Count -ne 0 -or !$rx.native_validator_enabled -or $rx.validated_frames -le 0){throw 'External full PCD validation failed'}
+        if(!$rx.native_records_enabled -or $rx.semantic_validated_frames -ne $rx.validated_frames){throw 'External per-point semantic validation missing'}
+        $streams=@($rx.sensors.PSObject.Properties|Where-Object{$_.Value.frames -gt 0})
+        if($streams.Count -ne 3 -or $rx.receipts_sent -le 0){throw 'External receiver did not validate and receipt all three sensors'}
+        if(!$ObserveReceive -and ($rx.subscriptions -ne 0 -or $rx.messages_sent -ne 0)){throw 'Unrequested internal observation still active'}
+        if($ObserveReceive -and ($rx.subscriptions -le 0 -or $rx.messages_sent -le 0)){throw 'Requested internal observation not exercised'}
+        @{Pass=$true;ValidatedFrames=$rx.validated_frames;SemanticValidatedFrames=$rx.semantic_validated_frames;NativeRecordsEnabled=$rx.native_records_enabled;Sensors=$streams.Count;Subscriptions=$rx.subscriptions;EchoMessages=$rx.messages_sent;Receipts=$rx.receipts_sent}|ConvertTo-Json|Set-Content -Encoding UTF8 "$ReportRoot/pcd-validation.json"
+    }catch{$failure+='; '+$_.Exception.Message}
     @{Valid=(!$failure);Failure=$failure;Commit=((& git -C $root rev-parse HEAD)-join '');VideoDecodeDetected=$contaminated;Seconds=$Seconds;ExperimentCase=$ExperimentCase;CodeCase=$CodeCase;CameraTagCanary=[bool]$CameraTagCanary;GameExit=$(if($game){$game.ExitCode}else{$null});Executable=$Executable;Scope='Packaged local diagnostic; no company acceptance'}|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 -LiteralPath "$ReportRoot/run-manifest.json"
 }
 if($failure){throw $failure}
