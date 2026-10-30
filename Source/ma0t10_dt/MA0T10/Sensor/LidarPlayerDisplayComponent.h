@@ -25,6 +25,7 @@ public:
     FIntVector GetFixedPointRhiResources() const;
     /** Boundary-only GPU byte oracle; never used by the rendering hot path. */
     bool ReadFixedPointStreamsForTests(TArray<uint8>& Positions,TArray<uint8>& Colors) const;
+    static FIntPoint GetPreviewScratchPoolForTests();
 #endif
     virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials,bool bGetDebugMaterials=false) const override;
     virtual FPrimitiveSceneProxy* CreateSceneProxy() override;

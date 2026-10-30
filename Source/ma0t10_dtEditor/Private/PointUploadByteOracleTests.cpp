@@ -3,6 +3,7 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "SensorUploadDiagnostics.h"
+#include "Memory26Diagnostics.h"
 #include "RenderingThread.h"
 #include "RHI.h"
 #include "Engine/World.h"
@@ -19,6 +20,8 @@ bool FPointUploadByteOracleTest::RunTest(const FString&)
     C->BatchedPoints.Emplace(FVector(256,-16,32),FLinearColor(.5f,.25f,1,1),4.f,0.f,SDPG_World);
     C->RegisterComponent();C->CommitPointData();World->SendAllEndOfFrameUpdates();FlushRenderingCommands();
     const uint64 Creations=C->GetFixedPointProxyCreations();const FIntVector Resources=C->GetFixedPointRhiResources();
+    TestEqual(TEXT("only one position/color/tangent/UV/index set"),Resources.X,5);
+    AddInfo(FString::Printf(TEXT("Point GPU buffers=%d SRVs=%d bytes=%d for%dpoints"),Resources.X,Resources.Y,Resources.Z,C->BatchedPoints.Num()));
     auto Verify=[&](const TCHAR* Label)
     {
         TArray<uint8> ExpectedPositions,ExpectedColors,Positions,Colors;
@@ -49,6 +52,8 @@ bool FPointUploadByteOracleTest::RunTest(const FString&)
     C->PointViewOrigin=FVector(8,16,32);C->PointViewRight=FVector(0,0,1);C->PointViewUp=FVector(0,-1,0);C->PointPixelScale=1./512;Submit();Verify(TEXT("view and pixel scale change"));
     C->BatchedPoints[0].Color.A=0;C->BatchedPoints[1].PointSize=0;Submit();Verify(TEXT("zero-area slots"));
     for(int32 I=0;I<12;++I){C->BatchedPoints[0].Position.Z+=1;Submit();Verify(TEXT("repeated updates"));}
+    const auto Pool=C->GetPreviewScratchPoolForTests();TestTrue(TEXT("scratch free count bounded4"),Pool.X<=4);TestTrue(TEXT("scratch free bytes bounded8MiB"),Pool.Y<=8*1024*1024);
+    if(Memory26::GetCase()==Memory26::ECase::None)TestTrue(TEXT("default path returns reusable exclusive scratch"),Pool.X>0);
     Actor->Destroy();FlushRenderingCommands();return true;
 }
 #endif

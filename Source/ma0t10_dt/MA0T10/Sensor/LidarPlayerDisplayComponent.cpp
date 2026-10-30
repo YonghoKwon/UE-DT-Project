@@ -58,10 +58,11 @@ struct FPreviewScratch
     uint64 Bytes() const{return Points.GetAllocatedSize();}
 };
 Memory26::TPool<FPreviewScratch,4,8ull*1024*1024> PreviewPool;
+bool ReusePreviewScratch(){return Memory26::GetCase()==Memory26::ECase::None||Memory26::Enabled(Memory26::ECase::Preview);}
 TArray<FBatchedPoint> CopyPreviewPoints(const TArray<FBatchedPoint>& Source)
 {
     MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
-    if(Memory26::Enabled(Memory26::ECase::Preview))
+    if(ReusePreviewScratch())
     {
         auto Lease=PreviewPool.Take(Memory26::ECounter::PreviewCreate,Memory26::ECounter::PreviewReuse);
         Lease->Points.Reset();Lease->Points.Append(Source);return MoveTemp(Lease->Points);
@@ -70,7 +71,7 @@ TArray<FBatchedPoint> CopyPreviewPoints(const TArray<FBatchedPoint>& Source)
 }
 void ReturnPreviewPoints(TArray<FBatchedPoint>&& Points)
 {
-    if(!Memory26::Enabled(Memory26::ECase::Preview))return;
+    if(!ReusePreviewScratch())return;
     MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
     auto Lease=MakeUnique<FPreviewScratch>();Lease->Points=MoveTemp(Points);Lease->Points.Reset();PreviewPool.Return(MoveTemp(Lease));
 }
@@ -81,12 +82,6 @@ struct FPlayerPointUpdate
     FVector Origin,Right,Up,Forward;
     double PixelScale=0;
 };
-class FPlayerPointVertexFactory final:public FLocalVertexFactory
-{
-public:
-    using FLocalVertexFactory::FLocalVertexFactory;
-    FDataType CopyStreams() const { return GetData(); }
-};
 class FPlayerDisplayProxy final:public FPrimitiveSceneProxy
 {
     TArray<FBatchedPoint> Points;
@@ -94,9 +89,7 @@ class FPlayerDisplayProxy final:public FPrimitiveSceneProxy
     const bool bFixedPoints;
     FStaticMeshVertexBuffers Vertices;
     FDynamicMeshIndexBuffer32 Indices;
-    FPlayerPointVertexFactory Factory;
-    FVertexBuffer DynamicPositions,DynamicColors;
-    FShaderResourceViewRHIRef DynamicPositionSRV,DynamicColorSRV;
+    FLocalVertexFactory Factory;
     const FMaterialRenderProxy* Material=nullptr;
 public:
     explicit FPlayerDisplayProxy(const ULidarPlayerDisplayComponent* C)
@@ -118,44 +111,33 @@ public:
         }
         SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::PreviewStatic,GFrameCounter,uint64(Data.Num())*sizeof(FDynamicMeshVertex)+uint64(Indices.Indices.Num())*sizeof(uint32),Data.GetAllocatedSize()+Indices.Indices.GetAllocatedSize());
         Vertices.InitFromDynamicVertex(&Factory,Data,1);BeginInitResource(&Vertices.PositionVertexBuffer);BeginInitResource(&Vertices.StaticMeshVertexBuffer);BeginInitResource(&Vertices.ColorVertexBuffer);BeginInitResource(&Indices);BeginInitResource(&Factory);
-        // Persistent GPU destinations. Public RHI static-buffer writes stage
-        // and fence their copies, rather than renaming a live upload allocation
-        // on every WriteOnly lock. Vertex format, capacity and SRVs stay fixed.
-        ENQUEUE_RENDER_COMMAND(HatchInitDynamicPointStreams)([this](FRHICommandListImmediate& Cmd)
+        // InitFromDynamicVertex already binds persistent position/color buffers
+        // and SRVs. Update those destinations; no second identical stream set.
+        if(SensorUploadDiagnostics::IsEnabled())
         {
-            MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
-            DynamicPositions.InitResource(Cmd);DynamicColors.InitResource(Cmd);
-            FRHIResourceCreateInfo PosInfo(TEXT("HatchDynamicPointPositions")),ColorInfo(TEXT("HatchDynamicPointColors"));
-            const uint32 PositionBytes=Vertices.PositionVertexBuffer.GetNumVertices()*sizeof(FVector3f),ColorBytes=Vertices.ColorVertexBuffer.GetNumVertices()*sizeof(FColor);
-            DynamicPositions.VertexBufferRHI=Cmd.CreateVertexBuffer(PositionBytes,BUF_Static|BUF_ShaderResource,PosInfo);
-            DynamicColors.VertexBufferRHI=Cmd.CreateVertexBuffer(ColorBytes,BUF_Static|BUF_ShaderResource,ColorInfo);
-            SensorUploadDiagnostics::RecordAllocation(SensorUploadDiagnostics::ESite::PreviewPosition,0,PositionBytes);
-            SensorUploadDiagnostics::RecordAllocation(SensorUploadDiagnostics::ESite::PreviewColor,0,ColorBytes);
-            DynamicPositionSRV=Cmd.CreateShaderResourceView(DynamicPositions.VertexBufferRHI,sizeof(float),PF_R32_FLOAT);
-            DynamicColorSRV=Cmd.CreateShaderResourceView(DynamicColors.VertexBufferRHI,sizeof(FColor),PF_R8G8B8A8);
-            void* P=Cmd.LockBuffer(DynamicPositions.VertexBufferRHI,0,PositionBytes,RLM_WriteOnly);FMemory::Memcpy(P,Vertices.PositionVertexBuffer.GetVertexData(),PositionBytes);Cmd.UnlockBuffer(DynamicPositions.VertexBufferRHI);
-            void* C=Cmd.LockBuffer(DynamicColors.VertexBufferRHI,0,ColorBytes,RLM_WriteOnly);FMemory::Memcpy(C,Vertices.ColorVertexBuffer.GetVertexData(),ColorBytes);Cmd.UnlockBuffer(DynamicColors.VertexBufferRHI);
-            SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::PreviewPosition,GFrameNumberRenderThread,PositionBytes,PositionBytes);
-            SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::PreviewColor,GFrameNumberRenderThread,ColorBytes,ColorBytes);
-            auto Streams=Factory.CopyStreams();Streams.PositionComponent=FVertexStreamComponent(&DynamicPositions,0,sizeof(FVector3f),VET_Float3);
-            Streams.PositionComponentSRV=DynamicPositionSRV;Streams.ColorComponent=FVertexStreamComponent(&DynamicColors,0,sizeof(FColor),VET_Color,EVertexStreamUsage::ManualFetch);Streams.ColorComponentsSRV=DynamicColorSRV;Factory.SetData(Streams);
-        });
+            ENQUEUE_RENDER_COMMAND(HatchAuditPointStreams)([this](FRHICommandListImmediate&)
+            {
+                const uint32 PositionBytes=Vertices.PositionVertexBuffer.GetNumVertices()*sizeof(FVector3f),ColorBytes=Vertices.ColorVertexBuffer.GetNumVertices()*sizeof(FColor);
+                SensorUploadDiagnostics::RecordAllocation(SensorUploadDiagnostics::ESite::PreviewPosition,0,PositionBytes);
+                SensorUploadDiagnostics::RecordAllocation(SensorUploadDiagnostics::ESite::PreviewColor,0,ColorBytes);
+            });
+        }
         Material=C->ResolveFixedPointMaterial()->GetRenderProxy();
     }
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     FIntVector RhiResources() const
     {
         FIntVector R(0,0,0);
-        for(const auto* B:{&Vertices.PositionVertexBuffer.VertexBufferRHI,&Vertices.ColorVertexBuffer.VertexBufferRHI,&Vertices.StaticMeshVertexBuffer.TangentsVertexBuffer.VertexBufferRHI,&Vertices.StaticMeshVertexBuffer.TexCoordVertexBuffer.VertexBufferRHI,&DynamicPositions.VertexBufferRHI,&DynamicColors.VertexBufferRHI,&Indices.IndexBufferRHI})if(B->IsValid()){++R.X;R.Z+=int32((*B)->GetDesc().Size);}
-        for(const auto* S:{Vertices.PositionVertexBuffer.GetSRV(),Vertices.ColorVertexBuffer.GetColorComponentsSRV(),Vertices.StaticMeshVertexBuffer.GetTangentsSRV(),Vertices.StaticMeshVertexBuffer.GetTexCoordsSRV(),DynamicPositionSRV.GetReference(),DynamicColorSRV.GetReference()})if(S)++R.Y;
+        for(const auto* B:{&Vertices.PositionVertexBuffer.VertexBufferRHI,&Vertices.ColorVertexBuffer.VertexBufferRHI,&Vertices.StaticMeshVertexBuffer.TangentsVertexBuffer.VertexBufferRHI,&Vertices.StaticMeshVertexBuffer.TexCoordVertexBuffer.VertexBufferRHI,&Indices.IndexBufferRHI})if(B->IsValid()){++R.X;R.Z+=int32((*B)->GetDesc().Size);}
+        for(const auto* S:{Vertices.PositionVertexBuffer.GetSRV(),Vertices.ColorVertexBuffer.GetColorComponentsSRV(),Vertices.StaticMeshVertexBuffer.GetTangentsSRV(),Vertices.StaticMeshVertexBuffer.GetTexCoordsSRV()})if(S)++R.Y;
         return R;
     }
     bool ReadStreams(FRHICommandListImmediate& Cmd,TArray<uint8>& OutPositions,TArray<uint8>& OutColors) const
     {
-        if(!bFixedPoints||!DynamicPositions.VertexBufferRHI.IsValid()||!DynamicColors.VertexBufferRHI.IsValid())return false;
-        const uint32 PositionBytes=DynamicPositions.VertexBufferRHI->GetDesc().Size,ColorBytes=DynamicColors.VertexBufferRHI->GetDesc().Size;
+        if(!bFixedPoints||!Vertices.PositionVertexBuffer.VertexBufferRHI.IsValid()||!Vertices.ColorVertexBuffer.VertexBufferRHI.IsValid())return false;
+        const uint32 PositionBytes=Vertices.PositionVertexBuffer.VertexBufferRHI->GetDesc().Size,ColorBytes=Vertices.ColorVertexBuffer.VertexBufferRHI->GetDesc().Size;
         FRHIGPUBufferReadback PositionReadback(TEXT("PointPositionOracle")),ColorReadback(TEXT("PointColorOracle"));
-        PositionReadback.EnqueueCopy(Cmd,DynamicPositions.VertexBufferRHI,PositionBytes);ColorReadback.EnqueueCopy(Cmd,DynamicColors.VertexBufferRHI,ColorBytes);
+        PositionReadback.EnqueueCopy(Cmd,Vertices.PositionVertexBuffer.VertexBufferRHI,PositionBytes);ColorReadback.EnqueueCopy(Cmd,Vertices.ColorVertexBuffer.VertexBufferRHI,ColorBytes);
         Cmd.BlockUntilGPUIdle();Cmd.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
         if(!PositionReadback.IsReady()||!ColorReadback.IsReady())return false;
         const void* P=PositionReadback.Lock(PositionBytes);const void* C=ColorReadback.Lock(ColorBytes);
@@ -164,7 +146,7 @@ public:
     }
 #endif
     ~FPlayerDisplayProxy()
-    {if(bFixedPoints){Factory.ReleaseResource();DynamicPositionSRV.SafeRelease();DynamicColorSRV.SafeRelease();DynamicPositions.ReleaseResource();DynamicColors.ReleaseResource();Vertices.PositionVertexBuffer.ReleaseResource();Vertices.StaticMeshVertexBuffer.ReleaseResource();Vertices.ColorVertexBuffer.ReleaseResource();Indices.ReleaseResource();}ReturnPreviewPoints(MoveTemp(Points));}
+    {if(bFixedPoints){Factory.ReleaseResource();Vertices.PositionVertexBuffer.ReleaseResource();Vertices.StaticMeshVertexBuffer.ReleaseResource();Vertices.ColorVertexBuffer.ReleaseResource();Indices.ReleaseResource();}ReturnPreviewPoints(MoveTemp(Points));}
     void UpdatePoints(FRHICommandListImmediate& Cmd,FPlayerPointUpdate&& Data)
     {
         MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
@@ -190,9 +172,9 @@ public:
         // Same UE5.3 buffer update path as procedural meshes. Index buffers,
         // vertex factory and bindings remain alive for the whole display.
         auto Upload=[&](FVertexBuffer& Target,auto& Source,SensorUploadDiagnostics::ESite Site){const uint32 Bytes=Source.GetNumVertices()*Source.GetStride();void* Dest=Cmd.LockBuffer(Target.VertexBufferRHI,0,Bytes,RLM_WriteOnly);FMemory::Memcpy(Dest,Source.GetVertexData(),Bytes);Cmd.UnlockBuffer(Target.VertexBufferRHI);SensorUploadDiagnostics::RecordCopy(Site,GFrameNumberRenderThread,Bytes,Target.VertexBufferRHI->GetDesc().Size);};
-        if(PositionsChanged)Upload(DynamicPositions,Vertices.PositionVertexBuffer,SensorUploadDiagnostics::ESite::PreviewPosition);
+        if(PositionsChanged)Upload(Vertices.PositionVertexBuffer,Vertices.PositionVertexBuffer,SensorUploadDiagnostics::ESite::PreviewPosition);
         else SensorUploadDiagnostics::RecordSkipped(SensorUploadDiagnostics::ESite::PreviewPosition);
-        if(ColorsChanged)Upload(DynamicColors,Vertices.ColorVertexBuffer,SensorUploadDiagnostics::ESite::PreviewColor);
+        if(ColorsChanged)Upload(Vertices.ColorVertexBuffer,Vertices.ColorVertexBuffer,SensorUploadDiagnostics::ESite::PreviewColor);
         else SensorUploadDiagnostics::RecordSkipped(SensorUploadDiagnostics::ESite::PreviewColor);
     }
     SIZE_T GetTypeHash() const override {static char Key;return reinterpret_cast<SIZE_T>(&Key);}
@@ -236,7 +218,7 @@ void ULidarPlayerDisplayComponent::SendRenderDynamicData_Concurrent()
     Super::SendRenderDynamicData_Concurrent();
     if(!bFixedPointSubmission||!SceneProxy||FixedProxyPointCount<=0||FixedProxyPointCount!=BatchedPoints.Num())return;
     FPlayerPointUpdate Data;
-    if(Memory26::Enabled(Memory26::ECase::Preview))
+    if(ReusePreviewScratch())
     {
         Data.Scratch=PreviewPool.Take(Memory26::ECounter::PreviewCreate,Memory26::ECounter::PreviewReuse);
         Data.Scratch->Points.Reset();Data.Scratch->Points.Append(BatchedPoints);
@@ -254,6 +236,8 @@ FIntVector ULidarPlayerDisplayComponent::GetFixedPointRhiResources() const
     if(bFixedPointSubmission&&SceneProxy&&FixedProxyPointCount>0){const auto* Proxy=static_cast<const FPlayerDisplayProxy*>(SceneProxy);ENQUEUE_RENDER_COMMAND(HatchAuditPointResources)([Proxy,&Result](FRHICommandListImmediate&){Result=Proxy->RhiResources();});FlushRenderingCommands();}
     return Result;
 }
+FIntPoint ULidarPlayerDisplayComponent::GetPreviewScratchPoolForTests()
+{return FIntPoint(PreviewPool.RetainedCount(),int32(PreviewPool.RetainedBytes()));}
 bool ULidarPlayerDisplayComponent::ReadFixedPointStreamsForTests(TArray<uint8>& Positions,TArray<uint8>& Colors) const
 {
     check(IsInGameThread());bool Ready=false;
