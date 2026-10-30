@@ -85,3 +85,31 @@ DTCore 업무 연결의 재연결은 기존 지수 backoff/최대 재시도 설�
 - 다음 단계는 동일 parent 커밋/DTCore bc60f05에서 Editor Development 및 게임 빌드, `DTCore.Contract` 11개·`DTCore.Quality` 7개와 유지된 Camera/Crane/SlabBroker 관련 회귀, BP redirect/자산 읽기 검증이다. 실제 Broker·PCD 송신 receipt/재연결·누락/큐/메모리, 숨김/재호스팅 직접 UI, 단독 실행 ABAB 성능·회사 수용은 각각 별도로 기록해야 한다. 이 단계에서는 실행하지 않는다.
 
 `Config/Game.ini`, `Config/SensorTransport.ini`, `Samples/PixelStreaming`, `CLAUDE.md`, `docs/IMPROVEMENTS_CLAUDE.md`, 운영맵/자산은 변경·stage하지 않는다. DTCore 소스 수정/커밋, push/PR/merge도 수행하지 않는다.
+
+## 2단계 검증 결과와 미해결 사항 (2026-10-31)
+
+실행 소스는 parent `5c35b854331765fa07b8fdf272393052b6a40adf` / DTCore `bc60f05`다. 소스 변경 없이 UE 5.3 `ma0t10_dtEditor Win64 Development` 빌드를 91.08초에 완료했다. 이 절을 추가한 문서 커밋은 실행 소스를 바꾸지 않는다. 실행은 한 번에 Editor 1개로 진행했으며 증거는 `Saved/Reports/DTCORE-MAIN-SWITCH/stage2/`에 보존한다.
+
+| 검증 | 결과 | 증거/조건 |
+|---|---|---|
+| quick/layer/guard | PASS | `verify.ps1 -Level quick -BaseCommit 5c35b85` 9단계. 전환 완료 커밋 이후의 보호 상태 검사이며 d8048bf 대비 gitlink 변경 승인 자체를 대신하지 않음. allowlist/위반 0/0 |
+| MA0T10 + DTCore.Contract + DTCore.Quality | 최초 444 성공 / 44 skip / 6 실패 | D3D12 offscreen, 총 494개. DTCore 18개 전부 성공. 실패 6개는 Coil 화면 캡처의 Saved fixture 부재 |
+| Coil fixture 준비 후 재실행 | 6 성공 / 0 실패 | 기존 `capture_coil_environments.py prepare`와 제품 시험이 생성한 seed 사용. 기대값/제품 코드 변경 없음. 이 시점의 고유 결과는 450 성공 / 44 skip |
+| 실제 기본값 / BP 읽기·메모리 컴파일 | PASS | receipt timeout 0, reconnect 10회, HTTP timeout 0/최대 3회/초기 1초, 로그 빈 경로/7일. BP 17개 컴파일, 저장 패키지 0. helper의 Python 노출 이름 오류 2회는 별도 로그에 보존하고 reflection 이름으로 수정 후 통과 |
+| Raw socket healthy 120초 | PASS | 1 synthetic 576×56×33-byte 스트림, 0.1초 간격, NullRHI(socket 전용), 로컬 TCP fixture. 서버 최종 SEND/receipt 1,189/1,189, 거절·과부하·송신 실패 0, 종료 reservation 0 |
+| Raw socket reset 20초 | PASS | 8초마다 연결 reset 주입, 연결 3회/끊김 2회와 재연결 확인, 종료 reservation 0. 실제 Artemis/회사 Broker 시험이 아님 |
+| native PCD 120초 | **FAIL** | D3D12, SensorTestMap 보관 사본, client 1920×1080, LiDAR 1대/0.1초, 로컬 receipt+echo. 아래 실패를 유지 |
+
+native `MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke`는 전체 입력 1,300건에 대해 직렬화·제출·receipt가 각각 1,299건이었다. 측정 ledger 1,200건은 모두 receipt와 loopback 소비가 존재하고 invalid·송신 실패·과부하는 0이지만, 전체 입력 대비 부족 1건을 성공으로 바꾸지 않는다. 평균 46.20FPS(기준 ≥55), 1% low 33.18FPS(≥45), engine frame p95 29.58ms(≤20)로 기존 절대 성능 assertion도 실패했다. callback wall p95는 34.19ms이며 engine frame과 구분한다. ABAB 비교를 수행하지 않았으므로 이 실패를 DTCore 전환에 귀속하거나 기존 문제라고 단정하지 않는다.
+
+추가 opt-in 실행까지 같은 시험 이름의 최신 결과를 합치면 **451 성공 / 42 skip / 1 실패**다. healthy/reset은 같은 socket 시험을 서로 다른 조건으로 각각 실행했다. native 실패의 기대값·시험 수치·센서/PCD 계약을 완화하거나 범위 밖 Runtime을 수정하지 않았다. 장시간 #26 메모리 검증, 표준 RT on ABAB, 회사/실장비 수용과 직접 마우스 수용은 미수행이다.
+
+### 실행 범위 사고와 복원 제한
+
+최초 smoke wrapper 호출에서 Codex가 PowerShell 인자를 `-ProjectPath=...` 형태로 잘못 전달하여 스크립트 기본값의 메인 프로젝트 Editor를 1회 실행했다. 프로세스는 exit 255로 종료했다. 이는 사용자 지시의 메인 파일·프로세스 보호 위반이며 즉시 보고했다. 이후 명시적 argv와 worktree 경로 assertion으로 전환했다.
+
+읽기 전용 확인에서 메인 `Saved/Config/WindowsEditor`의 `EditorPerProjectUserSettings.ini`, `Engine.ini`, `GameUserSettings.ini`, 새 crash 설정 및 `Saved/Logs/ma0t10_dt.log`의 갱신을 확인했다. 사전 메인 개인 설정 백업이 없어 이전 내용으로 복원했음을 보장할 수 없다. 이를 추정 덮어쓰기하지 않았다. 메인의 기존 Git 변경 파일 중 사고 시작 이후 갱신된 파일은 0개였지만, 이 시각 검사를 사전 전체 해시 증명으로 취급하지 않는다. `launch-incident.json`에 값/설정 원문 없이 경로·시각·제한을 기록했다.
+
+승인 worktree는 사전 개인 설정 파일 0개와 보호 파일 191개를 기록했고 검증 후 동일 해시/초기 부재를 복원했다. 기존 설정 시험이 자동 생성한 worktree `Config/Game.ini`는 증거 사본을 Saved에 보존한 뒤 초기 부재로 복원했으며 stage하지 않았다. DTCore 내부, SensorTransport 템플릿, PixelStreaming, Claude 문서, 운영맵/자산은 최종 불변이다. 전역 결과의 `personal_settings_restored`는 메인 사고의 미확인 상태 때문에 false로 보고한다.
+
+**현재는 native 실패와 보호 범위 사고를 보존하며 push/PR을 보류한다.** 사용자 지시의 “통과 시 push 후 PR” 조건을 충족하지 못했다. 실패 원인 분석 범위 또는 실패/복원 제한을 명시한 검토용 PR 생성 여부의 결정이 필요하다. 대용량 생성물 정리 후보는 `stage2/CLEANUP.md`에 있으며 삭제하지 않았다.
