@@ -23,6 +23,8 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     /** Explicit boundary-only audit: vertex/index buffer count,SRV count,bytes. */
     FIntVector GetFixedPointRhiResources() const;
+    /** Boundary-only GPU byte oracle; never used by the rendering hot path. */
+    bool ReadFixedPointStreamsForTests(TArray<uint8>& Positions,TArray<uint8>& Colors) const;
 #endif
     virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials,bool bGetDebugMaterials=false) const override;
     virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
