@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "SensorUploadDiagnostics.h"
 #include "MA0T10MemoryTags.h"
 #include "ma0t10_dt/MA0T10/Sensor/LidarPlayerDisplayComponent.h"
 #include "VirtualLidarHeight.h"
@@ -1177,6 +1178,7 @@ UTexture2D* UVirtualLidarVisualizationComponent::UploadTexture(TObjectPtr<UTextu
     uint8* UploadData = new uint8[ByteCount];
     FMemory::Memcpy(UploadData, Pixels.GetData(), ByteCount);
     FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, Width, Height);
+    SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::VisualizationTexture,GFrameCounter,uint64(Width)*Height*sizeof(FColor),ByteCount);
     Texture->UpdateTextureRegions(0, 1, Region, Width * sizeof(FColor), sizeof(FColor), UploadData,
         [Region](uint8* Data, const FUpdateTextureRegion2D*)
         {

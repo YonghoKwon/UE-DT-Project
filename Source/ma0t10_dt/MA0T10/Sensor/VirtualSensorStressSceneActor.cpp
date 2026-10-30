@@ -1,4 +1,5 @@
 #include "VirtualSensorStressSceneActor.h"
+#include "SensorUploadDiagnostics.h"
 
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Components/SceneComponent.h"
@@ -88,5 +89,6 @@ void AVirtualSensorStressSceneActor::Tick(float DeltaSeconds)
 		Updated.SetLocation(Location);
 		UpdatedTransforms.Add(Updated);
 	}
+	SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::StressInstances,GFrameCounter,uint64(UpdatedTransforms.Num())*sizeof(FTransform),uint64(UpdatedTransforms.Num())*sizeof(FTransform));
 	MovingProxies->BatchUpdateInstancesTransforms(0, UpdatedTransforms, false, true, true);
 }

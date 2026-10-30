@@ -1,4 +1,5 @@
 #include "ShipHatchSimulation.h"
+#include "SensorUploadDiagnostics.h"
 #include "ProceduralMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "PhysicsEngine/BodySetup.h"
@@ -152,13 +153,13 @@ void AShipHatchSimulation::BuildUnloaderDetails()
  {
   if(!HatchUnloaderSamePositions(Existing,V))
   {
-  M->UpdateMeshSection_LinearColor(1,V,N,TArray<FVector2D>(),C,TArray<FProcMeshTangent>());
+  (SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((V).Num())*sizeof((V)[0]),0),M->UpdateMeshSection_LinearColor(1,V,N,TArray<FVector2D>(),C,TArray<FProcMeshTangent>()));
   // Transient query meshes have no serialized cooked payload. Avoid retaining
   // a new editor DDC blob for each regenerated cargo/hoist position.
   if(auto* Body=M->GetBodySetup()){Body->bHasCookedCollisionData=false;Body->InvalidatePhysicsData();Body->CreatePhysicsMeshes();M->RecreatePhysicsState();}
   }
  }
- else M->CreateMeshSection_LinearColor(1,V,T,N,TArray<FVector2D>(),C,TArray<FProcMeshTangent>(),true);
+ else (SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((V).Num())*sizeof((V)[0])+uint64((T).Num())*sizeof((T)[0]),0),M->CreateMeshSection_LinearColor(1,V,T,N,TArray<FVector2D>(),C,TArray<FProcMeshTangent>(),true));
  if(auto* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/MA0T10/Hatch/Materials/M_HatchCargo.M_HatchCargo")))
  {auto* MID=Cast<UMaterialInstanceDynamic>(M->GetMaterial(1));if(!MID||MID->Parent!=Base){MID=UMaterialInstanceDynamic::Create(Base,UnloaderPresentation);MID->SetScalarParameterValue(TEXT("Hardware"),1);M->SetMaterial(1,MID);}}
  BuildGrabModel();

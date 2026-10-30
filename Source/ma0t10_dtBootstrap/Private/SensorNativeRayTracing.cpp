@@ -1,5 +1,6 @@
 #include "SensorNativeRayTracing.h"
 #include "SensorNativeSafety.h"
+#include "SensorUploadDiagnostics.h"
 #include "RenderingThread.h"
 #include "Misc/ScopeExit.h"
 #include "Misc/CommandLine.h"
@@ -74,7 +75,19 @@ struct FBuffer
 };
 using FBufferPtr=TSharedPtr<FBuffer,ESPMode::ThreadSafe>;
 FBufferPtr NewBuffer(ID3D12Device* Device,uint64 Size,D3D12_HEAP_TYPE Heap,D3D12_RESOURCE_STATES State,bool Uav,FString& Error,const TCHAR* Purpose=TEXT("Buffer"))
-{auto Result=MakeShared<FBuffer,ESPMode::ThreadSafe>();Result->Purpose=Purpose;return Result->Create(Device,Size,Heap,State,Uav,Error)?Result:FBufferPtr();}
+{
+    auto Result=MakeShared<FBuffer,ESPMode::ThreadSafe>();Result->Purpose=Purpose;if(!Result->Create(Device,Size,Heap,State,Uav,Error))return {};
+    if(SensorUploadDiagnostics::IsEnabled())
+    {
+        using namespace SensorUploadDiagnostics;ESite Site=ESite::NativeGeometry;
+        if(FCString::Stristr(Purpose,TEXT("Rays")))Site=ESite::NativeRays;
+        else if(FCString::Stristr(Purpose,TEXT("Constants")))Site=ESite::NativeConstants;
+        else if(FCString::Stristr(Purpose,TEXT("Instances")))Site=ESite::NativeInstances;
+        else if(FCString::Stristr(Purpose,TEXT("Readback")))Site=ESite::NativeReadback;
+        RecordAllocation(Site,0,Result->Size);
+    }
+    return Result;
+}
 void UavBarrier(ID3D12GraphicsCommandList4* List)
 {D3D12_RESOURCE_BARRIER B={};B.Type=D3D12_RESOURCE_BARRIER_TYPE_UAV;List->ResourceBarrier(1,&B);}
 struct FBlas
@@ -279,6 +292,7 @@ public:
             if(!Surfaces->BeginWrite(Error))return false;
             FMemory::Memzero(Surfaces->Mapped,Surfaces->Size);
             FMemory::Memcpy(Surfaces->Mapped,Mesh.NormalsAndSurfaces->GetData(),Mesh.NormalsAndSurfaces->Num()*sizeof(FVector4f));
+            SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::NativeGeometry,GFrameNumberRenderThread,uint64(Mesh.NormalsAndSurfaces->Num())*sizeof(FVector4f),Surfaces->Size);
             Surfaces->EndWrite(Surfaces->Size);B.Surfaces=MoveTemp(Surfaces);return true;
         };
         for(auto& B:Blases)if(B->Revision==Mesh.Revision){B->LastUse=++Clock;return EnsureSurfaces(*B,false)?B:TSharedPtr<FBlas,ESPMode::ThreadSafe>();}
@@ -300,6 +314,7 @@ public:
         B->Revision=Mesh.Revision;B->LastUse=++Clock;
         if(!EnsureBuffer(B->Vertices,uint64(Mesh.Vertices->Num())*sizeof(FVector3f),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("B.Vertices"))||!EnsureSurfaces(*B,true)||!B->Vertices->BeginWrite(Error))return {};
         FMemory::Memcpy(B->Vertices->Mapped,Mesh.Vertices->GetData(),Mesh.Vertices->Num()*sizeof(FVector3f));
+        SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::NativeGeometry,GFrameNumberRenderThread,uint64(Mesh.Vertices->Num())*sizeof(FVector3f),B->Vertices->Size);
         B->Vertices->EndWrite(Mesh.Vertices->Num()*sizeof(FVector3f));
         D3D12_RAYTRACING_GEOMETRY_DESC Geometry={};Geometry.Type=D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;Geometry.Flags=D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
         Geometry.Triangles.VertexBuffer.StartAddress=B->Vertices->Address();Geometry.Triangles.VertexBuffer.StrideInBytes=sizeof(FVector3f);
@@ -346,6 +361,7 @@ public:
         if(Instances.IsEmpty()){Error=TEXT("native LiDAR empty collision TLAS");return {};}
         if(!EnsureBuffer(S->Instances,Instances.Num()*sizeof(D3D12_RAYTRACING_INSTANCE_DESC),D3D12_HEAP_TYPE_UPLOAD,D3D12_RESOURCE_STATE_GENERIC_READ,false,Error,TEXT("S.Instances"))||!S->Instances->BeginWrite(Error))return {};
         FMemory::Memcpy(S->Instances->Mapped,Instances.GetData(),Instances.Num()*sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
+        SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::NativeInstances,GFrameNumberRenderThread,uint64(Instances.Num())*sizeof(D3D12_RAYTRACING_INSTANCE_DESC),S->Instances->Size);
         S->Instances->EndWrite(Instances.Num()*sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
         for(int32 I=0;I<4;++I)S->Normals[I]=I<Meshes.Num()?FMatrix44f(Meshes[I].LocalToWorld.ToInverseMatrixWithScale().GetTransposed()):FMatrix44f::Identity;
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS Inputs={};Inputs.Type=D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
@@ -389,7 +405,11 @@ public:
             Error=TEXT("native LiDAR device removed");Backend->Faulted=true;
             SensorNativeSafety::DisableForSession(Error);
         }
-        else if(Backend->Validate(Error)&&!Cancelled){Hits.SetNumUninitialized(Job->Count,false);FMemory::Memcpy(Hits.GetData(),Job->Readback->Mapped,Job->Count*sizeof(FSensorRtHit));}
+        else if(Backend->Validate(Error)&&!Cancelled)
+        {
+            Hits.SetNumUninitialized(Job->Count,false);FMemory::Memcpy(Hits.GetData(),Job->Readback->Mapped,Job->Count*sizeof(FSensorRtHit));
+            SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::NativeReadback,GFrameNumberRenderThread,uint64(Job->Count)*sizeof(FSensorRtHit),Job->Readback->Size);
+        }
         Backend->Return(MoveTemp(Job));return true;
     }
 };
@@ -421,10 +441,12 @@ TSharedPtr<ITicket,ESPMode::ThreadSafe> Submit(const TArray<FSensorRtMesh>& Mesh
     Job->Scene=Backend->GetScene(Meshes,Job->List,Error);if(!Job->Scene)return {};
     if(!Job->Rays->BeginWrite(Error)||!Job->Constants->BeginWrite(Error))return {};
     uint32 Offset=0;for(const auto& Part:Parts){const uint32 Size=Part.Num()*sizeof(FSensorRtRay);FMemory::Memcpy(static_cast<uint8*>(Job->Rays->Mapped)+Offset,Part.GetData(),Size);Offset+=Size;}
+    SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::NativeRays,GFrameNumberRenderThread,Offset,Job->Rays->Size);
     // The immutable matrices are shared; the count/CBV is per fenced job.
     // Never overwrite another in-flight dispatch's constant allocation.
     FMemory::Memcpy(Job->Constants->Mapped,Job->Scene->Normals,sizeof(Job->Scene->Normals));
     FMemory::Memcpy(static_cast<uint8*>(Job->Constants->Mapped)+256,&Count,sizeof(Count));
+    SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::NativeConstants,GFrameNumberRenderThread,sizeof(Job->Scene->Normals)+sizeof(Count),Job->Constants->Size);
     Job->Rays->EndWrite(uint64(Count)*sizeof(FSensorRtRay));Job->Constants->EndWrite(256+sizeof(Count));
     Job->List->SetComputeRootSignature(Backend->Root);
     Job->List->SetComputeRootShaderResourceView(0,Job->Scene->Storage->Address());

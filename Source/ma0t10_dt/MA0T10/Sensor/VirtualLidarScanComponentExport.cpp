@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "SensorUploadDiagnostics.h"
 #include "MA0T10MemoryTags.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 #include "IndustrialLidarProfiles.h"
@@ -794,12 +795,14 @@ void UVirtualLidarScanComponent::RefreshPointCloudPreview()
     {
         // LastPoints stores world-space hit locations. Treating these as local-space
         // transforms applies the sensor transform twice and moves the cloud out of view.
+        SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::WorldPreviewInstances,GFrameCounter,uint64(CommonCount)*sizeof(FTransform),uint64(InstanceTransforms.Num())*sizeof(FTransform));
         Comp->BatchUpdateInstancesTransforms(0, TArrayView<const FTransform>(InstanceTransforms.GetData(), CommonCount), true, false, true);
     }
     if (NewCount > ExistingCount)
     {
         TArray<FTransform> AddedTransforms;
         AddedTransforms.Append(InstanceTransforms.GetData() + ExistingCount, NewCount - ExistingCount);
+        SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::WorldPreviewInstances,GFrameCounter,uint64(AddedTransforms.Num())*sizeof(FTransform),uint64(AddedTransforms.Num())*sizeof(FTransform));
         Comp->AddInstances(AddedTransforms, true, true);
     }
     else if (ExistingCount > NewCount)

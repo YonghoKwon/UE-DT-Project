@@ -1,4 +1,5 @@
 #include "CsvPointCloudPreviewActor.h"
+#include "SensorUploadDiagnostics.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
 #include "Components/InstancedStaticMeshComponent.h"
@@ -495,7 +496,7 @@ void ACsvPointCloudPreviewActor::BuildProceduralPointCloud(const TArray<FVector>
             UV0.Add(FVector2D(0.0f, 1.0f));
         }
 
-        ProceduralPointCloudComponent->CreateMeshSection_LinearColor(SectionIndex, Vertices, Triangles, Normals, UV0, VertexColors, Tangents, false);
+        (SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((Vertices).Num())*sizeof((Vertices)[0])+uint64((Triangles).Num())*sizeof((Triangles)[0]),0),ProceduralPointCloudComponent->CreateMeshSection_LinearColor(SectionIndex, Vertices, Triangles, Normals, UV0, VertexColors, Tangents, false));
         if (DynamicPointMaterial)
         {
             ProceduralPointCloudComponent->SetMaterial(SectionIndex, DynamicPointMaterial);
@@ -576,6 +577,7 @@ void ACsvPointCloudPreviewActor::BuildInstancedPointCloud(const TArray<FVector>&
 
     if (InstanceTransforms.Num() > 0)
     {
+        SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::CsvInstances,GFrameCounter,uint64(InstanceTransforms.Num())*sizeof(FTransform),uint64(InstanceTransforms.Num())*sizeof(FTransform));
         PointCloudComponent->AddInstances(InstanceTransforms, false, true);
     }
     PointCloudComponent->MarkRenderStateDirty();

@@ -3,6 +3,7 @@
 #include "HatchMemoryExperimentDiagnostics.h"
 #include "MA0T10MemoryTags.h"
 #include "SensorOwnedRayTracing.h"
+#include "SensorUploadDiagnostics.h"
 
 #include "ShipHatchMonitorHost.h"
 #include "ShipHatchMonitorWidget.h"
@@ -208,6 +209,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         if(!Write(R)||!ViewportValid)return false;
         for(const auto& Status:Publisher->GetStreamStatuses())if(Status.StreamKind==EVirtualSensorStreamKind::PointCloud)PcdBefore.Add(Status.SensorId,Status);
         for(int32 I=0;I<SensorCount;++I)if(auto* A=S.SensorAt(I))FramesBefore.Add(A->GetSensorId(),A->ScanComponent->GetRuntimeStatus().FrameId);
+        SensorUploadDiagnostics::ResetWindow();
         Started=FPlatformTime::Seconds();if(!BeginHatchMemoryExperiment(Directory))return false;TRACE_BOOKMARK(TEXT("MEMORY26B_BEGIN"));return true;
     }
     void Sample(AShipHatchSimulation& S)
@@ -262,6 +264,19 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
                 Sensors->SetObjectField(A->GetSensorId(),J);
             }
             R->SetObjectField(TEXT("sensors"),Sensors);R->SetNumberField(TEXT("previous_sample_total_gt_ms"),PreviousCost);R->SetNumberField(TEXT("restores"),0);
+            if(SensorUploadDiagnostics::IsEnabled())
+            {
+                using namespace SensorUploadDiagnostics;const auto Uploads=Snapshot();auto U=MakeShared<FJsonObject>();auto Sites=MakeShared<FJsonObject>();
+                U->SetBoolField(TEXT("enabled"),true);U->SetStringField(TEXT("contract"),TEXT("processing-frame peaks; RHI requested bytes, native mapped writes, engine-managed producer input and readback are separate; not driver heap bytes"));
+                for(uint32 I=0;I<DomainCount;++I){U->SetNumberField(FString(DomainName(EDomain(I)))+TEXT("_peak_frame_bytes"),double(Uploads.PeakFrameBytes[I]));U->SetNumberField(FString(DomainName(EDomain(I)))+TEXT("_peak_frame_calls"),double(Uploads.PeakFrameCalls[I]));}
+                for(uint32 I=0;I<SiteCount;++I)
+                {
+                    const auto& V=Uploads.Sites[I];auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("domain"),DomainName(Domain(ESite(I))));
+                    J->SetNumberField(TEXT("bytes"),double(V.Bytes));J->SetNumberField(TEXT("calls"),double(V.CopyCalls));J->SetNumberField(TEXT("creations"),double(V.Creations));J->SetNumberField(TEXT("growths"),double(V.Growths));J->SetNumberField(TEXT("shrinks"),double(V.Shrinks));J->SetNumberField(TEXT("skipped"),double(V.Skipped));
+                    J->SetNumberField(TEXT("last_capacity"),double(V.LastCapacity));J->SetNumberField(TEXT("max_capacity"),double(V.MaxCapacity));J->SetNumberField(TEXT("peak_frame_bytes"),double(V.PeakFrameBytes));J->SetNumberField(TEXT("peak_frame_calls"),double(V.PeakFrameCalls));Sites->SetObjectField(SiteName(ESite(I)),J);
+                }
+                U->SetObjectField(TEXT("sites"),Sites);U->SetNumberField(TEXT("record_calls"),double(Uploads.RecordCalls));U->SetNumberField(TEXT("record_cpu_ms"),FPlatformTime::ToMilliseconds64(Uploads.RecordCpuCycles));R->SetObjectField(TEXT("upload_stats"),U);
+            }
             if(!Write(R))Failed=true;
         }
         LastSample=CostStart;PreviousCost=(FPlatformTime::Seconds()-CostStart)*1000;CostSum+=PreviousCost;CostMax=FMath::Max(CostMax,PreviousCost);++Samples;

@@ -1,4 +1,5 @@
 #include "SensorOwnedRayTracing.h"
+#include "SensorUploadDiagnostics.h"
 #include "SensorNativeRayTracing.h"
 #include "SensorNativeSafety.h"
 #include "MA0T10MemoryTags.h"
@@ -104,7 +105,13 @@ FBufferRHIRef Upload(FRHICommandListImmediate& Cmd,const TCHAR* Name,const TArra
     MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
     TResourceArray<T> Resource;Resource.Append(Data);
     FRHIResourceCreateInfo Info(Name);Info.ResourceArray=&Resource;
-    return Cmd.CreateStructuredBuffer(sizeof(T),Resource.GetResourceDataSize(),Flags|BUF_ShaderResource,Info);
+    auto Buffer=Cmd.CreateStructuredBuffer(sizeof(T),Resource.GetResourceDataSize(),Flags|BUF_ShaderResource,Info);
+    if(Buffer.IsValid()&&SensorUploadDiagnostics::IsEnabled())
+    {
+        const auto Site=FCString::Strcmp(Name,TEXT("SensorRtRays"))==0?SensorUploadDiagnostics::ESite::OwnedRays:SensorUploadDiagnostics::ESite::OwnedScene;
+        SensorUploadDiagnostics::RecordAllocation(Site,0,Buffer->GetDesc().Size);SensorUploadDiagnostics::RecordCopy(Site,GFrameNumberRenderThread,Resource.GetResourceDataSize(),Buffer->GetDesc().Size);
+    }
+    return Buffer;
 }
 TSharedPtr<FBlas,ESPMode::ThreadSafe> GetBlas(FRHICommandListImmediate& Cmd,const FSensorRtMesh& Mesh)
 {
@@ -116,6 +123,8 @@ TSharedPtr<FBlas,ESPMode::ThreadSafe> GetBlas(FRHICommandListImmediate& Cmd,cons
     TResourceArray<FVector3f> Positions;Positions.Append(*Mesh.Vertices);
     FRHIResourceCreateInfo Info(TEXT("SensorRtVertices"));Info.ResourceArray=&Positions;
     B->Vertices=Cmd.CreateVertexBuffer(Positions.GetResourceDataSize(),BUF_Static|BUF_ShaderResource,Info);
+    SensorUploadDiagnostics::RecordAllocation(SensorUploadDiagnostics::ESite::OwnedScene,0,Positions.GetResourceDataSize());
+    SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::OwnedScene,GFrameNumberRenderThread,Positions.GetResourceDataSize(),Positions.GetResourceDataSize());
     B->Attributes=Upload(Cmd,TEXT("SensorRtSurfaces"),*Mesh.NormalsAndSurfaces,BUF_Static);
     B->AttributeView=Cmd.CreateShaderResourceView(B->Attributes);
     FRayTracingGeometryInitializer Init;Init.DebugName=TEXT("SensorOwnedCollision");Init.GeometryType=RTGT_Triangles;
@@ -360,17 +369,19 @@ public:
         }
         else
         {
-            auto Write=[&](FBufferRHIRef Buffer,const void* Data,uint32 Bytes){void* Dest=Cmd.LockBuffer(Buffer,0,Bytes,RLM_WriteOnly);FMemory::Memcpy(Dest,Data,Bytes);Cmd.UnlockBuffer(Buffer);};
+            auto Write=[&](FBufferRHIRef Buffer,const void* Data,uint32 Bytes){void* Dest=Cmd.LockBuffer(Buffer,0,Bytes,RLM_WriteOnly);FMemory::Memcpy(Dest,Data,Bytes);Cmd.UnlockBuffer(Buffer);SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::OwnedScene,GFrameNumberRenderThread,Bytes,Buffer->GetDesc().Size);};
             Write(InstanceUpload,Inputs.GetData(),Inputs.Num()*sizeof(FRayTracingInstanceDescriptorInput));
             Write(TransformUpload,Transforms.GetData(),Transforms.Num()*sizeof(FVector4f));
         }
         auto AddressBuffer=Addresses.Buffer;auto Geometries=Init.ReferencedGeometries;
-        Cmd.EnqueueLambda([AddressBuffer,Geometries](FRHICommandListImmediate& Rhi)
+        const uint64 AddressUploadFrame=GFrameNumberRenderThread;
+        Cmd.EnqueueLambda([AddressBuffer,Geometries,AddressUploadFrame](FRHICommandListImmediate& Rhi)
         {
             MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
             auto* Data=static_cast<FRayTracingAccelerationStructureAddress*>(Rhi.LockBuffer(AddressBuffer,0,Geometries.Num()*sizeof(FRayTracingAccelerationStructureAddress),RLM_WriteOnly));
             for(int I=0;I<Geometries.Num();++I)Data[I]=Geometries[I]->GetAccelerationStructureAddress(Rhi.GetGPUMask().ToIndex());
             Rhi.UnlockBuffer(AddressBuffer);
+            SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::OwnedScene,AddressUploadFrame,uint64(Geometries.Num())*sizeof(FRayTracingAccelerationStructureAddress),AddressBuffer->GetDesc().Size);
         });
         BuildRayTracingInstanceBuffer(Cmd,nullptr,FVector3f::ZeroVector,FVector3f::ZeroVector,Instances.UAV,InstanceUploadView,Addresses.SRV,TransformUploadView,
             Built.NumNativeGPUSceneInstances,Built.NumNativeCPUInstances,{},nullptr);
@@ -403,13 +414,14 @@ public:
             if(!Packet->RayBuffer.IsValid())
             {Packet->RayBuffer=Upload(Cmd,TEXT("SensorRtRays"),Packet->LastRays,BUF_Static);Packet->RayView=Cmd.CreateShaderResourceView(Packet->RayBuffer);++RtSubmissionCounters.ViewCreates;}
             else
-            {void* Dest=Cmd.LockBuffer(Packet->RayBuffer,0,Count*sizeof(FSensorRtRay),RLM_WriteOnly);FMemory::Memcpy(Dest,Packet->LastRays.GetData(),Count*sizeof(FSensorRtRay));Cmd.UnlockBuffer(Packet->RayBuffer);}
+            {void* Dest=Cmd.LockBuffer(Packet->RayBuffer,0,Count*sizeof(FSensorRtRay),RLM_WriteOnly);FMemory::Memcpy(Dest,Packet->LastRays.GetData(),Count*sizeof(FSensorRtRay));Cmd.UnlockBuffer(Packet->RayBuffer);SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::OwnedRays,GFrameNumberRenderThread,uint64(Count)*sizeof(FSensorRtRay),Packet->RayBuffer->GetDesc().Size);}
             ++RtSubmissionCounters.RayUploads;
         }
         if(!Packet->ResultBuffer.IsValid())
         {
             FRHIResourceCreateInfo Info(TEXT("SensorRtResults"));
             Packet->ResultBuffer=Cmd.CreateStructuredBuffer(sizeof(FSensorRtHit),Count*sizeof(FSensorRtHit),BUF_UnorderedAccess|BUF_ShaderResource,Info);
+            SensorUploadDiagnostics::RecordAllocation(SensorUploadDiagnostics::ESite::OwnedResults,0,uint64(Count)*sizeof(FSensorRtHit));
             Packet->ResultView=Cmd.CreateUnorderedAccessView(Packet->ResultBuffer,false,false);++RtSubmissionCounters.ViewCreates;
         }
         else Cmd.Transition(FRHITransitionInfo(Packet->ResultBuffer,ERHIAccess::CopySrc,ERHIAccess::UAVCompute));

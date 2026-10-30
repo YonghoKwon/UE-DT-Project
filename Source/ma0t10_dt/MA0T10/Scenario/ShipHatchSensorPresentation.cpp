@@ -1,4 +1,5 @@
 #include "ShipHatchSimulation.h"
+#include "SensorUploadDiagnostics.h"
 #include "ma0t10_dt/MA0T10/Sensor/LidarPlayerDisplayComponent.h"
 #include "ProceduralMeshComponent.h"
 #include "Components/LineBatchComponent.h"
@@ -106,8 +107,8 @@ void AShipHatchSimulation::ApplyUnloader()
     HatchPresentationBox(V,T,FVector(CabX,(Root+Tip)*.5,H),FVector(.22,BoomLength,.3));
     for(double Y=Root;Y<=Tip;Y+=4)HatchPresentationBox(V,T,FVector((CabX-1.5)*.5,Y,H+.15),FVector(FMath::Abs(CabX)+1.5,.18,.3));
     TArray<FVector> N;N.Init(FVector::UpVector,V.Num());auto* M=UnloaderPresentation->Mesh.Get();
-    if(M->GetProcMeshSection(0)&&M->GetProcMeshSection(0)->ProcVertexBuffer.Num()==V.Num()){if(!HatchPresentationSamePositions(M->GetProcMeshSection(0),V))M->UpdateMeshSection_LinearColor(0,V,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>());}
-    else M->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>(),true);
+    if(M->GetProcMeshSection(0)&&M->GetProcMeshSection(0)->ProcVertexBuffer.Num()==V.Num()){if(!HatchPresentationSamePositions(M->GetProcMeshSection(0),V))(SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((V).Num())*sizeof((V)[0]),0),M->UpdateMeshSection_LinearColor(0,V,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>()));}
+    else (SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((V).Num())*sizeof((V)[0])+uint64((T).Num())*sizeof((T)[0]),0),M->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>(),true));
     BuildCabModel();BuildUnloaderDetails();
     if(!UnloaderLabel){UnloaderLabel=NewObject<UTextRenderComponent>(UnloaderPresentation);UnloaderLabel->SetupAttachment(M);UnloaderLabel->SetText(FText::FromString(TEXT("GTSU 10")));UnloaderLabel->SetHorizontalAlignment(EHTA_Center);UnloaderLabel->SetWorldSize(110);UnloaderLabel->SetTextRenderColor(FColor(245,220,110));UnloaderLabel->SetCollisionEnabled(ECollisionEnabled::NoCollision);UnloaderLabel->SetHiddenInSceneCapture(true);UnloaderLabel->SetCastShadow(false);UnloaderLabel->RegisterComponent();}
     UnloaderLabel->SetRelativeLocationAndRotation(FVector(0,Root+1.0,H+1.8)*100,FRotator(0,90,0));
@@ -163,8 +164,8 @@ void AShipHatchSimulation::UpdateSensorPresentation()
         }
         TArray<FVector> Normals;Normals.Init(FVector::UpVector,V.Num());
         const auto* Existing=A->Mesh->GetProcMeshSection(0);
-        if(Existing&&Existing->ProcVertexBuffer.Num()==V.Num())A->Mesh->UpdateMeshSection_LinearColor(0,V,Normals,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>());
-        else A->Mesh->CreateMeshSection_LinearColor(0,V,T,Normals,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>(),false);
+        if(Existing&&Existing->ProcVertexBuffer.Num()==V.Num())(SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((V).Num())*sizeof((V)[0]),0),A->Mesh->UpdateMeshSection_LinearColor(0,V,Normals,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>()));
+        else (SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((V).Num())*sizeof((V)[0])+uint64((T).Num())*sizeof((T)[0]),0),A->Mesh->CreateMeshSection_LinearColor(0,V,T,Normals,TArray<FVector2D>(),TArray<FLinearColor>(),TArray<FProcMeshTangent>(),false));
         if(I>0&&CabPresentation)A->AttachToComponent(CabPresentation,FAttachmentTransformRules::KeepWorldTransform);
     }
 }

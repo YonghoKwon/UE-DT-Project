@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "SensorUploadDiagnostics.h"
 #include "IndustrialLidarProfiles.h"
 #include "SensorOwnedRayTracing.h"
 #include "VirtualSensorSemanticLabels.h"
@@ -548,6 +549,7 @@ void UVirtualLidarScanComponent::UpdateLidarViewTexture(const TArray<uint8>& Pix
     uint8* UploadData = new uint8[Pixels.Num()];
     FMemory::Memcpy(UploadData, Pixels.GetData(), Pixels.Num());
     FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, W, H);
+    SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::ScanTexture,GFrameCounter,uint64(W)*H*4,uint64(W)*H*4);
     LidarViewTexture->UpdateTextureRegions(0, 1, Region, W * 4, 4, UploadData,
         [Region](uint8* Data, const FUpdateTextureRegion2D*)
         {

@@ -1,4 +1,5 @@
 #include "ShipHatchSimulation.h"
+#include "SensorUploadDiagnostics.h"
 #include "MA0T10MemoryTags.h"
 #include "ma0t10_dt/MA0T10/Contracts/ConsumeReadyFuture.h"
 #include "ProceduralMeshComponent.h"
@@ -57,8 +58,8 @@ void Mesh(UProceduralMeshComponent* M,const TArray<FVector>& V,const TArray<int3
     }
 #endif
     if(SameTopology)
-        M->UpdateMeshSection_LinearColor(0,V,N,TArray<FVector2D>(),Colors,TArray<FProcMeshTangent>());
-    else M->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),Colors,TArray<FProcMeshTangent>(),true);
+        (SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((V).Num())*sizeof((V)[0]),0),M->UpdateMeshSection_LinearColor(0,V,N,TArray<FVector2D>(),Colors,TArray<FProcMeshTangent>()));
+    else (SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((V).Num())*sizeof((V)[0])+uint64((T).Num())*sizeof((T)[0]),0),M->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),Colors,TArray<FProcMeshTangent>(),true));
 }
 }
 AShipHatchPart::AShipHatchPart()

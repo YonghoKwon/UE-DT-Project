@@ -1,4 +1,5 @@
 #include "ShipHatchSimulation.h"
+#include "SensorUploadDiagnostics.h"
 #include "ProceduralMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSurfaceResponseComponent.h"
@@ -22,7 +23,7 @@ struct FVesselMesh
  void Commit(UProceduralMeshComponent* M,int Index,bool Collision)
  {
   TArray<FVector> N;N.Init(FVector::ZeroVector,V.Num());for(int I=0;I<T.Num();I+=3){const auto Normal=FVector::CrossProduct(V[T[I+2]]-V[T[I]],V[T[I+1]]-V[T[I]]);for(int J=0;J<3;++J)N[T[I+J]]+=Normal;}for(auto& A:N)A.Normalize();
-  M->CreateMeshSection_LinearColor(Index,V,T,N,TArray<FVector2D>(),C,TArray<FProcMeshTangent>(),Collision);
+  (SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((V).Num())*sizeof((V)[0])+uint64((T).Num())*sizeof((T)[0]),0),M->CreateMeshSection_LinearColor(Index,V,T,N,TArray<FVector2D>(),C,TArray<FProcMeshTangent>(),Collision));
  }
 };
 }
