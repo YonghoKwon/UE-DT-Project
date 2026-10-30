@@ -109,3 +109,41 @@ Shipping 기존10~60분 WS/Commit34.929/36.918 대 마지막20분4.782/3.040MiB/
 추가한 [WPR 수집기](../Scripts/record_windows_memory_trace.ps1)는 기존 정상 실행의 owned-process를 확인하고 고유 instance만 start/stop한다. 자동 권한 상승·영구 설정 변경·타 세션 종료는 하지 않는다. 비관리자 거부·구문 검사만 검증했으며 관리자 실제 수집은 미검증이다. [분석기](../Scripts/analyze_windows_allocations.py)는 reserve/recommit/해제를 구별하고 누락·미완료 collector를 거부한다. ETL은 WPA에서 대상 PID·경계·lost events·정확한 PDB를 확인해야 하며 이 JSON 분석기에 직접 입력하지 않는다.
 
 원인 확정·제품 수정은 없고 사용자 지시대로5번 최종 검증을 시작하지 않았다. 상세 실패/미완료·환경·재실행 명령·정리는 [r19 RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r19/RESULT.md), result.json, merge-check.json을 따른다. #26은 미해결이다.
+
+## 2026-10-30 r20: ETW 실할당 경로와 해치 헤더 안정화
+
+기준 `8504aee`, 구현 `c8f232f`(진단 전용 UTC/QPC 경계)·`f7a4c34`(헤더 예약과 선택형 풀 진단). 디깅 Commit의 큰 증가원을 텍스처 생성까지 좁혀 최소 UI 수정을 적용했다. 전체 #26 해결 판정은 보류한다.
+
+정상 ETW 상위 경로는 `FD3D12Adapter::CreateCommittedResource → FD3D12TextureAllocatorPool::AllocateTexture → FRenderTargetPool::FindFreeElement → FRDGBuilder::Execute → RenderViewFamilies_RenderThread`다. dig-etw-03-quiet의 상위 backing은 90.938MiB, idle의 같은 경로는 0이다. 엔진·프로젝트 PDB의 GUID/age 및 함수를 포함하는 RVA 범위를 확인했고 nearest export는 사용하지 않았다. 미확인 드라이버 함수는 module+RVA로 남겼다. lost events가 발생한 dig-etw-02는 귀속 판정에서 제외했다. 렌더 스레드 스택에 게임 스레드 UI 호출자가 직접 나타나는 것은 아니며, 우리 코드 기원은 뷰·레이아웃 시각과 통제된 수정 전후 결과로 확인했다.
+
+90초·50회 디깅에서 `TSR.Output`과 `TSR.History.Metadata`가 각각 200회 생성됐다. 폭 3776은 같고 높이는 1348↔1376, 포맷은 26/71, mip은 2/1, flags는 0x20008이었다. 헤더가 미리보기/신선한 결과에서 123↔136px, 장면 높이가 687↔674px로 바뀌었다. 양쪽 디스크립터가 준비 구간에 이미 있어 주기적 목록만으로는 교체를 식별하지 못했다. 비실시간 배경 Editor 뷰와 TextureTarget이 없는 세 LiDAR SceneCapture는 제외했다.
+
+제품 수정은 ShipHatchMonitorWidget 두 파일의 private 레이아웃 캐시다. 같은 viewport/font에서는 필요한 최대 헤더 높이를 예약하고 실제 크기·글꼴 변경 및 Bind에서 재계산한다. 문구 자르기, 센서 Hz·품질·기본 정책 변경은 없다. 수정 후 진단 50회에서 장면 사각형 변화 0px, 새 TSR 텍스처 생성 0회, RSS −4.844 / Commit −11.508MiB였다. 풀 진단은 기본 off이며 추가 캡처·trim·flush·풀 참조 보존을 하지 않는다.
+
+원래 조건: 준비 35초, 90초, 50dig vs 0dig, Rev7×3/native, PCD off/preview on, 1920×1080/font100/view1, LLM/RHI audit/fullRHI drain. 추적·VMMap·풀 진단 없이 5쌍을 수행했고, 경계 UTC/QPC 메타데이터와 외부 OS·환경 감시는 남겼다. 완료된 3쌍은 재사용하고 취소된 네 번째 대조 시도는 제외 후 재실행했다.
+
+|쌍|50dig RSS MiB|50dig Commit MiB|RSS 차이 MiB|Commit 차이 MiB|절대 8MiB|별도 차이 8MiB|
+|---|---:|---:|---:|---:|---|---|
+|1|2.203|0.133|7.637|11.734|PASS|FAIL|
+|2|-5.125|-12.355|-3.715|-7.719|PASS|PASS|
+|3|-2.996|-9.391|1.902|0.934|PASS|PASS|
+|4|2.734|-1.699|8.078|4.246|PASS|FAIL|
+|5|-1.434|-3.438|-1.695|1.355|PASS|PASS|
+
+5회 디깅의 RSS·Commit 절대 8MiB 및 edit/engine/game/callback 150ms는 모두 PASS, 장면 변화는 0px, 예상 외 오류는 0이다. 별도 차이 기준은 pair1 Commit 11.734MiB와 pair4 raw/retained RSS 8.078MiB가 FAIL이다. 중앙값 RSS/Commit 1.902/1.355MiB는 설명용이며 개별 실패를 덮지 않는다.
+
+수정 전 30분·880dig에서는 풀 114~116개, 2,803,948~2,835,628KiB 범위를 오갔다. 마지막 1/3 RSS 0.908 / Commit −44.692MiB/h, UObject 0/h이며 Commit 진폭은 약 200MiB다. 슬롯·주소 재사용이 있으므로 GPU 해제 완료나 모든 누수 부재를 단정하지 않는다. UE5.3 풀은 free·디스크립터 호환 조건으로 재사용하고 unused>2frames와 최소 풀 400MiB 정책으로 트리밍한다. OnFrameStart의 10frame 반환 힌트를 이 tick이 직접 해제로 소비하지 않는 점도 확인했다. 엔진 CVar·기본값 수정은 없다.
+
+새 Shipping 추적의 15~19분 OS Commit +11.664MiB는 PCD 수신·디코딩·LZF·파서가 상위였고, 19~20분 +23.105MiB에는 Hit 배열 backing 8.254MiB, 디코딩 3.352MiB, D3D12 ExecuteCommandLists 3MiB가 보였다. 해당 구간에서 확인된 CreateCommittedResource/AllocateTexture/RenderTargetPool 스택은 없어 같은 TSR 원인으로 판정하지 않는다. 옛 r19 계단에는 정확한 이벤트 추적이 없어 소급 귀속하지 않는다. HitPool은 최대 4개/32MiB로 반환·Reset되며 Ray 요청은 scan 수명에 소유된다. backing page 확보는 live 배열 누수의 증거가 아니므로 추가 수정하지 않았다.
+
+Shipping 10~60분 WS 22.611 / Commit 21.163MiB/h와 마지막 20분 −6.013/−5.728을 함께 보고한다. VirtualAlloc 10→40분 +24.859MiB와 OS +8.125MiB 사이 −16.734MiB 잔차가 남아 전체 증가원 귀속은 미완료다. Shipping은 UI 수정 전 소스이며 이번 재개에서 새 60분이나 5단계 장시간 검증을 시작하지 않았다.
+
+회귀 6개(1000회 디깅, 다중 장면 byte oracle, 150% 레이아웃, 해치 표시, runtime, 짧은 3대 성능) PASS. 1000회는 다른 2대를 멈춘 1대 활성 harness이고 GBV는 켜지 않았다. 실제 3대 획득률은 19.989/19.989/20.022Hz, 평균 60.00FPS·GT 6.357ms다. 직접 PIE 클릭·글꼴 100/150, 별도 일반 창 최대화/복원·1600×900 재배치를 DPI96에서 확인하고 캡처 2장을 저장했다. 자동화 PIE는 1920×1080을 강제하므로 resize 증거와 구분한다.
+
+RT on ABAB 3블록, visible 1pair, 60초, 2% 기준은 PASS다. FPS +0.011%, frame p95 변화 0%, GT 비용 −1.286%다. 기준 c8f232f/수정 f7a4c34에 초기 Source/Shader 11개를 양쪽 동일하게 overlay했고 보호 맵·설정은 복사하지 않았다. 첫 시도는 종료 시 소유권 메타데이터 확인 부족으로 무효 처리해 수치 판정에 쓰지 않았다. PID·생성 UTC·부모·실행 파일 검증을 보강한 뒤 전체 3블록을 새로 수행했으며 2%와 중첩 거부 기준은 유지했다. 표준 Perf01은 1Camera+1LiDAR 범위이고 해치 UI 직접 비용은 별도 150ms/UI 증거로 구분한다.
+
+Quick 10단계와 풀 분석기 6개 단위 테스트 PASS, layer allowlist 0→0/위반0, DTCore b2504d1 guard PASS. 초기 변경 12개·보호 파일 297개를 유지하고 개인 설정 242개 집합·해시를 복원했다. 동결된 관리자 collector 스크립트는 변경하지 않았고 broker는 Stopped다.
+
+자동 승인 검토가 재귀 정리 스크립트 작성 명령을 blocked by policy로 거부했다(세부 사유 미제공). 대용량 삭제를 우회 재시도하지 않고 ETL/utrace/CSV/패키지·중단된 ABAB 사본 등 약 21.74GiB 경로를 남겼다. 성공한 표준 ABAB 실행은 자체 사본을 정리했다. 개인 설정 복원을 위해서는 추가 생성 진단 .ini 1개를 정확히 백업한 뒤 단일 literal 경로로 제거했다. 이전 r17 차단 경로는 건드리지 않았다.
+
+상세 결과: [RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/RESULT.md), [result.json](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/result.json), [5쌍](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/fixed-canonical/comparison.json), [Shipping 스택](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/shipping-native60/step-symbol-summary.json), [UI](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/manual/manual/checklist.json), [ABAB](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/perf-retry/manifest.json), [정리 차단 목록](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/cleanup-summary.json).
