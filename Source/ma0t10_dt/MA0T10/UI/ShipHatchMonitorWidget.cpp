@@ -167,7 +167,7 @@ void UShipHatchMonitorWidget::SyncSettings()
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void UShipHatchMonitorWidget::NativeOnInitialized()
 {
-    Super::NativeOnInitialized();bPresistent=true;SetIsFocusable(true);Work=MakeShared<FShipHatchMonitorWork>();
+    Super::NativeOnInitialized();bPersistent=true;SetIsFocusable(true);Work=MakeShared<FShipHatchMonitorWork>();
     auto* Root=WidgetTree->ConstructWidget<UCanvasPanel>();WidgetTree->RootWidget=Root;Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     auto Label=[&](const FString& Value,int32 Size=Style::BodySize,bool Bold=false,FLinearColor Color=Style::Text())
     {auto* W=WidgetTree->ConstructWidget<UTextBlock>();W->SetText(FText::FromString(Value));W->SetFont(Style::Font(Size,1,Bold));W->SetColorAndOpacity(Color);W->SetAutoWrapText(false);TextBlocks.Add(W);BaseFontSizes.Add(Size);return W;};

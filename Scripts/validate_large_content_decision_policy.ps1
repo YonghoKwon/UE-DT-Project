@@ -146,7 +146,7 @@ $requiredTexts = @(
     [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "UnexpectedSampleStaged"; Label = "Sample decision report flags staged sample paths" },
     [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "StagedSamplePathCount"; Label = "Sample decision report counts staged sample paths" },
     [PSCustomObject]@{ Path = $sampleContentDecisionReportScript; Pattern = "git diff --cached --name-only -- Samples/PixelStreaming"; Label = "Sample decision report checks staged PixelStreaming paths" },
-    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "2eec1fee2ef7295d6ad876a4f3dd98d9faa6cdd7"; Label = "DTCore guard pins expected submodule commit" },
+    [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "bc60f05e2d1e64f4ffe1410cf3239fe24cb4d4c9"; Label = "DTCore guard pins expected submodule commit" },
     [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "DTCoreInvariantValid"; Label = "DTCore guard reports invariant status" },
     [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "DTCoreExpectedCommit"; Label = "DTCore guard reports expected commit alias" },
     [PSCustomObject]@{ Path = $dtCoreSubmoduleGuardScript; Pattern = "DTCoreActualCommit"; Label = "DTCore guard reports actual commit alias" },

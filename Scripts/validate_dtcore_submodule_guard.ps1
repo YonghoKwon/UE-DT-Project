@@ -1,6 +1,6 @@
 param(
     [string]$ProjectRoot = "",
-    [string]$ExpectedCommit = "b2504d1dfea5659f832ff0d750515edee146a28e",
+    [string]$ExpectedCommit = "bc60f05e2d1e64f4ffe1410cf3239fe24cb4d4c9",
     [switch]$FailOnViolation,
     [switch]$Json
 )
