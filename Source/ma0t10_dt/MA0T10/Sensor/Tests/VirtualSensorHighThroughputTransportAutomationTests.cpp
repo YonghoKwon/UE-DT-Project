@@ -139,6 +139,8 @@ bool FVirtualSensorRawTcpArtemisLoopbackTest::RunTest(const FString& Parameters)
 	TSharedPtr<FVirtualSensorRawTcpLoopbackState> State = MakeShared<FVirtualSensorRawTcpLoopbackState>();
 	State->Subsystem = NewObject<UVirtualSensorHighThroughputTransportSubsystem>();
 	State->Subsystem->AddToRoot();
+	// This test explicitly requests full self-consumption, independent of publish defaults.
+	State->Subsystem->ConfigureReceiver(FVirtualSensorReceiveSelection{});
 	FVirtualSensorHighThroughputProfile Profile;
 	Profile.BrokerUrl = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_RAW_URL"));
 	if (Profile.BrokerUrl.IsEmpty()) Profile.BrokerUrl = TEXT("tcp://127.0.0.1:61616");

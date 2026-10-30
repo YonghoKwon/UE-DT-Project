@@ -389,7 +389,7 @@ public:
             Error=TEXT("native LiDAR device removed");Backend->Faulted=true;
             SensorNativeSafety::DisableForSession(Error);
         }
-        else if(Backend->Validate(Error)&&!Cancelled){Hits.SetNumUninitialized(Job->Count);FMemory::Memcpy(Hits.GetData(),Job->Readback->Mapped,Job->Count*sizeof(FSensorRtHit));}
+        else if(Backend->Validate(Error)&&!Cancelled){Hits.SetNumUninitialized(Job->Count,false);FMemory::Memcpy(Hits.GetData(),Job->Readback->Mapped,Job->Count*sizeof(FSensorRtHit));}
         Backend->Return(MoveTemp(Job));return true;
     }
 };

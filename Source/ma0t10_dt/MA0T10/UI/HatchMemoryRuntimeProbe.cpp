@@ -32,6 +32,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorRayQuery.h"
 
 namespace
@@ -39,6 +40,7 @@ namespace
 class FHatchMemoryRuntimeProbe final : public FTickableGameObject
 {
     FString Directory, CancelFile, SourceCommit;
+    bool ObserveReceive=false;
     TWeakObjectPtr<UWorld> World;
     TWeakObjectPtr<AShipHatchMonitorHost> Host;
     TWeakObjectPtr<UVirtualSensorStreamPublisherComponent> Publisher;
@@ -116,7 +118,9 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
             J->SetNumberField(TEXT("overloads"),S.OverloadCount-B.OverloadCount);
             J->SetNumberField(TEXT("rate_control_skipped"),S.RateControlSkippedFrameCount-B.RateControlSkippedFrameCount);
             J->SetNumberField(TEXT("budget_mib_s"),S.PcdBudgetMiBPerSecond);R->SetObjectField(S.SensorId,J);
-            if(Check&&(S.SubmittedFrameCount<=B.SubmittedFrameCount||S.ConsumerReceivedCount<=B.ConsumerReceivedCount||S.ConsumerValidationFailureCount!=B.ConsumerValidationFailureCount||S.EncodeFailureCount!=B.EncodeFailureCount))Failed=true;
+            // External fixture validation is checked by the runner. Receipt is
+            // transport evidence, never relabelled as consumer validation.
+            if(Check&&(S.SubmittedFrameCount<=B.SubmittedFrameCount||S.ReceiptReceivedCount<=B.ReceiptReceivedCount||(ObserveReceive&&S.ConsumerReceivedCount<=B.ConsumerReceivedCount)||S.ConsumerValidationFailureCount!=B.ConsumerValidationFailureCount||S.EncodeFailureCount!=B.EncodeFailureCount))Failed=true;
         }
         if(Check&&Count!=SensorCount)Failed=true;return R;
     }
@@ -144,6 +148,8 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
     }
     bool ConfigurePcd(AShipHatchSimulation& S)
     {
+        if(ObserveReceive)
+            if(auto* Raw=World->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>())Raw->ConfigureReceiver(FVirtualSensorReceiveSelection{});
         // Same existing project transport/publisher path and defaults as the
         // Editor memory fixture; no broker/user configuration is read or saved.
         auto* Transport=NewObject<UVirtualSensorTransportComponent>(&S);S.AddInstanceComponent(Transport);Transport->RegisterComponent();
@@ -175,6 +181,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("type"),TEXT("metadata"));R->SetNumberField(TEXT("schema_version"),1);
         R->SetStringField(TEXT("row_contract"),TEXT("memory_curve"));R->SetBoolField(TEXT("diagnostic_only"),true);
         R->SetNumberField(TEXT("requested_seconds"),Seconds);R->SetNumberField(TEXT("interval_seconds"),Interval);R->SetBoolField(TEXT("llm_enabled"),Llm);
+        R->SetBoolField(TEXT("internal_receive_observation"),ObserveReceive);
         R->SetNumberField(TEXT("camera_gt_tag_canary_bytes"),CameraTagCanary.Num());
         R->SetBoolField(TEXT("project_tags_enabled"),MA0T10MemoryTags::IsEnabled());
         R->SetBoolField(TEXT("investigation"),Investigation);R->SetBoolField(TEXT("trace_canary"),TraceCanaryEnabled);R->SetStringField(TEXT("trace_bookmarks"),TEXT("MEMORY26B_BEGIN/END; shared allocation-query contract"));
@@ -262,6 +269,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
 public:
     explicit FHatchMemoryRuntimeProbe(FString In):Directory(MoveTemp(In))
     {
+        ObserveReceive=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryObserveReceive"));
         FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryRuntimeSeconds="),Seconds);FParse::Value(FCommandLine::Get(),TEXT("HatchMemorySampleSeconds="),Interval);
         FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryPcdLoopbackPort="),Port);FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryCancelFile="),CancelFile);
         FParse::Value(FCommandLine::Get(),TEXT("HatchSourceCommit="),SourceCommit);

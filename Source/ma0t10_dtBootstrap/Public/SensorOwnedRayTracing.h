@@ -68,6 +68,10 @@ namespace SensorOwnedRayTracing
     MA0T10_DTBOOTSTRAP_API uint64 GetBlasBuildCount();
     /** Diagnostic-only reuse, after the last normalization read. No payload alias. */
     MA0T10_DTBOOTSTRAP_API void RecycleHitArray(TArray<FSensorRtHit>&& Hits);
+    /** CPU admission scratch only. Logical contents are reset; capacity is bounded
+     * globally to four free arrays/32MiB and never shared with an in-flight scan. */
+    MA0T10_DTBOOTSTRAP_API TArray<FSensorRtRay> TakeRayArray();
+    MA0T10_DTBOOTSTRAP_API void RecycleRayArray(TArray<FSensorRtRay>&& Rays);
     /** One request per owning session. Bounded globally; nullptr means not admitted. */
     MA0T10_DTBOOTSTRAP_API TSharedPtr<ISensorRtScan, ESPMode::ThreadSafe> Submit(FSensorRtRequest&& Request);
     void RegisterShaders();

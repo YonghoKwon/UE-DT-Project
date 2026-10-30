@@ -235,7 +235,7 @@ void UVirtualLidarScanComponent::BeginSceneQueryBatch()
    {
    CSV_SCOPED_TIMING_STAT(LidarWallclock28b,RayPacket);
    CSV_CUSTOM_STAT(LidarWallclock28b,Admissions,1,ECsvCustomStatOp::Accumulate);
-   const int32 RayCount=J->Width*J->Height;Request.Rays.SetNumUninitialized(RayCount);const auto Origin=J->Pose.GetLocation();
+   const int32 RayCount=J->Width*J->Height;Request.Rays=SensorOwnedRayTracing::TakeRayArray();Request.Rays.SetNumUninitialized(RayCount,false);const auto Origin=J->Pose.GetLocation();
    const auto FillRay=[&](int I)
    {
     const int Row=I/J->Width,Col=I%J->Width;const FVector Local=J->Directions?FVector((*J->Directions)[I]):IndustrialLidar::Beam(J->Profile,I,J->Width,J->Height,J->Frame,J->Vertical[Row],J->Horizontal[Col]).Vector();

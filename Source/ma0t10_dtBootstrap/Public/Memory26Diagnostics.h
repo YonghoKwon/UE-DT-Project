@@ -24,11 +24,29 @@ class TPool
     FCriticalSection Mutex;
     TArray<TUniquePtr<T>> Free;
     uint64 Bytes=0;
-public:
-    TUniquePtr<T> Take(ECounter Created,ECounter Reused)
+    TUniquePtr<T> TakeImpl(uint64 MinimumBytes,bool& Reused)
     {
-        {FScopeLock Lock(&Mutex);if(!Free.IsEmpty()){auto P=Free.Pop(false);Bytes-=P->Bytes();Count(Reused);return P;}}
-        Count(Created);return MakeUnique<T>();
+        FScopeLock Lock(&Mutex);Reused=!Free.IsEmpty();
+        if(!Reused)return MakeUnique<T>();
+        int32 Chosen=Free.Num()-1;
+        if(MinimumBytes)
+        {
+            uint64 Best=MAX_uint64;int32 Fit=INDEX_NONE;
+            for(int32 I=0;I<Free.Num();++I)
+                if(Free[I]->Bytes()>=MinimumBytes&&Free[I]->Bytes()<Best){Best=Free[I]->Bytes();Fit=I;}
+            if(Fit!=INDEX_NONE)Chosen=Fit;
+            else for(int32 I=0;I<Free.Num();++I)if(Free[I]->Bytes()>Free[Chosen]->Bytes())Chosen=I;
+        }
+        auto P=MoveTemp(Free[Chosen]);Free.RemoveAtSwap(Chosen,1,false);Bytes-=P->Bytes();return P;
+    }
+public:
+    TUniquePtr<T> Take(uint64 MinimumBytes=0)
+    {
+        bool Reused=false;return TakeImpl(MinimumBytes,Reused);
+    }
+    TUniquePtr<T> Take(ECounter Created,ECounter Reused,uint64 MinimumBytes=0)
+    {
+        bool WasReused=false;auto P=TakeImpl(MinimumBytes,WasReused);Count(WasReused?Reused:Created);return P;
     }
     void Return(TUniquePtr<T> P)
     {

@@ -33,6 +33,8 @@ std::atomic<int32> ActiveScans{0};
 std::atomic<uint64> BlasBuildCount{0};
 struct FHitScratch{TArray<FSensorRtHit> Data;uint64 Bytes()const{return Data.GetAllocatedSize();}};
 Memory26::TPool<FHitScratch> HitPool;
+struct FRayScratch{TArray<FSensorRtRay> Data;uint64 Bytes()const{return Data.GetAllocatedSize();}};
+Memory26::TPool<FRayScratch> RayPool;
 constexpr int32 MaxActiveScans=4;
 FDelegateHandle EndFrameHandle,SubmitFrameHandle;
 bool Optimized()
@@ -214,7 +216,7 @@ public:
     TUniquePtr<FDispatchPacket> Packet;
     TSharedPtr<FSceneResources,ESPMode::ThreadSafe> Resources;
 #endif
-    ~FScan(){if(bCounted)--ActiveScans;}
+    ~FScan(){if(Reusable())SensorOwnedRayTracing::RecycleRayArray(MoveTemp(Request.Rays));if(bCounted)--ActiveScans;}
     void Cancel() override
     {
         if(Cancelled.exchange(true)||Finished.load(std::memory_order_acquire))return;
@@ -244,7 +246,7 @@ public:
         if(NativeTicket)
         {
             if(!bNativeScratchTaken&&Reusable())
-            {auto Lease=HitPool.Take(Memory26::ECounter::HitCreate,Memory26::ECounter::HitReuse);Hits=MoveTemp(Lease->Data);bNativeScratchTaken=true;}
+            {auto Lease=HitPool.Take(Memory26::ECounter::HitCreate,Memory26::ECounter::HitReuse,uint64(RayCount())*sizeof(FSensorRtHit));Hits=MoveTemp(Lease->Data);bNativeScratchTaken=true;}
             if(!NativeTicket->Poll(Hits,Failure,Cancelled.load(std::memory_order_acquire)))return;
             NativeTicket.Reset();Complete();return;
         }
@@ -257,9 +259,9 @@ public:
             const void* Data=Readback->Lock(Bytes);
             if(Data)
             {
-                if(Reusable()){auto Lease=HitPool.Take(Memory26::ECounter::HitCreate,Memory26::ECounter::HitReuse);Hits=MoveTemp(Lease->Data);}
+                if(Reusable()){auto Lease=HitPool.Take(Memory26::ECounter::HitCreate,Memory26::ECounter::HitReuse,uint64(RayCount())*sizeof(FSensorRtHit));Hits=MoveTemp(Lease->Data);}
                 else Memory26::Count(Memory26::ECounter::HitCreate);
-                Hits.SetNumUninitialized(RayCount());FMemory::Memcpy(Hits.GetData(),Data,Bytes);Readback->Unlock();
+                Hits.SetNumUninitialized(RayCount(),false);FMemory::Memcpy(Hits.GetData(),Data,Bytes);Readback->Unlock();
             }
             else Failure=TEXT("GPU readback lock failed");
         }
@@ -502,8 +504,8 @@ void FlushSubmissions()
                         const int32 Count=M->Request.Rays.Num();M->Failure=Error;
                         if(Error.IsEmpty()&&!M->Cancelled.load())
                         {
-                            auto Lease=HitPool.Take(Memory26::ECounter::HitCreate,Memory26::ECounter::HitReuse);M->Hits=MoveTemp(Lease->Data);
-                            M->Hits.SetNumUninitialized(Count);FMemory::Memcpy(M->Hits.GetData(),Hits.GetData()+Offset,Count*sizeof(FSensorRtHit));
+                            auto Lease=HitPool.Take(Memory26::ECounter::HitCreate,Memory26::ECounter::HitReuse,uint64(Count)*sizeof(FSensorRtHit));M->Hits=MoveTemp(Lease->Data);
+                            M->Hits.SetNumUninitialized(Count,false);FMemory::Memcpy(M->Hits.GetData(),Hits.GetData()+Offset,Count*sizeof(FSensorRtHit));
                         }
                         Offset+=Count;M->Complete();
                     }
@@ -528,6 +530,16 @@ void SensorOwnedRayTracing::RecycleHitArray(TArray<FSensorRtHit>&& Hits)
     if(!Optimized())return;
     MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
     auto Scratch=MakeUnique<FHitScratch>();Scratch->Data=MoveTemp(Hits);Scratch->Data.Reset();HitPool.Return(MoveTemp(Scratch));
+}
+TArray<FSensorRtRay> SensorOwnedRayTracing::TakeRayArray()
+{
+    if(!Optimized())return {};
+    auto Scratch=RayPool.Take();return MoveTemp(Scratch->Data);
+}
+void SensorOwnedRayTracing::RecycleRayArray(TArray<FSensorRtRay>&& Rays)
+{
+    if(!Optimized()||Rays.GetAllocatedSize()==0)return;
+    auto Scratch=MakeUnique<FRayScratch>();Scratch->Data=MoveTemp(Rays);Scratch->Data.Reset();RayPool.Return(MoveTemp(Scratch));
 }
 bool SensorOwnedRayTracing::UsesNativeBackend()
 {
