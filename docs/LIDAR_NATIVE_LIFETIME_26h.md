@@ -147,3 +147,19 @@ Quick 10단계와 풀 분석기 6개 단위 테스트 PASS, layer allowlist 0→
 자동 승인 검토가 재귀 정리 스크립트 작성 명령을 blocked by policy로 거부했다(세부 사유 미제공). 대용량 삭제를 우회 재시도하지 않고 ETL/utrace/CSV/패키지·중단된 ABAB 사본 등 약 21.74GiB 경로를 남겼다. 성공한 표준 ABAB 실행은 자체 사본을 정리했다. 개인 설정 복원을 위해서는 추가 생성 진단 .ini 1개를 정확히 백업한 뒤 단일 literal 경로로 제거했다. 이전 r17 차단 경로는 건드리지 않았다.
 
 상세 결과: [RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/RESULT.md), [result.json](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/result.json), [5쌍](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/fixed-canonical/comparison.json), [Shipping 스택](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/shipping-native60/step-symbol-summary.json), [UI](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/manual/manual/checklist.json), [ABAB](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/perf-retry/manifest.json), [정리 차단 목록](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/cleanup-summary.json).
+
+## 2026-10-30 r21: Shipping 자체 관찰·CPU scratch 추적 — 최신 실측 중단
+
+요청 없는 자체 PCD 수신을 끄고 Ray·Hit 및 PCD 인코딩 버퍼를 상한 안에서 재사용하도록 수정했습니다.
+첫 Shipping 60분은 전체 WS·Commit +12.92/+12.79MiB/h로 FAIL, 마지막 20분 −0.10/+4.20MiB/h로 PASS였습니다.
+추가 수정 f16ee56 재측정은 영상 디코딩 4% 감지로 약 94초에 중단됐습니다. 최신 수정의 60분 효과와 ABAB은 미검증이며 5단계는 시작하지 않았습니다.
+
+코드 커밋 f307b4a는 요청 없는 자체 구독만 off로 시작하고 제어 응답·명시적 수신 요청은 유지한다. 수신 청크1MiB/pump4MiB, CPU Ray free pool4개/32MiB, Hit no-shrink/best-fit로 큰 반복 할당을 줄였다. f16ee56은 진단에서만 켜지던 기존 PCD SoA·압축·hash pool4개/32MiB를 제품 None에서도 사용한다. wire/품질/Hz/PCD 기본 정책·GPU 자원 계약은 바꾸지 않았다.
+
+f307의 유효60분은 전체 WS12.915/Commit12.789MiB/h로FAIL, 꼬리−0.102/4.203으로PASS다. 218457개외부PCD전점검증·native3약20Hz/fallback0/구독0이다. 추가codec수정의30초검증은PASS였으나 새60분은14:32:48UTC video decode4%에서94.403초로취소했다. 최신60분효과와RTonABAB은미검증이다. 평탄한꼬리로전체실패를덮지않는다.
+
+외부 fixture의 구조검사와 내부ReadPoints의점별검사차이를확인해 --semantic과빠른native점검증(TLS8MiB,서버프로세스)을추가했다. 중간점NaN/Inf/confidence/validity오류를Python/native·AoS/SoA로검사한다. 메모리runner는모든수신PCD의semantic증거를필수로요구한다. 초기17분시험은범위보강을위해취소해판정에서제외했다.
+
+최신codec회귀11개Success(PCDBandwidth9/nativebyteoracle1/3대성능1),이전수신정책·CPU상한·취소50dig회귀PASS,Pythonfixture5/strict분석기9/quick10/layer0→0/guardPASS. 영상감지규칙에따라추가GPU작업을중지했다. 5단계최종검증은시작하지않았고과거5쌍차이실패도유지한다. 개인242개·초기12개·보호297개정확히복원/보존했다. 대량정리는Claude에맡기며경로목록을보존했다. push/merge없음.
+
+상세: [RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/RESULT.md), [result.json](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/result.json), [첫60분](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r21/shipping-native60-final/os-strict-analysis.json), [최신중단](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r21/shipping-codec60/run-manifest.json), [정리목록](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r21/cleanup-inventory.json).
