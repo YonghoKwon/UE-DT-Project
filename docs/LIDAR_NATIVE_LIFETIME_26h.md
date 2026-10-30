@@ -199,3 +199,12 @@ f307의 유효60분은 전체 WS12.915/Commit12.789MiB/h로FAIL, 꼬리−0.102/
 대용량 패키지·원시 자료는 삭제하지 않고 `r22/cleanup-inventory.json`에 Claude용 목록을 남겼습니다. push/merge/PR 없음. RESULT/result.json/merge-check는 root와 r22에 남기며 실패를 숨기지 않습니다.
 
 주요 증거: `r22/package-reuse.json`, `r22/runtime-condition.json`, `r22/controller-status.json`, `r21/shipping-codec60-resume1/os-strict-analysis.json`, `backend-quality.json`, `step-correlation.json`, `r22/final-audit.json`.
+
+
+## 2026-10-31 r23: 관리자 브로커 실제 종료로 추가 ETW 미수행
+
+재개 기준 `72390df`. Shipping22/f16ee56 전체 Source/Shader와 stage/archive exe SHA256 일치, 동결 수집기 SHA `EBBDC15C…` 일치. 하지만 실제 broker.json은 `Stopped`였고 PID63872도 없었다. 시작 `2026-10-30T16:53:06.9813144Z` → 종료 `16:53:17.1210075Z`, `Handled=[]`. 현재 도구 토큰은 비관리자였다.
+
+이전 `stop.request`는 `09:30:32.015652Z`부터 남아 있었다. 이 파일이 새 브로커의 즉시 종료를 유발했을 가능성은 있으나 내부 종료 로그 없이 확정하지 않았다. 이전 파일 사본·해시를 보존하고 최종 stop 요청을 남긴다. 다음 기동은 이전 stop 요청이 정리된 상태에서 `Running`과 PID 생존을 확인해야 한다.
+
+새 게임·ETW 요청·수정·재측정·ABAB·5번 최종 검증은 모두 미수행. r22의 전체 Commit +8.456 MiB/h 실패는 그대로 미해결이며 새 측정으로 재표시하지 않았다. 관리자 브로커가 필요하다. 기존12개 변경·개인 설정·보호 경로·수집기를 보존하고, 새 대용량 파일 없이 결과/merge_check에 차단을 기록했다. 증거: `Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r23/RESULT.md`, `broker-blocker.json`, `package-reuse.json`.
