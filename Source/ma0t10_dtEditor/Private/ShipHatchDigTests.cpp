@@ -410,6 +410,16 @@ class FHatchDig final:public IAutomationLatentCommand
         for(const auto& P:MemoryCurve)Rows.Add(MakeShared<FJsonValueObject>(CurveJson(P)));
         Result->SetArrayField(TEXT("memory_curve"),Rows);
     }
+    void EtwBoundary(const TCHAR* Boundary)
+    {
+        if(!FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryEtwBoundary")))return;
+        // Read clocks adjacent to the existing OS counter boundary. No waits,
+        // snapshots or additional GC/drain; opt-in attribution metadata only.
+        const uint64 Qpc=FPlatformTime::Cycles64();const FDateTime Utc=FDateTime::UtcNow();
+        Result->SetNumberField(FString::Printf(TEXT("etw_%s_qpc"),Boundary),double(Qpc));
+        Result->SetStringField(FString::Printf(TEXT("etw_%s_utc"),Boundary),Utc.ToIso8601());
+        Result->SetNumberField(TEXT("etw_qpc_frequency"),1./FPlatformTime::GetSecondsPerCycle64());
+    }
     void MemoryDetails(const TCHAR* Boundary,const AShipHatchSimulation& Simulation)
     {
         auto Sensors=MakeShared<FJsonObject>();
@@ -609,7 +619,7 @@ public:
             if(WaitForMemorySnapshot(TEXT("before")))return false;
             DrainBoundary();RawBefore=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();
             Rss=FPlatformMemory::GetStats().UsedPhysical;Commit=FPlatformMemory::GetStats().UsedVirtual;Buffers=S.DigBufferBytes();MeshBytes=S.MeshScratchBytes();
-            MemoryDetails(TEXT("before"),S);
+            EtwBoundary(TEXT("before"));MemoryDetails(TEXT("before"),S);
             PcdBaseline();
             Result->SetObjectField(TEXT("resources_before"),Resources(S));
             MeasureStart=Now;
@@ -675,7 +685,7 @@ public:
             if(Now-Changed<.2||GFrameCounter<BoundaryFrame+3)return false;
             if(WaitForMemorySnapshot(TEXT("after")))return false;
             DrainBoundary();const uint64 RawAfter=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();const auto Memory=FPlatformMemory::GetStats();
-            MemoryDetails(TEXT("after"),S);
+            EtwBoundary(TEXT("after"));MemoryDetails(TEXT("after"),S);
             SaveCurve();
             Result->SetObjectField(TEXT("pcd"),PcdJson(true));
             if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDeepReport")))GEngine->Exec(W,TEXT("memreport -full"));
