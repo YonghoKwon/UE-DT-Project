@@ -30,10 +30,19 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Crc.h"
 #include "HAL/FileManager.h"
+#include "HAL/IConsoleManager.h"
 #include "ImageUtils.h"
 #include "Json.h"
 #include "RenderingThread.h"
 #include "RHICommandList.h"
+#include "RenderTargetPool.h"
+#include "Misc/OutputDevice.h"
+#include "Components/SceneCaptureComponent2D.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "UObject/UObjectIterator.h"
+#include "Editor.h"
+#include "EditorViewportClient.h"
+#include "HatchRenderPoolViewTrace.h"
 #include "UObject/UObjectArray.h"
 #include "ProfilingDebugging/MiscTrace.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
@@ -42,6 +51,9 @@
 void ValidateHatchPresentation(FAutomationTestBase*,UShipHatchMonitorWidget*);
 struct FHatchDigProbe
 {
+    static FVector4 LayoutHeights(const UShipHatchMonitorWidget& M)
+    {return FVector4(M.LastHeaderHeight,M.LastToolbarHeight,M.LastFooterHeight,M.SceneRect.Bottom-M.SceneRect.Top);}
+    static FSlateRect SceneRectangle(const UShipHatchMonitorWidget& M){return M.SceneRect;}
     static AShipHatchSimulation& Simulation(UShipHatchMonitorWidget& M){return *M.Simulation.Get();}
     static FPointerEvent Pointer(FVector2D P,FVector2D Last,bool Held)
     {
@@ -198,6 +210,52 @@ class FHatchDig final:public IAutomationLatentCommand
         bool Llm=false,ProjectCounters=false;int64 ProjectTags[MA0T10MemoryTags::Count]={};
     };
     TArray<FMemoryPoint> MemoryCurve;
+    double PoolAuditLast=-1;bool PoolPostFive=false;
+    TSharedPtr<ISceneViewExtension,ESPMode::ThreadSafe> PoolViewTrace;
+    FVector4 PoolLastLayout=FVector4(-1,-1,-1,-1);
+    FSlateRect MeasuredSceneRectangle;double MaxMeasuredSceneRectDelta=0;
+    bool PoolAuditEnabled() const{return FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryPoolAudit"));}
+    void QueuePoolAudit(const TCHAR* Stage,int32 Cycle=-1,bool Force=false)
+    {
+        if(!PoolAuditEnabled())return;
+        if(!PoolViewTrace)PoolViewTrace=CreateHatchRenderPoolViewTrace();
+        const double Now=FPlatformTime::Seconds();if(!Force&&PoolAuditLast>=0&&Now-PoolAuditLast<5)return;PoolAuditLast=Now;
+        const FString Path=DigRoot()/TEXT("render-target-pool.jsonl"),Label(Stage);const uint64 Enqueued=FPlatformTime::Cycles64();
+        // Read-only RT observation. Values only: no texture refs survive this
+        // command, and no capture, trim, fence or additional flush is introduced.
+        ENQUEUE_RENDER_COMMAND(HatchRenderTargetPoolAudit)([Path,Label,Cycle,Enqueued](FRHICommandListImmediate&)
+        {
+            const double Start=FPlatformTime::Seconds();auto Row=MakeShared<FJsonObject>();
+            Row->SetStringField(TEXT("type"),TEXT("pool"));Row->SetStringField(TEXT("stage"),Label);Row->SetNumberField(TEXT("cycle"),Cycle);
+            Row->SetStringField(TEXT("utc"),FDateTime::UtcNow().ToIso8601());Row->SetNumberField(TEXT("qpc"),double(FPlatformTime::Cycles64()));Row->SetNumberField(TEXT("enqueued_qpc"),double(Enqueued));
+            Row->SetNumberField(TEXT("render_frame"),GFrameNumberRenderThread);
+            uint32 Count=0,Whole=0,Used=0;GRenderTargetPool.GetStats(Count,Whole,Used);
+            Row->SetNumberField(TEXT("count"),Count);Row->SetNumberField(TEXT("allocated_kib"),Whole);Row->SetNumberField(TEXT("used_kib"),Used);
+            if(auto* Minimum=IConsoleManager::Get().FindConsoleVariable(TEXT("r.RenderTargetPoolMin")))Row->SetNumberField(TEXT("pool_min_mib"),Minimum->GetInt());
+            const auto Memory=FPlatformMemory::GetStats();Row->SetNumberField(TEXT("rss_bytes"),double(Memory.UsedPhysical));Row->SetNumberField(TEXT("commit_bytes"),double(Memory.UsedVirtual));
+            TArray<TSharedPtr<FJsonValue>> Elements;
+            for(uint32 Id=0;Id<GRenderTargetPool.GetElementCount();++Id)if(auto* Element=GRenderTargetPool.GetElementById(Id))if(auto* Rhi=Element->GetRHI())
+            {
+                const FRHITextureCreateInfo Desc=Translate(Element->GetDesc());auto E=MakeShared<FJsonObject>();
+                E->SetNumberField(TEXT("slot"),Id);E->SetStringField(TEXT("element"),FString::Printf(TEXT("%p"),Element));E->SetStringField(TEXT("rhi"),FString::Printf(TEXT("%p"),Rhi));
+                E->SetStringField(TEXT("name"),Element->GetDesc().DebugName?Element->GetDesc().DebugName:TEXT(""));
+                E->SetNumberField(TEXT("refs"),Element->GetRefCount());E->SetNumberField(TEXT("rhi_refs"),Rhi->GetRefCount());E->SetNumberField(TEXT("unused_frames"),Element->GetUnusedForNFrames());E->SetBoolField(TEXT("free"),Element->IsFree());E->SetNumberField(TEXT("bytes"),Element->ComputeMemorySize());
+                E->SetNumberField(TEXT("width"),Desc.Extent.X);E->SetNumberField(TEXT("height"),Desc.Extent.Y);E->SetNumberField(TEXT("depth"),Desc.Depth);E->SetNumberField(TEXT("array_size"),Desc.ArraySize);
+                E->SetNumberField(TEXT("dimension"),int32(Desc.Dimension));E->SetStringField(TEXT("format"),GPixelFormats[Desc.Format].Name);E->SetNumberField(TEXT("uav_format"),int32(Desc.UAVFormat));
+                E->SetNumberField(TEXT("mips"),Desc.NumMips);E->SetNumberField(TEXT("samples"),Desc.NumSamples);E->SetStringField(TEXT("flags"),FString::Printf(TEXT("%016llx"),uint64(Desc.Flags)));
+                E->SetNumberField(TEXT("desc_hash"),GetTypeHash(Desc));E->SetNumberField(TEXT("rhi_desc_hash"),GetTypeHash(Rhi->GetDesc()));E->SetNumberField(TEXT("ext_data"),Desc.ExtData);E->SetNumberField(TEXT("gpu_mask"),Desc.GPUMask.GetNative());E->SetNumberField(TEXT("fast_vram_percent"),Desc.FastVRAMPercentage);
+                E->SetNumberField(TEXT("clear_binding"),int32(Desc.ClearValue.ColorBinding));
+                if(Desc.ClearValue.ColorBinding==EClearBinding::EColorBound){const auto Color=Desc.ClearValue.GetClearColor();E->SetStringField(TEXT("clear_rgba"),FString::Printf(TEXT("%.9g,%.9g,%.9g,%.9g"),Color.R,Color.G,Color.B,Color.A));}
+                if(Desc.ClearValue.ColorBinding==EClearBinding::EDepthStencilBound){float Depth=0;uint32 Stencil=0;Desc.ClearValue.GetDepthStencil(Depth,Stencil);E->SetNumberField(TEXT("clear_depth"),Depth);E->SetNumberField(TEXT("clear_stencil"),Stencil);}
+                Elements.Add(MakeShared<FJsonValueObject>(E));
+            }
+            Row->SetArrayField(TEXT("elements"),Elements);
+            FStringOutputDevice Dump;GRenderTargetPool.DumpMemoryUsage(Dump);Row->SetStringField(TEXT("pool_dump"),Dump);
+            Row->SetNumberField(TEXT("collect_rt_ms"),(FPlatformTime::Seconds()-Start)*1000);
+            FString Text;FJsonSerializer::Serialize(Row,TJsonWriterFactory<TCHAR,TCondensedJsonPrintPolicy<TCHAR>>::Create(&Text));Text+=TEXT("\n");
+            FFileHelper::SaveStringToFile(Text,*Path,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM,&IFileManager::Get(),FILEWRITE_Append);
+        });
+    }
     // Opt-in diagnostic path only. No per-frame history, forced GC/trim, RHI
     // drain or LLM UpdateStatsPerFrame inside the long observation window.
     bool Trend=false,TrendLlm=false,TrendFailed=false,CostProbe=false,SamplerDisabled=false;double TrendSeconds=1800,TrendInterval=5,TrendLast=-1,TrendCost=0,TrendCostSum=0,TrendCostMax=0;
@@ -350,6 +408,7 @@ class FHatchDig final:public IAutomationLatentCommand
         if(!Trend&&!FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit")))return;
         const double CostStart=FPlatformTime::Seconds();
         if(Trend&&TrendLast>=0&&CostStart-TrendLast<TrendInterval)return;
+        QueuePoolAudit(TEXT("curve"),Cycle);
         if(Trend){TrendLlm=false;TrendDefaultTags.Reset();TrendPlatformTags.Reset();}
         FMemoryPoint P;P.Seconds=(Trend?CostStart:FPlatformTime::Seconds())-MeasureStart;P.Cycle=Cycle;
         const auto M=FPlatformMemory::GetStats();P.Rss=M.UsedPhysical;P.Commit=M.UsedVirtual;P.Objects=GUObjectArray.GetObjectArrayNumMinusAvailable();
@@ -422,6 +481,23 @@ class FHatchDig final:public IAutomationLatentCommand
     }
     void MemoryDetails(const TCHAR* Boundary,const AShipHatchSimulation& Simulation)
     {
+        if(PoolAuditEnabled())
+        {
+            TArray<TSharedPtr<FJsonValue>> CaptureSources;
+            for(TObjectIterator<USceneCaptureComponent2D> It;It;++It)if(It->GetWorld()==Simulation.GetWorld())
+            {
+                auto C=MakeShared<FJsonObject>();C->SetStringField(TEXT("path"),It->GetPathName());C->SetBoolField(TEXT("every_frame"),It->bCaptureEveryFrame);C->SetBoolField(TEXT("on_movement"),It->bCaptureOnMovement);C->SetNumberField(TEXT("source"),int32(It->CaptureSource));
+                if(auto* Target=It->TextureTarget.Get()){C->SetStringField(TEXT("target"),Target->GetPathName());C->SetNumberField(TEXT("width"),Target->SizeX);C->SetNumberField(TEXT("height"),Target->SizeY);C->SetNumberField(TEXT("format"),int32(Target->RenderTargetFormat));C->SetNumberField(TEXT("override_format"),int32(Target->OverrideFormat));}
+                CaptureSources.Add(MakeShared<FJsonValueObject>(C));
+            }
+            Result->SetArrayField(FString(Boundary)+TEXT("_scene_captures"),CaptureSources);
+            TArray<TSharedPtr<FJsonValue>> EditorViews;
+            if(GEditor)for(auto* Client:GEditor->GetAllViewportClients())if(Client&&Client->Viewport)
+            {
+                auto V=MakeShared<FJsonObject>();const auto Size=Client->Viewport->GetSizeXY();V->SetNumberField(TEXT("width"),Size.X);V->SetNumberField(TEXT("height"),Size.Y);V->SetBoolField(TEXT("realtime"),Client->IsRealtime());V->SetBoolField(TEXT("simulation_world"),Client->GetWorld()==Simulation.GetWorld());if(Client->GetWorld())V->SetStringField(TEXT("world"),Client->GetWorld()->GetPathName());EditorViews.Add(MakeShared<FJsonValueObject>(V));
+            }
+            Result->SetArrayField(FString(Boundary)+TEXT("_editor_viewports"),EditorViews);
+        }
         auto Sensors=MakeShared<FJsonObject>();
         for(int32 I=0;I<3;++I)if(const auto* A=Simulation.SensorAt(I))
         {auto Sensor=MakeShared<FJsonObject>();Sensor->SetNumberField(TEXT("backend"),int32(A->ScanComponent->GetActiveAcquisitionBackend()));Sensor->SetNumberField(TEXT("frame_id"),double(A->ScanComponent->GetRuntimeStatus().FrameId));Sensors->SetObjectField(A->GetSensorId(),Sensor);}
@@ -538,6 +614,15 @@ public:
         for(TActorIterator<AShipHatchMonitorHost>I(W);I;++I)H=*I;
         if(!H||!H->Monitor||!H->Simulation||H->Simulation->IsGenerating()||!H->Simulation->MLX||!H->Simulation->Livox)return false;
         auto& S=*H->Simulation;auto& M=*H->Monitor;if(!Messages)Messages=MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled,false);
+        if(PoolAuditEnabled())
+        {
+            const auto Heights=FHatchDigProbe::LayoutHeights(M);
+            if(!Heights.Equals(PoolLastLayout,.01))
+            {
+                PoolLastLayout=Heights;auto Row=MakeShared<FJsonObject>();Row->SetStringField(TEXT("type"),TEXT("layout"));Row->SetNumberField(TEXT("qpc"),double(FPlatformTime::Cycles64()));Row->SetNumberField(TEXT("header"),Heights.X);Row->SetNumberField(TEXT("toolbar"),Heights.Y);Row->SetNumberField(TEXT("footer"),Heights.Z);Row->SetNumberField(TEXT("scene_height"),Heights.W);Row->SetBoolField(TEXT("analysis_preview"),M.IsAnalysisPreview());Row->SetNumberField(TEXT("phase"),Phase);
+                FString Text;FJsonSerializer::Serialize(Row,TJsonWriterFactory<TCHAR,TCondensedJsonPrintPolicy<TCHAR>>::Create(&Text));Text+=TEXT("\n");FFileHelper::SaveStringToFile(Text,*(DigRoot()/TEXT("layout-audit.jsonl")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM,&IFileManager::Get(),FILEWRITE_Append);
+            }
+        }
         if(Phase==0)
         {
             if(FParse::Param(FCommandLine::Get(),TEXT("HatchCpuReference")))for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))
@@ -617,11 +702,12 @@ public:
         {
             if(Now-Changed<.2||GFrameCounter<BoundaryFrame+3)return false;
             if(WaitForMemorySnapshot(TEXT("before")))return false;
-            DrainBoundary();RawBefore=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();
+            QueuePoolAudit(TEXT("before"),-1,true);DrainBoundary();RawBefore=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();
             Rss=FPlatformMemory::GetStats().UsedPhysical;Commit=FPlatformMemory::GetStats().UsedVirtual;Buffers=S.DigBufferBytes();MeshBytes=S.MeshScratchBytes();
             EtwBoundary(TEXT("before"));MemoryDetails(TEXT("before"),S);
             PcdBaseline();
             Result->SetObjectField(TEXT("resources_before"),Resources(S));
+            MeasuredSceneRectangle=FHatchDigProbe::SceneRectangle(M);MaxMeasuredSceneRectDelta=0;
             MeasureStart=Now;
             CurvePoint(0);
             BeforeRevision=S.Revision();BeforeLast=S.Surface().Heights;BeforeVolume=S.Surface().Volume;LastWall=Now;LastEngine=GFrameCounter;
@@ -653,6 +739,7 @@ public:
         }
         if(Phase==6)
         {
+            const auto Rect=FHatchDigProbe::SceneRectangle(M);MaxMeasuredSceneRectDelta=FMath::Max(MaxMeasuredSceneRectDelta,FMath::Max(FMath::Max(FMath::Abs(Rect.Left-MeasuredSceneRectangle.Left),FMath::Abs(Rect.Top-MeasuredSceneRectangle.Top)),FMath::Max(FMath::Abs(Rect.Right-MeasuredSceneRectangle.Right),FMath::Abs(Rect.Bottom-MeasuredSceneRectangle.Bottom))));
             if(GFrameCounter!=LastEngine){Engine.Add(W->GetDeltaSeconds()*1000);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));Wall.Add((Now-LastWall)*1000);LastWall=Now;LastEngine=GFrameCounter;}
             const bool WaitMatched=MatchedMemorySeconds>0&&Now-MeasureStart<MatchedMemorySeconds*(Clicks+1)/50.;
             if(WaitMatched||(MatchedMemorySeconds<=0&&IdleControl&&Now-Changed<.6)||!M.GetAnalysis())return false;FHatchDigProbe::CheckCards(*Test,M);
@@ -684,7 +771,7 @@ public:
         {
             if(Now-Changed<.2||GFrameCounter<BoundaryFrame+3)return false;
             if(WaitForMemorySnapshot(TEXT("after")))return false;
-            DrainBoundary();const uint64 RawAfter=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();const auto Memory=FPlatformMemory::GetStats();
+            QueuePoolAudit(TEXT("after"),50,true);DrainBoundary();const uint64 RawAfter=FPlatformMemory::GetStats().UsedPhysical;FMemory::Trim();const auto Memory=FPlatformMemory::GetStats();
             EtwBoundary(TEXT("after"));MemoryDetails(TEXT("after"),S);
             SaveCurve();
             Result->SetObjectField(TEXT("pcd"),PcdJson(true));
@@ -705,6 +792,7 @@ public:
                 Result->SetNumberField(TEXT("commit_before"),double(Commit));Result->SetNumberField(TEXT("commit_after"),double(Memory.UsedVirtual));DigJson(TEXT("dig-idle-control.json"),Result);return true;
             }
             Test->TestTrue(TEXT("50 clicks raw RSS grows <=8MiB"),RawAfter<=RawBefore+8*1024*1024);
+            Result->SetNumberField(TEXT("scene_rect_max_delta_px"),MaxMeasuredSceneRectDelta);Test->TestTrue(TEXT("fresh/preview status keeps the measured scene rectangle stable"),MaxMeasuredSceneRectDelta<.01);
             Test->TestTrue(TEXT("50 clicks retained RSS grows <=8MiB"),Memory.UsedPhysical<=Rss+8*1024*1024);
             Test->TestTrue(TEXT("50 clicks committed memory grows <=8MiB"),Memory.UsedVirtual<=Commit+8*1024*1024);
             if(MeasuredView==1)for(int I=0;I<3;++I)if(auto* A=S.SensorAt(I))
@@ -734,7 +822,13 @@ public:
         {
             if(!M.GetAnalysis())return false;Test->TestTrue(TEXT("random regeneration clears all excavation history and removal counters"),S.UndoCount()==0&&S.LastRemovedVolume()==0&&S.TotalRemovedVolume()==0);
             Test->TestTrue(TEXT("random regeneration is exact fresh deterministic seed"),S.Surface().Heights==ShipHatch::Generate(S.Surface().Settings).Heights);
-            Result->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());DigJson(TEXT("dig-runtime.json"),Result);return true;
+            Result->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());DigJson(TEXT("dig-runtime.json"),Result);
+            if(PoolAuditEnabled()){Changed=Now;Phase=80;QueuePoolAudit(TEXT("post_regenerate0"),50,true);return false;}return true;
+        }
+        if(Phase==80)
+        {
+            if(!PoolPostFive&&Now-Changed>=5){QueuePoolAudit(TEXT("post_regenerate5"),50,true);PoolPostFive=true;}
+            if(Now-Changed<15)return false;QueuePoolAudit(TEXT("post_regenerate15"),50,true);return true;
         }
         if(Phase==10)
         {

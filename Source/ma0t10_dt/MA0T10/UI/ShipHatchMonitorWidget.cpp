@@ -149,7 +149,7 @@ void UShipHatchDetailsSection::Toggle()
 void UShipHatchMonitorWidget::Bind(AShipHatchMonitorHost* H,AShipHatchSimulation* S)
 {
     Host=H;Simulation=S;if(!S||!SeedInput)return;
-    SyncSettings();SetCameraPreset(2);SetMapHeat(bMapHeat);UpdateSection();ApplyLighting();LastLayout=FVector2D::ZeroVector;Layout();
+    SyncSettings();SetCameraPreset(2);SetMapHeat(bMapHeat);UpdateSection();ApplyLighting();LastLayout=FVector2D::ZeroVector;HeaderReservationSize=FVector2D::ZeroVector;ReservedHeaderHeight=0;Layout();
 }
 void UShipHatchMonitorWidget::SyncSettings()
 {
@@ -362,7 +362,11 @@ void UShipHatchMonitorWidget::Layout()
         for(auto Row:ToolbarRows)Row->SetWrapSize(FMath::Max(100.,Left-2*P-Style::SectionGap));
         ForceLayoutPrepass();
     }
-    const double Header=FMath::Max(76*S,double(LayoutSlots[1]->Content->GetDesiredSize().Y)),Metrics=72*S,Footer=FMath::Max(44.,double(LayoutSlots[6]->Content->GetDesiredSize().Y)),DataTop=P+Header+Gap+Metrics+Gap,DataHeight=FMath::Max(120.,Size.Y-DataTop-P-Footer-Gap);
+    const double DesiredHeader=FMath::Max(76*S,double(LayoutSlots[1]->Content->GetDesiredSize().Y));
+    if(!Size.Equals(HeaderReservationSize,.1)||!FMath::IsNearlyEqual(FontScale,HeaderReservationFont))
+    {HeaderReservationSize=Size;HeaderReservationFont=FontScale;ReservedHeaderHeight=DesiredHeader;}
+    else ReservedHeaderHeight=FMath::Max(double(ReservedHeaderHeight),DesiredHeader);
+    const double Header=ReservedHeaderHeight,Metrics=72*S,Footer=FMath::Max(44.,double(LayoutSlots[6]->Content->GetDesiredSize().Y)),DataTop=P+Header+Gap+Metrics+Gap,DataHeight=FMath::Max(120.,Size.Y-DataTop-P-Footer-Gap);
     const double ToolbarHeight=LayoutSlots[3]->Content->GetDesiredSize().Y;
     const double DrawerHeight=FMath::Min(DataHeight-ToolbarHeight,double(ToolbarContent->GetDesiredSize().Y)+2*P);
     if(Size.Equals(LastLayout,.1)&&FMath::IsNearlyEqual(Header,double(LastHeaderHeight),.1)&&FMath::IsNearlyEqual(ToolbarHeight,double(LastToolbarHeight),.1)&&FMath::IsNearlyEqual(DrawerHeight,double(LastDrawerHeight),.1)&&FMath::IsNearlyEqual(Footer,double(LastFooterHeight),.1))return;
