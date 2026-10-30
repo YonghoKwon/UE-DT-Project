@@ -266,3 +266,61 @@ Shipping ≤8MiB/h 해결 승인은 불가합니다. 다음 조사에서는 개�
 두 요청 종료 후 `stop.request`를 기록해 broker Stopped·PID 종료를 확인했습니다. 새 패키지/Insights trace/dump/PerfAbab 없음. ETL과 생성된 원시/심볼 캐시는 요약 후 `r24/cleanup-inventory.json`에 Claude용 목록만 남겼습니다. 이전 대량 정리 차단 경로를 우회·재시도하지 않았습니다. RESULT/result.json/요약JSON·PDB증거는 보존 대상입니다. push/merge/PR 없음.
 
 재현: `r24/run-traced.ps1`, `analyze-on-ready.ps1`, `extract_etw.py`, `analyze_trace.py`, `resolve_stacks.py`, `resolve_unwind.py`와 `dia_public.cpp`/빌드 명령을 reports 아래 보존했습니다. 동결 collector는 별도 사용자 관리자 브로커에서만 실행됐습니다. 현재 head/커밋·gate·보호 경로 상태는 result.json/merge-check.json이 최종입니다.
+
+## 2026-10-31 r25: 업로드 계측·점군 저장 재사용 후 Shipping60 통과
+
+branch `fix/lidar-native-lifetime-26h`, 시작 HEAD `0c2f60223a477bd50d414d567512bc9e69e4ba5b`. 마지막 제품 소스 `cab9d6e5f937ba286c991478860fe4c94af70a8d`이며 이후 결과 문서만 바뀝니다. 기존 사용자 Source/Shader overlay와 SensorTestMap·README·VALIDATION_HISTORY 등의 초기12개 변경은 그대로입니다. DTCore/엔진/드라이버·저장 정책·Blueprint/wire·센서품질·기본20Hz·PCD payload·미리보기 점 수와 갱신 상한은 바꾸지 않았습니다.
+
+- `52bc4ba`: Shipping도 지원하는 `-SensorUploadStats` opt-in 진단. 고정256 processing-frame ring/domain, Record 경로에 동적 할당·문자열·로그 없음. RHI 요청, native mapped CPU쓰기, 엔진 관리 입력, readback을 별도 합산합니다. 장기 검증에서는 off이며 JSON `upload_stats`가 전 구간 없습니다. `record_cpu_ms`라는 진단 필드의 실제 의미는 lock/스케줄링 대기를 포함한 elapsed wall timer 합입니다. hardware CPU 회계로 해석하지 않았습니다.
+- `17cc12a`: 동적 WriteOnly rename 대신 persistent GPU 목적지와 전체 스트림 staging 갱신. 위치는 bitwise 비교(부호0 포함), 색상은 원래 quantization 바이트가 달라질 때만 업로드합니다. 색 변환은 점당1회로 hoist했지만 결과는 같습니다. 임의 fence·NoOverwrite·동기 readback은 production에 추가하지 않았습니다. 이 첫 수정의 무추적60분은 실패했습니다.
+- `cab9d6e`: 이미 `InitFromDynamicVertex`가 만든 원본 위치·색상 버퍼/SRV를 직접 갱신해 중복2세트를 제거했습니다. vertex/index buffer7→5, SRV6→4. 같은 vertex format/index/VF·정확한 좌표/색 바이트를 유지합니다. 원본과 별도 목적지의 두 벌 보유를 없앴고, CPU snapshot은 기존 PreviewPool(4개/8MiB)에서 독점 lease로 재사용합니다. free-pool exhaustion은 기존 임시 할당, live lease 강제 eviction/alias 없음. explicit diagnostic baseline은 기존 동작을 유지합니다.
+
+## 업로드 전수 조사와 실제 측정
+
+`upload-inventory-final.json`:25개 파일58 call sites. 직접 RHI, native mapped쓰기, ISM/절차메쉬/texture 같은 엔진 관리 입력, GPU capture/target생성, CPU-only 송신 staging을 구분했습니다. 초기 사용자 파일(예: Coil presentation/DepthProjection/PixelStreaming bridge)은 수정하지 않았고 현재 Hatch3 workload의 비활성 경로로 한계를 기록했습니다. engine/DTCore 내부 전역 upload를 모두 가로챘다고 주장하지 않습니다. managed mesh 입력은 위치/index 하한값이며 engine packing·추가 attribute·driver 페이지를 뜻하지 않습니다.
+
+동일 조건의 opt-in Shipping30초 측정(35초 준비 후 reset)에서:
+
+| 경로 | 수정 전 관측 | 해석 |
+|---|---:|---|
+| point position | 576,000B/호출,30초348회 | 직접 RHI |
+| point color | 192,000B/호출,30초348회 | 직접 RHI |
+| 직접 RHI frame peak | 768,000B/2회 | 센서3대 합을 임의로 한 프레임에 더하지 않음 |
+| scan texture | 472,645,632B/1,803회 | engine-managed CPU 입력, 실제 driver heap bytes 아님 |
+| native rays | 약3.78GB/30초 | 기존 persistent mapped 쓰기, RHI upload pool과 분리 |
+| buffer recreation | 측정 구간0 | 기존 용량 유지 |
+
+수정1/2의 직접 요청 peak도768,000B/2회였습니다. 실제 입력이 매 갱신 변해 byte-identical skip은0이었습니다. 따라서 **요청 바이트 peak가 감소했다고 주장하지 않습니다**. 입증한 개선은 목적지 중복 제거와 CPU/GPU 보유·할당 경로 재사용입니다. GPU byte oracle의2점 fixture는400→272B(32% 감소), native12,000점×3 구조에 같은 layout을 적용하면 vertex/index 보유량7,200,000→4,896,000B입니다. 후자는 fixture 측정 비율/정해진 layout의 산출치이며 driver heap 실측치가 아닙니다. CPU reuse와 GPU 중복 제거의 개별 기여를 분리 실험하지 않았습니다.
+
+## Shipping 무추적60분
+
+콘솔 세션, RTX4070Ti621.01/D3D12, Rev7×3(1024×64·요청20Hz), 실제1920×1080 offscreen·font100/UMGscale1, 기본 압축PCD+미리보기, 내부 자체 관찰off, binned2, LLMoff·projecttags off·ETW/Insights off·Trim0회·upload counter off·Slate throttling0. 동일 외부 OS5초/VAD60초·full point semantic receiver와 foreign Unreal/video guards를 사용했습니다. 실행당 fresh UserDir·실제 exe/source fingerprint·PID creation identity를 보존했습니다.
+
+| 소스·실행 | 전체10~60분 WS / Commit MiB/h | 마지막20분 WS / Commit MiB/h | 판정 |
+|---|---:|---:|---|
+| 이전f16/r22 | −1368.646 / +8.456 | −41.519 / +6.890 | 전체 Commit FAIL; 큰 WS 회수 원인 미확정 |
+| 첫 수정17cc/r25 | +13.775 / +12.316 | +0.863 / -1.846 | 전체 FAIL |
+| 마지막cab9/r25 | +1.207 / -0.551 | +0.407 / +0.600 | 네 기준 PASS |
+
+기준·10분 준비 제외·raw sample·OLS·꼬리20분을 바꾸지 않았으며 실패한 첫 실행도 보존했습니다. 마지막 3604.558초 정상 완료, native3대 각각19.999971Hz, 외부218,718프레임 모두 LZF·XYZ finite/confidence/validity 점별 검사 통과, invalid/encode/delivery/overload/native fallback/video/환경 중첩0, 환경 재시도0회입니다. 0Hz 센서 제외 없음, receipt와 검증 수신을 분리했습니다. 단일60분 통과이며 누수 부재의 무한시간 증명·원래 #26 전체 게이트 통과는 아닙니다.
+
+## 회귀와 성능
+
+Editor Development와 Shipping 빌드 성공. 각 수정의15개 실제 관련 테스트(ledger1, GPU preview stream byte1, native multi-scene point byte1, PCD9, HATCH performance3센서1, preview identity1, capture isolation1) 모두Success·Error0. RHI는 실제 D3D12이며 NullRHI skip 없음. GPU readback oracle은 원래 quad 수식·색 바이트, 반복12회, 카메라/픽셀 크기 변경·0면적 슬롯·resource/proxy 유지와 default scratch 반환/4개·8MiB 상한을 검사합니다. 경고는 fresh test UserDir의 Workspace/Appearance save 미존재이며 원문 보존했습니다.
+
+| RT on ABAB | A→B FPS | p95 ms | GT ms | 변화율 FPS 하락 / p95 / GT | 판정 |
+|---|---:|---:|---:|---:|---|
+| 표준1Camera+1LiDAR,3블록·A/B각6회 | 46.653→46.651 | 29.549→29.547 | 7.085→6.953 | +0.0024% / -0.0071% / -1.8618% | ≤2% PASS |
+| 부가Hatch3+PCD,1블록·A/B각2회 | 46.563→46.489 | 29.553→29.548 | 9.224→9.175 | +0.1586% / -0.0189% / -0.5310% | ≤2% PASS |
+
+기준0c2f602 vs최종cab9d6e, 같은 instrument·맵SHA·초기11 Source/Shader overlay·1920×1080 visible·RT ProjectDefault·10초warmup/60초·매회 fresh UserDir, ABAB 순서와 raw frameCSV 보존. 표준 GPU timer는 원래 instrument에서 수집하지 않아 null이며 GPU2% 통과로 꾸미지 않았습니다. 부가Hatch GPU평균 4.333→4.318ms(-0.3639%).
+
+부가 시험의 최초 default-off A는 내부 consumerHz를 기대하는 구형 test 전제와 충돌해 무효였습니다. 외부4,190프레임 점별 검증은 정상이었지만 내부0을 통과 처리하지 않았습니다. 같은 **진단 수신 opt-in 공통 test instrument**를 A/B 소유 사본에 적용해 재빌드·재측정했고 기존10/19Hz 내부 검증과 외부 점별/프레임 gap 검증을 유지했습니다. 제품 소스/기본값·무추적60분 조건은 그대로입니다. 이 부가 시험은 명시적 관찰 부하가 추가된 별도 조건이며 default Shipping 성능과 혼동하지 않습니다. 최초무효 evidence와 두 instrument SHA 모두 보존합니다.
+
+## 직접 화면·보존·한계
+
+모든 측정 종료 후 같은 Shipping 사본을 별도 fresh UserDir로 띄워 Computer Use로 점군 표시, drag회전, 센서 강조, 카메라 비스듬히 preset/접기를 직접 확인했습니다. 점군 갱신과3대20Hz 표시 유지. 실제 screenshot/viewport1920×1080, UMGscale1/font100, capture logical/physical1:1. 별도 OS GetDpiForWindow 값은 Sky API에 없어 추정96DPI로 기록하지 않았습니다. `manual/01~03*.jpg`와 `manual-checks.json` 보존. AltF4로 정상GameExit0·창/프로세스 종료 확인. 이 수동 run은 취소된 진단이므로 장시간/성능 PASS로 세지 않았습니다. 보호 맵 저장 없음.
+
+초기12개·보호297개·DTCore b2504d1·동결 수집기 해시 유지. 개인 설정242개 원본집합/hash exact: Editor 설정1개 원복, 이번3개 cook 시간대에 생성된160B CrashReportClient 설정은 원본에 없음을 확인해 정확한 파일3개만 report로 이동 보존(재귀 삭제/복사 없음). 처음 재귀 personal copy/자동 source 정규화 복합 명령은 자동 검토에서blocked by policy(상세없음)로 거부돼 실행되지 않았습니다. 이를 재시도하지 않고 기존242개 backup의 read-only hash를 검증해 재사용했으며, 새로 만든 소스만 명시경로 CRLF 처리했습니다.
+
+새 패키지/ABAB 사본 약23.21GiB는 `cleanup-inventory.json` 목록을 Claude용으로 남겼습니다. 대량 삭제/이전 차단 우회 없음. RESULT/result.json/summary/manifest/frameCSV/수동캡처/도구 source 보존. final quick·layer(allowlist0→0)·guard·schema·merge_check 결과는 result.json에 기록합니다. Release전체·2시간×2·야간8시간·원래 #26 5쌍/디깅Commit 최종 검증은 사용자 금지 범위라 시작하지 않았습니다. push/merge/PR 없음.
