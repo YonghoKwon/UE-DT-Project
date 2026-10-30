@@ -163,3 +163,39 @@ f307의 유효60분은 전체 WS12.915/Commit12.789MiB/h로FAIL, 꼬리−0.102/
 최신codec회귀11개Success(PCDBandwidth9/nativebyteoracle1/3대성능1),이전수신정책·CPU상한·취소50dig회귀PASS,Pythonfixture5/strict분석기9/quick10/layer0→0/guardPASS. 영상감지규칙에따라추가GPU작업을중지했다. 5단계최종검증은시작하지않았고과거5쌍차이실패도유지한다. 개인242개·초기12개·보호297개정확히복원/보존했다. 대량정리는Claude에맡기며경로목록을보존했다. push/merge없음.
 
 상세: [RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/RESULT.md), [result.json](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/result.json), [첫60분](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r21/shipping-native60-final/os-strict-analysis.json), [최신중단](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r21/shipping-codec60/run-manifest.json), [정리목록](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r21/cleanup-inventory.json).
+
+
+## 2026-10-31 r22: 인코더 재사용 Shipping 재측정 — 전체 Commit 기준 미달
+
+재개 기준 HEAD `3dfff67593013e43f12eb58e1c0b27a016953789` / branch `fix/lidar-native-lifetime-26h`. 제품 소스는 `f16ee563cd99587fef69c9b014112b5c1ec39a07`이며 이후에는 문서만 바뀌었습니다. 전체 Source/Shader fingerprint가 저장된 빌드 기록과 일치하고 stage/archive exe SHA256도 동일해 `r21/shipping22-stage`를 재사용했습니다. 초기 사용자 Source/Shader 변경 11개도 같은 상태로 포함됐으며 순수 clean checkout 결과로 표시하지 않습니다. `f7a4c34` 해치 헤더 수정이 포함됐습니다.
+
+| 소스·실행 | 10~60분 WS / Commit (MiB/h) | 마지막 20분 WS / Commit (MiB/h) | 판정 |
+|---|---:|---:|---|
+| f307, r21/shipping-native60-final | +12.915 / +12.789 | −0.101 / +4.203 | 전체 FAIL |
+| f16, r21/shipping-codec60 | 미완료 94.4초 | 미완료 | 이전 디코딩 4% 중단, 제외 |
+| f16, r21/shipping-codec60-resume1 | -1368.647 / +8.456 | -41.519 / +6.890 | 전체 Commit FAIL |
+
+기준은 각 구간 WS·Commit 각각 ≤8 MiB/h이며 OLS·원시 표본·시간 경계를 바꾸지 않았습니다. 꼬리 통과로 전체 실패를 덮지 않았습니다. 한 번씩의 실행 비교에서 전체 Commit 기울기는 감소했지만 아직 기준을 만족하지 않았고 통계적 인과 확정으로 해석하지 않습니다.
+
+실제 측정 3602.957초, OS 5초 / VAD 60초. 콘솔 세션, RTX4070Ti 드라이버621.01, 실제1920×1080 offscreen, D3D12 native 명시, Rev7×3, 기본 압축PCD+미리보기, Slate throttling0, LLMoff, binned2, 내부 자체 수신 관찰off, ETWoff, Trim0회. `Memory26Case`는 `none`으로 기본 인코더 scratch 재사용이 실제 선택되는 조건입니다. 패키지·소스 해시와 fresh UserDir은 evidence에 보존했습니다. 한 실행만 돌았고 외부 Unreal 중첩·영상 디코딩이 모두 0이어서 재시도는 필요 없었습니다. 재시도 제어기는 디코딩 발생 시 연속600초0% 확인 후 최대3회까지 실행하도록 준비됐으나 사용되지 않았습니다.
+
+## 계단과 남은 후보
+
+- 15분 Commit 분별 중앙값 +7.254MiB, 22분 +3.590MiB. 15분 근처 VAD는 Private Commit +7,655,424바이트 / reserve −8,192,000바이트였고 Mapped·Image·스택·스레드는 증가하지 않았습니다. VAD60초와 OS5초의 근접 표본 비교이므로 정확한 할당 수지로 보지 않습니다.
+- 10~60분 UObject 24,641→24,641, native BLAS/TLAS build·buffer create·native bytes 변화0, fallback0. 지속 native 자원의 관측 가능한 증가와 CPU 스레드/스택 증가는 이 실행의 설명력이 낮습니다. 엔진/드라이버 내부 private backing까지 배제한 것은 아닙니다.
+- Raw 송신은 global128MiB / stream64MiB / stream20프레임 reservation을 접수~receipt까지 보유하고 receipt에서 해제합니다(`VirtualSensorHighThroughputTransportSubsystem.cpp`: admission252–253, receipt789–790, release405–408). 한 연결의 소켓 버퍼 크기는 연결 때 고정됩니다. 송신 body·header와 receipt/parser의 임시 할당은 남아 있어 allocator high-water 후보지만, 코드상 새 할당이 있다는 사실만으로 이번 증가분의 소유자로 확정할 수 없습니다.
+- CPU Ray/Hit와 인코더 scratch는 기존 4개/32MiB free-pool 상한을 지킵니다. 인코더는 크기/필드 조합별 압축 bytes 동일 테스트를 통과했고 이번 실행도 기본 재사용 경로였습니다. free-pool 상한은 모든 in-flight 메모리를 뜻하지 않으므로 이것만으로 live size 평탄을 주장하지 않습니다.
+- 잔여 후보는 **binned2/native heap high-water 및 송신 임시 backing**, **엔진/D3D12 UMD private backing**, 그 다음 **관측되지 않은 in-flight 풀 고수위**입니다. 무제한 큐 누적을 보이는 오류·overload·gap은 없지만 독립적으로 읽은 누적 카운터 차이를 실제 queue occupancy로 해석하지 않았습니다.
+- 약35~36분 WS가 약1,240→480MiB로 크게 줄었고 약50분에도 추가 회수가 있었습니다. Commit은 유지됐습니다. 우리 EmptyWorkingSet/Trim 호출은0, 당시 물리 메모리 가용약35GiB였습니다. 외부 회수 원인은 확정하지 않았고 이 표본을 제외하지 않았습니다. 따라서 큰 음수 WS 기울기를 인코더 수정의 효과로 귀속하지 않습니다.
+
+이 자료는 모듈/함수별 할당 소유자를 가르지 못합니다. 현재 같은 소스의 계단 구간 VirtualAllocation+Heap live/backing 스택을 얻어야 추가 최소 수정의 근거가 생깁니다. broker.json은 `Stopped`이며 동결된 수집 스크립트를 변경하지 않았습니다. **관리자 브로커 필요**를 기록하고, 추정으로 추가 제품 코드 수정이나 재측정을 하지 않았습니다.
+
+## 회귀·보호·제한
+
+외부218,599프레임 전부 LZF 해제와 모든 점의 XYZ·confidence·validity를 검증했습니다. invalid0 / subscription0 / echo0이며 receipt는 소비자 검증과 구분했습니다. native 실측Hz는 os_lidar_boom=19.999702, os_lidar_cabin_01=19.998869, os_lidar_cabin_02=19.999147. sampler의 이전 GT 비용 평균 1.452ms, 최대 11.686ms/5초이며 이를 ABAB 성능 판정으로 대체하지 않았습니다.
+
+제품 소스가 동일해 r21의 실제 RHI byte/point oracle·Performance3 및 PcdBandwidth 9개(합11개 Success) 증거를 연결했습니다. 새 C++ 변경/빌드는 없습니다. quick/layer/DTCore guard와 보호·개인 설정 해시를 최종 확인합니다. 메모리 실패로 조건부 RT on ABAB는 실행하지 않았습니다. 원래 #26 5쌍 및 디깅 Commit 문제는 이번 Shipping 실험으로 해결/통과 처리하지 않았고, 5번 최종2시간/야간 검증도 금지대로 시작하지 않았습니다.
+
+대용량 패키지·원시 자료는 삭제하지 않고 `r22/cleanup-inventory.json`에 Claude용 목록을 남겼습니다. push/merge/PR 없음. RESULT/result.json/merge-check는 root와 r22에 남기며 실패를 숨기지 않습니다.
+
+주요 증거: `r22/package-reuse.json`, `r22/runtime-condition.json`, `r22/controller-status.json`, `r21/shipping-codec60-resume1/os-strict-analysis.json`, `backend-quality.json`, `step-correlation.json`, `r22/final-audit.json`.
