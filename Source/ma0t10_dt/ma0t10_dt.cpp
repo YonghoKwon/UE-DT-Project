@@ -5,7 +5,6 @@
 #include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualSensorStreamReceiverRegistration.h"
 #include "ma0t10_dt/MA0T10/UI/PcdTransportRuntimeProbe.h"
 #include "ma0t10_dt/MA0T10/UI/HatchMemoryRuntimeProbe.h"
-#include "ma0t10_dt/MA0T10/UI/LidarMapMemoryRuntimeProbe.h"
 
 class FMa0t10DtGameModule final : public FDefaultGameModuleImpl
 {
@@ -16,12 +15,10 @@ public:
 		RegisterVirtualSensorStreamReceiverCodec();
 		StartPcdTransportRuntimeProbe();
 		StartHatchMemoryRuntimeProbe();
-		StartLidarMapMemoryRuntimeProbe();
 	}
 	virtual void ShutdownModule() override
 	{
 		StopHatchMemoryRuntimeProbe();
-		StopLidarMapMemoryRuntimeProbe();
 		StopPcdTransportRuntimeProbe();
 		UnregisterVirtualSensorStreamReceiverCodec();
 		FDefaultGameModuleImpl::ShutdownModule();
