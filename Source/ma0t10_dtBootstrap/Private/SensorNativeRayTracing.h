@@ -18,5 +18,5 @@ namespace SensorNativeRayTracing
     bool IsHealthy();
     TSharedPtr<ITicket,ESPMode::ThreadSafe> Submit(const TArray<FSensorRtMesh>& Meshes,const TArray<TConstArrayView<FSensorRtRay>>& Parts,FString& Error,bool& BudgetLimited);
     FStats GetStats();
-    void Shutdown();
+    bool Shutdown();
 }

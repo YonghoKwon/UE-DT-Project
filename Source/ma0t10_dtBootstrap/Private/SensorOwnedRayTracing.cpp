@@ -497,7 +497,11 @@ void EndStartupValidation(bool Passed,const FString& Reason)
 }
 void TickStartupValidation(FRHICommandListImmediate& Cmd)
 {
-    if(!SensorNativeSafety::NeedsValidation())return;
+    if(!SensorNativeSafety::NeedsValidation())
+    {
+        if(StartupStarted>0)EndStartupValidation(false,StartupError.IsEmpty()?TEXT("native disabled during startup validation; RHI retained"):StartupError);
+        return;
+    }
     if(StartupStarted==0)
     {
         StartupStarted=FPlatformTime::Seconds();StartupErrors=SensorNativeRayTracing::GetStats().ValidationErrors;
@@ -680,11 +684,11 @@ void SensorOwnedRayTracing::Shutdown()
     {
         for(const auto& Scan:PendingReadbacks){Scan->Cancelled.store(true,std::memory_order_release);Scan->Request.OnReadback=nullptr;Scan->NativeTicket.Reset();}
         PendingReadbacks.Reset();RetiredScans.Reset();
-        const bool Healthy=SensorNativeRayTracing::IsHealthy();
 #if RHI_RAYTRACING
         StartupNative.Reset();StartupRhi.Reset();
 #endif
-        SensorNativeRayTracing::Shutdown();
+        // A removal can be discovered during the terminal fence wait itself.
+        const bool Healthy=SensorNativeRayTracing::Shutdown();
         SensorNativeSafety::EndSession(Healthy);
 #if RHI_RAYTRACING
         SceneCache.Reset();FreePackets.Reset();FreePacketBytes=0;BlasCache.Reset();

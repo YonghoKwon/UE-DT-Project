@@ -488,7 +488,7 @@ bool IsSupported()
 }
 FStats GetStats(){return {Dispatches.load(),BlasBuilds.load(),SceneBuilds.load(),PacketCreates.load(),PacketReuses.load(),Bytes.load(),PeakBytes.load(),ValidationErrors.load(),ValidationAvailable.load(),BufferCreates.load(),BufferReuses.load()};}
 bool IsHealthy(){return !Backend||(!Backend->Faulted&&SUCCEEDED(Backend->Device->GetDeviceRemovedReason()));}
-void Shutdown(){check(IsInRenderingThread());if(Backend){Backend->Drain();Backend.Reset();}}
+bool Shutdown(){check(IsInRenderingThread());bool Healthy=true;if(Backend){Backend->Drain();Healthy=IsHealthy();Backend.Reset();}return Healthy;}
 }
 #else
 namespace SensorNativeRayTracing
@@ -497,6 +497,6 @@ TSharedPtr<ITicket,ESPMode::ThreadSafe> Submit(const TArray<FSensorRtMesh>&,cons
 bool IsSupported(){return false;}
 bool IsHealthy(){return true;}
 FStats GetStats(){return {};}
-void Shutdown(){}
+bool Shutdown(){return true;}
 }
 #endif

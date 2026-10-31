@@ -163,10 +163,10 @@ void CompleteValidation(bool Passed,const FString& Reason)
 bool BeginSession(FString& Error){return Session().IsOwned()||Session().Begin(Error);}
 void DisableForSession(const FString& Reason)
 {
-    Unhealthy.store(true);
-    Session().Invalidate();
-    Session().RecordDecision(Reason);
-    if(!Disabled.exchange(true))UE_LOG(LogTemp,Warning,TEXT("[SensorNativeSafety] native disabled: %s; supported RHI on healthy device, safe recovery next launch after device loss"),*Reason);
+    const bool WasUnhealthy=Unhealthy.exchange(true),FirstDisable=!Disabled.exchange(true);
+    FScopeLock Lock(&PolicyMutex);Allowed=false;ValidationRequested.store(false);
+    if(!WasUnhealthy){Session().Invalidate();Session().RecordDecision(Reason);}
+    if(FirstDisable)UE_LOG(LogTemp,Warning,TEXT("[SensorNativeSafety] native disabled: %s; supported RHI on healthy device, safe recovery next launch after device loss"),*Reason);
 }
 void EndSession(bool Healthy){Session().End(Healthy&&!Unhealthy.load());}
 }
