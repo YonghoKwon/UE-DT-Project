@@ -76,8 +76,13 @@ class FLidarMapMemoryProbe final:public FTickableGameObject
 public:
     explicit FLidarMapMemoryProbe(FString In):Directory(MoveTemp(In))
     {
-        FParse::Value(FCommandLine::Get(),TEXT("LidarMapMemorySeconds="),Seconds);FParse::Value(FCommandLine::Get(),TEXT("LidarMapMemoryCancel="),CancelFile);Off=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryAllOff"));
+        FParse::Value(FCommandLine::Get(),TEXT("LidarMapMemorySeconds="),Seconds);FParse::Value(FCommandLine::Get(),TEXT("LidarMapMemoryCancel="),CancelFile);
+#if !UE_BUILD_SHIPPING
+        Off=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryAllOff"));
+#endif
+        #if !UE_BUILD_SHIPPING
         ForceHardware=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryHardware"));
+#endif
         Failed=(Seconds!=30&&Seconds!=3600)||(Off&&ForceHardware);IFileManager::Get().MakeDirectory(*Directory,true);const FString Path=Directory/TEXT("memory-trend.jsonl");if(IFileManager::Get().FileExists(*Path))Failed=true;else File.Reset(IFileManager::Get().CreateFileWriter(*Path,FILEWRITE_AllowRead));if(!File)Failed=true;
     }
     TStatId GetStatId()const override{RETURN_QUICK_DECLARE_CYCLE_STAT(FLidarMapMemoryProbe,STATGROUP_Tickables);}

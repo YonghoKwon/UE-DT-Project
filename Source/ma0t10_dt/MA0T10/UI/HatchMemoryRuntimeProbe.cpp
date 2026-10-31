@@ -290,9 +290,13 @@ public:
         FParse::Value(FCommandLine::Get(),TEXT("HatchSourceCommit="),SourceCommit);
         FParse::Value(FCommandLine::Get(),TEXT("HatchMemorySensorCount="),SensorCount);
         const bool Stress=FParse::Value(FCommandLine::Get(),TEXT("HatchMemoryWarmDigCount="),WarmDigTarget);
+
+#if !UE_BUILD_SHIPPING
         DepthProjection=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDepthProjection"));SkipWarmEdits=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryNoRevisionChanges"));
         Isolation=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryIsolation"));
         AcquisitionOff=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAcquisitionOff"));OutputsOff=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryOutputsOff"));
+
+#endif
         Investigation=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryInvestigation"));TraceCanaryEnabled=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryTraceCanary"));
         const bool FinalSoak=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryFinalValidation"));
         const bool ValidDuration=Investigation?(Seconds>=900&&Seconds<=1200):(Seconds==30||(Seconds>=1800&&Seconds<=3600)||(FinalSoak&&Seconds==7200));

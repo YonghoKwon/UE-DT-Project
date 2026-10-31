@@ -11,12 +11,12 @@ class MA0T10_DT_API ULidarPlayerDisplayComponent : public ULineBatchComponent
 public:
     ULidarPlayerDisplayComponent();
     UMaterialInterface* ResolveFixedPointMaterial() const;
-    /** Opt-in fixed GPU buffers; zero-size slots have zero area and never become returns. */
+    /** Fixed player point buffers; zero-size slots have zero area and never become returns. */
     bool bFixedPointSubmission=false;
     FVector PointViewOrigin=FVector::ZeroVector,PointViewRight=FVector::RightVector,PointViewUp=FVector::UpVector,PointViewForward=FVector::ForwardVector;
     double PointPixelScale=1./1920,LastPointViewUpdate=-1;
     void RefreshPointView();
-    /** Hatch opt-in: update existing sprite buffers without replacing the proxy. */
+    /** Hatch preview: update existing sprite buffers without replacing the proxy. */
     void CommitPointData();
     uint64 GetFixedPointProxyCreations() const { return FixedPointProxyCreations.Load(); }
     uint64 GetFixedPointUploads() const { return FixedPointUploads.Load(); }
@@ -32,11 +32,10 @@ public:
 protected:
     virtual void SendRenderDynamicData_Concurrent() override;
 private:
-    // Explicit cook reference for the opt-in package experiment. Engine's debug
-    // view material pointer is normally null in standalone. No engine defaults
-    // are changed and the existing path remains the default until attributed.
+    // Cooked fallback for the product's fixed-point preview. The engine debug
+    // material pointer can be unavailable in standalone packages.
     UPROPERTY()
-    TObjectPtr<UMaterialInterface> DiagnosticPointMaterial;
+    TObjectPtr<UMaterialInterface> FixedPointFallbackMaterial;
     int32 FixedProxyPointCount=0;
     TAtomic<uint64> FixedPointProxyCreations{0},FixedPointUploads{0};
 };

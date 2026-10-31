@@ -149,7 +149,7 @@ void UShipHatchDetailsSection::Toggle()
 void UShipHatchMonitorWidget::Bind(AShipHatchMonitorHost* H,AShipHatchSimulation* S)
 {
     Host=H;Simulation=S;if(!S||!SeedInput)return;
-    SyncSettings();SetCameraPreset(2);SetMapHeat(bMapHeat);UpdateSection();ApplyLighting();LastLayout=FVector2D::ZeroVector;HeaderReservationSize=FVector2D::ZeroVector;ReservedHeaderHeight=0;Layout();
+    SyncSettings();SetCameraPreset(2);SetMapHeat(bMapHeat);UpdateSection();ApplyLighting();LastLayout=FVector2D::ZeroVector;HeaderReservationSize=FVector2D::ZeroVector;HeaderReservation=FStableHeaderReservation();Layout();
 }
 void UShipHatchMonitorWidget::SyncSettings()
 {
@@ -165,10 +165,11 @@ void UShipHatchMonitorWidget::SyncSettings()
         if(FieldChoices.IsValidIndex(I))FieldChoices[I]->SetSelectedIndex(!S->SensorEnabled(I)?0:S->FieldProfiles[I]+1);
     }
 }
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void UShipHatchMonitorWidget::NativeOnInitialized()
 {
     Super::NativeOnInitialized();bPersistent=true;SetIsFocusable(true);Work=MakeShared<FShipHatchMonitorWork>();
+    // UE5.3 combo styling only; DTCore bPersistent is not deprecated.
+    PRAGMA_DISABLE_DEPRECATION_WARNINGS
     auto* Root=WidgetTree->ConstructWidget<UCanvasPanel>();WidgetTree->RootWidget=Root;Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     auto Label=[&](const FString& Value,int32 Size=Style::BodySize,bool Bold=false,FLinearColor Color=Style::Text())
     {auto* W=WidgetTree->ConstructWidget<UTextBlock>();W->SetText(FText::FromString(Value));W->SetFont(Style::Font(Size,1,Bold));W->SetColorAndOpacity(Color);W->SetAutoWrapText(false);TextBlocks.Add(W);BaseFontSizes.Add(Size);return W;};
@@ -315,6 +316,7 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     CargoChoice->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnCargo);SensorChoice->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnSensor);FontChoice->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnFont);GridSize->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnGrid);SizeSlider->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnSizeSlider);DensitySlider->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnDensitySlider);SetFontPercent(100);UpdateSegments();
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 void UShipHatchMonitorWidget::NativeDestruct(){RestoreSiteVisualization();if(Overlay)Overlay->DestroyComponent();RestoreFeedbackGrab();RestorePointVisibility();Work.Reset();Super::NativeDestruct();}
 void UShipHatchMonitorWidget::RestorePointVisibility()
 {
@@ -364,9 +366,8 @@ void UShipHatchMonitorWidget::Layout()
     }
     const double DesiredHeader=FMath::Max(76*S,double(LayoutSlots[1]->Content->GetDesiredSize().Y));
     if(!Size.Equals(HeaderReservationSize,.1)||!FMath::IsNearlyEqual(FontScale,HeaderReservationFont))
-    {HeaderReservationSize=Size;HeaderReservationFont=FontScale;ReservedHeaderHeight=DesiredHeader;}
-    else ReservedHeaderHeight=FMath::Max(double(ReservedHeaderHeight),DesiredHeader);
-    const double Header=ReservedHeaderHeight,Metrics=72*S,Footer=FMath::Max(44.,double(LayoutSlots[6]->Content->GetDesiredSize().Y)),DataTop=P+Header+Gap+Metrics+Gap,DataHeight=FMath::Max(120.,Size.Y-DataTop-P-Footer-Gap);
+    {HeaderReservationSize=Size;HeaderReservationFont=FontScale;HeaderReservation.Reset(DesiredHeader,FPlatformTime::Seconds());}
+    const double Header=HeaderReservation.Update(DesiredHeader,FPlatformTime::Seconds()),Metrics=72*S,Footer=FMath::Max(44.,double(LayoutSlots[6]->Content->GetDesiredSize().Y)),DataTop=P+Header+Gap+Metrics+Gap,DataHeight=FMath::Max(120.,Size.Y-DataTop-P-Footer-Gap);
     const double ToolbarHeight=LayoutSlots[3]->Content->GetDesiredSize().Y;
     const double DrawerHeight=FMath::Min(DataHeight-ToolbarHeight,double(ToolbarContent->GetDesiredSize().Y)+2*P);
     if(Size.Equals(LastLayout,.1)&&FMath::IsNearlyEqual(Header,double(LastHeaderHeight),.1)&&FMath::IsNearlyEqual(ToolbarHeight,double(LastToolbarHeight),.1)&&FMath::IsNearlyEqual(DrawerHeight,double(LastDrawerHeight),.1)&&FMath::IsNearlyEqual(Footer,double(LastFooterHeight),.1))return;

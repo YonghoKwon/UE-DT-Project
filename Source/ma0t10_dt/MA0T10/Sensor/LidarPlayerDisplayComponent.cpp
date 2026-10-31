@@ -23,15 +23,15 @@
 ULidarPlayerDisplayComponent::ULidarPlayerDisplayComponent()
 {
     static ConstructorHelpers::FObjectFinder<UMaterial> PointMaterial(TEXT("/Engine/EngineDebugMaterials/VertexColorMaterial.VertexColorMaterial"));
-    DiagnosticPointMaterial=PointMaterial.Object;
+    FixedPointFallbackMaterial=PointMaterial.Object;
 }
 UMaterialInterface* ULidarPlayerDisplayComponent::ResolveFixedPointMaterial() const
 {
-    if(Memory26::Enabled(Memory26::ECase::Preview))return DiagnosticPointMaterial;
+    if(Memory26::Enabled(Memory26::ECase::Preview))return FixedPointFallbackMaterial;
     // Standalone disables engine debug view materials. Keep the same fixed
     // player-only mesh path used in Editor, with its explicit cooked reference,
     // instead of rebuilding a PDI proxy and transient draw resources at5Hz.
-    return GEngine&&GEngine->VertexColorMaterial?GEngine->VertexColorMaterial.Get():DiagnosticPointMaterial.Get();
+    return GEngine&&GEngine->VertexColorMaterial?GEngine->VertexColorMaterial.Get():FixedPointFallbackMaterial.Get();
 }
 
 void ULidarPlayerDisplayComponent::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials,bool bGetDebugMaterials) const
