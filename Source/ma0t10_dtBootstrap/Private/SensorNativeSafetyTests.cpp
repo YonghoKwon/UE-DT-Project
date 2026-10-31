@@ -4,6 +4,11 @@
 #include "Misc/Paths.h"
 #include "Misc/Guid.h"
 #include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "SensorNativeRayTracing.h"
+#include "SensorOwnedRayTracing.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorNativeSafetyPolicyTest,"HATCH26.NativeSafetyPolicy",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorNativeSafetyPolicyTest::RunTest(const FString&)
 {
@@ -27,6 +32,59 @@ bool FSensorNativeSafetyPolicyTest::RunTest(const FString&)
     First.End(true);TestTrue(TEXT("clean close permits next native session"),Second.CanStartDefault());TestTrue(TEXT("second session starts after clean close"),Second.Begin(Error));
     Second.End(false);SensorNativeSafety::FSessionGuard AfterCrash(Path);TestFalse(TEXT("unclean close keeps next-launch RHI fallback"),AfterCrash.CanStartDefault());
     IFileManager::Get().Delete(*Path,false,true);
+    // A dead PID simulates an unclean process, not a concurrent live instance.
+    FFileHelper::SaveStringToFile(TEXT("schema=2\npid=0\nstart=0\n"),*Path);
+    SensorNativeSafety::FSessionGuard Recovery(Path);TestTrue(TEXT("stale marker can be exclusively claimed"),Recovery.Begin(Error));
+    TestTrue(TEXT("first unclean native exit forces one recovery launch"),Recovery.IsRecovery());TestEqual(TEXT("first failure counted once"),Recovery.FailureCount(),1);
+    Recovery.End(true);SensorNativeSafety::FSessionGuard Retry(Path);TestTrue(TEXT("healthy recovery clears marker and permits retry"),Retry.Begin(Error));TestFalse(TEXT("retry is not permanently pinned to RHI"),Retry.IsRecovery());
+    Retry.End(false);FFileHelper::SaveStringToFile(TEXT("schema=2\npid=0\nstart=0\n"),*Path);
+    SensorNativeSafety::FSessionGuard Banned(Path);TestTrue(TEXT("second failure claimed"),Banned.Begin(Error));TestTrue(TEXT("two unclean exits disable this combination"),Banned.IsBanned());Banned.End(true);
+    SensorNativeSafety::FSessionGuard StillBanned(Path);TestTrue(TEXT("banned RHI run owns its own guard"),StillBanned.Begin(Error));TestTrue(TEXT("safe RHI run does not clear two-failure ban"),StillBanned.IsBanned());StillBanned.End(true);
+    SensorNativeSafety::FSessionGuard NewDriver(Path+TEXT("-driver2"));TestTrue(TEXT("different driver has independent state"),NewDriver.Begin(Error));TestFalse(TEXT("driver change clears combination-specific ban"),NewDriver.IsBanned());NewDriver.Validate();TestTrue(TEXT("successful oracle caches validation"),NewDriver.HasValidation());NewDriver.End(true);
+    SensorNativeSafety::FSessionGuard Cached(Path+TEXT("-driver2"));TestTrue(TEXT("validated combination reopens"),Cached.Begin(Error));TestTrue(TEXT("successful validation survives clean restart"),Cached.HasValidation());Cached.End(true);
+    IFileManager::Get().Delete(*Path,false,true);IFileManager::Get().Delete(*(Path+TEXT(".state")),false,true);IFileManager::Get().Delete(*(Path+TEXT("-driver2.state")),false,true);
+    FFileHelper::SaveStringToFile(TEXT("schema=1\npid=0\n"),*(Path+TEXT("-old")));
+    SensorNativeSafety::FSessionGuard Migrated(Path+TEXT("-new"),Path+TEXT("-old"));TestTrue(TEXT("legacy marker migrates without ignoring an old crash"),Migrated.Begin(Error));TestTrue(TEXT("legacy crash receives one safe RHI recovery"),Migrated.IsRecovery());Migrated.End(true);
+    SensorNativeSafety::FSessionGuard AfterMigration(Path+TEXT("-new"),Path+TEXT("-old"));TestTrue(TEXT("legacy recovery permits next retry"),AfterMigration.Begin(Error));TestFalse(TEXT("legacy crash is not counted twice"),AfterMigration.IsRecovery());AfterMigration.End(true);IFileManager::Get().Delete(*(Path+TEXT("-new.state")),false,true);
     return true;
+}
+class FWaitNativeStartupOracle final:public IAutomationLatentCommand
+{
+    FAutomationTestBase* Test;double Started=FPlatformTime::Seconds();
+    TSharedPtr<ISensorRtScan,ESPMode::ThreadSafe> ProductionScan;
+    uint64 NativeBefore=0;
+public:
+    explicit FWaitNativeStartupOracle(FAutomationTestBase* In):Test(In){}
+    bool Update() override
+    {
+        if(ProductionScan)
+        {
+            TArray<FSensorRtHit> Hits;FString Error;
+            if(!ProductionScan->Poll(Hits,Error)&&FPlatformTime::Seconds()-Started<10.)return false;
+            Test->TestTrue(TEXT("production acquisition completes after startup decision"),Error.IsEmpty()&&Hits.Num()==1);
+            if(Hits.Num()==1)Test->TestTrue(TEXT("fallback preserves exact production hit"),Hits[0].NormalAndDistance.W==10.f&&Hits[0].Mesh==0&&Hits[0].Surface==0);
+            const bool Mismatch=FParse::Param(FCommandLine::Get(),TEXT("SensorNativeOracleMismatch"));
+            const uint64 NativeAfter=SensorNativeRayTracing::GetStats().Dispatches;
+            Test->TestTrue(TEXT("mismatch actually dispatches through supported RHI, not native"),Mismatch?NativeAfter==NativeBefore:NativeAfter>NativeBefore);
+            if(Hits.Num())SensorOwnedRayTracing::RecycleHitArray(MoveTemp(Hits));ProductionScan.Reset();return true;
+        }
+        if(SensorNativeSafety::NeedsValidation()&&FPlatformTime::Seconds()-Started<7.)return false;
+        Test->TestFalse(TEXT("startup oracle has a bounded terminal state"),SensorNativeSafety::NeedsValidation());
+        const bool Mismatch=FParse::Param(FCommandLine::Get(),TEXT("SensorNativeOracleMismatch"));
+        Test->TestEqual(TEXT("oracle success enables native; injected mismatch retains supported RHI"),SensorOwnedRayTracing::UsesNativeBackend(),!Mismatch);
+        Test->TestTrue(TEXT("startup validation leaves device healthy"),SensorNativeRayTracing::IsHealthy());
+        FSensorRtRequest Request;auto Vertices=MakeShared<TArray<FVector3f>,ESPMode::ThreadSafe>();*Vertices={FVector3f(-4,-4,10),FVector3f(4,-4,10),FVector3f(0,4,10)};
+        auto Surfaces=MakeShared<TArray<FVector4f>,ESPMode::ThreadSafe>();Surfaces->Add(FVector4f(0,0,-1,0));
+        auto& Mesh=Request.Meshes.AddDefaulted_GetRef();Mesh.Revision=0xffff260000000010ull;Mesh.Vertices=Vertices;Mesh.NormalsAndSurfaces=Surfaces;
+        auto& Ray=Request.Rays.AddDefaulted_GetRef();Ray.Origin=FVector3f::ZeroVector;Ray.Direction=FVector3f(0,0,1);Ray.MaxDistance=100;
+        NativeBefore=SensorNativeRayTracing::GetStats().Dispatches;ProductionScan=SensorOwnedRayTracing::Submit(MoveTemp(Request));
+        Test->TestTrue(TEXT("unchanged production submission API accepts post-validation work"),ProductionScan.IsValid());return !ProductionScan;
+    }
+};
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorNativeStartupOracleTest,"HATCH26.StartupOracleRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSensorNativeStartupOracleTest::RunTest(const FString&)
+{
+    if(!SensorOwnedRayTracing::IsAvailable()||!SensorNativeRayTracing::IsSupported()){AddError(TEXT("actual D3D12 DXR Tier1.1 required"));return false;}
+    SensorNativeSafety::RequestValidationForTests();ADD_LATENT_AUTOMATION_COMMAND(FWaitNativeStartupOracle(this));return true;
 }
 #endif

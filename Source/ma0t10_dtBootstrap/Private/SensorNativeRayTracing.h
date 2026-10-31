@@ -15,6 +15,7 @@ namespace SensorNativeRayTracing
     };
     struct FStats { uint64 Dispatches=0,BlasBuilds=0,SceneBuilds=0,PacketCreates=0,PacketReuses=0,Bytes=0,PeakBytes=0,ValidationErrors=0; bool ValidationAvailable=false; uint64 BufferCreates=0,BufferReuses=0; };
     bool IsSupported();
+    bool IsHealthy();
     TSharedPtr<ITicket,ESPMode::ThreadSafe> Submit(const TArray<FSensorRtMesh>& Meshes,const TArray<TConstArrayView<FSensorRtRay>>& Parts,FString& Error,bool& BudgetLimited);
     FStats GetStats();
     void Shutdown();

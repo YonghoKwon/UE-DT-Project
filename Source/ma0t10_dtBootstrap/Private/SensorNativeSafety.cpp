@@ -3,62 +3,120 @@
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
 #include "Misc/Crc.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/ScopeLock.h"
+#include "Misc/SecureHash.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "RHI.h"
-#include <atomic>
+#if PLATFORM_WINDOWS
+#include "Windows/WindowsHWrapper.h"
+#endif
 
 namespace SensorNativeSafety
 {
 namespace
 {
-std::atomic<bool> Disabled{false},Warned{false};
+std::atomic<bool> Disabled{false},ValidationRequested{false},Unhealthy{false};
+FCriticalSection PolicyMutex;
+bool Prepared=false,Allowed=false;
+uint64 ProcessStamp(uint32 Pid,bool& Alive)
+{
+    Alive=false;
+#if PLATFORM_WINDOWS
+    HANDLE Process=::OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,0,Pid);
+    if(!Process){Alive=::GetLastError()==ERROR_ACCESS_DENIED;return 0;}
+    DWORD Exit=0;FILETIME Created={},Exited={},Kernel={},User={};
+    Alive=::GetExitCodeProcess(Process,&Exit)&&Exit==STILL_ACTIVE;
+    const bool HasTime=::GetProcessTimes(Process,&Created,&Exited,&Kernel,&User)!=0;
+    ::CloseHandle(Process);return HasTime?(uint64(Created.dwHighDateTime)<<32)|Created.dwLowDateTime:0;
+#else
+    auto Process=FPlatformProcess::OpenProcess(Pid);Alive=Process.IsValid()&&FPlatformProcess::IsProcRunning(Process);FPlatformProcess::CloseProc(Process);return 0;
+#endif
+}
 const FGPUDriverInfo& DriverInfo()
 {
-    // RHI captured these at device initialization. GetGPUDriverInfo itself reads
-    // game-thread-only CVars and must not run lazily from render-thread dispatch.
     static const FGPUDriverInfo Info=[](){FGPUDriverInfo I;I.VendorId=GRHIVendorId;I.DeviceDescription=GRHIAdapterName;I.UserDriverVersion=GRHIAdapterUserDriverVersion;return I;}();
     return Info;
 }
 const FString& MarkerPath()
 {
-    static const FString Path=FPaths::ProjectSavedDir()/TEXT("NativeLidarSafety")/FString::Printf(TEXT("active-%08x.guard"),FCrc::StrCrc32(*(DriverInfo().DeviceDescription+TEXT("|")+DriverInfo().UserDriverVersion)));
+    // Driver/model/vendor changes select an independent safety record.
+    static const FString Path=[](){const FString Identity=FString::Printf(TEXT("%x|%s|%s"),DriverInfo().VendorId,*DriverInfo().DeviceDescription,*DriverInfo().UserDriverVersion);FSHAHash Hash;FSHA1::HashBuffer(*Identity,Identity.Len()*sizeof(TCHAR),Hash.Hash);return FPaths::ProjectSavedDir()/TEXT("NativeLidarSafety")/(TEXT("active-")+Hash.ToString()+TEXT(".guard"));}();
     return Path;
 }
-FSessionGuard& Session(){static FSessionGuard Guard(MarkerPath());return Guard;}
+FSessionGuard& Session()
+{
+    static const FString Legacy=FPaths::ProjectSavedDir()/TEXT("NativeLidarSafety")/FString::Printf(TEXT("active-%08x.guard"),FCrc::StrCrc32(*(DriverInfo().DeviceDescription+TEXT("|")+DriverInfo().UserDriverVersion)));
+    static FSessionGuard Guard(MarkerPath(),Legacy);return Guard;
 }
-bool FSessionGuard::CanStartDefault() const{return Owned.load()||!IFileManager::Get().FileExists(*Path);}
+}
+void FSessionGuard::SaveState()
+{
+    // The live marker's exclusive writer serializes state changes across instances.
+    const FString State=FString::Printf(TEXT("failures=%d\nvalidated=%d\n"),Failures,Validated?1:0);
+    const FString Destination=Path+TEXT(".state"),Temporary=Destination+TEXT(".tmp");
+    if(!FFileHelper::SaveStringToFile(State,*Temporary,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)
+        ||!IFileManager::Get().Move(*Destination,*Temporary,true,true,false,true))
+        UE_LOG(LogTemp,Warning,TEXT("[SensorNativeSafety] validation cache write failed; next launch will revalidate"));
+}
+bool FSessionGuard::CanStartDefault() const{return Owned.load()?(!Recovery&&!IsBanned()):!IFileManager::Get().FileExists(*Path);}
 bool FSessionGuard::Begin(FString& Error)
 {
     if(Owned.load())return true;
     IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path),true);
+    if(!LegacyPath.IsEmpty()&&IFileManager::Get().FileExists(*LegacyPath))
+    {
+        FString Legacy;if(!FFileHelper::LoadFileToString(Legacy,*LegacyPath)){Error=TEXT("legacy guard cannot be read; RHI selected");return false;}
+        uint32 Pid=0;uint64 Stamp=0;FParse::Value(*Legacy,TEXT("pid="),Pid);FParse::Value(*Legacy,TEXT("start="),Stamp);
+        bool Alive=false;const uint64 Actual=ProcessStamp(Pid,Alive);
+        if(Alive&&(!Stamp||!Actual||Stamp==Actual)){Error=TEXT("live owner from earlier native version; RHI selected");return false;}
+        // Preserve an old unclean marker across the naming upgrade. A current
+        // marker already represents the combination and must not be counted twice.
+        const bool Migrated=IFileManager::Get().FileExists(*Path)?IFileManager::Get().Delete(*LegacyPath,false,true):IFileManager::Get().Move(*Path,*LegacyPath,false,false,false,true);
+        if(!Migrated){Error=TEXT("legacy guard is still locked; RHI selected");return false;}
+    }
+    FString State;FFileHelper::LoadFileToString(State,*(Path+TEXT(".state")));
+    FParse::Value(*State,TEXT("failures="),Failures);int32 Cache=0;FParse::Value(*State,TEXT("validated="),Cache);Validated=Cache==1;
+    if(IFileManager::Get().FileExists(*Path))
+    {
+        FString Prior;if(!FFileHelper::LoadFileToString(Prior,*Path)){Error=TEXT("unreadable/live safety marker; RHI selected");return false;}
+        uint32 Pid=0;uint64 Stamp=0;FParse::Value(*Prior,TEXT("pid="),Pid);FParse::Value(*Prior,TEXT("start="),Stamp);
+        bool Alive=false;const uint64 Actual=ProcessStamp(Pid,Alive);
+        if(Alive&&(!Stamp||!Actual||Stamp==Actual)){Error=TEXT("concurrent native safety owner is alive; RHI selected");return false;}
+        if(!IFileManager::Get().Delete(*Path,false,true)){Error=TEXT("stale marker is still locked; RHI selected");return false;}
+        Recovery=true;Failures=FMath::Min(2,Failures+1);Validated=false;
+    }
     Lease.Reset(IFileManager::Get().CreateFileWriter(*Path,FILEWRITE_NoReplaceExisting|FILEWRITE_AllowRead));
-    if(!Lease){Error=TEXT("native safety marker exists or cannot be created; RHI selected");return false;}
-    const FString Text=FString::Printf(TEXT("schema=1\npid=%u\n"),FPlatformProcess::GetCurrentProcessId());FTCHARToUTF8 Bytes(*Text);Lease->Serialize((void*)Bytes.Get(),Bytes.Length());Lease->Flush();
+    if(!Lease){Error=TEXT("concurrent safety owner won lease; RHI selected");return false;}
+    bool Alive=false;const uint64 Stamp=ProcessStamp(FPlatformProcess::GetCurrentProcessId(),Alive);
+    const FString Text=FString::Printf(TEXT("schema=2\npid=%u\nstart=%llu\nrecovery=%d\n"),FPlatformProcess::GetCurrentProcessId(),Stamp,Recovery?1:0);
+    FTCHARToUTF8 Bytes(*Text);Lease->Serialize((void*)Bytes.Get(),Bytes.Length());Lease->Flush();
     if(Lease->IsError()){Error=TEXT("native safety marker write failed; RHI selected");Lease.Reset();return false;}
-    Owned.store(true);return true;
+    Owned.store(true);SaveState();
+    if(Recovery)Error=FString::Printf(TEXT("previous unclean session: safe RHI recovery launch; failures=%d"),Failures);
+    return true;
 }
+void FSessionGuard::Validate(){if(Owned.load()&&!Recovery&&!IsBanned()){Validated=true;SaveState();}}
+void FSessionGuard::Invalidate(){if(Owned.load()){Validated=false;SaveState();}}
 void FSessionGuard::End(bool Healthy)
 {
     if(!Owned.load())return;
+    if(Healthy&&!Recovery&&Validated&&!IsBanned()){Failures=0;SaveState();}
     const bool Closed=!Lease||Lease->Close();Lease.Reset();
     if(Healthy&&Closed)IFileManager::Get().Delete(*Path,false,true);
     Owned.store(false);
 }
 bool IsValidatedConfiguration(uint32 VendorId,const FString& Adapter,const FString& Driver)
 {
-    // Defaults follow measured hardware only. Unknown/new drivers retain RHI;
-    // explicit -SensorRtNative remains the diagnostic entry on supported DXR.
     if(VendorId!=0x10de||!Adapter.Equals(TEXT("NVIDIA GeForce RTX 4070 Ti"),ESearchCase::IgnoreCase))return false;
     TArray<FString> Parts;Driver.ParseIntoArray(Parts,TEXT("."),false);
     return Parts.Num()==2&&Parts[0].IsNumeric()&&Parts[1].IsNumeric()&&FCString::Atoi(*Parts[0])==621&&FCString::Atoi(*Parts[1])==1;
 }
 bool IsProvenEngineDepthBarrier(uint32 MessageId,const FString& Description)
 {
-    // SDK D3D12_MESSAGE_ID_RESOURCE_BARRIER_BEFORE_AFTER_MISMATCH=527.
-    // Both owner names and the precise error are required. Native owns only
-    // buffers/AS and SensorOwnedLidarList, never the renderer's SceneDepthZ.
-    return MessageId==527
-        &&Description.Contains(TEXT("Using ResourceBarrier on Command List ("),ESearchCase::CaseSensitive)
+    return MessageId==527&&Description.Contains(TEXT("Using ResourceBarrier on Command List ("),ESearchCase::CaseSensitive)
         &&Description.Contains(TEXT(":'FD3D12CommandList (GPU 0)')"),ESearchCase::CaseSensitive)
         &&Description.Contains(TEXT(":'SceneDepthZ')"),ESearchCase::CaseSensitive)
         &&Description.Contains(TEXT("Before state ("),ESearchCase::CaseSensitive)
@@ -67,27 +125,42 @@ bool IsProvenEngineDepthBarrier(uint32 MessageId,const FString& Description)
 bool CanAttempt(bool Explicit)
 {
     if(Disabled.load())return false;
-    if(Explicit)return true;
-    static const bool Validated=IsValidatedConfiguration(DriverInfo().VendorId,DriverInfo().DeviceDescription,DriverInfo().UserDriverVersion);
-    if(!Validated)return false;
-    if(Session().IsOwned())return true;
-    static const bool CleanPrevious=Session().CanStartDefault();
-    if(!CleanPrevious&&!Warned.exchange(true))UE_LOG(LogTemp,Warning,TEXT("[SensorNativeSafety] previous unclean native session; supported RHI selected"));
-    return CleanPrevious;
+    FScopeLock Lock(&PolicyMutex);
+    if(!Prepared)
+    {
+        Prepared=true;FString Reason;
+        const bool KnownVendor=DriverInfo().VendorId==0x10de||DriverInfo().VendorId==0x1002||DriverInfo().VendorId==0x8086;
+        if(!KnownVendor||DriverInfo().UserDriverVersion.IsEmpty())Reason=TEXT("adapter/driver identity unavailable");
+        else if(Session().Begin(Reason)&&!Session().IsRecovery()&&!Session().IsBanned())
+        {
+            Allowed=Explicit||Session().HasValidation()||IsValidatedConfiguration(DriverInfo().VendorId,DriverInfo().DeviceDescription,DriverInfo().UserDriverVersion);
+#if !UE_BUILD_SHIPPING
+            if(FParse::Param(FCommandLine::Get(),TEXT("SensorNativeForceValidation")))Allowed=false;
+#endif
+            ValidationRequested.store(!Allowed);if(Allowed)Session().Validate();
+            Reason=Allowed?TEXT("validated native configuration"):TEXT("bounded native/RHI startup oracle pending; RHI until validated");
+        }
+        if(Reason.IsEmpty())Reason=Session().IsBanned()?TEXT("two unclean exits: this driver/adapter disabled until driver changes"):TEXT("safe RHI recovery launch");
+        UE_LOG(LogTemp,Display,TEXT("[SensorNativeSafety] adapter=%s driver=%s native=%d reason=%s"),*DriverInfo().DeviceDescription,*DriverInfo().UserDriverVersion,Allowed?1:0,*Reason);
+    }
+    return Allowed&&!Disabled.load();
 }
-bool BeginSession(FString& Error)
+bool NeedsValidation(){return ValidationRequested.load()&&!Disabled.load();}
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+void RequestValidationForTests(){CanAttempt(false);FScopeLock Lock(&PolicyMutex);Allowed=false;Disabled.store(false);ValidationRequested.store(true);}
+#endif
+void CompleteValidation(bool Passed,const FString& Reason)
 {
-    if(Session().IsOwned())return true;
-    if(!Session().Begin(Error))return false;
-    UE_LOG(LogTemp,Display,TEXT("[SensorNativeSafety] native session guarded; driver=%s adapter=%s"),*DriverInfo().UserDriverVersion,*DriverInfo().DeviceDescription);return true;
+    FScopeLock Lock(&PolicyMutex);ValidationRequested.store(false);Allowed=Passed&&!Disabled.load();
+    if(Allowed)Session().Validate();else {Session().Invalidate();Disabled.store(true);}
+    UE_LOG(LogTemp,Display,TEXT("[SensorNativeSafety] startup oracle %s; native=%d reason=%s"),Passed?TEXT("PASS"):TEXT("FAIL"),Allowed?1:0,*Reason);
 }
+bool BeginSession(FString& Error){return Session().IsOwned()||Session().Begin(Error);}
 void DisableForSession(const FString& Reason)
 {
-    if(!Disabled.exchange(true))UE_LOG(LogTemp,Warning,TEXT("[SensorNativeSafety] native disabled for this session: %s; future admissions use supported RHI"),*Reason);
+    Unhealthy.store(true);
+    Session().Invalidate();
+    if(!Disabled.exchange(true))UE_LOG(LogTemp,Warning,TEXT("[SensorNativeSafety] native disabled: %s; supported RHI on healthy device, safe recovery next launch after device loss"),*Reason);
 }
-void EndSession(bool Healthy)
-{
-    Session().End(Healthy&&!Disabled.load());
-    // Device removal/unclean exit leaves the marker for next-launch fallback.
-}
+void EndSession(bool Healthy){Session().End(Healthy&&!Unhealthy.load());}
 }

@@ -487,13 +487,15 @@ bool IsSupported()
     return Supported;
 }
 FStats GetStats(){return {Dispatches.load(),BlasBuilds.load(),SceneBuilds.load(),PacketCreates.load(),PacketReuses.load(),Bytes.load(),PeakBytes.load(),ValidationErrors.load(),ValidationAvailable.load(),BufferCreates.load(),BufferReuses.load()};}
-void Shutdown(){check(IsInRenderingThread());if(Backend){Backend->Drain();const bool Healthy=!Backend->Faulted&&SUCCEEDED(Backend->Device->GetDeviceRemovedReason());Backend.Reset();SensorNativeSafety::EndSession(Healthy);}}
+bool IsHealthy(){return !Backend||(!Backend->Faulted&&SUCCEEDED(Backend->Device->GetDeviceRemovedReason()));}
+void Shutdown(){check(IsInRenderingThread());if(Backend){Backend->Drain();Backend.Reset();}}
 }
 #else
 namespace SensorNativeRayTracing
 {
 TSharedPtr<ITicket,ESPMode::ThreadSafe> Submit(const TArray<FSensorRtMesh>&,const TArray<TConstArrayView<FSensorRtRay>>&,FString& Error,bool& BudgetLimited){BudgetLimited=false;Error=TEXT("native LiDAR requires Windows DXR");return {};}
 bool IsSupported(){return false;}
+bool IsHealthy(){return true;}
 FStats GetStats(){return {};}
 void Shutdown(){}
 }

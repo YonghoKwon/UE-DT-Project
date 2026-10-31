@@ -205,6 +205,7 @@ class FScan final : public ISensorRtScan, public TSharedFromThis<FScan,ESPMode::
 public:
     FSensorRtRequest Request;
     bool bAutomaticReadback=false,bBatchMember=false,bCounted=true;
+    bool bValidationRhi=false;
     TArray<TSharedPtr<FScan,ESPMode::ThreadSafe>> Members;
     int32 RayCount()const
     {int32 N=Request.Rays.Num();for(const auto& M:Members)N+=M->Request.Rays.Num();return N;}
@@ -297,13 +298,13 @@ public:
 #if RHI_RAYTRACING
         if(Cancelled.load()){Fail(TEXT("cancelled before GPU submission"));return;}
         if(!SensorOwnedRayTracing::IsAvailable()){Fail(TEXT("HWRT pipeline unavailable"));return;}
-        if(Reusable()&&SensorOwnedRayTracing::UsesNativeBackend())
+        if(!bValidationRhi&&Reusable()&&SensorOwnedRayTracing::UsesNativeBackend())
         {
             TArray<TConstArrayView<FSensorRtRay>> Parts;
             if(Members.IsEmpty())Parts.Add(Request.Rays);else for(const auto& M:Members)Parts.Add(M->Request.Rays);
             bool BudgetLimited=false;NativeTicket=SensorNativeRayTracing::Submit(Request.Meshes,Parts,Failure,BudgetLimited);
             if(NativeTicket)return;
-            if(!BudgetLimited){SensorNativeSafety::DisableForSession(Failure);Complete();return;}
+            if(!BudgetLimited){SensorNativeSafety::DisableForSession(Failure);if(!SensorNativeRayTracing::IsHealthy()){Complete();return;}}
             // No native work was submitted. Preserve the previous supported
             // geometry/ray limits via the safe engine path, never lower quality.
             ++RtSubmissionCounters.NativeFallbacks;Failure.Reset();
@@ -477,6 +478,61 @@ public:
 #endif
     }
 };
+
+#if RHI_RAYTRACING
+TSharedPtr<FScan,ESPMode::ThreadSafe> StartupRhi;
+TSharedPtr<SensorNativeRayTracing::ITicket,ESPMode::ThreadSafe> StartupNative;
+TArray<FSensorRtHit> StartupNativeHits;
+double StartupStarted=0;
+uint64 StartupErrors=0;
+bool StartupNativeReady=false;
+FString StartupError;
+void EndStartupValidation(bool Passed,const FString& Reason)
+{
+    SensorNativeSafety::CompleteValidation(Passed,Reason);
+    if(StartupRhi&&!StartupRhi->Finished.load())
+    {StartupRhi->Cancelled.store(true);RetiredScans.AddUnique(StartupRhi);}
+    StartupRhi.Reset();StartupNative.Reset();StartupNativeHits.Reset();
+    StartupStarted=0;StartupNativeReady=false;StartupError.Reset();
+}
+void TickStartupValidation(FRHICommandListImmediate& Cmd)
+{
+    if(!SensorNativeSafety::NeedsValidation())return;
+    if(StartupStarted==0)
+    {
+        StartupStarted=FPlatformTime::Seconds();StartupErrors=SensorNativeRayTracing::GetStats().ValidationErrors;
+        StartupRhi=MakeShared<FScan,ESPMode::ThreadSafe>();StartupRhi->bCounted=false;StartupRhi->bValidationRhi=true;
+        auto Vertices=MakeShared<TArray<FVector3f>,ESPMode::ThreadSafe>();
+        *Vertices={FVector3f(-4,-4,10),FVector3f(4,-4,10),FVector3f(0,4,10)};
+        auto Surfaces=MakeShared<TArray<FVector4f>,ESPMode::ThreadSafe>();Surfaces->Add(FVector4f(0,0,-1,0));
+        for(int32 I=0;I<2;++I){auto& Mesh=StartupRhi->Request.Meshes.AddDefaulted_GetRef();Mesh.Revision=0xffff260000000001ull+I;Mesh.Vertices=Vertices;Mesh.NormalsAndSurfaces=Surfaces;Mesh.LocalToWorld.SetTranslation(FVector(I*20,0,0));}
+        for(int32 I=0;I<16;++I){auto& Ray=StartupRhi->Request.Rays.AddDefaulted_GetRef();Ray.Origin=FVector3f(I%4==0?40:I%2?20:0,0,0);Ray.Direction=FVector3f(0,0,1);Ray.MaxDistance=I%3==0?5:100;}
+        TArray<TConstArrayView<FSensorRtRay>> Parts;Parts.Add(StartupRhi->Request.Rays);
+        bool BudgetLimited=false;StartupNative=SensorNativeRayTracing::Submit(StartupRhi->Request.Meshes,Parts,StartupError,BudgetLimited);
+        if(!StartupNative){EndStartupValidation(false,TEXT("native startup submission failed: ")+StartupError);return;}
+        StartupRhi->Dispatch(Cmd);return;
+    }
+    StartupRhi->PumpReadback();
+    if(!StartupNativeReady)StartupNativeReady=StartupNative->Poll(StartupNativeHits,StartupError,false);
+    if(StartupNativeReady&&StartupRhi->Finished.load())
+    {
+        const bool Same=StartupNativeHits.Num()==16&&StartupRhi->Hits.Num()==16&&FMemory::Memcmp(StartupNativeHits.GetData(),StartupRhi->Hits.GetData(),16*sizeof(FSensorRtHit))==0;
+        bool Expected=StartupNativeHits.Num()==16;
+        if(Expected)for(int32 I=0;I<16;++I)
+        {
+            const auto& Hit=StartupNativeHits[I];const bool HasHit=I%4!=0&&I%3!=0;
+            Expected&=HasHit?(Hit.Mesh==uint32(I%2?1:0)&&Hit.Triangle==0&&Hit.Surface==0&&Hit.NormalAndDistance.W==10.f):(Hit.Surface==MAX_uint32);
+        }
+        bool Passed=Same&&Expected&&StartupError.IsEmpty()&&StartupRhi->Failure.IsEmpty()&&SensorNativeRayTracing::IsHealthy()&&SensorNativeRayTracing::GetStats().ValidationErrors==StartupErrors;
+#if !UE_BUILD_SHIPPING
+        if(FParse::Param(FCommandLine::Get(),TEXT("SensorNativeOracleMismatch")))Passed=false;
+#endif
+        EndStartupValidation(Passed,Passed?TEXT("16 exact native/RHI hit records; no native validation/device errors"):TEXT("native/RHI startup oracle mismatch or native error; supported RHI retained"));return;
+    }
+    if(FPlatformTime::Seconds()-StartupStarted>=5.)EndStartupValidation(false,TEXT("5 second startup oracle deadline exceeded; supported RHI retained"));
+}
+#endif
+
 bool SameScene(const FSensorRtRequest& A,const FSensorRtRequest& B)
 {
     if(A.Meshes.Num()!=B.Meshes.Num())return false;
@@ -603,6 +659,9 @@ void SensorOwnedRayTracing::RegisterShaders()
     SubmitFrameHandle=FCoreDelegates::OnEndFrame.AddStatic(&FlushSubmissions);
     EndFrameHandle=FCoreDelegates::OnEndFrameRT.AddLambda([]()
     {
+        #if RHI_RAYTRACING
+        TickStartupValidation(FRHICommandListExecutor::GetImmediateCommandList());
+        #endif
         for(int I=PendingReadbacks.Num()-1;I>=0;--I)
         {
             PendingReadbacks[I]->PumpReadback();
@@ -621,7 +680,12 @@ void SensorOwnedRayTracing::Shutdown()
     {
         for(const auto& Scan:PendingReadbacks){Scan->Cancelled.store(true,std::memory_order_release);Scan->Request.OnReadback=nullptr;Scan->NativeTicket.Reset();}
         PendingReadbacks.Reset();RetiredScans.Reset();
+        const bool Healthy=SensorNativeRayTracing::IsHealthy();
+#if RHI_RAYTRACING
+        StartupNative.Reset();StartupRhi.Reset();
+#endif
         SensorNativeRayTracing::Shutdown();
+        SensorNativeSafety::EndSession(Healthy);
 #if RHI_RAYTRACING
         SceneCache.Reset();FreePackets.Reset();FreePacketBytes=0;BlasCache.Reset();
 #endif
