@@ -110,6 +110,29 @@ native `MA0T10.SensorV2.Runtime.ContinuousThreeStreamSmoke`는 전체 입력 1,3
 
 읽기 전용 확인에서 메인 `Saved/Config/WindowsEditor`의 `EditorPerProjectUserSettings.ini`, `Engine.ini`, `GameUserSettings.ini`, 새 crash 설정 및 `Saved/Logs/ma0t10_dt.log`의 갱신을 확인했다. 사전 메인 개인 설정 백업이 없어 이전 내용으로 복원했음을 보장할 수 없다. 이를 추정 덮어쓰기하지 않았다. 메인의 기존 Git 변경 파일 중 사고 시작 이후 갱신된 파일은 0개였지만, 이 시각 검사를 사전 전체 해시 증명으로 취급하지 않는다. `launch-incident.json`에 값/설정 원문 없이 경로·시각·제한을 기록했다.
 
-승인 worktree는 사전 개인 설정 파일 0개와 보호 파일 191개를 기록했고 검증 후 동일 해시/초기 부재를 복원했다. 기존 설정 시험이 자동 생성한 worktree `Config/Game.ini`는 증거 사본을 Saved에 보존한 뒤 초기 부재로 복원했으며 stage하지 않았다. DTCore 내부, SensorTransport 템플릿, PixelStreaming, Claude 문서, 운영맵/자산은 최종 불변이다. 전역 결과의 `personal_settings_restored`는 메인 사고의 미확인 상태 때문에 false로 보고한다.
+승인 worktree는 사전 개인 설정 파일 0개와 보호 파일 191개를 기록했고 검증 후 동일 해시/초기 부재를 복원했다. 기존 설정 시험이 자동 생성한 worktree `Config/Game.ini`는 증거 사본을 Saved에 보존한 뒤 초기 부재로 복원했으며 stage하지 않았다. DTCore 내부, SensorTransport 템플릿, PixelStreaming, Claude 문서, 운영맵/자산은 최종 불변이다. 2단계 결과의 `personal_settings_restored`는 당시 메인 사고의 미확인 상태 때문에 false로 보고했다.
 
-**현재는 native 실패와 보호 범위 사고를 보존하며 push/PR을 보류한다.** 사용자 지시의 “통과 시 push 후 PR” 조건을 충족하지 못했다. 실패 원인 분석 범위 또는 실패/복원 제한을 명시한 검토용 PR 생성 여부의 결정이 필요하다. 대용량 생성물 정리 후보는 `stage2/CLEANUP.md`에 있으며 삭제하지 않았다.
+**2단계 종료 시점에는 native 실패와 보호 범위 사고를 보존하며 push/PR을 보류했다.** 당시 사용자 지시의 “통과 시 push 후 PR” 조건을 충족하지 못했다. 후속 사용자 지시는 아래 3단계 비교 및 기존 동일 실패 판정 시 PR 생성을 승인했다. 대용량 생성물 정리 후보는 `stage2/CLEANUP.md`에 있으며 삭제하지 않았다.
+
+## 3단계 재현성·구버전 비교 판정 (2026-10-31)
+
+**판정: 이번 조건에서 기존(master) 동일 실패.** 각 버전에서 셰이더/DDC 준비용 15초 실행을 먼저 하고, 동일 native 시험을 새 버전 2회 → 구버전 2회 순서로 측정했다. 본 실행은 모두 D3D12, ProjectDefault RT, 실제 client 1920×1080, LiDAR 1대/0.1초, Camera preview, warmup 10초+측정 120초, 로컬 TCP receipt+echo다. 맵 payload와 native 시험의 해시는 네 실행에서 동일하다.
+
+| DTCore / 실행 | 입력 | 직렬화=제출=receipt | 평균 FPS | frame p95 ms | 결과 |
+|---|---:|---:|---:|---:|---|
+| bc60f05 / new-1 | 1300 | 1299 | 46.18 | 29.55 | 동일 6개 assertion 실패 |
+| bc60f05 / new-2 | 1300 | 1299 | 45.98 | 29.59 | 동일 6개 assertion 실패 |
+| b2504d1 / old-1 | 1299 | 1298 | 46.08 | 29.57 | 동일 6개 assertion 실패 |
+| b2504d1 / old-2 | 1300 | 1299 | 46.11 | 29.59 | 동일 6개 assertion 실패 |
+
+각 실행의 측정 ledger 1,200건은 모두 receipt/loopback이 있고, 재시도·과부하는 0이다. 종료 시점에 따른 전체 입력 수 차이는 있지만 부족분은 네 실행 모두 1건이다. 평균 FPS 중앙값은 새/구버전 46.080/46.095(-0.033%), p95 중앙값은 29.57/29.58ms(-0.034%)다. 네 본 실행의 정기 감시에서 GPU VideoDecode, 외부 Unreal, ShaderCompileWorker가 모두 0으로 관측됐다. 준비 후에도 재현됐으므로 최초 셰이더/DDC 준비만으로 설명되는 실패는 아니다. 이 순차 AABB 진단을 표준 출시 ABAB 2% gate 통과로 취급하지 않는다.
+
+구버전은 승인된 동일 worktree의 로컬 임시 브랜치 `tmp/dtcore-main-ab-20261031`, 커밋 `973f683`에서 실행했다. DTCore 소스를 편집하지 않고 b2504d1로 체크아웃했으며, 소비 측은 두 UI의 필드 이름과 SlabBroker의 구버전 friend 접근만 빌드 호환 상태로 돌렸다. 이 baseline의 Runtime 전체와 native 시험은 전환 기준 master `d8048bf`와 바이트 단위로 동일함을 확인했다. 임시 커밋은 최종 작업 브랜치에 합치거나 push하지 않는다.
+
+동일 누적 집계/종료 drain 및 절대 성능 실패는 이번 DTCore 전환 PR 범위 밖으로 기록한다. receipt timeout·통계·위젯 prune·설정 기본값에 새 원인 징후가 없어 프로젝트 Runtime·설정 대응을 추가하지 않았고 native 기대값도 변경하지 않았다. 실패의 상세 수정 또는 모든 환경에서의 무회귀를 증명한 것은 아니다. 원본 실패 report는 그대로 유지한다.
+
+비교 후 `chore/dtcore-main-switch`와 bc60f05로 복귀하고 Editor를 재빌드했다. 구버전 빌드 65.69초, 복귀 빌드 69.89초 모두 exit 0이다. 실행 전마다 `C:\Unreal Projects\wt_dtcore_main\ma0t10_dt.uproject`를 출력하고 절대경로를 검증했다. 이번 단계에서는 메인 프로젝트를 실행·수정하지 않았다.
+
+후속 사용자 통보에 따르면 Claude가 메인 `EditorPerProjectUserSettings.ini`, `Engine.ini` 두 파일을 **r21 백업으로 복원 완료**했다. 이는 복원 주체의 통보이며 Codex가 메인을 다시 실행하거나 파일을 재검증한 결과가 아니다. 이전 사고와 이 복원 사실을 모두 PR에 남긴다.
+
+증거는 `Saved/Reports/DTCORE-MAIN-SWITCH/stage3/comparison.json`, `classification.json`, `old-baseline-identity.json`, 각 실행의 `environment.jsonl`/`automation/index.json`, 빌드 로그 및 최종 `result.json`이다. 기존 동일 판정 후 push/PR은 후속 사용자 지시 범위에서 수행하며, native FAIL 및 일반 merge_check의 보호 gitlink 차단을 숨기지 않는다. 장시간 #26·표준 ABAB·직접 UI·회사 수용·PR merge는 별도다.
