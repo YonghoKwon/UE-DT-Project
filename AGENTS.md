@@ -1,6 +1,6 @@
 # 작업 지침 — UE-DT-Project
 
-기준: UE 5.3, 브랜치 `codex/architecture-skeleton`(분기 `fda25e0`), DTCore `b2504d1`, 2026-10-11. 작업 폴더는 `C:\Unreal Projects\ma0t10_dt` 하나다(`m7at10_dt`는 무관한 다른 프로젝트). 검증 범위와 제한은 README를 따른다.
+기준: UE 5.3, DTCore 브랜치 `main`·고정 `bc60f05`(전환 기준 parent `d8048bf`), 2026-10-31. 작업 폴더는 `C:\Unreal Projects\ma0t10_dt` 하나다(`m7at10_dt`는 무관한 다른 프로젝트). 검증 범위와 제한은 README를 따른다.
 이 파일은 작업 규칙이다. 제품 사용법이나 전체 로드맵의 구현 승인을 대신하지 않는다.
 
 **현재 단계: ARCH-01~04 → UXR-01~07 → ARCH-05~08.** 동작·계약을 바꾸지 않는 구조 정리와 사용자 흐름 중심 UI 재정비가 최우선이며, 이번 버전에서는 **센서 플러그인 제작을 시작하지 않는다**(§5). UXR은 기능·API·저장값·기본 정책을 바꾸지 않고 화면 위치·문구·노출 수준만 바꾼다(IMPROVEMENTS 0-U절의 공통 규칙과 용어표).
@@ -27,7 +27,7 @@
 - 시작 시 branch/HEAD/remote와 `git status`를 확인한다. 기존 변경은 보존한다.
 - 명시적 요청 없이 **DTCore 소스 및 parent gitlink**, `Config/Game.ini`, 운영맵의 사용자 변경, `Samples/PixelStreaming`을 수정하거나 stage하지 않는다.
 - **PixelStreaming은 필요한 기능이다(사용자 결정 2026-10-12).** `ma0t10_dt.Build.cs`의 PixelStreaming 모듈 의존, `.uproject` 플러그인 활성화, `Samples/PixelStreaming`을 C++ 사용처가 없다는 이유로 제거·비활성화하지 않는다.
-- 커밋 전 `Scripts/validate_dtcore_submodule_guard.ps1`로 gitlink가 고정값(`b2504d1`)인지, DTCore staged/worktree 변경이 없는지 확인한다(ARCH-01에서 기대값을 현재 고정값으로 맞춘다).
+- 커밋 전 `Scripts/validate_dtcore_submodule_guard.ps1`로 gitlink가 고정값(`bc60f05`)인지, DTCore staged/worktree 변경이 없는지 확인한다(ARCH-01에서 기대값을 현재 고정값으로 맞춘다).
 - DTCore는 여러 소비 프로젝트가 사용하는 별도 저장소다. 명시적으로 승인된 동기화 안정화 작업에서는 plugin/parent를 각각 검증·커밋하고 검증한 gitlink만 고정한다. 그 외 작업은 프로젝트 측 adapter를 우선하며 공통 변경이 필수이면 근거·대안을 먼저 제시한다. 자동 submodule update/reset은 하지 않는다.
 - `SensorTestManaged` 없는 Actor/Mesh는 이동·삭제하지 않는다. 명시적으로 배치된 `ASlabActor`의 소유 Mesh 생성은 가능하지만 임의 맵에 Slab·조명·카메라를 자동 배치하는 권한은 아니다.
 - `Binaries`, `Intermediate`, `Saved`, `.vs`, 캐시·패키징 결과·실험 PNG/JSON/log는 커밋하지 않는다.

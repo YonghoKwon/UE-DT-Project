@@ -81,7 +81,7 @@ class FUxrCaptureCommand final:public IAutomationLatentCommand
         TArray64<uint8> Png;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,Png);
         Test->TestTrue(TEXT("Capture PNG saved"),FFileHelper::SaveArrayToFile(Png,*(Root/(Name+TEXT(".png")))));
         auto Meta=MakeShared<FJsonObject>();FString Commit;FParse::Value(FCommandLine::Get(),TEXT("UxrSourceCommit="),Commit);
-        Meta->SetStringField(TEXT("commit"),Commit);Meta->SetStringField(TEXT("dtcore"),TEXT("b2504d1dfea5659f832ff0d750515edee146a28e"));
+        Meta->SetStringField(TEXT("commit"),Commit);Meta->SetStringField(TEXT("dtcore"),TEXT("bc60f05e2d1e64f4ffe1410cf3239fe24cb4d4c9"));
         Meta->SetStringField(TEXT("scene"),Scene);Meta->SetStringField(TEXT("map"),Hatch?TEXT("ShipHatchTestMap"):TEXT("CoilLoadingTestMap"));
         Meta->SetStringField(TEXT("rhi"),GDynamicRHI?GDynamicRHI->GetName():TEXT("None"));
         Meta->SetBoolField(TEXT("render_offscreen"),FParse::Param(FCommandLine::Get(),TEXT("RenderOffscreen")));

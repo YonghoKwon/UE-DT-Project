@@ -33,7 +33,7 @@ bool UCoilLoadingMonitor::DataExpanded() const{return DataRows&&DataRows->IsVisi
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void UCoilLoadingMonitor::NativeOnInitialized()
 {
-    Super::NativeOnInitialized();bPresistent=true;
+    Super::NativeOnInitialized();bPersistent=true;
     auto* Root=WidgetTree->ConstructWidget<UCanvasPanel>();WidgetTree->RootWidget=Root;Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     for(int I=0;I<4;++I){auto* B=WidgetTree->ConstructWidget<UBorder>();B->SetBrush(*Style::PanelBrush());B->SetBrushColor(FLinearColor(.012,.018,.022,1));B->SetVisibility(ESlateVisibility::HitTestInvisible);auto* MaskSlot=Root->AddChildToCanvas(B);MaskSlot->SetZOrder(-1);SceneMasks.Add(MaskSlot);}
     auto* SceneInput=WidgetTree->ConstructWidget<UBorder>();SceneInput->SetBrushColor(FLinearColor::Transparent);SceneInputSlot=Root->AddChildToCanvas(SceneInput);

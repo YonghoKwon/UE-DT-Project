@@ -6,7 +6,6 @@
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "EngineUtils.h"
-#include "IStompClient.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 
 // 실제 Broker에서 보낸 전문만 기다린다. EnqueueWebSocketData 직접 주입은 하지 않는다.
@@ -41,7 +40,9 @@ public:
         auto* WS=W->GetGameInstance()->GetSubsystem<UDxWebSocketSubsystem>();
         if(!bReady)
         {
-            if(!WS->bConnectedBroadcast || WS->PendingSubscribeCount != 0)return false;
+            if(WS->GetConnectionState()!=EDxWebSocketConnectionState::Ready)return false;
+            Test->TestEqual(TEXT("ready batch has no failed subscriptions"),WS->GetLastSubscribeFailureCount(),0);
+            Test->TestEqual(TEXT("successful connection resets reconnect attempts"),WS->GetReconnectAttemptCount(),0);
             Slab->SetSensorOutputs(FVirtualSlabSensorOutputSelection::ObservationOnly());
             bReady=true;UE_LOG(LogTemp,Display,TEXT("DTCORE_SLAB_BROKER_READY topic.scenario"));
         }
@@ -49,9 +50,9 @@ public:
         const auto S=Slab->GetSimulationStatus();
         Test->TestEqual(TEXT("real Broker MESSAGE reached TC/DataSync/Slab"),S.MtlNo,FString(TEXT("SQ83521 047")));
         Test->TestTrue(TEXT("scenario frame advances independently of sensor frames"),S.FrameNo>=4);
-        Test->TestTrue(TEXT("real transport remains connected"),WS->StompClient.IsValid() && WS->StompClient->IsConnected());
+        Test->TestTrue(TEXT("real transport remains connected"),WS->GetConnectionState()==EDxWebSocketConnectionState::Ready);
         Slab->StopSimulation();WS->DisconnectStompClient({});
-        Test->TestFalse(TEXT("manual disconnect clears transport readiness"),WS->bWantsConnection);
+        Test->TestEqual(TEXT("manual disconnect clears transport readiness"),WS->GetConnectionState(),EDxWebSocketConnectionState::Disconnected);
         UE_LOG(LogTemp,Display,TEXT("DTCORE_SLAB_BROKER_PASS frame=%lld"),S.FrameNo);
         return true;
     }

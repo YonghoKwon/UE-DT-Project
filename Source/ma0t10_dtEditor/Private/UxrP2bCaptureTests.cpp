@@ -69,7 +69,7 @@ class FP2bCapture final:public IAutomationLatentCommand
         TArray64<uint8> Png;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,Png);Test->TestTrue(TEXT("PNG saved"),FFileHelper::SaveArrayToFile(Png,*(Root/(Name+TEXT(".png")))));
         auto Meta=MakeShared<FJsonObject>();FString Commit;FParse::Value(FCommandLine::Get(),TEXT("UxrSourceCommit="),Commit);Meta->SetStringField(TEXT("commit"),Commit);
         Meta->SetStringField(TEXT("scene"),Scene);Meta->SetStringField(TEXT("map"),Hatch?TEXT("ShipHatchTestMap"):TEXT("CoilLoadingTestMap"));Meta->SetStringField(TEXT("rhi"),GDynamicRHI->GetName());
-        Meta->SetStringField(TEXT("dtcore"),TEXT("b2504d1dfea5659f832ff0d750515edee146a28e"));Meta->SetNumberField(TEXT("settle_min_seconds"),2);Meta->SetBoolField(TEXT("capture_has_no_submit_or_file_save_calls"),true);
+        Meta->SetStringField(TEXT("dtcore"),TEXT("bc60f05e2d1e64f4ffe1410cf3239fe24cb4d4c9"));Meta->SetNumberField(TEXT("settle_min_seconds"),2);Meta->SetBoolField(TEXT("capture_has_no_submit_or_file_save_calls"),true);
         Meta->SetNumberField(TEXT("client_width"),Size.X);Meta->SetNumberField(TEXT("client_height"),Size.Y);const auto Window=FSlateApplication::Get().FindWidgetWindow(View);
         Meta->SetNumberField(TEXT("window_dpi"),Window?Window->GetDPIScaleFactor():0);Meta->SetNumberField(TEXT("umg_scale"),UWidgetLayoutLibrary::GetViewportScale(&M));
         Meta->SetNumberField(TEXT("font_percent"),100*(Hatch?CastChecked<UShipHatchMonitorWidget>(&M)->GetFontScale():CastChecked<UCoilLoadingMonitor>(&M)->FontScale()));
