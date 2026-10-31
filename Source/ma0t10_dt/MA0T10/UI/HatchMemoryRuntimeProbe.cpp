@@ -1,4 +1,5 @@
 #include "HatchMemoryRuntimeProbe.h"
+#include "Widgets/SWindow.h"
 #include "LidarMapMemoryRuntimeProbe.h"
 #include "HatchMemoryExperimentDiagnostics.h"
 #include "MA0T10MemoryTags.h"
@@ -195,6 +196,7 @@ class FHatchMemoryRuntimeProbe final : public FTickableGameObject
         R->SetStringField(TEXT("allocator"),GMalloc->GetDescriptiveName());
         if(Host.IsValid()&&Host->Monitor)R->SetNumberField(TEXT("font_percent"),Host->Monitor->GetFontScale()*100);
         if(World.IsValid())R->SetNumberField(TEXT("umg_viewport_scale"),UWidgetLayoutLibrary::GetViewportScale(World.Get()));
+        if(World.IsValid())if(auto* V=World->GetGameViewport())if(auto Window=V->GetWindow())R->SetNumberField(TEXT("native_dpi_scale"),Window->GetDPIScaleFactor());
         R->SetStringField(TEXT("configuration"),
 #if UE_BUILD_SHIPPING
             TEXT("Shipping")

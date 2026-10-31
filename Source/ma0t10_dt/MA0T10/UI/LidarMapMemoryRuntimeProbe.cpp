@@ -1,4 +1,5 @@
 #include "LidarMapMemoryRuntimeProbe.h"
+#include "Widgets/SWindow.h"
 #include "SensorOwnedRayTracing.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
@@ -119,7 +120,7 @@ public:
                 TEXT("Development")
 #endif
             );
-            bool Valid=false;if(auto* V=World->GetGameViewport();V&&V->Viewport){const auto Size=V->Viewport->GetSizeXY();R->SetNumberField(TEXT("viewport_x"),Size.X);R->SetNumberField(TEXT("viewport_y"),Size.Y);Valid=Size==FIntPoint(1920,1080);}
+            bool Valid=false;if(auto* V=World->GetGameViewport();V&&V->Viewport){const auto Size=V->Viewport->GetSizeXY();R->SetNumberField(TEXT("viewport_x"),Size.X);R->SetNumberField(TEXT("viewport_y"),Size.Y);if(auto Window=V->GetWindow())R->SetNumberField(TEXT("native_dpi_scale"),Window->GetDPIScaleFactor());Valid=Size==FIntPoint(1920,1080);}
             if(!Valid||!Write(R)){Finish(false,TEXT("map metadata/viewport failed"));return;}Started=Now;
         }
         Next=Now+5;Sample(Now);if(Now-Started>=Seconds)Finish(true,TEXT("finished"));

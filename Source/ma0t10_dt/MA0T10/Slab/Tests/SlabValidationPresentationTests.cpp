@@ -13,6 +13,7 @@ bool FSlabValidationDisabledTest::RunTest(const FString&)
     TestFalse(TEXT("disabled zero is not presented as success count"),USlabRunResultsSubsystem::Describe(R).Contains(TEXT("검증(기록 시점) 0")));
     TSharedPtr<FJsonObject> Json;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(USlabRunResultsSubsystem::SerializeSummary(R)),Json);
     TestTrue(TEXT("disabled report count is null, never a numeric zero"),Json.IsValid()&&Json->HasTypedField<EJson::Null>(TEXT("consumerValidated")));
+    TestTrue(TEXT("disabled validation has no fabricated snapshot time"),Json.IsValid()&&Json->HasTypedField<EJson::Null>(TEXT("consumerSnapshotUtc")));
     FSlabRunComparison C;C.A=R;C.B=R;C.B.bConsumerValidationEnabled=true;C.B.ConsumerValidated=12;
     const FString Comparison=DescribeRunComparison(C);TestTrue(TEXT("mixed comparison shows disabled status"),Comparison.Contains(Off));
     TestFalse(TEXT("mixed comparison does not subtract unlike observation states"),Comparison.Contains(TEXT("자체 검증 A/B")));

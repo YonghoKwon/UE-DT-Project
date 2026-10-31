@@ -14,6 +14,42 @@
 #include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Widgets/SWindow.h"
+#include "UObject/StrongObjectPtr.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "Misc/FileHelper.h"
+#include "HAL/FileManager.h"
+#include "Json.h"
+
+class FSlabValidationManualWindow final:public IAutomationLatentCommand
+{
+    TStrongObjectPtr<UVirtualSensorCaptureExportPanelWidget> Panel;
+    TWeakObjectPtr<UVirtualSensorToolWorkspaceSubsystem> Workspace;
+    TSharedRef<SWindow> Window;TSharedRef<bool> Closed;
+    double Deadline;bool Recorded=false;
+public:
+    FSlabValidationManualWindow(UVirtualSensorCaptureExportPanelWidget* P,UVirtualSensorToolWorkspaceSubsystem* W,TSharedRef<SWindow> InWindow,TSharedRef<bool> InClosed,double Seconds)
+        :Panel(P),Workspace(W),Window(InWindow),Closed(InClosed),Deadline(FPlatformTime::Seconds()+Seconds){}
+    bool Update() override
+    {
+        if(!Recorded)
+        {
+            Recorded=true;FString Directory;
+            if(FParse::Value(FCommandLine::Get(),TEXT("SlabValidationManualReport="),Directory))
+            {
+                auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("scope"),TEXT("Synthetic local Slab results: A observation off, B explicitly on; no network/production acceptance"));
+                O->SetNumberField(TEXT("window_dpi_scale"),Window->GetDPIScaleFactor());
+                const FVector2D Size(Window->GetClientSizeInScreen());O->SetNumberField(TEXT("client_screen_x"),Size.X);O->SetNumberField(TEXT("client_screen_y"),Size.Y);
+                FString Json;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&Json));IFileManager::Get().MakeDirectory(*Directory,true);FFileHelper::SaveStringToFile(Json,*(Directory/TEXT("slab-ui-fixture.json")));
+            }
+        }
+        if(!*Closed&&FPlatformTime::Seconds()<Deadline)return false;
+        if(!*Closed)FSlateApplication::Get().RequestDestroyWindow(Window);
+        if(Workspace.IsValid())Workspace->UnregisterPanel(Panel.Get());return true;
+    }
+};
 
 namespace
 {
@@ -71,6 +107,8 @@ bool FSlabRunComparisonUiTest::RunTest(const FString&)
     auto* Workspace=W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();Workspace->RegisterOwnedPanel(ESensorToolPanelRole::Data,Panel);
     Panel->OpenOwnedTab(ESensorOwnedDataTab::Results);Panel->RefreshRunResults();
     TestTrue(TEXT("UXR03 result tab preserves A/B selection"),Panel->OwnedRunComparisonText.Contains(TEXT("A: A"))&&Panel->OwnedRunComparisonText.Contains(TEXT("B: B")));
+    TestTrue(TEXT("owned results explicitly show disabled self-validation"),Panel->OwnedRunResultsText.Contains(TEXT("자체 검증 꺼짐(외부 수신기 검증 사용)")));
+    TestTrue(TEXT("owned comparison explicitly shows disabled self-validation"),Panel->OwnedRunComparisonText.Contains(TEXT("자체 검증 꺼짐(외부 수신기 검증 사용)")));
     for(const TCHAR* Word:{TEXT("receipt"),TEXT("revision"),TEXT("snapshot"),TEXT("Topic"),TEXT("Raw TCP")})
         TestFalse(TEXT("UXR03 result display excludes diagnostic vocabulary"),Panel->OwnedRunResultsText.Contains(Word)||Panel->OwnedRunComparisonText.Contains(Word));
     auto* Sensor=W->SpawnActor<AVirtualLidarSensorActor>();const auto Pose=Sensor->GetActorTransform();const auto Frame=Sensor->GetSensorRuntimeStatus().FrameId;
@@ -84,7 +122,17 @@ bool FSlabRunComparisonUiTest::RunTest(const FString&)
     Results->Results.RemoveAt(0);Results->Changed();Panel->RefreshRunResults();
     TestTrue(TEXT("evicted comparison stops with explicit reason"),Panel->GetScenarioRunComparisonText().Contains(TEXT("보관 종료"))&&Panel->ComparisonRunA==TEXT("A"));
     Panel->ClearScenarioRunComparison();TestTrue(TEXT("clear does not select another run"),Panel->ComparisonRunA.IsEmpty()&&Panel->ComparisonRunB.IsEmpty());
-    Workspace->UnregisterPanel(Panel);Sensor->Destroy();return true;
+    Sensor->Destroy();
+    double ManualSeconds=0;
+    if(FParse::Value(FCommandLine::Get(),TEXT("SlabValidationManualSeconds="),ManualSeconds)&&ManualSeconds>0)
+    {
+        ManualSeconds=FMath::Min(ManualSeconds,600.);B.bConsumerValidationEnabled=true;B.ConsumerValidated=12;Results->Results={A,B};Results->Changed();
+        Panel->SelectScenarioComparisonRun(TEXT("A"),true,Reason);Panel->SelectScenarioComparisonRun(TEXT("B"),false,Reason);Panel->SelectScenarioRunResult(TEXT("A"));Panel->RefreshRunResults();
+        auto Closed=MakeShared<bool>(false);auto Window=SNew(SWindow).Title(FText::FromString(TEXT("Slab 검증 표시 · 합성 기록 A 꺼짐 / B 켜짐"))).ClientSize(FVector2D(1100,800))[Panel->TakeWidget()];
+        Window->SetOnWindowClosed(FOnWindowClosed::CreateLambda([Closed](const TSharedRef<SWindow>&){*Closed=true;}));FSlateApplication::Get().AddWindow(Window);
+        ADD_LATENT_AUTOMATION_COMMAND(FSlabValidationManualWindow(Panel,Workspace,Window,Closed,ManualSeconds));return true;
+    }
+    Workspace->UnregisterPanel(Panel);return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorPlacementIdentityUiTest,"MA0T10.Placement.ResetAndIdentityUi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

@@ -248,6 +248,7 @@ FString USlabRunResultsSubsystem::SerializeSummary(const FSlabRunDeliverySummary
     if(!S.bConsumerValidationEnabled)
     {
         Root->SetField(TEXT("consumerValidated"),MakeShared<FJsonValueNull>());Root->SetField(TEXT("consumerInvalid"),MakeShared<FJsonValueNull>());
+        Root->SetField(TEXT("consumerSnapshotUtc"),MakeShared<FJsonValueNull>());
         const TArray<TSharedPtr<FJsonValue>>* Details=nullptr;
         if(Root->TryGetArrayField(TEXT("streamDetails"),Details))for(const auto& Detail:*Details)if(const auto O=Detail->AsObject())
         {O->SetField(TEXT("consumerValidated"),MakeShared<FJsonValueNull>());O->SetField(TEXT("consumerInvalid"),MakeShared<FJsonValueNull>());O->SetField(TEXT("consumerValidatedHz"),MakeShared<FJsonValueNull>());O->SetBoolField(TEXT("bHasConsumerRate"),false);}

@@ -151,6 +151,7 @@ FString OwnedRunSummary(const FSlabRunDeliverySummary& Run)
     FString Text=FString::Printf(TEXT("%s · %.2f초\n실행 UUID: %s\n시나리오 UUID: %s\n요청 출력: %s\n적용 출력: %s"),*OwnedOutcome(Run.Outcome),Run.ElapsedSec,*Run.RunUUID,*Run.ScenarioUUID,
         *SensorToolUiText::OutputSummary(Run.Outputs.bPointCloud,Run.Outputs.bCameraImage,Run.Outputs.bLidarTelemetry),
         *SensorToolUiText::OutputSummary(Run.AppliedOutputs.bPointCloud,Run.AppliedOutputs.bCameraImage,Run.AppliedOutputs.bLidarTelemetry));
+    Text+=TEXT("\n")+USlabRunResultsSubsystem::DescribeConsumerValidation(Run);
     if(!Run.Reason.IsEmpty())Text+=TEXT("\n종료 사유: ")+SensorToolUiText::UserReason(Run.Reason);
     if(!Run.Warning.IsEmpty())Text+=TEXT("\n안내: ")+SensorToolUiText::UserReason(Run.Warning);
     Text+=TEXT("\n서버 수락은 외부 프로그램의 저장·처리 완료를 뜻하지 않습니다. 상세는 진단에서 확인하세요.");
@@ -160,6 +161,7 @@ FString OwnedComparison(const FSlabRunComparison& Comparison)
 {
     FString Text=SensorToolUiText::UserReason(Comparison.Status)+TEXT("\nA: ")+Comparison.A.RunUUID+TEXT("\nB: ")+Comparison.B.RunUUID;
     Text+=TEXT("\nA 결과: ")+OwnedOutcome(Comparison.A.Outcome)+TEXT(" · B 결과: ")+OwnedOutcome(Comparison.B.Outcome);
+    Text+=TEXT("\nA: ")+USlabRunResultsSubsystem::DescribeConsumerValidation(Comparison.A)+TEXT("\nB: ")+USlabRunResultsSubsystem::DescribeConsumerValidation(Comparison.B);
     Text+=FString::Printf(TEXT("\n실행 시간 A/B %.2f/%.2f초"),Comparison.A.ElapsedSec,Comparison.B.ElapsedSec);
     for(const auto& D:Comparison.ConditionDifferences)Text+=TEXT("\n조건 차이: ")+SensorToolUiText::UserReason(D);
     for(const auto& D:Comparison.UnknownConditions)Text+=TEXT("\n")+SensorToolUiText::UserReason(D);
@@ -210,7 +212,7 @@ void UVirtualSensorCaptureExportPanelWidget::RefreshRunResults()
 		auto Time=[](const FDateTime& T){return T.GetTicks()>0?T.ToIso8601():FString(TEXT("—"));};
 		RunResultsText+=TEXT("\n준비 UTC: ")+Time(R.PreparedUtc)+TEXT("\n시작 UTC: ")+Time(R.StartedUtc)+TEXT("\n중단/종료 UTC: ")+Time(R.StoppedUtc)+TEXT(" / ")+Time(R.FinishedUtc);
 		const auto& S=R.TerminalSnapshot;
-		RunResultsText+=FString::Printf(TEXT("\n종료 snapshot UTC: %s\n측정/출력 준비/socket 대기/기록 중/receipt 대기: %lld/%lld/%lld/%lld/%lld\n자체 검증 집계 UTC: %s"),*Time(S.CapturedUtc),S.PendingAcquisitions,S.PendingOutputPreparation,S.QueuedForSocket,S.SocketWritesInFlight,S.AwaitingBrokerReceipt,*Time(R.ConsumerSnapshotUtc));
+		RunResultsText+=FString::Printf(TEXT("\n종료 snapshot UTC: %s\n측정/출력 준비/socket 대기/기록 중/receipt 대기: %lld/%lld/%lld/%lld/%lld\n자체 검증 집계 UTC: %s"),*Time(S.CapturedUtc),S.PendingAcquisitions,S.PendingOutputPreparation,S.QueuedForSocket,S.SocketWritesInFlight,S.AwaitingBrokerReceipt,*(R.bConsumerValidationEnabled?Time(R.ConsumerSnapshotUtc):FString(TEXT("\u2014"))));
         }
 		bSelectedRunReportSaved=!R.ReportPath.IsEmpty()&&IFileManager::Get().FileExists(*R.ReportPath);
 	}
