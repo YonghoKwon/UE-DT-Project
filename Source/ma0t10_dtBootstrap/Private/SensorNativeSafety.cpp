@@ -55,7 +55,7 @@ FSessionGuard& Session()
 void FSessionGuard::SaveState()
 {
     // The live marker's exclusive writer serializes state changes across instances.
-    const FString State=FString::Printf(TEXT("failures=%d\nvalidated=%d\n"),Failures,Validated?1:0);
+    const FString State=FString::Printf(TEXT("failures=%d\nvalidated=%d\nreason=%s\n"),Failures,Validated?1:0,*LastDecision);
     const FString Destination=Path+TEXT(".state"),Temporary=Destination+TEXT(".tmp");
     if(!FFileHelper::SaveStringToFile(State,*Temporary,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)
         ||!IFileManager::Get().Move(*Destination,*Temporary,true,true,false,true))
@@ -100,6 +100,7 @@ bool FSessionGuard::Begin(FString& Error)
 }
 void FSessionGuard::Validate(){if(Owned.load()&&!Recovery&&!IsBanned()){Validated=true;SaveState();}}
 void FSessionGuard::Invalidate(){if(Owned.load()){Validated=false;SaveState();}}
+void FSessionGuard::RecordDecision(const FString& Reason){if(Owned.load()){LastDecision=Reason;SaveState();}}
 void FSessionGuard::End(bool Healthy)
 {
     if(!Owned.load())return;
@@ -141,6 +142,9 @@ bool CanAttempt(bool Explicit)
             Reason=Allowed?TEXT("validated native configuration"):TEXT("bounded native/RHI startup oracle pending; RHI until validated");
         }
         if(Reason.IsEmpty())Reason=Session().IsBanned()?TEXT("two unclean exits: this driver/adapter disabled until driver changes"):TEXT("safe RHI recovery launch");
+        // Shipping compiles UE_LOG out; retain the same bounded decision in the
+        // per-combination state file without enabling global Shipping logging.
+        Session().RecordDecision(Reason);
         UE_LOG(LogTemp,Display,TEXT("[SensorNativeSafety] adapter=%s driver=%s native=%d reason=%s"),*DriverInfo().DeviceDescription,*DriverInfo().UserDriverVersion,Allowed?1:0,*Reason);
     }
     return Allowed&&!Disabled.load();
@@ -153,6 +157,7 @@ void CompleteValidation(bool Passed,const FString& Reason)
 {
     FScopeLock Lock(&PolicyMutex);ValidationRequested.store(false);Allowed=Passed&&!Disabled.load();
     if(Allowed)Session().Validate();else {Session().Invalidate();Disabled.store(true);}
+    Session().RecordDecision(Reason);
     UE_LOG(LogTemp,Display,TEXT("[SensorNativeSafety] startup oracle %s; native=%d reason=%s"),Passed?TEXT("PASS"):TEXT("FAIL"),Allowed?1:0,*Reason);
 }
 bool BeginSession(FString& Error){return Session().IsOwned()||Session().Begin(Error);}
@@ -160,6 +165,7 @@ void DisableForSession(const FString& Reason)
 {
     Unhealthy.store(true);
     Session().Invalidate();
+    Session().RecordDecision(Reason);
     if(!Disabled.exchange(true))UE_LOG(LogTemp,Warning,TEXT("[SensorNativeSafety] native disabled: %s; supported RHI on healthy device, safe recovery next launch after device loss"),*Reason);
 }
 void EndSession(bool Healthy){Session().End(Healthy&&!Unhealthy.load());}
