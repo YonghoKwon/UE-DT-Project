@@ -81,6 +81,8 @@ struct MA0T10_DT_API FSlabRunDeliverySummary
     UPROPERTY(BlueprintReadOnly) FDateTime FinishedUtc;
     UPROPERTY(BlueprintReadOnly) FSlabRunTerminalSnapshot TerminalSnapshot;
     UPROPERTY(BlueprintReadOnly) FDateTime ConsumerSnapshotUtc;
+    /** Snapshot of explicit diagnostic observation, never inferred from a zero count. */
+    UPROPERTY(BlueprintReadOnly) bool bConsumerValidationEnabled=false;
     UPROPERTY(BlueprintReadOnly) int64 LastSlabFrame=-1;
     UPROPERTY(BlueprintReadOnly) double ElapsedSec=0;
     UPROPERTY(BlueprintReadOnly) int64 Acquired=0;

@@ -51,6 +51,7 @@ public:
     UFUNCTION(BlueprintCallable,Category="Slab|Results") bool RetryRunReportSave(const FString& Run,FString& Reason);
     UFUNCTION(BlueprintPure,Category="Slab|Results") int64 GetResultsRevision() const { return ResultsRevision; }
     static FString Describe(const FSlabRunDeliverySummary& Result);
+    static FString DescribeConsumerValidation(const FSlabRunDeliverySummary& Result);
     static FString DescribeStreamDetails(const FSlabRunDeliverySummary& Result);
     UPROPERTY(BlueprintAssignable) FSlabRunResultsChanged OnResultsChanged;
 private:
@@ -78,6 +79,7 @@ private:
     static FString SerializeSummary(const FSlabRunDeliverySummary& Summary);
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FSlabRunLedgerTest;
+    friend class FSlabValidationDisabledTest;
     friend class FSlabRunHistoryTest;
     friend class FSlabRunPlacementSnapshotTest;
     friend class FSlabRunComparisonUiTest;

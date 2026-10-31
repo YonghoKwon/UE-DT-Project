@@ -1409,6 +1409,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorRawRunRetentionTest,"MA0T10.SlabReliabil
 bool FSensorRawRunRetentionTest::RunTest(const FString&)
 {
 	FVirtualSensorHighThroughputProfile Profile;FVirtualSensorHighThroughputTransportWorker Worker{Profile,FString()};
+	// This test exercises diagnostic self-consumption explicitly; publishing alone keeps it off.
+	Worker.ReceiveSelection=FVirtualSensorReceiveSelection{};
 	FVirtualSensorStompFrame Message;Message.Command=TEXT("MESSAGE");Message.Body={0xff,0xd8,0xff,0xd9};
 	Message.Headers.Add(TEXT("schema"),TEXT("virtual-camera.jpeg.v1"));Message.Headers.Add(TEXT("sensor-id"),TEXT("retention-camera"));Message.Headers.Add(TEXT("frame-id"),TEXT("1"));
 	FVirtualSensorBinaryFrame Binary;Binary.SensorId=TEXT("retention-camera");Binary.StreamKind=EVirtualSensorStreamKind::CameraImage;Binary.FrameId=1;Binary.Body32=MakeShared<const TArray<uint8>,ESPMode::ThreadSafe>(Message.Body);

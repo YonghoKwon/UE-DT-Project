@@ -192,6 +192,7 @@ public:
 	TArray<FVirtualSensorStreamTelemetry> GetStreamTelemetry() const;
 	FVirtualPcdBandwidthSample GetRecentPcdBandwidth(const FString& SensorId, double Now) const;
 	void ConfigureReceiver(const FVirtualSensorReceiveSelection& Selection);
+	bool IsDiagnosticReceiverEnabled() const { return ReceiverSelection.bEnabled; }
 	FVirtualSensorReceiveEvent OnReceived;
 	FVirtualSensorTransportObservationEvent OnTransportObservation;
 	int64 GetDroppedReceiveEvents() const;
