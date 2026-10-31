@@ -18,10 +18,13 @@ class MA0T10_DT_API USlabRunResultsSubsystem : public UTickableWorldSubsystem
 {
     GENERATED_BODY()
 public:
+#if !UE_BUILD_SHIPPING || WITH_DEV_AUTOMATION_TESTS
+    FVirtualSensorResourceSnapshot GetMemoryDiagnosticSnapshot() const;
+#endif
 #if WITH_DEV_AUTOMATION_TESTS
     struct FFrameAudit { FString Key,RequestId;uint8 Flags=0; };
     TArray<FFrameAudit> GetRunFrameAuditForTesting(const FString& Run) const;
-    FVirtualSensorResourceSnapshot GetResourceSnapshotForTesting() const;
+    FVirtualSensorResourceSnapshot GetResourceSnapshotForTesting() const { return GetMemoryDiagnosticSnapshot(); }
 #endif
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
     virtual void Deinitialize() override;

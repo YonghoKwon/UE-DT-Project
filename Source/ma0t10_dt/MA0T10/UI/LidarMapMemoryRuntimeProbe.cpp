@@ -17,6 +17,7 @@
 #include "UObject/UObjectArray.h"
 #include "UnrealClient.h"
 #include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
@@ -32,6 +33,10 @@ class FLidarMapMemoryProbe final:public FTickableGameObject
     double Created=FPlatformTime::Seconds(),Ready=0,Started=0,Next=0,Seconds=3600,PreviousCost=0,MaxCost=0,TotalCost=0;
     int32 Samples=0,ExpectedSensors=-1;
     bool Off=false,ForceHardware=false,Configured=false,Finished=false,Failed=false;
+#if !UE_BUILD_SHIPPING
+    bool CommitDiagnostics=false;
+    int32 DiagnosticReports=0;
+#endif
     bool Write(const TSharedRef<FJsonObject>& Row)
     {
         if(!File)return false;FString Text;FJsonSerializer::Serialize(Row,TJsonWriterFactory<TCHAR,TCondensedJsonPrintPolicy<TCHAR>>::Create(&Text));Text+=TEXT("\n");
@@ -60,6 +65,28 @@ class FLidarMapMemoryProbe final:public FTickableGameObject
 #endif
         auto Tags=MakeShared<FJsonObject>();for(const TCHAR* Tag:{TEXT("RHIMisc"),TEXT("Untracked"),TEXT("FMallocUnused"),TEXT("ThreadStack"),TEXT("Total")})if(const auto* Value=DefaultTags.Find(FName(Tag)))Tags->SetNumberField(Tag,double(*Value));R->SetObjectField(TEXT("llm_default"),Tags);
         auto Platform=MakeShared<FJsonObject>();for(const TCHAR* Tag:{TEXT("FMalloc"),TEXT("PlatformUntracked"),TEXT("ThreadStackPlatform"),TEXT("GraphicsPlatform")})if(const auto* Value=PlatformTags.Find(FName(Tag)))Platform->SetNumberField(Tag,double(*Value));R->SetObjectField(TEXT("llm_platform"),Platform);
+#if !UE_BUILD_SHIPPING
+        if(CommitDiagnostics)
+        {
+            auto All=MakeShared<FJsonObject>();for(const auto& P:DefaultTags)All->SetNumberField(P.Key.ToString(),double(P.Value));R->SetObjectField(TEXT("llm_default_all"),All);
+            auto AllPlatform=MakeShared<FJsonObject>();for(const auto& P:PlatformTags)AllPlatform->SetNumberField(P.Key.ToString(),double(P.Value));R->SetObjectField(TEXT("llm_platform_all"),AllPlatform);
+            if(auto* Results=World->GetSubsystem<USlabRunResultsSubsystem>())
+            {
+                const auto Snapshot=Results->GetMemoryDiagnosticSnapshot();auto Counts=MakeShared<FJsonObject>();auto Bytes=MakeShared<FJsonObject>();
+                for(const auto& P:Snapshot.Counts)Counts->SetNumberField(P.Key,double(P.Value));for(const auto& P:Snapshot.OwnedCpuBytes)Bytes->SetNumberField(P.Key,double(P.Value));
+                R->SetObjectField(TEXT("slab_result_counts"),Counts);R->SetObjectField(TEXT("slab_result_owned_bytes"),Bytes);
+            }
+            // These explicitly requested diagnostics perturb GC/render pacing and never qualify as a performance gate.
+            const double At=Now-Started;const double ReportAt=DiagnosticReports==0?300.0:1200.0;
+            if(DiagnosticReports<2&&At>=ReportAt&&GEngine)
+            {
+                R->SetNumberField(TEXT("full_memreport_requested_at_seconds"),At);
+                GEngine->Exec(World.Get(),TEXT("rhi.DumpMemory"));
+                GEngine->Exec(World.Get(),TEXT("memreport -full"));
+                ++DiagnosticReports;
+            }
+        }
+#endif
         auto Sensors=MakeShared<FJsonObject>();int32 Count=0;
         for(TActorIterator<AVirtualLidarSensorActor> I(World.Get());I;++I)
         {
@@ -80,11 +107,16 @@ public:
         FParse::Value(FCommandLine::Get(),TEXT("LidarMapMemorySeconds="),Seconds);FParse::Value(FCommandLine::Get(),TEXT("LidarMapMemoryCancel="),CancelFile);
 #if !UE_BUILD_SHIPPING
         Off=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryAllOff"));
+        CommitDiagnostics=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryCommitDiagnostics"));
 #endif
         #if !UE_BUILD_SHIPPING
         ForceHardware=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryHardware"));
 #endif
-        Failed=(Seconds!=30&&Seconds!=3600)||(Off&&ForceHardware);IFileManager::Get().MakeDirectory(*Directory,true);const FString Path=Directory/TEXT("memory-trend.jsonl");if(IFileManager::Get().FileExists(*Path))Failed=true;else File.Reset(IFileManager::Get().CreateFileWriter(*Path,FILEWRITE_AllowRead));if(!File)Failed=true;
+        bool DiagnosticDuration=false;
+#if !UE_BUILD_SHIPPING
+        DiagnosticDuration=CommitDiagnostics&&(Seconds==900||Seconds==1200||Seconds==1800);
+#endif
+        Failed=(Seconds!=30&&Seconds!=3600&&!DiagnosticDuration)||(Off&&ForceHardware);IFileManager::Get().MakeDirectory(*Directory,true);const FString Path=Directory/TEXT("memory-trend.jsonl");if(IFileManager::Get().FileExists(*Path))Failed=true;else File.Reset(IFileManager::Get().CreateFileWriter(*Path,FILEWRITE_AllowRead));if(!File)Failed=true;
     }
     TStatId GetStatId()const override{RETURN_QUICK_DECLARE_CYCLE_STAT(FLidarMapMemoryProbe,STATGROUP_Tickables);}
     void Tick(float)override
@@ -111,6 +143,11 @@ public:
         {
             auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("type"),TEXT("metadata"));R->SetStringField(TEXT("map"),World->GetMapName());R->SetBoolField(TEXT("all_lidar_off"),Off);R->SetStringField(TEXT("scope"),TEXT("Default map devices/settings/output retained; explicit all-off prevents hatch LiDAR creation. Diagnostic sampler only; no map/save write."));R->SetNumberField(TEXT("requested_seconds"),Seconds);R->SetNumberField(TEXT("interval_seconds"),5);
             R->SetBoolField(TEXT("diagnostic_force_hardware"),ForceHardware);
+#if !UE_BUILD_SHIPPING
+            R->SetBoolField(TEXT("commit_diagnostics"),CommitDiagnostics);
+            R->SetBoolField(TEXT("asset_llm_tags_compiled"),LLM_ALLOW_ASSETS_TAGS!=0);
+            if(CommitDiagnostics)R->SetStringField(TEXT("diagnostic_perturbation"),TEXT("Full memreport/GC and RHI dumps requested at5/20min; attribution only, never acceptance/performance evidence"));
+#endif
             R->SetStringField(TEXT("started_utc"),(FDateTime::UtcNow()-FTimespan::FromSeconds(FPlatformTime::Seconds()-Now)).ToIso8601());
             if(ForceHardware)R->SetStringField(TEXT("scope"),TEXT("Explicit diagnostic hardware backend through Actor API after map initialization; profile/quality/output retained; no map/save write, no product default change."));
             R->SetStringField(TEXT("configuration"),

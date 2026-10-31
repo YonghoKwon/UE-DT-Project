@@ -36,16 +36,19 @@ void USlabRunResultsSubsystem::Tick(float)
 }
 TStatId USlabRunResultsSubsystem::GetStatId() const {RETURN_QUICK_DECLARE_CYCLE_STAT(USlabRunResultsSubsystem,STATGROUP_Tickables);}
 void USlabRunResultsSubsystem::Changed(bool Broadcast){++ResultsRevision;if(Broadcast&&!bEnding)OnResultsChanged.Broadcast();}
-#if WITH_DEV_AUTOMATION_TESTS
-FVirtualSensorResourceSnapshot USlabRunResultsSubsystem::GetResourceSnapshotForTesting() const
+#if !UE_BUILD_SHIPPING || WITH_DEV_AUTOMATION_TESTS
+FVirtualSensorResourceSnapshot USlabRunResultsSubsystem::GetMemoryDiagnosticSnapshot() const
 {
     FVirtualSensorResourceSnapshot S;S.Owner=TEXT("slab-results");
     int64 Strings=0;for(const auto& P:Requests)Strings+=P.Key.GetAllocatedSize()+P.Value.RequestId.GetAllocatedSize();
     S.Counts={{TEXT("results"),Results.Num()},{TEXT("requests"),Requests.Num()},{TEXT("writers"),Writes.Num()},
-        {TEXT("observation_delegate"),ObservationHandle.IsValid()},{TEXT("receive_delegate"),ReceiveHandle.IsValid()}};
+        {TEXT("observation_delegate"),ObservationHandle.IsValid()},{TEXT("receive_delegate"),ReceiveHandle.IsValid()},
+        {TEXT("active_run"),!ActiveRun.IsEmpty()},{TEXT("writing_runs"),WritingRuns.Num()}};
     S.OwnedCpuBytes.Add(TEXT("ledger_strings"),Strings);S.OwnedCpuBytes.Add(TEXT("ledger_container"),Requests.GetAllocatedSize());
     S.OwnedCpuBytes.Add(TEXT("result_container"),Results.GetAllocatedSize());return S;
 }
+#endif
+#if WITH_DEV_AUTOMATION_TESTS
 TArray<USlabRunResultsSubsystem::FFrameAudit> USlabRunResultsSubsystem::GetRunFrameAuditForTesting(const FString& Run) const
 {
     TArray<FFrameAudit> Audit;if(Run==ActiveRun){Audit.Reserve(Requests.Num());for(const auto& P:Requests)if(P.Value.Flags&LedgerAccepted)Audit.Add({P.Key,P.Value.RequestId,P.Value.Flags});}return Audit;
