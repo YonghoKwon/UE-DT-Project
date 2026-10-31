@@ -126,6 +126,7 @@ bool FSlabRunComparisonUiTest::RunTest(const FString&)
     double ManualSeconds=0;
     if(FParse::Value(FCommandLine::Get(),TEXT("SlabValidationManualSeconds="),ManualSeconds)&&ManualSeconds>0)
     {
+        if(!Panel->Initialize()){AddError(TEXT("manual fixture widget initialization failed"));Workspace->UnregisterPanel(Panel);return false;}
         ManualSeconds=FMath::Min(ManualSeconds,600.);B.bConsumerValidationEnabled=true;B.ConsumerValidated=12;Results->Results={A,B};Results->Changed();
         Panel->SelectScenarioComparisonRun(TEXT("A"),true,Reason);Panel->SelectScenarioComparisonRun(TEXT("B"),false,Reason);Panel->SelectScenarioRunResult(TEXT("A"));Panel->RefreshRunResults();
         auto Closed=MakeShared<bool>(false);auto Window=SNew(SWindow).Title(FText::FromString(TEXT("Slab 검증 표시 · 합성 기록 A 꺼짐 / B 켜짐"))).ClientSize(FVector2D(1100,800))[Panel->TakeWidget()];
