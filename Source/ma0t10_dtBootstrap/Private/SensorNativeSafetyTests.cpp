@@ -49,6 +49,40 @@ bool FSensorNativeSafetyPolicyTest::RunTest(const FString&)
     SensorNativeSafety::FSessionGuard AfterMigration(Path+TEXT("-new"),Path+TEXT("-old"));TestTrue(TEXT("legacy recovery permits next retry"),AfterMigration.Begin(Error));TestFalse(TEXT("legacy crash is not counted twice"),AfterMigration.IsRecovery());AfterMigration.End(true);IFileManager::Get().Delete(*(Path+TEXT("-new.state")),false,true);
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorNativeSoftDisableTest,"HATCH26.NativeSoftDisable",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FSensorNativeSoftDisableTest::RunTest(const FString&)
+{
+    const FString Path=FPaths::ProjectSavedDir()/TEXT("Reports/LIDAR-MEMORY-26-FINAL/safety-tests")/(FGuid::NewGuid().ToString()+TEXT(".guard"));
+    FString Error;
+    SensorNativeSafety::FSessionGuard Soft(Path);
+    TestTrue(TEXT("soft-disable fixture begins"),Soft.Begin(Error));Soft.Validate();
+    Soft.DisableForSession(true,TEXT("healthy-device native submission failed"));
+    TestFalse(TEXT("soft disable invalidates cached oracle"),Soft.HasValidation());
+    TestTrue(TEXT("soft disable requires next-launch oracle even for recorded adapters"),Soft.RequiresValidation());
+    Soft.End(true);
+    TestFalse(TEXT("orderly healthy-device exit removes marker"),IFileManager::Get().FileExists(*Path));
+    SensorNativeSafety::FSessionGuard Next(Path);
+    TestTrue(TEXT("next session begins"),Next.Begin(Error));
+    TestFalse(TEXT("soft disable is not an unclean-exit recovery"),Next.IsRecovery());
+    TestEqual(TEXT("soft disable does not increase failure count"),Next.FailureCount(),0);
+    TestTrue(TEXT("oracle invalidation persists through clean restart"),Next.RequiresValidation());
+    TestFalse(TEXT("invalidated cache stays invalid on restart"),Next.HasValidation());
+    Next.Validate();TestFalse(TEXT("successful oracle clears revalidation request"),Next.RequiresValidation());Next.End(true);
+    SensorNativeSafety::FSessionGuard Lost(Path);
+    TestTrue(TEXT("device-loss fixture begins"),Lost.Begin(Error));Lost.Validate();
+    Lost.DisableForSession(false,TEXT("device removed"));
+    Lost.DisableForSession(true,TEXT("later soft failure cannot clear device fault"));Lost.End(true);
+    TestTrue(TEXT("device fault retains marker despite orderly outer shutdown"),IFileManager::Get().FileExists(*Path));
+    // The same live test process owns the synthetic marker; replace only its
+    // PID with a dead-owner fixture to model the next process, not concurrency.
+    FFileHelper::SaveStringToFile(TEXT("schema=2\npid=0\nstart=0\n"),*Path);
+    SensorNativeSafety::FSessionGuard Recovery(Path);
+    TestTrue(TEXT("device-loss next process begins"),Recovery.Begin(Error));
+    TestTrue(TEXT("device loss requires safe RHI recovery"),Recovery.IsRecovery());
+    TestEqual(TEXT("device loss increments one failure"),Recovery.FailureCount(),1);Recovery.End(true);
+    IFileManager::Get().Delete(*Path,false,true);IFileManager::Get().Delete(*(Path+TEXT(".state")),false,true);
+    return true;
+}
 class FWaitNativeStartupOracle final:public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;double Started=FPlatformTime::Seconds();

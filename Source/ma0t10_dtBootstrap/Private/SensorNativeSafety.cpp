@@ -1,4 +1,5 @@
 #include "SensorNativeSafety.h"
+#include "SensorNativeRayTracing.h"
 #include "GenericPlatform/GenericPlatformDriver.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
@@ -18,7 +19,7 @@ namespace SensorNativeSafety
 {
 namespace
 {
-std::atomic<bool> Disabled{false},ValidationRequested{false},Unhealthy{false};
+std::atomic<bool> Disabled{false},ValidationRequested{false};
 FCriticalSection PolicyMutex;
 bool Prepared=false,Allowed=false;
 uint64 ProcessStamp(uint32 Pid,bool& Alive)
@@ -55,7 +56,7 @@ FSessionGuard& Session()
 void FSessionGuard::SaveState()
 {
     // The live marker's exclusive writer serializes state changes across instances.
-    const FString State=FString::Printf(TEXT("failures=%d\nvalidated=%d\nreason=%s\n"),Failures,Validated?1:0,*LastDecision);
+    const FString State=FString::Printf(TEXT("failures=%d\nvalidated=%d\nrevalidate=%d\nreason=%s\n"),Failures,Validated?1:0,RevalidationRequired?1:0,*LastDecision);
     const FString Destination=Path+TEXT(".state"),Temporary=Destination+TEXT(".tmp");
     if(!FFileHelper::SaveStringToFile(State,*Temporary,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)
         ||!IFileManager::Get().Move(*Destination,*Temporary,true,true,false,true))
@@ -79,6 +80,7 @@ bool FSessionGuard::Begin(FString& Error)
     }
     FString State;FFileHelper::LoadFileToString(State,*(Path+TEXT(".state")));
     FParse::Value(*State,TEXT("failures="),Failures);int32 Cache=0;FParse::Value(*State,TEXT("validated="),Cache);Validated=Cache==1;
+    int32 Revalidate=0;FParse::Value(*State,TEXT("revalidate="),Revalidate);RevalidationRequired=Revalidate==1;
     if(IFileManager::Get().FileExists(*Path))
     {
         FString Prior;if(!FFileHelper::LoadFileToString(Prior,*Path)){Error=TEXT("unreadable/live safety marker; RHI selected");return false;}
@@ -94,16 +96,24 @@ bool FSessionGuard::Begin(FString& Error)
     const FString Text=FString::Printf(TEXT("schema=2\npid=%u\nstart=%llu\nrecovery=%d\n"),FPlatformProcess::GetCurrentProcessId(),Stamp,Recovery?1:0);
     FTCHARToUTF8 Bytes(*Text);Lease->Serialize((void*)Bytes.Get(),Bytes.Length());Lease->Flush();
     if(Lease->IsError()){Error=TEXT("native safety marker write failed; RHI selected");Lease.Reset();return false;}
-    Owned.store(true);SaveState();
+    Unhealthy.store(false);Owned.store(true);SaveState();
     if(Recovery)Error=FString::Printf(TEXT("previous unclean session: safe RHI recovery launch; failures=%d"),Failures);
     return true;
 }
-void FSessionGuard::Validate(){if(Owned.load()&&!Recovery&&!IsBanned()){Validated=true;SaveState();}}
-void FSessionGuard::Invalidate(){if(Owned.load()){Validated=false;SaveState();}}
+void FSessionGuard::Validate(){if(Owned.load()&&!Recovery&&!IsBanned()){Validated=true;RevalidationRequired=false;SaveState();}}
+void FSessionGuard::Invalidate(){if(Owned.load()){Validated=false;RevalidationRequired=true;SaveState();}}
+void FSessionGuard::DisableForSession(bool DeviceHealthy,const FString& Reason)
+{
+    // A healthy-device submission failure is recoverable through RHI in this
+    // session. Only a device fault keeps an unclean marker after orderly exit.
+    if(!DeviceHealthy)Unhealthy.store(true);
+    Invalidate();RecordDecision(Reason);
+}
 void FSessionGuard::RecordDecision(const FString& Reason){if(Owned.load()){LastDecision=Reason;SaveState();}}
 void FSessionGuard::End(bool Healthy)
 {
     if(!Owned.load())return;
+    Healthy=Healthy&&!Unhealthy.load();
     if(Healthy&&!Recovery&&Validated&&!IsBanned()){Failures=0;SaveState();}
     const bool Closed=!Lease||Lease->Close();Lease.Reset();
     if(Healthy&&Closed)IFileManager::Get().Delete(*Path,false,true);
@@ -134,7 +144,7 @@ bool CanAttempt(bool Explicit)
         if(!KnownVendor||DriverInfo().UserDriverVersion.IsEmpty())Reason=TEXT("adapter/driver identity unavailable");
         else if(Session().Begin(Reason)&&!Session().IsRecovery()&&!Session().IsBanned())
         {
-            Allowed=Explicit||Session().HasValidation()||IsValidatedConfiguration(DriverInfo().VendorId,DriverInfo().DeviceDescription,DriverInfo().UserDriverVersion);
+            Allowed=Explicit||Session().HasValidation()||(!Session().RequiresValidation()&&IsValidatedConfiguration(DriverInfo().VendorId,DriverInfo().DeviceDescription,DriverInfo().UserDriverVersion));
 #if !UE_BUILD_SHIPPING
             if(FParse::Param(FCommandLine::Get(),TEXT("SensorNativeForceValidation")))Allowed=false;
 #endif
@@ -163,10 +173,11 @@ void CompleteValidation(bool Passed,const FString& Reason)
 bool BeginSession(FString& Error){return Session().IsOwned()||Session().Begin(Error);}
 void DisableForSession(const FString& Reason)
 {
-    const bool WasUnhealthy=Unhealthy.exchange(true),FirstDisable=!Disabled.exchange(true);
+    const bool FirstDisable=!Disabled.exchange(true);
     FScopeLock Lock(&PolicyMutex);Allowed=false;ValidationRequested.store(false);
-    if(!WasUnhealthy){Session().Invalidate();Session().RecordDecision(Reason);}
+    const bool DeviceHealthy=SensorNativeRayTracing::IsHealthy();
+    if(FirstDisable||!DeviceHealthy)Session().DisableForSession(DeviceHealthy,Reason);
     if(FirstDisable)UE_LOG(LogTemp,Warning,TEXT("[SensorNativeSafety] native disabled: %s; supported RHI on healthy device, safe recovery next launch after device loss"),*Reason);
 }
-void EndSession(bool Healthy){Session().End(Healthy&&!Unhealthy.load());}
+void EndSession(bool Healthy){Session().End(Healthy);}
 }

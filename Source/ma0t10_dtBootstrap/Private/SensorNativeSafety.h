@@ -9,8 +9,8 @@ namespace SensorNativeSafety
         FString Path;
         FString LegacyPath;
         TUniquePtr<FArchive> Lease;
-        std::atomic<bool> Owned{false};
-        bool Recovery=false,Validated=false;
+        std::atomic<bool> Owned{false},Unhealthy{false};
+        bool Recovery=false,Validated=false,RevalidationRequired=false;
         FString LastDecision;
         int32 Failures=0;
         void SaveState();
@@ -24,8 +24,10 @@ namespace SensorNativeSafety
         bool IsBanned() const {return Failures>=2;}
         int32 FailureCount() const {return Failures;}
         bool HasValidation() const {return Validated&&!IsBanned();}
+        bool RequiresValidation() const {return RevalidationRequired;}
         void Validate();
         void Invalidate();
+        void DisableForSession(bool DeviceHealthy,const FString& Reason);
         void RecordDecision(const FString& Reason);
     };
     bool IsValidatedConfiguration(uint32 VendorId,const FString& Adapter,const FString& Driver);
