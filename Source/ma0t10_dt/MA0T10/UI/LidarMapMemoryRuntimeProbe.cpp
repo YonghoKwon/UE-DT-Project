@@ -1,4 +1,6 @@
 #include "LidarMapMemoryRuntimeProbe.h"
+#include "LidarMemoryAttributionProbe.h"
+#include "ProfilingDebugging/TraceAuxiliary.h"
 #include "Widgets/SWindow.h"
 #include "SensorOwnedRayTracing.h"
 #include "Engine/Engine.h"
@@ -36,6 +38,8 @@ class FLidarMapMemoryProbe final:public FTickableGameObject
 #if !UE_BUILD_SHIPPING
     bool CommitDiagnostics=false;
     int32 DiagnosticReports=0;
+    double NextAttributionSnapshot=0,FinishAfter=0;
+    bool AttributionTraceStopped=false;
 #endif
     bool Write(const TSharedRef<FJsonObject>& Row)
     {
@@ -45,6 +49,7 @@ class FLidarMapMemoryProbe final:public FTickableGameObject
     void Finish(bool Complete,const FString& Reason)
     {
         if(Finished)return;Finished=true;
+        LidarMemoryAttribution::End();
         auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("type"),TEXT("summary"));R->SetBoolField(TEXT("complete"),Complete&&!Failed);R->SetStringField(TEXT("reason"),Reason);
         R->SetNumberField(TEXT("measurement_seconds"),Started?FPlatformTime::Seconds()-Started:0);R->SetNumberField(TEXT("sample_count"),Samples);R->SetNumberField(TEXT("sampler_total_gt_ms"),TotalCost);R->SetNumberField(TEXT("sampler_max_gt_ms"),MaxCost);
         const bool Saved=Write(R);if(File){Failed=!File->Close()||Failed;File.Reset();}
@@ -77,8 +82,18 @@ class FLidarMapMemoryProbe final:public FTickableGameObject
                 R->SetObjectField(TEXT("slab_result_counts"),Counts);R->SetObjectField(TEXT("slab_result_owned_bytes"),Bytes);
             }
             // These explicitly requested diagnostics perturb GC/render pacing and never qualify as a performance gate.
-            const double At=Now-Started;const double ReportAt=DiagnosticReports==0?300.0:1200.0;
-            if(DiagnosticReports<2&&At>=ReportAt&&GEngine)
+            const double At=Now-Started;
+            if(LidarMemoryAttribution::IsEnabled()&&(At>=NextAttributionSnapshot||(At>=Seconds&&FinishAfter==0)))
+            {
+                LidarMemoryAttribution::Snapshot(World.Get(),At,R);NextAttributionSnapshot+=300;
+                if(GEngine){GEngine->Exec(World.Get(),TEXT("rhi.DumpMemory"));GEngine->Exec(World.Get(),TEXT("D3D12.DumpMemory"));}
+            }
+            const double LongReportTimes[]={600,3600,7200,10800};
+            const double HourReportTimes[]={600,1800,3600};
+            const bool Attribution=LidarMemoryAttribution::IsEnabled();
+            const int32 ReportCount=Attribution?(Seconds>=10800?4:3):2;
+            const double ReportAt=Attribution?(Seconds>=10800?LongReportTimes[FMath::Min(DiagnosticReports,3)]:HourReportTimes[FMath::Min(DiagnosticReports,2)]):(DiagnosticReports==0?300.0:1200.0);
+            if(DiagnosticReports<ReportCount&&At>=ReportAt&&GEngine)
             {
                 R->SetNumberField(TEXT("full_memreport_requested_at_seconds"),At);
                 GEngine->Exec(World.Get(),TEXT("rhi.DumpMemory"));
@@ -108,6 +123,7 @@ public:
 #if !UE_BUILD_SHIPPING
         Off=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryAllOff"));
         CommitDiagnostics=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryCommitDiagnostics"));
+        CommitDiagnostics|=LidarMemoryAttribution::IsEnabled();
 #endif
         #if !UE_BUILD_SHIPPING
         ForceHardware=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryHardware"));
@@ -115,6 +131,7 @@ public:
         bool DiagnosticDuration=false;
 #if !UE_BUILD_SHIPPING
         DiagnosticDuration=CommitDiagnostics&&(Seconds==900||Seconds==1200||Seconds==1800);
+        DiagnosticDuration|=LidarMemoryAttribution::IsEnabled()&&(Seconds==120||Seconds==10800);
 #endif
         Failed=(Seconds!=30&&Seconds!=3600&&!DiagnosticDuration)||(Off&&ForceHardware);IFileManager::Get().MakeDirectory(*Directory,true);const FString Path=Directory/TEXT("memory-trend.jsonl");if(IFileManager::Get().FileExists(*Path))Failed=true;else File.Reset(IFileManager::Get().CreateFileWriter(*Path,FILEWRITE_AllowRead));if(!File)Failed=true;
     }
@@ -147,6 +164,7 @@ public:
             R->SetBoolField(TEXT("commit_diagnostics"),CommitDiagnostics);
             R->SetBoolField(TEXT("asset_llm_tags_compiled"),LLM_ALLOW_ASSETS_TAGS!=0);
             if(CommitDiagnostics)R->SetStringField(TEXT("diagnostic_perturbation"),TEXT("Full memreport/GC and RHI dumps requested at5/20min; attribution only, never acceptance/performance evidence"));
+            if(LidarMemoryAttribution::IsEnabled())R->SetStringField(TEXT("diagnostic_perturbation"),TEXT("Read-only size snapshots/RHI dumps every5min; memreport-full10/60/120/180 for3h,10/30/60 for1h; final30s grace; diagnostics are not acceptance/performance evidence"));
 #endif
             R->SetStringField(TEXT("started_utc"),(FDateTime::UtcNow()-FTimespan::FromSeconds(FPlatformTime::Seconds()-Now)).ToIso8601());
             if(ForceHardware)R->SetStringField(TEXT("scope"),TEXT("Explicit diagnostic hardware backend through Actor API after map initialization; profile/quality/output retained; no map/save write, no product default change."));
@@ -158,9 +176,20 @@ public:
 #endif
             );
             bool Valid=false;if(auto* V=World->GetGameViewport();V&&V->Viewport){const auto Size=V->Viewport->GetSizeXY();R->SetNumberField(TEXT("viewport_x"),Size.X);R->SetNumberField(TEXT("viewport_y"),Size.Y);if(auto Window=V->GetWindow())R->SetNumberField(TEXT("native_dpi_scale"),Window->GetDPIScaleFactor());Valid=Size==FIntPoint(1920,1080);}
-            if(!Valid||!Write(R)){Finish(false,TEXT("map metadata/viewport failed"));return;}Started=Now;
+            if(!Valid||!Write(R)){Finish(false,TEXT("map metadata/viewport failed"));return;}Started=Now;LidarMemoryAttribution::Begin(World.Get());
         }
-        Next=Now+5;Sample(Now);if(Now-Started>=Seconds)Finish(true,TEXT("finished"));
+        Next=Now+5;Sample(Now);
+#if !UE_BUILD_SHIPPING
+        if(LidarMemoryAttribution::IsEnabled())
+        {
+            if(!AttributionTraceStopped&&IFileManager::Get().FileExists(*(Directory/TEXT("trace-stop.request"))))
+            {FTraceAuxiliary::Stop();AttributionTraceStopped=true;}
+            if(Now-Started>=Seconds&&FinishAfter==0)FinishAfter=Now+30;
+            if(FinishAfter>0&&Now>=FinishAfter)Finish(true,TEXT("finished attribution with final memreport grace"));
+            return;
+        }
+#endif
+        if(Now-Started>=Seconds)Finish(true,TEXT("finished"));
     }
 };
 TUniquePtr<FLidarMapMemoryProbe> LidarMapMemoryProbe;
