@@ -133,7 +133,8 @@ public:
         DiagnosticDuration=CommitDiagnostics&&(Seconds==900||Seconds==1200||Seconds==1800);
         DiagnosticDuration|=LidarMemoryAttribution::IsEnabled()&&(Seconds==120||Seconds==10800);
 #endif
-        Failed=(Seconds!=30&&Seconds!=3600&&!DiagnosticDuration)||(Off&&ForceHardware);IFileManager::Get().MakeDirectory(*Directory,true);const FString Path=Directory/TEXT("memory-trend.jsonl");if(IFileManager::Get().FileExists(*Path))Failed=true;else File.Reset(IFileManager::Get().CreateFileWriter(*Path,FILEWRITE_AllowRead));if(!File)Failed=true;
+        const bool FinalValidation=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryFinalValidation"));
+        Failed=(Seconds!=30&&Seconds!=3600&&!(FinalValidation&&Seconds==10800)&&!DiagnosticDuration)||(Off&&ForceHardware);IFileManager::Get().MakeDirectory(*Directory,true);const FString Path=Directory/TEXT("memory-trend.jsonl");if(IFileManager::Get().FileExists(*Path))Failed=true;else File.Reset(IFileManager::Get().CreateFileWriter(*Path,FILEWRITE_AllowRead));if(!File)Failed=true;
     }
     TStatId GetStatId()const override{RETURN_QUICK_DECLARE_CYCLE_STAT(FLidarMapMemoryProbe,STATGROUP_Tickables);}
     void Tick(float)override
