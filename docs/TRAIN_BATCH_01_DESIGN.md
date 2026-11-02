@@ -1,8 +1,8 @@
 # TRAIN-BATCH-01 — 학습 시나리오 배치 설계
 
-설계 기준: 2026-11-02, `feat/train-batch-01`, parent `23d143b53f4bbf85b10846a2b740903bb9649cd3`, DTCore `bc60f05` 고정. **구현 전 제안**이며 이번 변경은 문서뿐이다. 빌드·게임·Editor·GPU·화면·외부 프로그램/다운로드 검증은 수행하지 않았다.
+설계 기준: 2026-11-02(r41 사용자 결정 반영), `feat/train-batch-01`, parent `23d143b53f4bbf85b10846a2b740903bb9649cd3`, DTCore `bc60f05` 고정. **구현 전 제안**이며 이번 변경은 문서뿐이다. 빌드·게임·Editor·GPU·화면·외부 프로그램/다운로드 검증은 수행하지 않았다.
 
-사용자가 결정한 것은 독립 게임 워커 M개, ZIP / tar.gz / tar.zst, HTTP(S) 업로드, 학습 전용 목록과 선택 재생이다. 아래의 메시지 이름·상한·API·시간 정책은 구현을 위한 제안이며 서버/현장 수용 완료를 뜻하지 않는다. N개와 N초를 혼동하지 않도록 **K=시나리오 개수, Dᵢ=항목 길이(초), M=동시 워커 수**로 표기한다.
+사용자가 결정한 것은 독립 게임 워커 M개, 20Hz sampled_timeline, ZIP / tar.gz, Linux SFTP 업로드, 학습 전용 목록과 선택 재생이다. tar.zst는 보류하며 zstd 소스를 포함하지 않는다. 부분 실패는 기본 전송 거절, 실패 목록 확인 뒤 성공분만 보내기를 명시 선택할 때만 허용한다. 아래의 메시지 이름·상한·API·시간 정책은 구현을 위한 제안이며 서버/현장 수용 완료를 뜻하지 않는다. N개와 N초를 혼동하지 않도록 **K=시나리오 개수, Dᵢ=항목 길이(초), M=동시 워커 수**로 표기한다.
 
 ## 1. 기존 구현에서 재사용할 것과 새로 필요한 것
 
@@ -23,7 +23,7 @@
 
 ### 2.1 접수 경로
 
-권장 경로는 **별도 `topic.train.scenario` + `MESSAGE_ID=ITrain-agent-batch`**다. 기존 DTCore `UDxWebSocketSubsystem → UDxDataSubsystem → 프로젝트 TC`를 이용한다. 현재 DTCore는 WebSocket DataTable의 `TransactionCodeMessageClass`를 초기화 때 등록하고, background `ParseToStruct` 뒤 GT `ProcessStructData`를 호출한다. 새 프로젝트 TC/프로젝트 DataTable 행 및 명시적 학습 구독만 추가하는 방향이며 DTCore private map에 삽입하거나 별도 STOMP 수신 루프를 만들지 않는다. DataTable 등록·쿠킹과 기존 업무 구독 보존은 구현 단계 검증 항목이다.
+권장 경로는 **별도 `topic.train.scenario` + `MESSAGE_ID=ITrain-agent-batch`**다. 기존 DTCore `UDxWebSocketSubsystem → UDxDataSubsystem → 프로젝트 TC`를 이용한다. 현재 DTCore DataTable handler map은 초기화 뒤 불변이고 공개 동적 등록 API가 없다. 1A는 공개 `Subscribe` callback을 프로젝트 TC adapter에 연결해 background `ParseToStruct` → GT `ProcessStructData`를 수행한다. 기존 업무 구독/DataTable·private map은 건드리지 않고 별도 STOMP 연결을 만들지 않는다. 명시 활성화할 때만 학습 Topic을 구독하고 자기가 만든 구독만 해제한다. 자산 실행이 허용된 후 DataTable 행으로 옮기는 선택지는 별도 검토한다.
 
 `topic.scenario/IFactory-agent`는 일반 입력과 기존 TESTSET 트리거 의미를 그대로 유지한다. 학습 envelope를 그 경로에 보내면 기존 시나리오로 해석하지 않고 명확히 거절한다. 서버가 기존 Topic만 쓸 수 있다면 **서버 adapter에서 새 Topic으로 변환**하는 안을 우선 협의한다. 일반 메시지를 학습용으로 가로채는 변경은 이번 설계에 포함하지 않는다.
 
@@ -68,11 +68,11 @@ Job은 작은 manifest와 항목별 메시지로 나눠 받는다. K개 전체 J
 
 일반 시나리오가 UI 프로세스에서 시작되면 **새 학습 할당을 즉시 보류**하고 워커는 현재 캡처/쓰기 경계에서 pause ACK를 낸다. 공유 GPU도 경쟁하므로 필요하면 워커를 정상 종료하고 완료 항목 이후부터 재개한다. 일반 실행을 학습 완료까지 기다리게 하지 않는다. 준비/정리 지연과 순간 GPU 경쟁은 측정·보고한다. 기존 TESTSET의 `YieldToOrdinaryScenario`, 일반 시나리오·센서 상태 복원 규칙은 변경하지 않는다.
 
-### 2.3 D초의 의미 — 구현 전 확정할 핵심
+### 2.3 D초의 의미 — 사용자 확정
 
-권장 MVP는 기존 codec으로 `t=k/20`의 자세를 샘플링해 **D초 구간을 빠짐없이 저장하는 오프라인 시간축 생성**이다. 이때 `simulation_elapsed_s`, 원본 행 frame 번호, dataset 장면 번호, sensor FrameId/UTC를 분리한다. 출력상 20Hz 간격과 wall-clock 처리 20Hz는 다른 값이며 실제 처리량/지연을 별도로 표시한다. Engine world clock/Chaos/재질 시간까지 D초를 실시간 재현했다고 주장하지 않는다.
+사용자 승인 MVP는 기존 codec으로 `t=k/20`의 자세를 샘플링해 **D초 구간을 빠짐없이 저장하는 오프라인 시간축 생성**이다. 이때 `simulation_elapsed_s`, 원본 행 frame 번호, dataset 장면 번호, sensor FrameId/UTC를 분리한다. 출력상 20Hz 간격과 wall-clock 처리 20Hz는 다른 값이며 실제 처리량/지연을 별도로 표시한다. Engine world clock/Chaos/재질 시간까지 D초를 실시간 재현했다고 주장하지 않는다.
 
-현재 `FVirtualDatasetFramePlan`은 원본 행 선택+`BuildPose`이고 `PumpPlanned`는 pose 고정 캡처다. 따라서 `FSlabScenarioCodec::Sample` 기반 전체 시간축 planner, `USlabMotionComponent::CaptureSensorMotion`에 해당하는 속도/context 보존, 움직임 기반 IMU/라이다 fidelity의 정합 adapter가 필요하다. 지원을 확인하지 못한 옵션은 명시 거절하고 정적인 값으로 위장하지 않는다. **사용자가 물리/월드 시계까지 진행하는 D초 시뮬레이션을 원하면** 별도 `realtime_replay` 실행 adapter와 센서 동기·부하 시 gap 정책을 먼저 설계해야 한다. 시간 배속이나 `t.MaxFPS`로 이 차이를 숨기지 않는다.
+현재 `FVirtualDatasetFramePlan`은 원본 행 선택+`BuildPose`이고 `PumpPlanned`는 pose 고정 캡처다. 따라서 `FSlabScenarioCodec::Sample` 기반 전체 시간축 planner, `USlabMotionComponent::CaptureSensorMotion`에 해당하는 속도/context 보존, 움직임 기반 IMU/라이다 fidelity의 정합 adapter가 필요하다. 지원을 확인하지 못한 옵션은 명시 거절하고 정적인 값으로 위장하지 않는다. 실시간 물리/월드 시계 진행은 범위 밖이다. 1A에서는 운동 context 정합이 필요한 IMU/fidelity 옵션을 거절하고 정적인 결과로 위장하지 않는다.
 
 ## 3. 코디네이터와 M개 워커
 
@@ -86,7 +86,7 @@ flowchart LR
     WM -->|완료 marker와 heartbeat| Journal
     Journal --> Viewer[학습 목록과 저장 PCD 보기]
     Journal --> Archive[압축 worker]
-    Archive -->|사용자 전송 버튼| HTTP[HTTP 업로드]
+    Archive -->|사용자 전송 버튼| SFTP[Windows OpenSSH SFTP]
 ```
 
 ### 3.1 실행과 격리
@@ -156,10 +156,10 @@ Saved/TrainBatch/
       scene_00000/rgb.png, depth.exr, seg.png, instance.png  (선택 출력만)
       scenario-result.json, checksums.sha256, complete.json
     ipc/<WorkerId>/assignment.json, heartbeat.json, progress.json
-    artifacts/<JobId>.<zip|tar.gz|tar.zst>, artifact.json
+    artifacts/<JobId>.<zip|tar.gz>, artifact.json
     upload/state.json
   Workers/slot-01/UserDir/Saved/NativeLidarSafety/...
-  Settings/server.json, credentials.dat
+  Settings/sftp.json, known_hosts
 ```
 
 `ScenarioId`는 표시 이름과 분리된 안전한 로컬 ID로 매핑한다. archive에는 선택된 성공 attempt·원본 입력·설정/버전/provenance·결과·체크섬만 포함한다. 워커 IPC/로그·개인 SaveGame·credentials·다른 Job을 포함하지 않는다. PCD는 기존 33-byte little-endian, 점별 라벨은 별도 5-byte, 좌표계/immutable transform·FrameId·UTC 계약 불변이다. scenario-result에는 요청/완료/무효/gap 수, 시뮬레이션 길이·wall 시간, backend·fallback 수, 원본/출력 hash를 분리해 남긴다.
@@ -174,16 +174,13 @@ Saved/TrainBatch/
 |---|---|
 | ZIP | `Source/ThirdParty/libzip/libzip.Build.cs`, `1.9.2/include/libzip/zip.h`, Win64 x64 `Release/zip.lib` 존재. libzip은 OpenSSL/zlib 의존, BSD-3-Clause license 파일이 있다. **엔진 libzip 재사용 권장**. store(0)/deflate(1–9), 기본 deflate 3 제안. file-backed `zip_source_file`과 `zip_set_file_compression`, 취소 callback 사용. JPEG/이미 압축된 파일은 store 선택 가능하되 manifest에 실제 방법 기록. |
 | tar.gz | 엔진 `zlib/1.2.13/include/zlib.h`와 static lib/Build.cs 확인. 프로젝트의 작은 PAX tar streaming writer→zlib gzip wrapper(deflate `windowBits=15+16`), 기본 level 3. tar.gz는 ZIP 컨테이너가 아니며 파일명/크기/긴 UTF-8 경로는 PAX로 처리한다. gzip trailer ISIZE 32-bit 값만으로 총 크기를 판정하지 않는다. |
-| 엔진 zstd 탐색 | `Source/ThirdParty/Licenses/zstd_License.txt`, `vcpkg/zstd.tps`, Boost의 `iostreams/filter/zstd.hpp`는 존재한다. 조사한 Source/ThirdParty와 Plugins에서 연결 가능한 zstd C 구현·header/lib/Build.cs는 찾지 못했고 vcpkg 폴더는 구현 없이 메타데이터만 있다. 라이선스/Boost wrapper 존재만으로 tar.zst 지원 가능이라고 하지 않는다. |
-| 엔진 플러그인 활용 | 설치본에서 배포 가능한 공개 zstd provider를 확인하지 못했다. 사설 plugin/engine-private codec에 의존하면 cook/Shipping/업데이트 제약이 생기므로 비권장. engine 소스 추출·변경도 하지 않는다. |
-| 직접 포함 | **권장: 이후 승인된 구현 단계에 버전·SHA 고정 zstd 공식 소스의 최소 streaming compressor를 프로젝트 ThirdParty로 포함**, BSD license/고지 보존. 기본 level 3, UI 선택 1–9·window/workspace 상한을 제안한다. 같은 Runtime 모듈의 private wrapper와 압축 전용 translation unit로 빌드하고 새 UE 모듈은 만들지 않는다. C/C++ compilation·unity 충돌·예외/CRT·Shipping LTO·크기/CPU 영향은 구현 spike에서 검증한다. 엔진 license 파일은 원본 도입의 대체가 아니다. |
-| 외부 zstd/Python | 사용자 설치 도구를 별도 프로세스로 쓰면 공급/버전·경로·취소·배포 의존이 생긴다. 기존 EXPORT Python 의존과도 다르므로 기본 제품 해법으로 채택하지 않는다. Python zstandard는 독립 round-trip 검증 도구의 명시적 개발 의존으로만 제안한다. 이번 단계 설치/실행 없음. |
+| tar.zst | **사용자 결정: 보류(미지원)**. UI에서 숨기거나 보류라고 표시하고 설정/입력은 거절한다. 엔진에 license·vcpkg 메타데이터·Boost wrapper만 확인됐고 사용 가능한 구현/라이브러리는 찾지 못했다. zstd 소스 포함·설치·다운로드·외부 compressor 실행 없음. |
 
-ZIP/tar.gz는 기존 엔진 ThirdParty 모듈을 private dependency로 연결하는 작은 Build.cs 변경이 필요하다(현재 게임 모듈에 직접 libzip/zlib 의존 없음). zstd 도입 provenance/라이선스와 Win64 패키지 link가 확인되기 전에는 tar.zst를 완료로 표시하지 않는다. **세 형식 제공은 사용자 결정이므로 MVP 출하 gate에서 tar.zst를 조용히 빼지 않는다.** 의존성 도입 승인이 없으면 해당 gate를 보류한다.
+MVP 압축은 ZIP/tar.gz만이다. 기존 엔진 ThirdParty private dependency 연결은 압축 구현 단계(1C)에 수행하며 1A에는 추가하지 않는다. 서버 전송은 §6의 Windows 기본 OpenSSH를 사용한다.
 
 ### 4.2 대용량·취소
 
-archive 생성은 캡처와 분리된 background 작업 1개, 입력/출력 버퍼 각각 최대 1MiB와 코덱 workspace 상한으로 처리한다. 전체 파일/Job을 `TArray`/`BytesIO`에 올리지 않는다. 한 번에 연 파일 수도 제한하고 파일 목록은 disk manifest에서 읽는다. tar/zstd는 1 thread·bounded window를 기본으로 해 프레임 CPU와 경쟁을 제한한다. 모든 선택 항목의 생성 완료 뒤 **압축 버튼**으로 시작하며, 생성과 겹치는 정책은 2단계 성능 검증 뒤에만 연다.
+archive 생성은 캡처와 분리된 background 작업 1개, 입력/출력 버퍼 각각 최대 1MiB와 코덱 workspace 상한으로 처리한다. 전체 파일/Job을 `TArray`/`BytesIO`에 올리지 않는다. 한 번에 연 파일 수도 제한하고 파일 목록은 disk manifest에서 읽는다. tar/gzip은 bounded streaming으로 프레임 CPU와 경쟁을 제한한다. 모든 선택 항목의 생성 완료 뒤 **압축 버튼**으로 시작하며, 생성과 겹치는 정책은 2단계 성능 검증 뒤에만 연다.
 
 ZIP은 libzip의 64-bit API와 ZIP64 지원을 사용하고 **단일 파일/전체 archive 4GiB 초과, entry 65535 초과**를 실제 fixture로 검사한다. 압축 가능한 sparse 4GiB 파일만 통과시키지 말고 비압축 store archive offset/central directory가 4GiB를 넘는 경우도 검사한다. `int32` 크기 변환을 금지한다. libzip central-directory/entry metadata는 entry 수에 비례하므로 archive당 최대 100000 entries·metadata 추정 256MiB·원본 64GiB를 제안 상한으로 둔다. 넘으면 시나리오 묶음별 여러 archive+상위 manifest로 분할한다. 단일 시나리오가 넘으면 명시 거절하고 조용히 파일을 빼지 않는다. 분할은 일반 독립 archive들이며 split-ZIP 포맷은 아니다.
 
@@ -199,48 +196,49 @@ ZIP은 libzip의 64-bit API와 ZIP64 지원을 사용하고 **단일 파일/전�
 
 목록은 가상화·revision 기반, 표시 갱신 ≤5Hz, hidden 상세 문자열 조립 중지, 로그는 상태 전환/오류만 남긴다. 열기만 해서 Job/압축/업로드/worker를 시작하지 않는다. 서버 설정을 저장한 뒤에도 **전송 버튼을 눌러야** 업로드한다. 기존 TESTSET의 시연용 전송 성공 표시와 연결하지 않는다.
 
-## 6. 서버 설정과 HTTP(S) 전송
+## 6. 서버 설정과 SFTP 전송 — 사용자 승인
 
-### 6.1 설정·인증
+Linux의 기존 SSH/SFTP 서비스와 쓰기 가능한 디렉토리를 사용한다. 서버 코드를 배포하지 않는다. HTTP chunk-v1/multipart/로컬 수신 서버는 이번 범위 밖이며 향후 별도 옵션이다. **1A에는 전송 구현/시연을 넣지 않는다.**
 
-| 설정 | 제안 |
+### 6.1 실행 파일·인증·host key
+
+- 고정 `C:/Windows/System32/OpenSSH/sftp.exe`, `C:/Windows/System32/OpenSSH/ssh.exe`만 허용한다(사용자가 이 PC 9.5p2 확인). PATH 검색·설치·다운로드·대체 바이너리 실행 없음. 필요한 파일이 없으면 기능 거절/경로 안내.
+- SSH 키 인증만 허용한다. 개인키는 경로만 지정하고 앱이 내용을 저장/복사하지 않는다. passphrase는 사용자가 ssh-agent로 준비한다. 앱은 비밀번호/passphrase를 저장하거나 대화형으로 받지 않으며 `BatchMode=yes`로 프롬프트를 차단한다. agent/서비스/보안 설정은 바꾸지 않는다.
+- `StrictHostKeyChecking=yes`, `UserKnownHostsFile=<사용자 Saved>/TrainBatch/Settings/known_hosts`. 첫 연결은 사용자 지문 확인·명시 등록이 필요하다. 별도 신뢰 경로로 받은 공개 host key와 지문을 확인한 뒤 앱에 등록한다. 미검증 key 자동 신뢰/StrictHostKeyChecking 해제 금지. 변경된 host key는 거절 후 재확인.
+- 개인키/passphrase/호스트 지문·공개 key 원문을 로그/archive/커밋에 남기지 않는다. 앱 전용 known_hosts와 설정은 사용자 Saved에만 둔다. stdout/stderr는 저장 전에 마스킹한다. 앱 전용 고정 SSH config(`-F`)로 사용자 전역 config의 ProxyCommand/LocalCommand 등을 상속하지 않도록 한다.
+
+### 6.2 설정·경로·batch
+
+| 설정 | 계약 |
 |---|---|
-| base URL | HTTPS 기본, query/userinfo 없는 허용 endpoint. HTTP는 loopback(`127.0.0.1`, `[::1]`, localhost) 또는 사용자가 명시 허용한 특정 origin에만. 다른 origin redirect/HTTPS→HTTP redirect 거절, 토큰 전달 금지. TLS 인증 검증을 끄지 않는다. |
-| 토큰 | 입력은 마스킹, 기본 세션 전용. 사용자가 기억을 선택하면 **사용자 Saved/TrainBatch/Settings/credentials.dat에 Windows DPAPI 사용자 범위 암호문만** 저장, server.json은 token reference만 보관. 패키지 Config/SaveGame/Job/worker argv·환경/로그/archive/보고서에는 포함하지 않는다. 복호화 실패는 재입력이며 평문 fallback 금지. |
-| timeout | 연결/요청 30초, chunk 120초, 서버 검증 완료 대기 600초 제안. 사용 범위 5–600초, 진행이 있어도 무한 대기하지 않는다. |
-| chunk / 동시성 | 기본 8MiB, 1–64MiB, 업로드 1개/chunk 1개 in-flight. 네트워크 backpressure가 게임 GT나 센서 송신 큐를 점유하지 않는다. |
+| host / port / user | DNS/IPv4 또는 검증한 IPv6, port 기본22(1–65535), user 안전 문자 whitelist. 공백/줄바꿈/quote/leading `-`/shell 제어문자 거절. IPv6 인자/known_hosts 표기 별도 검증. |
+| 원격 디렉토리 | 절대 POSIX 경로, 연속 구분자 정규화, `..` component·제어/인용/와일드카드/shell metacharacter 거절. MVP는 component를 `A-Za-z0-9._-`로 제한하며 공백 경로와 `/` 단독은 거절 안내. |
+| 개인키 경로 | 로컬 절대 파일 경로, 제어문자/quote 거절·공백 경로 argv 인용 검증. 내용/비밀번호 저장 없음. |
+| timeout | `ConnectTimeout` 기본30초, `ServerAliveInterval` 기본15초, `ServerAliveCountMax=3`, 별도 무진전 deadline. 유한 양수 상한 검증. |
+| 동시성 / 보관 | 전송 동시1개. `Saved/TrainBatch/Settings/sftp.json`에 host/port/user/dir/key 경로/timeout·프로필 ID만. 실제 서버 정보는 문서/fixture/커밋 금지. |
 
-기존 UI가 세션 Bearer를 표시/보관하는 방식을 참고하되 이 학습 Saved 저장은 별도 명시 정책이다. 서버 응답 body나 URL을 그대로 로그에 쓰지 않고 code/request ID/마스킹 origin·안전한 오류만 남긴다. 토큰 갱신/프로필 전환은 전송을 pause 후 새 세대로 적용한다. Saved는 자동 커밋/공유/압축 대상이 아니다.
+`CreateProc`로 고정 실행 파일을 호출하고 cmd/PowerShell shell 조립은 하지 않는다. 앱이 sftp `-b` 파일을 생성한다. JobId/파일명은 UUID+고정 확장자, 경로/인자는 whitelist와 인용 함수로 처리하며 batch 줄바꿈/quote/escape injection을 거절한다. 임의 명령을 인자로 받지 않는다.
 
-### 6.2 권장 업로드 계약
+### 6.3 업로드·재개·무결성
 
-**재개 가능한 chunk PUT를 기본 권장**, multipart POST는 작은 archive(제안 ≤64MiB)를 받는 기존 서버 호환 옵션이다. multipart는 요청 중단 시 전체 재전송, chunk PUT는 서버가 아래 session API를 구현해야 한다. 임의 서버에 URL만 넣으면 자동 재개가 된다고 하지 않는다. 프로필에 `protocol=chunk-v1|multipart`와 endpoint mapping을 명시한다.
+1. 전체 성공 Job만 기본 전송한다. 부분 실패는 실패 목록 확인 후 **성공분만 보내기** 명시 선택을 artifact.json에 고정한다. 설정/범위를 확인한 다음 전송 버튼으로 시작한다.
+2. 로컬 artifact SHA256/64-bit 크기·파일 identity 확인. 원격 최종 `<dir>/<JobId>.<ext>`가 있으면 덮어쓰지 않고 conflict.
+3. `put`으로 `<JobId>.<ext>.partial` 업로드. 중단 뒤 같은 로컬 hash/크기·프로필 기록이 일치할 때만 `reput` 재개. 원격 partial이 더 크거나 identity가 불명확하면 거절. 크기만으로 prefix 동일성을 보장하지 못하는 한계를 표시하고 불확실하면 새 JobId로 분리한다.
+4. 기본 원격 검증은 크기 비교. 선택적으로 고정 ssh 명령 **`sha256sum -- '<검증된 partial 절대경로>'` 한 종류만** 실행해 로컬과 비교한다(coreutils 필요). POSIX 인용 함수를 사용하고 임의 명령/추가 인자를 받지 않는다. 해시 확인 없이 SHA256 검증됨이라고 표시하지 않는다.
+5. `<JobId>.<ext>.sha256.partial`, `<JobId>.<ext>.artifact.json.partial`도 전송·크기 확인. SHA256 sidecar는 최종 basename을 참조한다. payload rename→artifact metadata rename→**sha256 sidecar 마지막 rename** 순서다. 최종/sidecar가 이미 있으면 conflict.
+6. 수신 완료는 해당 payload/sidecar `.partial`이 없고 `.sha256`과 artifact metadata가 존재하는 것이다. 여러 rename은 원자 transaction이 아니므로 단계 journal/resume이 필요하다. no-clobber rename의 경쟁 동작은 서버 구현을 실제 검증해야 하며 지원되지 않으면 고유 JobId/동시 작성자 제한을 요구한다.
 
-| 요청 | 응답/행동 제안 |
-|---|---|
-| `POST /v1/train-uploads` | JobId·artifact SHA256·64-bit bytes·format·manifest hash, `Idempotency-Key=artifact hash`로 생성. `201` 또는 기존 session `200`: upload_id, accepted chunk size, offset, expiry. |
-| `GET /v1/train-uploads/{id}` | 서버가 확정 저장한 `committed_offset`·artifact hash·총 크기·상태. 로컬 resume 파일과 대조하고 서버 위치를 기준으로 재개. 불일치는 명시 conflict. |
-| `PUT /v1/train-uploads/{id}/chunks/{offset}` | raw bytes, `Content-Range: bytes start-end/total`, chunk SHA256. 현재 offset과 같은 새 chunk만 append, 같은 chunk hash의 중복 PUT는 같은 ACK. 다른 hash/offset은 `409`+기대 위치. `200`: 다음 committed_offset·검증된 chunk hash. |
-| `POST /v1/train-uploads/{id}/complete` | 전체 SHA256·크기 재검증 후 atomic 확정. `200` verified object ID/hash/bytes가 모두 일치해야 전송 완료. `202`면 처리 중으로 poll, 성공으로 표시하지 않는다. |
-| `DELETE /v1/train-uploads/{id}` | 서버 임시 session 취소(가능하면 정리), 로컬 원본/archive는 보존. 취소와 pause를 구분하고 실패한 정리는 사용자에게 표시. |
+진행률은 원격 크기 5초 조회 또는 sftp 출력 파싱. 파싱이 locale/버전에 따라 불안정하면 크기 조회만 사용한다(전송 mutation 동시1개, 조회만 별도). 조회 불가 구간은 불확정 진행이다. 원격 크기는 fsync/학습 완료 ACK가 아니다. 취소는 소유 process 종료+partial 유지, 성공으로 표시하지 않는다. local upload state는 프로필 ID·Job/선택 범위·artifact hash/크기·단계만 저장하고 키/지문/출력 원문은 저장하지 않는다.
 
-오류는 JSON `{code, message, retryable, request_id}`와 HTTP 상태를 사용한다. `401/403`은 자격증명 재입력, `409`는 상태 조회, `413`은 크기/분할 재협의, `429/5xx/연결 단절`은 제한 backoff(예: 1/2/4/8/16초+jitter, 최대 5회, Retry-After 존중). 무조건 재시도로 중복 결과를 만들지 않는다. 진행률은 네트워크 송신 bytes와 **서버 확정 offset**을 구분한다. 최종 업로드 성공은 업무 학습 완료 ACK가 아니다.
+### 6.4 검증과 실제 Linux 수동 절차
 
-UE5.3 `IHttpRequest.h`에 `SetContentAsStreamedFile`, `SetContentFromStream(FArchive)`가 있다. chunk는 seek 가능한 bounded file-range archive로 읽고, HTTP backend가 stream을 지원하는지 Win64 Development/Shipping에서 검사한다. 지원하지 않으면 **chunk 크기만큼**만 버퍼링하는 fallback을 쓰며 전체 archive 적재는 금지한다. 기존 `OnRequestProgress`의 bytes는 `int32`라 4GiB 총 진행에 직접 쓰지 않고 chunk 로컬값+64-bit 확정 offset을 합산한다. 요청마다 새 stream/offset, weak ownership/generation을 적용해 취소 후 callback이 UI나 새 session을 오염시키지 않게 한다.
+로컬에 Linux 서버가 없으므로 Windows OpenSSH Server 설치·서비스/방화벽/시스템 설정 변경을 하지 않는다. batch 생성·argv 인용·경로 whitelist·크기/해시 응답 parser·재개/취소·conflict/rename 순서는 fake process 결과로 단위 테스트하며 실제 서버 수용으로 세지 않는다.
 
-`upload/state.json`에는 artifact hash·파일 identity/크기·server profile ID·upload_id·확정 offset만 원자 저장한다. 토큰/인증 URL은 저장하지 않는다. 재시작 시 archive hash와 서버 상태를 먼저 재검증한다. archive bytes가 바뀌면 기존 upload session을 재사용하지 않는다. 서버가 multipart만 지원하면 checksum 포함 단일 요청과 완료 응답은 제공하되 resume 미지원이라고 UI에 표시한다.
-
-여러 archive로 분할한 경우 artifact별 session을 만들고 상위 manifest도 전송한다. 선택 범위의 모든 artifact와 상위 manifest가 서버에서 검증된 뒤에만 Job 전송 완료로 표시한다. 개별 파일 완료와 서버의 Job 일괄 확정/학습 시작은 별도 계약이며 후자는 아직 미정이다.
-
-### 6.3 테스트 수신 서버 설계
-
-`Tools/TrainBatchReceiver/receiver.py`, `test_receiver.py`, `README.md`를 구현 단계 후보로 둔다. Python 표준 `http.server` 기반 loopback 전용, 위 chunk-v1 + 작은 multipart 경로, 파일 streaming·SQLite session/offset journal·SHA256·동일 offset idempotency를 제공한다. 저장 root/quota/최대 body/응답 크기/timeouts를 제한하고 경로는 server-generated ID만 사용한다. 요청 body 전체 read, multipart `cgi` 의존, 자동 archive 추출은 하지 않는다.
-
-disconnect-after-N·중복 PUT·잘못된 offset/hash·401/429/500·지연·중간 종료 후 재시작을 주입한다. loopback 무자격증명 시험과 별도로 opt-in 테스트 토큰(로그 미출력), 테스트용 TLS 인증서를 이용한 HTTPS 시험을 둔다. 설치/서비스/방화벽/보안 설정을 변경하지 않고 별도 프로세스로 명시 시작·종료한다. 이 서버는 계약 검증용이며 회사 수신 서버의 인증·스토리지·업무 완료 수용을 대신하지 않는다. 이번 단계에는 서버 파일도 만들거나 실행하지 않았다.
+사용자는 실제 정보를 Saved 설정에만 입력한 뒤, 신뢰 경로로 host key 확인/등록→ssh-agent key 준비→작은 ZIP/tar.gz 전송→크기/선택 SHA256 비교→완료 sidecar 순서 확인→중간 취소/reput→기존 최종 이름 conflict→잘못된 host key/인증/권한/네트워크 단절을 직접 검증한다. 기록은 비식별 프로필 ID·상태/수치만 남기고 서버 주소/키/지문은 커밋하지 않는다. Linux 디렉토리 결과와 수신 측 완료 판단은 후속 승인 시간에 확인한다.
 
 ## 7. 기본 정책·비용·보호 범위
 
-TRAIN 기능 기본 꺼짐에서는 신규 tick/timer/스레드/파일 watcher/프로세스/구독/캡처/압축/HTTP가 **0개**여야 한다. Subsystem 객체가 생성돼도 명시 활성화 전 일을 등록하지 않는다. 일반 PCD 송신 on·33-byte wire·FIFO/128MiB 전역/64MiB 스트림·frame 한도, DTCore pin·소스, 기존 TESTSET trigger 및 일반 시나리오 우선은 그대로다.
+TRAIN 기능 기본 꺼짐에서는 신규 tick/timer/스레드/파일 watcher/프로세스/구독/캡처/압축/SFTP 프로세스가 **0개**여야 한다. Subsystem 객체가 생성돼도 명시 활성화 전 일을 등록하지 않는다. 일반 PCD 송신 on·33-byte wire·FIFO/128MiB 전역/64MiB 스트림·frame 한도, DTCore pin·소스, 기존 TESTSET trigger 및 일반 시나리오 우선은 그대로다.
 
 학습 실행 중 GPU·디스크 비용이 0이라고 주장하지 않는다. 사용자가 학습을 시작한 때만 비용을 허용하고 M admission·bounded 작업·일반 업무 우선 양보로 제한한다. 기본 꺼짐/학습 창 표시만/결과 보기/업로드를 구분해 성능을 측정한다. GT에서 대용량 JSON/압축/해시/socket I/O를 하지 않는다. product 기본 해상도·20Hz 목표를 낮추거나 물리/광학 품질을 몰래 생략하지 않는다.
 
@@ -252,14 +250,14 @@ DTCore에는 새 기능이 필요하지 않은 방향이다. TC DataTable 등록
 |---|---|
 | 계약/시간축 단위 | K=1/상한/초과, D소수/0/NaN, schema/UUID/hash 충돌, 행/길이 불일치, 20Hz 구간 프레임 수·경계·보간·마지막 hold, 일반/시연 trigger 불변. 시뮬레이션 시간과 wall Hz를 별도 assertion. |
 | 분할/복구 단위 | 균등/불균등 D, M>K, lease 만료·PID 재사용·ACCESS_DENIED, 워커 1개 실패 중 다른 완료, stale 성공 거절, journal truncate/checksum, coordinator/worker 재시작, disk full, partial write, 같은 Job 중복 접수. 완료 파일 검증 실패는 성공으로 복원하지 않는다. |
-| 압축 단위/독립 검증 | 세 형식 level 경계·Unicode/긴 경로·빈 파일·취소·손상·탈출 경로·entry 수. Python `zipfile`/`tarfile`로 ZIP/tar.gz 해제 후 모든 파일 SHA256/bytes 비교, tar.zst는 명시 설치된 독립 zstd decoder 환경에서 tar 해제·비교. 실제 >4GiB 파일/archive 및 >65535 entries. 라이브러리 자신으로 압축/검증한 것만으로 완료하지 않는다. |
-| 업로드 단위/통합 | chunk 경계·4GiB 넘는 offset·checksum·연결 단절·ACK 유실·중복 PUT·취소 callback·토큰 교체·재개·timeout·401/409/413/429/5xx·동일 파일명 다른 hash. 수신 서버 저장본 SHA256와 원본 archive 일치. credentials가 argv/log/manifest/archive에 없는지 검사. |
+| 압축 단위/독립 검증 | ZIP/tar.gz level 경계·Unicode/긴 경로·빈 파일·취소·손상·탈출 경로·entry 수. Python `zipfile`/`tarfile`로 ZIP/tar.gz 해제 후 모든 파일 SHA256/bytes 비교. 실제 >4GiB 파일/archive 및 >65535 entries. 라이브러리 자신으로 압축/검증한 것만으로 완료하지 않는다. |
+| SFTP 단위/현장 | 로컬 fake process로 batch/경로/인용·partial/reput·크기/선택 SHA256·취소/conflict/rename 순서 검사. 실제 Linux 서버는 사용자 Saved 설정과 수동 절차로만 검증한다. 서버 설치/시스템 설정 변경 없음. |
 | 실제 RHI 통합 | M=1/2/4 같은 K/D/preset, 처리량·총 wall 시간·GPU local/resident/Commit·CPU/RAM/디스크·각 worker Hz/gap/native fallback 기록. VRAM admission에 걸린 M=4는 미수행/거절로 명시하고 성공으로 계산하지 않는다. 강제 worker 종료 뒤 다른 워커 계속, 재할당·safety 복구·native 재검증 확인. |
 | 산출물 oracle | 동일 입력·seed·preset에서 단일/다중 worker의 예정 프레임·PCD 점/라벨·pose 일치. UTC/RunUUID/성능 metadata와 비결정적 RGB는 비교 대상/허용 규칙을 사전 명시한다. 기존 native byte/point oracle 및 20Hz 조건을 유지한다. |
 | 기본 회귀 | Editor/Development 빌드, Shipping build/stage+worker smoke, `run_smoke_tests.ps1`, quick·layer·DTCore guard, 기존 release 절차. 기존 TESTSET/일반 replay/센서 송신/취소·종료·UI 저장 복원 회귀 포함. |
 | 성능 gate | `Scripts/verify.ps1 -Level perf -BaseCommit <승인 기준 SHA> -PerfRayTracing ProjectDefault`, 표준 ABAB 중앙값·2% 기준 변경 없음. 표시형 1920×1080·1Camera+1LiDAR·10초 준비+30초 UI 비교와 offscreen batch 처리량을 구분한다. 과거 waiver를 새 변경에 자동 적용하지 않는다. |
 | 메모리/장시간 | 일반 native 회귀는 r37 정책(30분 warm-up 제외, 이후 최소 60분 OS Commit ≤8MiB/h), old gate/last-third/warm-up 함께 보고. 배치 실행은 Job 원본/결과 증가와 프로세스 live allocation을 분리하고 반복 Job 후 bounded memory·종료 회수·VRAM 잔류를 검사한다. 3시간/24시간을 이번 설계 검증 완료로 표시하지 않는다. |
-| 직접 UI | DTCore 열기/닫기/BringToFront/input 차단, Job 선택/실패 재시도/확정 PCD 재생·취소, 서버 마스킹·확인 후 전송·진행/재개/중지, 100/150% 글꼴·두 해상도·경계/긴 상태 문구·일반 화면 분리. 실제 client viewport/DPI/누른 것·기대·실제와 스크린샷 기록, 자동 테스트와 별도 판정. |
+| 직접 UI | DTCore 열기/닫기/BringToFront/input 차단, Job 선택/실패 재시도/확정 PCD 재생·취소, SFTP/host key 설정·확인 후 전송·진행/재개/중지, 100/150% 글꼴·두 해상도·경계/긴 상태 문구·일반 화면 분리. 실제 client viewport/DPI/누른 것·기대·실제와 스크린샷 기록, 자동 테스트와 별도 판정. |
 
 각 실행은 동일 SHA/DTCore/맵/프로필/센서 수/backend/출력/warmup/UserDir를 기록한다. GPU 시험은 사용자 PC의 다른 Editor·게임·빌드·영상 디코딩과 겹치지 않는 시간에 한 coordinator 측정만 허용한다(그 측정 내부의 M worker는 시험 조건). 개인 설정을 사전 백업/복원하며 release/perf skip·미수행을 PASS로 세지 않는다. 이번 r40은 링크/코드 근거·문서 diff/보호 경로·DTCore guard만 확인한다.
 
@@ -271,21 +269,18 @@ DTCore에는 새 기능이 필요하지 않은 방향이다. TC DataTable 등록
 |---|---|---|
 | 1A MVP 기반 | 입력 계약 고정·DTCore TC 연결·opt-in 독립 목록·시간축 planner·파일 계약·M=1 파일 생성/보기. 기존 테스트셋 경로 제한의 안전한 확장. | 4–6일 |
 | 1B MVP 다중 프로세스 | 고유 안정 UserDir·M=1/2/4 admission·heartbeat/lease·실패 재할당·시나리오 경계 disk resume·안전 상태 통합. | 4–6일 |
-| 1C MVP 압축/전송 | ZIP/ZIP64·tar.gz·tar.zst 소스/라이선스 spike, streaming SHA256·chunk-v1/작은 multipart·DPAPI Saved 설정·로컬 수신 서버/재개. | 5–8일 |
-| 1D MVP 통합 수용 | 세 형식 round-trip·실제 GPU/worker kill·release/smoke/perf·직접 UI·문서/제한. 소규모 Job으로 end-to-end, 3형식과 기본 정책이 모두 확인돼야 MVP 완료. | 3–5일 |
-| 2단계 | 프레임 단위 checkpoint, 여러 Job quota/우선순위·선택 부분 전송, 생성/압축 겹침, 다중 archive 최적화, 현장 서버 adapter. 실시간 physics/time 기반 모드가 필요하면 별도 범위/검증을 추가한다. | 6–10일 이상(서버/시간 의미에 따라 재산정) |
+| 1C MVP 압축/전송 | ZIP/ZIP64·tar.gz·streaming SHA256, Windows OpenSSH SFTP batch/재개·앱 known_hosts·크기/선택 SHA256 검증·수동 Linux 절차. | 5–8일 |
+| 1D MVP 통합 수용 | 두 형식 round-trip·실제 GPU/worker kill·release/smoke/perf·직접 UI·문서/제한. 소규모 Job으로 end-to-end, ZIP/tar.gz와 기본 정책이 모두 확인돼야 MVP 완료. | 3–5일 |
+| 2단계 | 프레임 단위 checkpoint, 여러 Job quota/우선순위·선택 부분 전송, 생성/압축 겹침, 다중 archive 최적화, 현장 서버 adapter. 실시간 physics/time 모드는 범위 밖이며 별도 요청한다. | 6–10일 이상(서버/시간 의미에 따라 재산정) |
 
 구현 전 Claude/사용자와 확정할 질문은 다음과 같다. 현재는 제안값으로 설계했으며 임의로 제품 정책을 바꾸지 않는다.
 
-1. **D초의 의미:** `sampled_timeline`(20Hz 시간축 파일 생성)을 MVP로 수용하는가, 아니면 World/물리까지 D초 진행하는 실시간 시뮬레이션이 필수인가? 후자면 planner만으로 대체할 수 없다.
-2. Agent가 새 학습 Topic/TC와 manifest+항목 분할 계약을 보낼 수 있는가? K/D/bytes/디스크 상한 제안값과 기본 M=1·최대4를 수용하는가?
-3. 최초 대상 맵/preset·센서 수와 카메라/GT/IMU·COCO/KITTI 필요 범위는 무엇인가? 기본은 PCD+점 라벨, 옵션을 켠 만큼 용량/성능 gate가 추가된다.
-4. 수신 서버가 chunk-v1을 구현할 수 있는가, 아니면 특정 multipart field/인증/응답 계약에 맞춰야 하는가? 실제 URL/토큰은 문서·커밋 대신 현장 Saved 설정에서만 전달한다.
-5. zstd 고정 소스의 프로젝트 포함과 license/배포 고지를 구현 단계에 승인하는가? 없으면 tar.zst 공급 경로가 차단 사항으로 남는다.
-6. 부분 실패 Job의 성공 항목만 업로드할지, 전체 성공 후만 허용할지? 권장 기본은 전체 성공이며 자동 업로드는 하지 않는다. 보존 기간·실패 partial/완료 archive 삭제는 사용자가 별도 결정한다.
+확정: 20Hz sampled_timeline·실시간 물리 제외, ZIP/tar.gz·tar.zst 보류, 키 기반 SFTP·HTTP 제외, 전체 성공 기본·명시적 성공분 전송 허용.
+
+남은 현장 확인은 실제 preset/센서/선택 출력, 입력/디스크 상한, Linux SFTP endpoint/key/host-key 등록(값은 Saved만), 원격 sha256sum·동시 작성/no-clobber 지원, 보존 기간이다. 1A는 현재 World에서 명시 지정한 Slab/LiDAR와 일치하는 세션 preset으로 순차 생성하며 Actor 자동 배치·운영맵 저장을 하지 않는다.
 
 ## 10. 조사 근거와 이번 단계의 한계
 
 소스 근거는 위 링크 및 [README §10](../README.md#10-아키텍처-뼈대), [DTCore DataSubsystem](../Plugins/DTCore/Source/DTCore/Private/Core/DxDataSubsystem.cpp), [DTCore WidgetSubsystem](../Plugins/DTCore/Source/DTCore/Public/Core/DxWidgetSubsystem.h), [native safety 설명](LIDAR_NATIVE_LIFETIME_26h.md)을 따른다. 엔진 설치본은 `Engine/Source/Runtime/Core/Private/Misc/Paths.cpp`의 `ProjectUserDir/ProjectSavedDir`, `Engine/Source/Runtime/Online/HTTP/Public/Interfaces/IHttpRequest.h`, `Engine/Source/ThirdParty/{libzip,zlib,Licenses,vcpkg}`를 읽었다.
 
-현재 기반에 다중 UE worker·disk resume·archive/실제 학습 업로드가 이미 있다고 해석하지 않는다. zstd 포함/ZIP64·HTTP streaming backend·UserDir 별 안전 상태·카메라/운동 정합·GPU M 상한은 후속 실제 빌드/실행에서 검증할 설계 위험이다. 이번 작업에서는 코드·DTCore·Config·자산·개인 설정을 변경하지 않았고, 실행 결과나 처리량을 새로 측정하지 않았다.
+현재 기반에 다중 UE worker·disk resume·archive/실제 학습 업로드가 이미 있다고 해석하지 않는다. ZIP64·OpenSSH/SFTP 서버 호환성·UserDir 별 안전 상태·카메라/운동 정합·GPU M 상한은 후속 실제 빌드/실행에서 검증할 설계 위험이다. r40은 문서만 작성했다. r41은 1A 코드/테스트 코드를 작성하되 빌드·Unreal/GPU·화면 실행 금지이므로 미컴파일·실행 미검증을 명시한다. DTCore·Config·자산·개인 설정은 변경하지 않는다.
