@@ -28,6 +28,9 @@ protected:
     virtual void NativeTick(const FGeometry& Geometry,float DeltaTime) override;
     virtual void NativeDestruct() override;
 private:
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    friend class FTrainBatchPartialUiDeliveryTest;
+#endif
     void Refresh();
     void ApplyTargets();
     /** Archive format, SFTP server and the explicit send button. */
