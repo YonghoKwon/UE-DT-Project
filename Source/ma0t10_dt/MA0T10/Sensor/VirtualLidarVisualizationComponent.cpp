@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "ma0t10_dt/MA0T10/Core/DeviceSensorAssetSettings.h"
 #include "SensorUploadDiagnostics.h"
 #include "MA0T10MemoryTags.h"
 #include "ma0t10_dt/MA0T10/Sensor/LidarPlayerDisplayComponent.h"
@@ -499,6 +500,7 @@ FVirtualSensorResourceSnapshot UVirtualLidarVisualizationComponent::GetResourceS
 
 UVirtualLidarVisualizationComponent::UVirtualLidarVisualizationComponent()
 {
+    NiagaraPointCloudSystem=GetDefault<UDeviceSensorAssetSettings>()->LidarPointCloudSystem;
     PrimaryComponentTick.bCanEverTick = false;
 }
 

@@ -1,4 +1,5 @@
 #include "VirtualLidarSemanticScene.h"
+#include "ma0t10_dt/MA0T10/Core/DeviceSensorAssetSettings.h"
 #include "SensorUploadDiagnostics.h"
 #include "VirtualLidarSurfaceResponseComponent.h"
 #include "VirtualLidarScanComponent.h"
@@ -45,7 +46,7 @@ bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, con
     bCapturePending=false;
     PendingProxies.Reset();
     bPendingProxyUpdateSent=false;
-    auto* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/MA0T10/Sensor/Materials/M_LidarSemanticId.M_LidarSemanticId"));
+    auto* Material = GetDefault<UDeviceSensorAssetSettings>()->LidarSemanticMaterial.LoadSynchronous();
     if (!Material) { Status = TEXT("GPU 분류 재질 누락: 미분류 (센서 측정 유지)"); return false; }
     if (!World) return false;
     if (!bShaderWarmupRequested)

@@ -1,18 +1,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ma0t10_dt/MA0T10/Contracts/DeviceSensorStreamData.h"
 #include "WebSocket/TransactionCodeMessage.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorStreamReceiverTypes.h"
 #include "VirtualCameraStreamReceiverTC.generated.h"
 
-struct FVirtualCameraStreamReceiverData : FVirtualSensorTopicReceivedDataBase
-{
-	int32 Width = 0;
-	int32 Height = 0;
-	int32 DeclaredByteSize = 0;
-	int32 DecodedByteSize = 0;
-	FString Encoding;
-};
+
 
 /** virtual-camera.v1 Topic 본문을 검증하는 UKP형 수신 Handler입니다. */
 UCLASS()

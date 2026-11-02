@@ -1,22 +1,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ma0t10_dt/MA0T10/Contracts/DeviceSensorStreamData.h"
 #include "WebSocket/TransactionCodeMessage.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorStreamReceiverTypes.h"
 #include "VirtualPointCloudStreamReceiverTC.generated.h"
 
-struct FVirtualPointCloudStreamReceiverData : FVirtualSensorTopicReceivedDataBase
-{
-	FString Format;
-	FString Encoding;
-	int32 PointCount = 0;
-	int32 DeclaredByteCount = 0;
-	int32 DecodedByteCount = 0;
-	int32 SourcePointCount = 0;
-	int32 FilterRevision = 0;
-	FString ChecksumSha1;
-	FString ProfileKey;
-};
+
 
 /** virtual-pointcloud.v1 Topic 본문을 검증하는 UKP형 수신 Handler입니다. */
 UCLASS()

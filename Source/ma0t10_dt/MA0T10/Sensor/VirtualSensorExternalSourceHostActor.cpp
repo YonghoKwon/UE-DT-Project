@@ -19,7 +19,6 @@
 #include "ma0t10_dt/MA0T10/Sensor/LidarJsonLiveSourceComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/LidarUdpJsonLiveSourceComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/ma0t10_dt.h"
 #include "WebSocket/TransactionCodeMessage.h"
 
 AVirtualSensorExternalSourceHostActor::AVirtualSensorExternalSourceHostActor()

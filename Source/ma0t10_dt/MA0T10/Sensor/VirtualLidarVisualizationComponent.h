@@ -179,7 +179,7 @@ private:
     UPROPERTY(Transient) TObjectPtr<ULineBatchComponent> ColoredPointBatch;
 
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|VirtualLidar|Visualization")
-    TSoftObjectPtr<UNiagaraSystem> NiagaraPointCloudSystem = TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(TEXT("/Game/MA0T10/Sensor/VFX/NS_VirtualLidarPointCloud.NS_VirtualLidarPointCloud")));
+    TSoftObjectPtr<UNiagaraSystem> NiagaraPointCloudSystem;
 
     UPROPERTY(EditAnywhere, Category = "DigitalTwin|VirtualLidar|Visualization", meta = (ClampMin = "1", ClampMax = "21600"))
     int32 MaxNiagaraPreviewPoints = 21600;

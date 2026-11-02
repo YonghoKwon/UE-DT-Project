@@ -1,8 +1,6 @@
 #include "VirtualSensorStreamReceiverRegistration.h"
+#include "ma0t10_dt/MA0T10/Sensor/DeviceSensorStreamCodec.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorStreamReceiverRegistry.h"
-#include "VirtualCameraStreamReceiverTC.h"
-#include "VirtualLidarStreamReceiverTC.h"
-#include "VirtualPointCloudStreamReceiverTC.h"
 
 namespace
 {
@@ -19,7 +17,7 @@ namespace
 		virtual TSharedPtr<FVirtualSensorTopicReceivedDataBase> ParseBinaryPcd(
 			const TArray<uint8>& Body, const TMap<FName, FString>& Headers) const override
 		{
-			return StaticCastSharedPtr<FVirtualSensorTopicReceivedDataBase>(UVirtualPointCloudStreamReceiverTC::ParseBinaryPcdToStruct(Body, Headers));
+			return StaticCastSharedPtr<FVirtualSensorTopicReceivedDataBase>(DeviceSensorStreamCodec::ParseBinaryPcd(Body, Headers));
 		}
 	};
 }
