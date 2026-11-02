@@ -1,5 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "SensorNativeSafetyStatus.h"
 #include <atomic>
 
 namespace SensorNativeSafety
@@ -22,6 +23,7 @@ namespace SensorNativeSafety
         void End(bool Healthy);
         bool IsRecovery() const {return Recovery;}
         bool IsBanned() const {return Failures>=2;}
+        EStatus GetStatus() const {return IsBanned()?EStatus::Banned:(Recovery?EStatus::Recovery:EStatus::None);}
         int32 FailureCount() const {return Failures;}
         bool HasValidation() const {return Validated&&!IsBanned();}
         bool RequiresValidation() const {return RevalidationRequired;}

@@ -36,9 +36,11 @@ bool FSensorNativeSafetyPolicyTest::RunTest(const FString&)
     FFileHelper::SaveStringToFile(TEXT("schema=2\npid=0\nstart=0\n"),*Path);
     SensorNativeSafety::FSessionGuard Recovery(Path);TestTrue(TEXT("stale marker can be exclusively claimed"),Recovery.Begin(Error));
     TestTrue(TEXT("first unclean native exit forces one recovery launch"),Recovery.IsRecovery());TestEqual(TEXT("first failure counted once"),Recovery.FailureCount(),1);
+    TestTrue(TEXT("one-failure recovery is visible to callers"),Recovery.GetStatus()==SensorNativeSafety::EStatus::Recovery);
     Recovery.End(true);SensorNativeSafety::FSessionGuard Retry(Path);TestTrue(TEXT("healthy recovery clears marker and permits retry"),Retry.Begin(Error));TestFalse(TEXT("retry is not permanently pinned to RHI"),Retry.IsRecovery());
     Retry.End(false);FFileHelper::SaveStringToFile(TEXT("schema=2\npid=0\nstart=0\n"),*Path);
     SensorNativeSafety::FSessionGuard Banned(Path);TestTrue(TEXT("second failure claimed"),Banned.Begin(Error));TestTrue(TEXT("two unclean exits disable this combination"),Banned.IsBanned());Banned.End(true);
+    TestTrue(TEXT("two-failure ban is visible and takes priority over recovery"),Banned.GetStatus()==SensorNativeSafety::EStatus::Banned);
     SensorNativeSafety::FSessionGuard StillBanned(Path);TestTrue(TEXT("banned RHI run owns its own guard"),StillBanned.Begin(Error));TestTrue(TEXT("safe RHI run does not clear two-failure ban"),StillBanned.IsBanned());StillBanned.End(true);
     SensorNativeSafety::FSessionGuard NewDriver(Path+TEXT("-driver2"));TestTrue(TEXT("different driver has independent state"),NewDriver.Begin(Error));TestFalse(TEXT("driver change clears combination-specific ban"),NewDriver.IsBanned());NewDriver.Validate();TestTrue(TEXT("successful oracle caches validation"),NewDriver.HasValidation());NewDriver.End(true);
     SensorNativeSafety::FSessionGuard Cached(Path+TEXT("-driver2"));TestTrue(TEXT("validated combination reopens"),Cached.Begin(Error));TestTrue(TEXT("successful validation survives clean restart"),Cached.HasValidation());Cached.RecordDecision(TEXT("native oracle PASS; exact records"));Cached.End(true);

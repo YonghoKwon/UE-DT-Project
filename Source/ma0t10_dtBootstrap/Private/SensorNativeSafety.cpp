@@ -160,6 +160,7 @@ bool CanAttempt(bool Explicit)
     return Allowed&&!Disabled.load();
 }
 bool NeedsValidation(){return ValidationRequested.load()&&!Disabled.load();}
+EStatus GetStatus(){FScopeLock Lock(&PolicyMutex);return Prepared?Session().GetStatus():EStatus::None;}
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 void RequestValidationForTests(){CanAttempt(false);FScopeLock Lock(&PolicyMutex);Allowed=false;Disabled.store(false);ValidationRequested.store(true);}
 #endif

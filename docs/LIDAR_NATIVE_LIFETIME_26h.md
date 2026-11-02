@@ -324,3 +324,24 @@ Editor Development와 Shipping 빌드 성공. 각 수정의15개 실제 관련 �
 초기12개·보호297개·DTCore b2504d1·동결 수집기 해시 유지. 개인 설정242개 원본집합/hash exact: Editor 설정1개 원복, 이번3개 cook 시간대에 생성된160B CrashReportClient 설정은 원본에 없음을 확인해 정확한 파일3개만 report로 이동 보존(재귀 삭제/복사 없음). 처음 재귀 personal copy/자동 source 정규화 복합 명령은 자동 검토에서blocked by policy(상세없음)로 거부돼 실행되지 않았습니다. 이를 재시도하지 않고 기존242개 backup의 read-only hash를 검증해 재사용했으며, 새로 만든 소스만 명시경로 CRLF 처리했습니다.
 
 새 패키지/ABAB 사본 약23.21GiB는 `cleanup-inventory.json` 목록을 Claude용으로 남겼습니다. 대량 삭제/이전 차단 우회 없음. RESULT/result.json/summary/manifest/frameCSV/수동캡처/도구 source 보존. final quick·layer(allowlist0→0)·guard·schema·merge_check 결과는 result.json에 기록합니다. Release전체·2시간×2·야간8시간·원래 #26 5쌍/디깅Commit 최종 검증은 사용자 금지 범위라 시작하지 않았습니다. push/merge/PR 없음.
+
+
+## r38b: native 안전 상태 표시와 초기화
+
+센서 설정의 LiDAR 백엔드 진단에 native 복구 실행(RHI 사용) 또는
+비정상 종료 2회에 따른 native 비활성 상태를 표시한다. 2회 차단 정책은 유지한다.
+정상 장치의 native 제출 실패는 이번 세션만 RHI로 전환하며, 정상 종료를
+비정상 종료로 누적하지 않는다. 검증 캐시는 무효화하여 다음 기본 실행에서
+startup oracle을 다시 수행한다. 실제 장치 손실/Faulted는 기존 복구 정책을 유지한다.
+
+수동 초기화가 필요하면 모든 관련 게임/Editor를 먼저 종료하고 해당 Saved 경로의
+`NativeLidarSafety/active-<adapter·driver SHA1>.guard.state` 파일만 삭제한다.
+패키지에서 별도 `-UserDir`를 사용했다면 그 UserDir의 Saved 아래에서 찾는다.
+파일의 `failures`/`reason`과 실행 로그의 adapter/driver를 대조하여 해당 조합을
+선택한다. 다른 조합의 기록이나 개인 SaveGame은 지우지 않는다. 드라이버 변경은
+독립 조합으로 판정하므로 기존 조합의 차단이 새 드라이버에 적용되지는 않는다.
+
+실행 중인 인스턴스가 소유한 `.guard`를 강제로 삭제하지 않는다. 비정상 종료의
+stale `.guard`가 남아 있으면 상태 파일을 초기화해도 다음 1회는 안전 RHI 복구를
+거친다. 초기화 후 native 선택은 기존 검증된 조합/제한된 startup oracle 정책을
+따르며 강제 native 진단 플래그를 복구 수단으로 안내하지 않는다.
