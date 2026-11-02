@@ -42,6 +42,11 @@ public class ma0t10_dt : ModuleRules
         });
 
         PrivateDependencyModuleNames.AddRange(new string[] { "ma0t10_dtBootstrap" });
+        // TRAIN-BATCH-01: Windows built-in SHA256; no downloaded crypto/compressor dependency.
+        if (Target.Platform == UnrealTargetPlatform.Win64)
+        {
+            PublicSystemLibraries.Add("bcrypt.lib");
+        }
 
         // PKG-01: ship the deployment transport settings as a loose file next to every
         // package (<package>/ma0t10_dt/Config/SensorTransport.ini), outside the pak.

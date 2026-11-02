@@ -9,6 +9,8 @@ struct FVirtualDatasetPlannedFrame
     int64 FrameNo=0;
     double ElapsedSec=0;
     FString MtlNo;
+    // Optional source row time; ElapsedSec is the independently sampled timeline time.
+    double SourceElapsedSec=-1;
 };
 struct FVirtualDatasetFramePlan
 {
@@ -19,7 +21,10 @@ struct FVirtualDatasetFramePlan
     FString Source,SourceUUID,ExampleVariation;
     int32 ExampleSeed=0;
     int32 FrameCap=0,SampleStride=1;
+    // Empty preserves TESTSET storage. Only validated local batch plans set these fields.
+    FString BatchJobId,LocalStorageRoot,FramePolicy;
 };
+MA0T10_DT_API bool IsValidDatasetPlanRoot(const FVirtualDatasetFramePlan& Plan);
 
 /** Session-only settings. Never read from SaveGame or started by opening a panel. */
 struct MA0T10_DT_API FVirtualDatasetRange

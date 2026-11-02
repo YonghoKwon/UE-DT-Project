@@ -1,4 +1,5 @@
 #include "VirtualSensorFileSaveSubsystem.h"
+#include "ma0t10_dt/MA0T10/Contracts/LocalCapturePath.h"
 #if PLATFORM_WINDOWS
 #include "Windows/WindowsHWrapper.h"
 #else
@@ -557,6 +558,22 @@ bool UVirtualSensorFileSaveSubsystem::CommitTestSetManifest(const FString& Desti
         FPlatformProcess::SleepNoStats(.005f);
     }
     return false;
+}
+bool UVirtualSensorFileSaveSubsystem::WriteLocalSceneBundle(const FString& StorageRoot,const FString& Directory,const TArray<FVirtualSensorVerificationFile>& Files,TFunctionRef<bool()> Cancelled)
+{
+    const FString Saved=LocalCapturePath::Full(FPaths::ProjectSavedDir());
+    if(!LocalCapturePath::SafeDescendant(Saved,StorageRoot)||!LocalCapturePath::SafeDescendant(StorageRoot,Directory))return false;
+    return WriteVerificationBundle(StorageRoot,Directory,Files,Cancelled,true);
+}
+bool UVirtualSensorFileSaveSubsystem::CommitLocalSceneManifest(const FString& StorageRoot,const FString& Destination,const FString& Pending)
+{
+    if(!LocalCapturePath::SafeDescendant(LocalCapturePath::Full(FPaths::ProjectSavedDir()),StorageRoot)||
+       !LocalCapturePath::SafeDescendant(StorageRoot,Destination)||Pending!=Destination+TEXT(".pending"))return false;
+#if PLATFORM_WINDOWS
+    return ::MoveFileExW(*Pending,*Destination,MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)!=0;
+#else
+    return std::rename(TCHAR_TO_UTF8(*Pending),TCHAR_TO_UTF8(*Destination))==0;
+#endif
 }
 bool UVirtualSensorFileSaveSubsystem::WriteVerificationBundle(const FString& AllowedRoot,const FString& Directory,const TArray<FVirtualSensorVerificationFile>& Files,TFunctionRef<bool()> Cancelled,bool AllowEmpty)
 {

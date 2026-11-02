@@ -25,6 +25,8 @@ struct FAgentTestSetItem
     bool Example=false;
     FString SourceUUID,VariationJson;
     int32 Seed=0;
+    /** Explicit confirmed local-result scope; empty retains the original TESTSET path policy. */
+    FString LocalStorageRoot;
 };
 struct FAgentTestSetSettings
 {

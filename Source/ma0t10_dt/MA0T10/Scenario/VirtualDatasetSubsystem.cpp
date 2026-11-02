@@ -104,7 +104,7 @@ int32 UVirtualDatasetSubsystem::GetReadbackAllocationsForTests() const{return Tr
 bool UVirtualDatasetSubsystem::Start(const FVirtualDatasetSettings& Settings,ASlabActor* Slab,AVirtualLidarSensorActor* Lidar,AVirtualCameraSensorActor* Camera,ADirectionalLight* Light,FString& Error,TSharedPtr<const FVirtualDatasetFramePlan,ESPMode::ThreadSafe> Plan)
 {
     const bool HasCamera=!Plan||Plan->CaptureCamera;
-    if(Plan&&(Plan->Frames.Num()!=Settings.Scenes||!FPaths::IsUnderDirectory(Plan->Root,FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("TestSets"))))){Error=TEXT("Invalid test set frame plan");return false;}
+    if(Plan&&(Plan->Frames.Num()!=Settings.Scenes||!IsValidDatasetPlanRoot(*Plan))){Error=TEXT("Invalid local dataset frame plan");return false;}
     if(IsActive()){Error=TEXT("진행 중인 데이터셋을 먼저 마치세요");return false;}
     if(!Settings.Validate(Error))return false;
     FString ExportPython,ExportScript;
@@ -235,10 +235,16 @@ bool UVirtualDatasetSubsystem::ApplyScene(FString& Error)
         S->Label->SetStringField(TEXT("scenario_id"),S->Plan->ScenarioId);S->Label->SetStringField(TEXT("run_uuid"),S->Plan->RunId);
         S->Label->SetStringField(TEXT("mtl_no"),P.MtlNo);S->Label->SetStringField(TEXT("scenario_frame_no"),LexToString(P.FrameNo));
         S->Label->SetNumberField(TEXT("scenario_elapsed_s"),P.ElapsedSec);
+        if(P.SourceElapsedSec>=0)
+        {
+            S->Label->SetNumberField(TEXT("source_row_elapsed_s"),P.SourceElapsedSec);
+            S->Label->SetNumberField(TEXT("simulation_elapsed_s"),P.ElapsedSec);
+            S->Label->SetNumberField(TEXT("sample_index"),S->NextScene);
+        }
         if(!S->Plan->Source.IsEmpty())
         {
             S->Label->SetStringField(TEXT("source"),S->Plan->Source);S->Label->SetStringField(TEXT("source_uuid"),S->Plan->SourceUUID);
-            S->Label->SetStringField(TEXT("frame_policy"),S->Plan->FrameCap>0?TEXT("uniform_capped_stride_samples"):TEXT("full_stride_samples"));S->Label->SetNumberField(TEXT("frame_cap"),S->Plan->FrameCap);S->Label->SetNumberField(TEXT("sample_stride"),S->Plan->SampleStride);
+            S->Label->SetStringField(TEXT("frame_policy"),!S->Plan->FramePolicy.IsEmpty()?S->Plan->FramePolicy:S->Plan->FrameCap>0?TEXT("uniform_capped_stride_samples"):TEXT("full_stride_samples"));S->Label->SetNumberField(TEXT("frame_cap"),S->Plan->FrameCap);S->Label->SetNumberField(TEXT("sample_stride"),S->Plan->SampleStride);
             if(S->Plan->Source==TEXT("example"))
             {
                 S->Label->SetNumberField(TEXT("example_seed"),S->Plan->ExampleSeed);TSharedPtr<FJsonObject> Variation;
@@ -415,7 +421,8 @@ void UVirtualDatasetSubsystem::WriteScene()
     Delay=WorkerDelayForTests;
 #endif
     const bool TestSet=bool(S->Plan);
-    S->Write=Async(EAsyncExecution::ThreadPool,[Frame,LidarFrame,Module,LabelObject,ConditionsObject,Paths,Names,Root,SensorId,Commit,CommitSource,Scene,IncludeTruth,Cancelled,Started,Delay,TestSet]()
+    const FString LocalRoot=S->Plan?S->Plan->LocalStorageRoot:FString();
+    S->Write=Async(EAsyncExecution::ThreadPool,[Frame,LidarFrame,Module,LabelObject,ConditionsObject,Paths,Names,Root,SensorId,Commit,CommitSource,Scene,IncludeTruth,Cancelled,Started,Delay,TestSet,LocalRoot]()
     {
         const FString Label=DatasetJson(LabelObject),Conditions=DatasetJson(ConditionsObject);
         FDatasetWriteResult Result;TArray<FVirtualSensorVerificationFile> Files;
@@ -448,7 +455,7 @@ void UVirtualDatasetSubsystem::WriteScene()
         }
         Files.Add(TextFile(TEXT("label.json"),Label));for(const auto& F:Files)Result.Bytes+=F.Bytes.Num();
         const FString Directory=Root/FString::Printf(TEXT("scene_%05d"),Scene);
-        const bool Written=TestSet?UVirtualSensorFileSaveSubsystem::WriteTestSetSceneBundle(Directory,Files,[Cancelled](){return Cancelled->load();}):UVirtualSensorFileSaveSubsystem::WriteDatasetSceneBundle(Directory,Files,[Cancelled](){return Cancelled->load();});
+        const bool Written=!LocalRoot.IsEmpty()?UVirtualSensorFileSaveSubsystem::WriteLocalSceneBundle(LocalRoot,Directory,Files,[Cancelled](){return Cancelled->load();}):TestSet?UVirtualSensorFileSaveSubsystem::WriteTestSetSceneBundle(Directory,Files,[Cancelled](){return Cancelled->load();}):UVirtualSensorFileSaveSubsystem::WriteDatasetSceneBundle(Directory,Files,[Cancelled](){return Cancelled->load();});
         if(!Written){Result.Error=TEXT("데이터셋 저장 실패 또는 중단");return Result;}
         TSharedPtr<FJsonObject> Manifest;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Conditions),Manifest);
         Manifest->SetNumberField(TEXT("completed_scenes"),Scene+1);Manifest->SetStringField(TEXT("coordinates"),TEXT("PCD: RH sensor-local X forward,Y left,Z up meters; pose: UE world X forward,Y right,Z up meters; depth: optical Z meters; instance: R+256G+65536B"));
@@ -457,7 +464,7 @@ void UVirtualDatasetSubsystem::WriteScene()
         const FString Temp=Root/TEXT("dataset.json.pending"),Final=Root/TEXT("dataset.json");
         if(Cancelled->load())Result.Error=TEXT("데이터셋 생성 취소 · ")+Root;
         else if(!FFileHelper::SaveStringToFile(DatasetJson(Manifest.ToSharedRef()),*Temp,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))Result.Error=TEXT("dataset.json.pending 쓰기 실패 · ")+Temp;
-        else if(!(TestSet?UVirtualSensorFileSaveSubsystem::CommitTestSetManifest(Final,Temp):IFileManager::Get().Move(*Final,*Temp,true,true,false,true)))Result.Error=TEXT("dataset.json 최종 이동 실패 · ")+Temp+TEXT(" → ")+Final;
+        else if(!(!LocalRoot.IsEmpty()?UVirtualSensorFileSaveSubsystem::CommitLocalSceneManifest(LocalRoot,Final,Temp):TestSet?UVirtualSensorFileSaveSubsystem::CommitTestSetManifest(Final,Temp):IFileManager::Get().Move(*Final,*Temp,true,true,false,true)))Result.Error=TEXT("dataset.json 최종 이동 실패 · ")+Temp+TEXT(" → ")+Final;
         if(!Result.Error.IsEmpty())
         {
             UE_LOG(LogMA0T10,Display,TEXT("[%s][DatasetFinalizeFailed] scene=%d reason=%s"),TestSet?TEXT("TESTSET"):TEXT("DATASET"),Scene,*Result.Error);
