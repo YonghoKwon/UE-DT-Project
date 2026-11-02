@@ -203,7 +203,8 @@ bool FTrainBatchSftpTest::RunTest(const FString&)
     const FString Cmd=CommandLine(S,TEXT("C:/Work Dir/b.txt"));
     for(const TCHAR* Need:{TEXT("BatchMode=yes"),TEXT("StrictHostKeyChecking=yes"),TEXT("PasswordAuthentication=no"),TEXT("IdentitiesOnly=yes"),TEXT("\"C:/Work Dir/b.txt\""),TEXT("trainer@train.example")})
         TestTrue(*FString::Printf(TEXT("command line has %s"),Need),Cmd.Contains(Need));
-    TestTrue(TEXT("first contact may accept a new key only into a pending file"),CommandLine(S,TEXT("b"),true,TEXT("C:/p/pending")).Contains(TEXT("StrictHostKeyChecking=accept-new"))&&CommandLine(S,TEXT("b"),true,TEXT("C:/p/pending")).Contains(TEXT("UserKnownHostsFile=C:/p/pending")));
+    TestTrue(TEXT("first contact may accept a new key only into a pending file"),CommandLine(S,TEXT("b"),true,TEXT("C:/p/pending")).Contains(TEXT("StrictHostKeyChecking=accept-new"))&&CommandLine(S,TEXT("b"),true,TEXT("C:/p/pending")).Contains(TEXT("UserKnownHostsFile=\\\"C:/p/pending\\\"")));
+    TestTrue(TEXT("known_hosts path with spaces stays one ssh option value"),CommandLine(S,TEXT("b"),false,TEXT("C:/Unreal Projects/kh")).Contains(TEXT("\"UserKnownHostsFile=\\\"C:/Unreal Projects/kh\\\"\"")));
 
     const TArray<FTrainSftpFile> Files={{TEXT("C:/out/a.zip"),TEXT("a.zip"),100},{TEXT("C:/out/a.zip.sha256"),TEXT("a.zip.sha256"),80},{TEXT("C:/out/artifact.json"),TEXT("a.artifact.json"),50}};
     const FString Fresh=UploadBatch(S,Files,{});
@@ -223,6 +224,82 @@ bool FTrainBatchSftpTest::RunTest(const FString&)
     FString Error;FTrainSftpSettings Bad=S;Bad.Host=TEXT("-oProxyCommand=x");TestFalse(TEXT("option-looking host rejected"),ValidateSettings(Bad,Error,false));
     Bad=S;Bad.User=TEXT("a b");TestFalse(TEXT("user with space rejected"),ValidateSettings(Bad,Error,false));
     TestTrue(TEXT("inbox OpenSSH client present on this Windows host"),!ClientExecutable().IsEmpty());
+    return true;
+}
+
+/**
+ * Against a real SFTP receiver (e.g. Tools/TrainBatchTools/sftp-test container). Runs only when
+ * MA0T10_SFTP_LIVE_HOST/PORT/USER/KEY/DIR are set; nothing is uploaded otherwise.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTrainBatchSftpLiveTest,"MA0T10.TrainBatch.SftpLive",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FTrainBatchSftpLiveTest::RunTest(const FString&)
+{
+    using namespace TrainBatchSftp;
+    FTrainSftpSettings S;S.Host=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SFTP_LIVE_HOST"));
+    if(S.Host.IsEmpty()){AddInfo(TEXT("MA0T10_SFTP_LIVE_HOST not set; live SFTP test skipped"));return true;}
+    S.Port=FCString::Atoi(*FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SFTP_LIVE_PORT")));S.User=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SFTP_LIVE_USER"));
+    S.PrivateKeyPath=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SFTP_LIVE_KEY"));
+    const FString Run=FGuid::NewGuid().ToString(EGuidFormats::Digits).Left(10).ToLower();
+    S.RemoteDirectory=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SFTP_LIVE_DIR"))/(TEXT("run-")+Run);
+    const FString Root=FixtureRoot()/TEXT("sftp-live"),Work=Root/TEXT("work");
+    IFileManager::Get().DeleteDirectory(*Root,false,true);
+    S.KnownHostsPath=Root/TEXT("known hosts/known_hosts");// space on purpose: real project paths contain one
+    S.ProcessTimeoutSec=120;
+    FString Error;
+    TestFalse(TEXT("unregistered host key refused before connecting"),ValidateSettings(S,Error));
+
+    // Trust flow: fetch → (user compares) → confirm.
+    FString Fingerprint;const FString Pending=Root/TEXT("known hosts/pending");
+    TestTrue(*(TEXT("fingerprint fetched: ")+Error),FetchHostFingerprint(S,Pending,Work,Fingerprint,Error));
+    TestTrue(TEXT("fingerprint is SHA256"),Fingerprint.Contains(TEXT("SHA256:")));
+    TestTrue(TEXT("host key confirmed"),ConfirmHostKey(S,Pending,Error));
+
+    // Three files like a real delivery; the artifact (first) is renamed last.
+    TArray<uint8> Big;Big.SetNumUninitialized(5*1024*1024+333);for(int32 I=0;I<Big.Num();++I)Big[I]=uint8((I*7919)>>3);
+    const auto MakeFile=[&](const FString& Name,const TArray<uint8>& Data){const FString P=Root/TEXT("local")/Name;FFileHelper::SaveArrayToFile(Data,*P);return FTrainSftpFile{P,Name,int64(Data.Num())};};
+    const FString Sha=TrainBatchArchive::Sha256Bytes(Big.GetData(),Big.Num());
+    const FString Name=TEXT("job-")+Run+TEXT("-")+Sha.Left(12)+TEXT(".zip");
+    const FTCHARToUTF8 SideText(*(Sha+TEXT("  ")+Name+TEXT("\n")));
+    const TArray<FTrainSftpFile> Files={MakeFile(Name,Big),MakeFile(Name+TEXT(".sha256"),TArray<uint8>((const uint8*)SideText.Get(),SideText.Length())),MakeFile(TEXT("job-")+Run+TEXT(".artifact.json"),TArray<uint8>((const uint8*)"{}",2))};
+    TArray<FString> Phases;
+    FTrainSftpUploadResult U=Upload(S,Files,Work,nullptr,[&](const FString& P){Phases.Add(P);});
+    TestEqual(*(TEXT("upload succeeded: ")+U.Error+TEXT(" ")+U.Detail),U.Outcome,ETrainSftpOutcome::Uploaded);
+    TestEqual(TEXT("phases in order"),Phases,TArray<FString>{TEXT("probe"),TEXT("upload"),TEXT("verify"),TEXT("finalize")});
+
+    const auto Listing=[&](){FString B=Work/TEXT("list.txt");FFileHelper::SaveStringToFile(ProbeBatch(S),*B);return ParseListing(RunProcess(ClientExecutable(),CommandLine(S,B),S,nullptr,60).Output);};
+    TMap<FString,int64> Remote=Listing();
+    for(const auto& F:Files){TestEqual(*(TEXT("final size on server: ")+F.RemoteName),Remote.FindRef(F.RemoteName),F.Size);TestFalse(TEXT("no partial left"),Remote.Contains(F.RemoteName+TEXT(".partial")));}
+    // Bytes on the server equal the source: download and hash.
+    const FString Back=Root/TEXT("back.zip");const FString GetBatch=Work/TEXT("get.txt");
+    FFileHelper::SaveStringToFile(TEXT("cd ")+Quote(S.RemoteDirectory)+TEXT("\nget ")+Quote(Name)+TEXT(" ")+Quote(Back)+TEXT("\n"),*GetBatch);
+    TestEqual(TEXT("download exit"),RunProcess(ClientExecutable(),CommandLine(S,GetBatch),S,nullptr,120).ExitCode,0);
+    FString BackSha;TrainBatchArchive::Sha256File(Back,BackSha,Error);TestEqual(TEXT("server bytes match source SHA-256"),BackSha,Sha);
+
+    U=Upload(S,Files,Work,nullptr);
+    TestEqual(TEXT("existing names never overwritten"),U.Outcome,ETrainSftpOutcome::Conflict);
+
+    // Resume: a half-uploaded .partial must be continued with reput, not restarted.
+    const FString ResumeName=TEXT("job-")+Run+TEXT("-resume.zip");
+    TArray<uint8> Half(Big.GetData(),Big.Num()/2);const FTrainSftpFile HalfFile=MakeFile(TEXT("half.bin"),Half);
+    const FString PutHalf=Work/TEXT("half.txt");
+    FFileHelper::SaveStringToFile(TEXT("cd ")+Quote(S.RemoteDirectory)+TEXT("\nput ")+Quote(HalfFile.LocalPath)+TEXT(" ")+Quote(ResumeName+TEXT(".partial"))+TEXT("\n"),*PutHalf);
+    TestEqual(TEXT("half partial placed"),RunProcess(ClientExecutable(),CommandLine(S,PutHalf),S,nullptr,120).ExitCode,0);
+    FTrainSftpFile Full=Files[0];Full.RemoteName=ResumeName;
+    TestTrue(TEXT("batch chooses reput for the half partial"),UploadBatch(S,{Full},Listing()).Contains(TEXT("reput ")));
+    U=Upload(S,{Full},Work,nullptr);
+    TestEqual(*(TEXT("resumed upload completes: ")+U.Error),U.Outcome,ETrainSftpOutcome::Uploaded);
+    FFileHelper::SaveStringToFile(TEXT("cd ")+Quote(S.RemoteDirectory)+TEXT("\nget ")+Quote(ResumeName)+TEXT(" ")+Quote(Back+TEXT("2"))+TEXT("\n"),*GetBatch);
+    RunProcess(ClientExecutable(),CommandLine(S,GetBatch),S,nullptr,120);
+    TrainBatchArchive::Sha256File(Back+TEXT("2"),BackSha,Error);TestEqual(TEXT("resumed bytes match source SHA-256"),BackSha,Sha);
+
+    // A different host key (here: the client's own public key) must be refused under strict checking.
+    FString Pub;FFileHelper::LoadFileToString(Pub,*(S.PrivateKeyPath+TEXT(".pub")));TArray<FString> Parts;Pub.ParseIntoArrayWS(Parts);
+    if(Parts.Num()>=2)
+    {
+        FFileHelper::SaveStringToFile(FString::Printf(TEXT("[%s]:%d %s %s\n"),*S.Host,S.Port,*Parts[0],*Parts[1]),*S.KnownHostsPath);
+        FTrainSftpFile Other=Files[2];Other.RemoteName=TEXT("job-")+Run+TEXT("-mitm.json");
+        TestEqual(TEXT("changed host key refused"),Upload(S,{Other},Work,nullptr).Outcome,ETrainSftpOutcome::Failed);
+    }
     return true;
 }
 #endif
