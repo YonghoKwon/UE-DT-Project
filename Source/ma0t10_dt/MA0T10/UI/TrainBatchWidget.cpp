@@ -218,20 +218,15 @@ void UTrainBatchWidget::StartDelivery(bool bUpload)
     const auto* Job=S->Jobs().FindByPredicate([&](const auto& J){return J.Spec.Id==SelectedJob;});
     if(!Job){DeliveryFeedback=FText::FromString(TEXT("Job을 먼저 선택하세요"));return;}
     FTrainDeliveryRequest R;R.JobId=Job->Spec.Id;R.Settings=ReadDeliveryFields();R.bUpload=bUpload;
-    TArray<FString> Excluded;FString E;
-    if(!TrainBatchDelivery::BuildJobEntries(*Job,bSendSuccessOnly,R.Entries,Excluded,E)){DeliveryFeedback=FText::FromString(E);return;}
-    R.OutputDir=TrainBatchDelivery::OutputDirectory(R.JobId,!Excluded.IsEmpty());
-    if(!Excluded.IsEmpty())
-    {
-        // A success-only package states what it leaves out, inside the archive itself.
-        const FString ExcludedFile=R.OutputDir/(R.JobId+TEXT(".excluded.txt"));IFileManager::Get().MakeDirectory(*R.OutputDir,true);
-        if(!IFileManager::Get().FileExists(*ExcludedFile)&&!FFileHelper::SaveStringToFile(FString::Join(Excluded,TEXT("\n"))+TEXT("\n"),*ExcludedFile,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
-        {DeliveryFeedback=FText::FromString(TEXT("제외 목록 저장 실패"));return;}
-        FTrainArchiveEntry Note;Note.SourcePath=ExcludedFile;Note.EntryName=R.JobId+TEXT("/excluded_scenarios.txt");Note.Size=IFileManager::Get().FileSize(*ExcludedFile);R.Entries.Add(Note);
-    }
+    // State-only check here; the folder scan and packaging run on the delivery thread.
+    const TArray<FString> Incomplete=TrainBatchDelivery::IncompleteScenarios(*Job);FString E;
+    if(!Incomplete.IsEmpty()&&!bSendSuccessOnly)
+    {DeliveryFeedback=FText::FromString(FString::Printf(TEXT("실패/미완료 %d건이 있어 기본 전송을 막았습니다. 재시도하거나 '성공분만 보내기'를 선택하세요"),Incomplete.Num()));return;}
+    if(Incomplete.Num()==Job->Items.Num()){DeliveryFeedback=FText::FromString(TEXT("완료된 시나리오가 없습니다"));return;}
+    R.Job=*Job;R.bAllowPartial=bSendSuccessOnly;R.OutputDir=TrainBatchDelivery::OutputDirectory(R.JobId);
     if(!Delivery)Delivery=MakeShared<FTrainBatchDelivery,ESPMode::ThreadSafe>();
     if(!Delivery->Start(R,E)){DeliveryFeedback=FText::FromString(E);return;}
-    DeliveryFeedback=FText::FromString(Excluded.IsEmpty()?FString():FString::Printf(TEXT("실패/미완료 %d건 제외: %s"),Excluded.Num(),*FString::Join(Excluded,TEXT(", "))));
+    DeliveryFeedback=FText::FromString(Incomplete.IsEmpty()?FString():FString::Printf(TEXT("실패/미완료 %d건 제외: %s"),Incomplete.Num(),*FString::Join(Incomplete,TEXT(", "))));
 }
 FText UTrainBatchWidget::DeliveryStatusText() const
 {

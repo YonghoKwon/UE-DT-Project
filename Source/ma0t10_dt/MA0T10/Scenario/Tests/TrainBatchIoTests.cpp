@@ -185,6 +185,20 @@ bool FTrainBatchDeliveryTest::RunTest(const FString&)
     TestEqual(TEXT("input + confirmed run only"),Names,TArray<FString>{View.Spec.Id+TEXT("/input/job.json"),View.Spec.Id+TEXT("/scenarios/case-001/complete.json"),View.Spec.Id+TEXT("/scenarios/case-001/scene_00000/lidar.pcd")});
     View.Items[0].RunDirectory=JobDir/TEXT("scenarios/case-001/run_old");
     TestFalse(TEXT("run without complete.json refused"),TrainBatchDelivery::BuildJobEntries(View,true,JobEntries,Excluded,Error));
+
+    // A later success-only send after a retry must package the new selection, not reuse the older subset.
+    View.Items[0].RunDirectory=JobDir/TEXT("scenarios/case-001/run_a");
+    const FString Deliveries=Root/TEXT("job-out");
+    FTrainDeliveryRequest P;P.JobId=View.Spec.Id;P.Job=View;P.bAllowPartial=true;P.OutputDir=Deliveries;
+    TestTrue(TEXT("first success-only package"),D->Start(P,Error));D->Wait();const FTrainDeliveryStatus Partial=D->Status();
+    TestTrue(*(TEXT("first package done: ")+Partial.Error),Partial.Phase==ETrainDeliveryPhase::Done&&Partial.Excluded==TArray<FString>{TEXT("case-002")});
+    FFileHelper::SaveStringToFile(TEXT("{}"),*(JobDir/TEXT("scenarios/case-002/run_b/complete.json")));FFileHelper::SaveStringToFile(TEXT("pcd2"),*(JobDir/TEXT("scenarios/case-002/run_b/scene_00000/lidar.pcd")));
+    View.Items[1].State=ETrainBatchItemState::Completed;View.Items[1].RunDirectory=JobDir/TEXT("scenarios/case-002/run_b");P.Job=View;
+    TestTrue(TEXT("second package after retry"),D->Start(P,Error));D->Wait();const FTrainDeliveryStatus Full=D->Status();
+    TestTrue(*(TEXT("second package done: ")+Full.Error),Full.Phase==ETrainDeliveryPhase::Done&&Full.Excluded.IsEmpty());
+    TestTrue(TEXT("new selection is a new archive, not the older subset"),Full.ArchivePath!=Partial.ArchivePath&&!Full.bReusedArchive&&Full.ArchiveSha256!=Partial.ArchiveSha256);
+    TMap<FString,TArray<uint8>> Packed;TestTrue(TEXT("second archive readable"),ReadZip(Full.ArchivePath,Packed,Error));
+    TestTrue(TEXT("retried scenario included, no exclusion list"),Packed.Contains(View.Spec.Id+TEXT("/scenarios/case-002/scene_00000/lidar.pcd"))&&!Packed.Contains(View.Spec.Id+TEXT("/excluded_scenarios.txt")));
     IFileManager::Get().DeleteDirectory(*JobDir,false,true);
     return true;
 }

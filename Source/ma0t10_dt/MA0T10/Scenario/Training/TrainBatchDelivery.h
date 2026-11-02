@@ -28,6 +28,10 @@ struct FTrainDeliveryRequest
     FTrainDeliverySettings Settings;
     /** False: package only (user may send later with the same archive). */
     bool bUpload=false;
+    /** Packages this job on the worker thread (BuildJobEntries); avoids scanning run folders on the game thread. */
+    TOptional<FTrainBatchJobView> Job;
+    /** With Job: package completed scenarios only and list the rest in excluded_scenarios.txt. */
+    bool bAllowPartial=false;
 };
 
 struct FTrainDeliveryStatus
@@ -42,6 +46,9 @@ struct FTrainDeliveryStatus
     int64 ArchiveBytes=0;
     FString RemoteName;
     bool bReusedArchive=false;
+    /** Local paths of this selection's per-file manifest and (success-only) exclusion list. */
+    FString ChecksumsPath,ExcludedPath;
+    TArray<FString> Excluded;
 };
 
 namespace TrainBatchDelivery
@@ -61,8 +68,10 @@ namespace TrainBatchDelivery
      * with it, skipped ids are returned in Excluded so the UI can show them before sending.
      */
     MA0T10_DT_API bool BuildJobEntries(const FTrainBatchJobView& Job,bool bAllowPartial,TArray<FTrainArchiveEntry>& Out,TArray<FString>& Excluded,FString& Error);
-    /** Saved/TrainBatch/Deliveries/<JobId> (or <JobId>-partial for a success-only package). */
-    MA0T10_DT_API FString OutputDirectory(const FString& JobId,bool bPartial);
+    /** Saved/TrainBatch/Deliveries/<JobId>. Files inside are named per selection, so different selections never collide. */
+    MA0T10_DT_API FString OutputDirectory(const FString& JobId);
+    /** Game-thread-cheap check (states only, no file IO): ids that are not Completed. */
+    MA0T10_DT_API TArray<FString> IncompleteScenarios(const FTrainBatchJobView& Job);
 }
 
 /**
