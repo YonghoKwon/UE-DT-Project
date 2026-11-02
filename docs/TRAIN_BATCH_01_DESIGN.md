@@ -345,3 +345,9 @@ DTCore에는 새 기능이 필요하지 않은 방향이다. TC DataTable 등록
 실측된 작은 Job은4시나리오·12프레임이며 실제 최대 동시2, native dispatch16/fallback0이었다. ZIP·tar.gz 각각 Python 검증은 OK다. Development/Shipping 패키지의1시나리오·3프레임은 저장 맵의 GPU Depth Projection(backend2) 설정을 유지했으며, 이를 packaged native 처리량 검증으로 세지 않는다. 각 패키지의 기본 꺼짐10초 검사도 통과했다. 최종 release는 같은 코드의 표준 절차로 별도 기록하며, 초기 누락 fixture/옵션 실패를 숨기지 않는다.
 
 후속 병합 주의: 전체 패키지·실행·release 검증 코드는 `35ec727`이다. 작업 종료 직전 Claude가 SFTP known_hosts 인용 수정·수신기 시험(`43efd60`/병합 `33e5c5f`)을 추가했다. 이 후속 소스는 Editor/Development/Shipping 빌드와 TrainBatch 단위19개를 확인했고 새 `SftpLive`1개는 서버 미지정 semantic Skip이다. 이 병합 후 전체 패키지 실행·release를 다시 수행한 것으로 표시하지 않는다. 최신 판정과 미수행은 r41c result.json/merge-check를 따른다.
+
+### r41d 1D 재사용·부분 실패 확인
+
+사용자 지시에 따라 r41c의 Development/Shipping build·stage·기본 꺼짐·패키지 M=1, native M=2 생성→ZIP/tar.gz 독립 검증, 표준 release(482 Success/44 semantic Skip/0 Fail, 검증 코드35ec727)를 재실행하지 않고 재사용한다. 해당 생성·압축·워커·UI callback 등 runtime18파일은35ec727과 동일함을 대조했다. 후속 SFTP 인용 수정은 사용자 서버 업로드 미수행 범위이며 이전3종 빌드·단위 증거와 구분한다.
+
+`MA0T10.TrainBatch.PartialUiDelivery`는 합성 Job view로 실제 위젯의 StartDelivery(false)를 호출한다. 기본 부분 실패 거절과 명시적 성공분 ZIP/tar.gz를 확인하고, Python 표준 도구로 전체 SHA256·정확한 excluded_scenarios.txt·실패/이전 attempt 결과 미포함을 검증했다. 새 private 접근은 Editor 자동화 friend만이며 shipping/runtime 동작을 바꾸지 않는다. 화면을 열거나 센서·서버를 실행한 수용 검증은 아니다. 이 시험은 최초 성공분 압축이며 상태 변경 후 재압축은 별도 범위다. 실제 Linux SFTP와 직접 UI는 미수행으로 유지한다. 증거: `Saved/Reports/TRAIN-BATCH-01/r41d/RESULT.md`.
