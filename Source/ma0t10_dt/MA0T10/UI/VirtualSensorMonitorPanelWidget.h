@@ -46,6 +46,7 @@ USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualSensorMonitorDisplayData
 {
     GENERATED_BODY()
+    friend struct FDeviceSensorMonitorBody;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
     bool bShowingLidar = false;
@@ -97,6 +98,7 @@ UCLASS()
 class MA0T10_DT_API UVirtualSensorMonitorPanelWidget : public UVirtualSensorPanelWidgetBase, public IVirtualSensorMonitorView
 {
     GENERATED_BODY()
+    friend struct FDeviceSensorMonitorBody;
 
 public:
     virtual void BindMonitorCamera(UVirtualCameraCaptureComponent* Camera) override { BindVirtualCamera(Camera); }

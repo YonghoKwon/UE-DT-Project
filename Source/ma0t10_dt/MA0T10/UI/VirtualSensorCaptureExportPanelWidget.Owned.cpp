@@ -1,4 +1,5 @@
 #include "VirtualSensorCaptureExportPanelWidget.h"
+#include "DeviceSensorCaptureBody.h"
 #include "Blueprint/WidgetTree.h"
 #include "SlabScenarioReplayPanelWidget.h"
 #include "SensorToolUiText.h"
@@ -460,37 +461,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedLiveTab()
 }
 
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildOwnedFileTab()
-{
-	auto Modes=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8));
-	const FText Labels[]={LOCTEXT("NewFrame","새 프레임 저장"),LOCTEXT("CurrentFrame","현재 프레임 저장"),LOCTEXT("Periodic","주기 저장")};
-	for(int32 I=0;I<3;++I)Modes->AddSlot()[SNewSensorTool(SButton).Text(Labels[I]).ForegroundColor_Lambda([this,I](){return OwnedFileAction==I?GetToolAccentColor():GetToolTextColor();}).OnClicked_Lambda([this,I](){SetActiveTab(I==1?EVirtualSensorCaptureExportTab::Export:EVirtualSensorCaptureExportTab::Capture);OwnedFileAction=I;LastNativeStatusRefreshSeconds=-1;return FReply::Handled();})];
-	auto IsCamera=[this](){auto* A=ResolveOwnedSelectedActor();return A&&A->GetSensorKind()==EVirtualSensorKind::Camera;};
-	auto Options=SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(16,8));
-	auto Output=[this,Options,IsCamera](bool Camera,bool FVirtualSensorCaptureSelection::* Field,FText Name)
-	{Options->AddSlot()[SNew(SCheckBox).Visibility_Lambda([IsCamera,Camera](){return IsCamera()==Camera?EVisibility::Visible:EVisibility::Collapsed;})
-	 .IsChecked_Lambda([this,Field](){return CaptureSelection.*Field?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
-	 .OnCheckStateChanged_Lambda([this,Field](ECheckBoxState S){auto C=CaptureSelection;C.*Field=S==ECheckBoxState::Checked;SetCaptureSelection(C);})[SNewSensorTool(STextBlock).Text(Name)]];};
-	Output(true,&FVirtualSensorCaptureSelection::bCameraImage,LOCTEXT("Jpeg","JPEG 이미지"));Output(true,&FVirtualSensorCaptureSelection::bCameraPayload,LOCTEXT("CameraJson","Camera JSON"));
-	Output(false,&FVirtualSensorCaptureSelection::bPointCloud,LOCTEXT("PointCloud","포인트 클라우드"));Output(false,&FVirtualSensorCaptureSelection::bLidarPayload,LOCTEXT("LidarJson","LiDAR JSON"));
-	return SNew(SScrollBox)+SScrollBox::Slot()[SNew(SVerticalBox)
-	 +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[Modes]
-	 +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).AutoWrapText(true).Text_Lambda([this](){return OwnedFileAction==0?LOCTEXT("NewHelp","선택 장비의 새 프레임을 비동기로 기다립니다. 요청 후 장비를 바꿔도 저장 대상은 유지됩니다."):OwnedFileAction==1?LOCTEXT("CurrentHelp","마지막으로 완료된 프레임을 저장합니다. 추가 측정을 하지 않습니다."):LOCTEXT("PeriodicHelp","시작할 때의 장비·출력·간격으로 최신 완료 프레임을 저장합니다. 서버 전송 간격과는 별개입니다.");})]
-	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[Options]
-	 +SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualSensorExportKind>>).ComboBoxStyle(&FSensorOwnedPresentationStyle::ComboBox()).Visibility_Lambda([this,IsCamera](){return !IsCamera()&&CaptureSelection.bPointCloud?EVisibility::Visible:EVisibility::Collapsed;}).OptionsSource(&NativeExportKindOptions)
-	  .OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualSensorExportKind> K){return SNewSensorTool(STextBlock).Text(FText::FromString(K?ExportKindText(*K):FString()));})
-	  .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualSensorExportKind> K,ESelectInfo::Type){if(!K)return;if(OwnedFileAction==1)SetSelectedPointCloudExportKind(*K);else{auto C=CaptureSelection;C.PointCloudFormat=*K;SetCaptureSelection(C);}})
-	  [SNewSensorTool(STextBlock).Text_Lambda([this](){return FText::FromString(TEXT("파일 형식: ")+ExportKindText(ResolveOwnedFileSelection().PointCloudFormat));})]]
-	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SVerticalBox).Visibility_Lambda([this](){return OwnedFileAction==2?EVisibility::Visible:EVisibility::Collapsed;})
-	  +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).Text(LOCTEXT("Interval","저장 간격 (초)"))]
-	  +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SHorizontalBox)+SHorizontalBox::Slot().FillWidth(1)[SNewSensorTool(SEditableTextBox).Text_Lambda([this](){return FText::AsNumber(CaptureSelection.IntervalSeconds);}).OnTextCommitted_Lambda([this](const FText& T,ETextCommit::Type){SetCaptureIntervalSeconds(FCString::Atof(*T.ToString()));})]+SHorizontalBox::Slot().AutoWidth().Padding(8,0,0,0)[SNewSensorTool(SButton).Text(LOCTEXT("SensorInterval","센서 주기 사용")).OnClicked_Lambda([this](){UseSelectedSensorCaptureInterval();return FReply::Handled();})]]]
-	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::PrimaryButton()).Text_Lambda([this](){return OwnedFileAction==2?(bOwnedPeriodicActive?LOCTEXT("StopPeriodic","주기 저장 중지"):LOCTEXT("StartPeriodic","주기 저장 시작")):bOwnedSaveBusy?LOCTEXT("Busy","파일 처리 중…"):LOCTEXT("SaveNow","파일 저장");})
-	  .IsEnabled_Lambda([this](){return OwnedFileAction==2?(bOwnedPeriodicActive||ResolveOwnedSelectedActor()!=nullptr):ResolveOwnedSelectedActor()&&!bOwnedSaveBusy&&(OwnedFileAction==0||bOwnedCanSaveCurrent);})
-	  .OnClicked_Lambda([this](){if(OwnedFileAction==2)ToggleOwnedPeriodicSave();else RequestFileSave(OwnedFileAction==0?EVirtualSensorFileSaveMode::NewFrame:EVirtualSensorFileSaveMode::CurrentFrame);return FReply::Handled();})]
-	 +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){if(OwnedFileAction==2)return FText::FromString(OwnedPeriodicStatusText);if(OwnedFileAction==1&&!bOwnedCanSaveCurrent)return LOCTEXT("NoFrame","완료된 프레임이 없습니다. 측정을 시작하거나 새 프레임 저장을 선택하세요.");if(OwnedFileRequestId.IsEmpty())return SensorToolUiText::FileSaveWaiting();return FText::FromString(OwnedFileStatusText);})]
-	 +SVerticalBox::Slot().AutoHeight().Padding(0,16)[BuildOwnedDatasetSection()]
-	 +SVerticalBox::Slot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("FileTools","파일 전송 도구"))].BodyContent()[SNewSensorTool(SButton).Text(LOCTEXT("SendRecent","최근 파일 수동 전송")).OnClicked_Lambda([this](){SendLastExportToServer();return FReply::Handled();})]]
-	];
-}
+{ return FDeviceSensorCaptureBody::BuildOwnedFileTab(*this); }
 
 void UVirtualSensorCaptureExportPanelWidget::OpenOwnedConnectionSection(bool Diagnostics)
 {

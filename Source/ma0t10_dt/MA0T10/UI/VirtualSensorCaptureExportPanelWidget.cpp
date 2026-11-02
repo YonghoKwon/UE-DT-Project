@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "DeviceSensorCaptureBody.h"
 #include "SensorToolUiText.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
@@ -1220,37 +1221,7 @@ TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildLiveStreamTab()
 }
 
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildCaptureTab()
-{
-	return SNew(SScrollBox)+SScrollBox::Slot()[ SNew(SVerticalBox)
-		+ SVerticalBox::Slot().AutoHeight()[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("CaptureTitle", "수동 및 시간 지정 캡처")) ]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0, 8)[ SNew(SWrapBox).UseAllottedSize(true)
-			+ SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text(LOCTEXT("CaptureOnceV2", "선택 센서 1회 캡처")).OnClicked_Lambda([this]() { CaptureOnce(); return FReply::Handled(); }) ]
-			+ SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text_Lambda([this]() { return FText::FromString(MonitorWidget && MonitorWidget->IsLocalSensorCaptureActive() ? TEXT("시간 지정 캡처 중지") : TEXT("시간 지정 캡처 시작")); }).OnClicked_Lambda([this]() { ToggleTimedCapture(); return FReply::Handled(); }) ]
-		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().FillWidth(1.0f)[ SNewSensorTool(SEditableTextBox).HintText(LOCTEXT("CaptureInterval", "캡처 간격(초), 0.05~3600")).Text_Lambda([this]() { return FText::AsNumber(CaptureSelection.IntervalSeconds); }).OnTextCommitted_Lambda([this](const FText& Text, ETextCommit::Type) { SetCaptureIntervalSeconds(FCString::Atof(*Text.ToString())); }) ]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(4, 0)[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text(LOCTEXT("UseSensorInterval", "센서 주기 사용")).OnClicked_Lambda([this]() { UseSelectedSensorCaptureInterval(); return FReply::Handled(); }) ]
-		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)
-		[
-			SNew(SWrapBox).UseAllottedSize(true)
-			+ SWrapBox::Slot()[ SNew(SCheckBox).IsChecked_Lambda([this]() { return CaptureSelection.bCameraImage ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState State) { FVirtualSensorCaptureSelection Next = CaptureSelection; Next.bCameraImage = State == ECheckBoxState::Checked; SetCaptureSelection(Next); })[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(LOCTEXT("CaptureCameraJpeg", "Camera JPEG")) ] ]
-			+ SWrapBox::Slot()[ SNew(SCheckBox).IsChecked_Lambda([this]() { return CaptureSelection.bCameraPayload ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState State) { FVirtualSensorCaptureSelection Next = CaptureSelection; Next.bCameraPayload = State == ECheckBoxState::Checked; SetCaptureSelection(Next); })[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(LOCTEXT("CaptureCameraPayload", "Camera Payload JSON")) ] ]
-			+ SWrapBox::Slot()[ SNew(SCheckBox).IsChecked_Lambda([this]() { return CaptureSelection.bLidarPayload ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState State) { FVirtualSensorCaptureSelection Next = CaptureSelection; Next.bLidarPayload = State == ECheckBoxState::Checked; SetCaptureSelection(Next); })[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(LOCTEXT("CaptureLidarPayload", "LiDAR Payload JSON")) ] ]
-			+ SWrapBox::Slot()[ SNew(SCheckBox).IsChecked_Lambda([this]() { return CaptureSelection.bPointCloud ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState State) { FVirtualSensorCaptureSelection Next = CaptureSelection; Next.bPointCloud = State == ECheckBoxState::Checked; SetCaptureSelection(Next); })[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(LOCTEXT("CapturePointCloud", "Point Cloud")) ] ]
-		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0, 4)
-		[
-			SNew(SComboBox<TSharedPtr<EVirtualSensorExportKind>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2))
-			.OptionsSource(&NativeExportKindOptions)
-			.OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualSensorExportKind> Item) { return SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text(FText::FromString(Item.IsValid() ? ExportKindText(*Item) : TEXT("CSV"))); })
-			.OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualSensorExportKind> Item, ESelectInfo::Type) { if (Item.IsValid()) { FVirtualSensorCaptureSelection Next = CaptureSelection; Next.PointCloudFormat = *Item; SetCaptureSelection(Next); } })
-			[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("캡처 Point Cloud 형식: %s"), *ExportKindText(CaptureSelection.PointCloudFormat))); }) ]
-		]
-		+ SVerticalBox::Slot().AutoHeight()[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).AutoWrapText(true).Text(LOCTEXT("CaptureHelp", "1회 캡처는 새 coherent 프레임을 비동기로 요청한 뒤 저장합니다. 시간 지정 캡처는 완료된 최신 프레임을 지정 간격마다 저장하며 Topic 스트림 주기와 독립적입니다.")) ]];
-}
+{ return FDeviceSensorCaptureBody::BuildCaptureTab(*this); }
 
 TSharedRef<SWidget> UVirtualSensorCaptureExportPanelWidget::BuildExportTab(TSharedPtr<EVirtualSensorExportKind> InitiallySelected)
 {

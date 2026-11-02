@@ -1,4 +1,5 @@
 #include "VirtualSensorPlacementPanelWidget.h"
+#include "DeviceSensorPlacementBody.h"
 #include "SensorToolWidgetDecl.h"
 #include "SensorToolWorkspaceStyle.h"
 #include "SensorToolUiText.h"
@@ -113,41 +114,7 @@ void UVirtualSensorPlacementPanelWidget::NativeTick(const FGeometry& G,float D)
     if(PreviousStatus!=Status){PreviousStatus=Status;CachedStatusText=FText::FromString(SensorToolUiText::UserReason(Status));}
 }
 TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::BuildEquipmentSection()
-{
-    auto Box=SNew(SVerticalBox);
-    Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return CachedCountText;})];
-    static const FTableRowStyle Card=FTableRowStyle(FCoreStyle::Get().GetWidgetStyle<FTableRowStyle>("TableView.Row"))
-      .SetActiveBrush(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Selection(),8.f))
-      .SetActiveHoveredBrush(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Selection(),8.f))
-      .SetInactiveBrush(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Selection(),8.f))
-      .SetInactiveHoveredBrush(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Selection(),8.f))
-      .SetEvenRowBackgroundBrush(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Section(),8.f))
-      .SetOddRowBackgroundBrush(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Section(),8.f));
-    Box->AddSlot().AutoHeight().Padding(0,8)[SNew(SBox).HeightOverride_Lambda([this](){return FMath::Clamp(SensorOptions.Num()*60.f*GetSensorToolVisualScale(),48.f,240.f*GetSensorToolVisualScale());})
-     [SAssignNew(SensorList,SListView<TSharedPtr<FOption>>).ListItemsSource(&SensorOptions).SelectionMode(ESelectionMode::Single)
-      .OnSelectionChanged_Lambda([this](TSharedPtr<FOption> O,ESelectInfo::Type Info){if(Info!=ESelectInfo::Direct&&O&&O->Actor.IsValid())SelectEquipment(O->Actor.Get());})
-      // Deferred mouse-up notification lets the 5 Hz model sync restore the old row
-      // between down/up. Commit the model on mouse-down before any refresh can run.
-      .OnGenerateRow_Lambda([this](TSharedPtr<FOption> O,const TSharedRef<STableViewBase>& Owner){return SNew(STableRow<TSharedPtr<FOption>>,Owner).Style(&Card).SignalSelectionMode(ETableRowSignalSelectionMode::Instantaneous).Padding(FMargin(10,8))
-       [SNew(SHorizontalBox)+SHorizontalBox::Slot().FillWidth(1)[SNew(SVerticalBox)
-         +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(13,GetSensorToolVisualScale());}).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ToolTipText_Lambda([O](){return O->NameText;}).ColorAndOpacity(GetToolTextColor()).Text_Lambda([O](){return O->NameText;})]
-         +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(11,GetSensorToolVisualScale());}).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([O](){return O->OriginText;})]]
-        +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(13,GetSensorToolVisualScale());}).ColorAndOpacity_Lambda([O](){return O->StateColor;}).Text(FText::FromString(TEXT("●")))]
-        +SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(12,GetSensorToolVisualScale());}).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([O](){return O->StateText;})]];})]];
-    Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).Visibility_Lambda([this](){return SensorOptions.IsEmpty()?EVisibility::Visible:EVisibility::Collapsed;}).AutoWrapText(true).Text(LOCTEXT("EmptyEquipment","장비가 없습니다 · 아래에서 추가하세요"))];
-    Box->AddSlot().AutoHeight().Padding(0,8)[SNew(SHorizontalBox)
-      +SHorizontalBox::Slot().FillWidth(1)[SNewSensorTool(SButton).Text(LOCTEXT("AddLidar","+ LiDAR")).ToolTipText(LOCTEXT("AddTip","현재 관찰 위치에 추가합니다. 전송은 별도로 시작합니다.")).OnClicked_Lambda([this](){AddSensor(EVirtualSensorKind::Lidar);return FReply::Handled();})]
-      +SHorizontalBox::Slot().FillWidth(1).Padding(8,0)[SNewSensorTool(SButton).Text(LOCTEXT("AddCamera","+ Camera")).ToolTipText(LOCTEXT("AddTip","현재 관찰 위치에 추가합니다. 전송은 별도로 시작합니다.")).OnClicked_Lambda([this](){AddSensor(EVirtualSensorKind::Camera);return FReply::Handled();})]
-      +SHorizontalBox::Slot().AutoWidth()[SNew(SComboButton).Visibility_Lambda([this](){return SensorOptions.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;}).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).HasDownArrow(false).ToolTipText(LOCTEXT("EquipmentMore","선택 장비 복제·삭제"))
-       .OnGetMenuContent_Lambda([this](){auto Menu=SNew(SVerticalBox);
-        Menu->AddSlot().AutoHeight()[SNewSensorTool(SButton).Text(LOCTEXT("Duplicate","복제")).IsEnabled_Lambda([this](){return Selected()!=nullptr;}).OnClicked_Lambda([this](){CancelLayoutOperation();EndPlacement();if(auto* L=Layout())if(L->DuplicateSensor(Selected(),Status)){if(GetToolWorkspace())GetToolWorkspace()->SynchronizeOwnedSelection();SetSelectedManipulating(true);}RefreshInventory();FSlateApplication::Get().DismissAllMenus();return FReply::Handled();})];
-        Menu->AddSlot().AutoHeight().Padding(0,4)[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle(true)).IsEnabled_Lambda([this](){return bCanDelete;}).ToolTipText_Lambda([this](){return CachedDeleteText;}).Text(LOCTEXT("DeleteEquipment","삭제…")).OnClicked_Lambda([this](){DeleteSelectedSensor();FSlateApplication::Get().DismissAllMenus();return FReply::Handled();})];return Menu;})
-       .ButtonContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("EquipmentMoreMark","..."))]]];
-    Box->AddSlot().AutoHeight()[SNew(SHorizontalBox).Visibility_Lambda([this](){return PendingDelete.IsValid()?EVisibility::Visible:EVisibility::Collapsed;})
-      +SHorizontalBox::Slot().FillWidth(1)[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle(true)).Text(LOCTEXT("DeleteConfirm","삭제 확인")).OnClicked_Lambda([this](){DeleteSelectedSensor();return FReply::Handled();})]
-      +SHorizontalBox::Slot().AutoWidth().Padding(8,0)[SNewSensorTool(SButton).Text(LOCTEXT("CancelDelete","취소")).OnClicked_Lambda([this](){CancelSelectedSensorDeletion();return FReply::Handled();})]];
-    return Box;
-}
+{ return FDeviceSensorPlacementBody::BuildEquipmentSection(*this); }
 TSharedRef<SWidget> UVirtualSensorPlacementPanelWidget::BuildSelectedSection()
 {
     auto Box=SNew(SVerticalBox);Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(false).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ToolTipText_Lambda([this](){return SelectedText();}).ColorAndOpacity(GetToolAccentColor()).Text_Lambda([this](){return SelectedText();})];

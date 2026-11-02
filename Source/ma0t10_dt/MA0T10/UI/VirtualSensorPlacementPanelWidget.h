@@ -13,6 +13,7 @@ UCLASS(BlueprintType)
 class MA0T10_DT_API UVirtualSensorPlacementPanelWidget : public UVirtualSensorPanelWidgetBase
 {
     GENERATED_BODY()
+    friend struct FDeviceSensorPlacementBody;
 public:
     /** Navigation only: open the existing IMU owner without attaching or changing it. */
     bool OpenOwnedImuSettings();

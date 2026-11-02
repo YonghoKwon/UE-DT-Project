@@ -49,6 +49,7 @@ UCLASS(BlueprintType)
 class MA0T10_DT_API UVirtualSensorCaptureExportPanelWidget : public UVirtualSensorPanelWidgetBase
 {
     GENERATED_BODY()
+    friend struct FDeviceSensorCaptureBody;
 
 public:
 	/** Navigation/read-only presentation; no draft, output or persistence policy changes. */
@@ -217,6 +218,7 @@ protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+    TSharedRef<SWidget> BuildDeviceFileExtension() { return BuildOwnedDatasetSection(); }
     FString ActiveManualPayloadRequest;
     TWeakObjectPtr<UVirtualLidarScanComponent> ManualPayloadSensor;
     FDelegateHandle ManualPayloadHandle;

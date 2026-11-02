@@ -1,4 +1,5 @@
 #include "VirtualSensorMonitorPanelWidget.h"
+#include "DeviceSensorMonitorBody.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorTextureReadback.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "SensorToolWidgetDecl.h"
@@ -95,9 +96,9 @@ FVirtualSensorMonitorDisplayData UVirtualSensorMonitorPanelWidget::GetMonitorDis
 }
 
 bool UVirtualSensorMonitorPanelWidget::SupportsRangeOverlays(ELidarMonitorProjectionMode P)
-{ return P==ELidarMonitorProjectionMode::RangeImage||P==ELidarMonitorProjectionMode::Split; }
+{ return FDeviceSensorMonitorBody::SupportsRangeOverlays(P); }
 bool UVirtualSensorMonitorPanelWidget::SupportsAdaptiveDistance(ELidarColorMode C)
-{ return C==ELidarColorMode::DistanceTurbo||C==ELidarColorMode::DistanceViridis||C==ELidarColorMode::DistanceGray; }
+{ return FDeviceSensorMonitorBody::SupportsAdaptiveDistance(C); }
 EVirtualSensorMonitorPresentation UVirtualSensorMonitorPanelWidget::GetMonitorPresentation() const
 {
     if(SensorManager&&SensorManager->IsPointCloudOnlyModeEnabled())return EVirtualSensorMonitorPresentation::PointCloudOnly;

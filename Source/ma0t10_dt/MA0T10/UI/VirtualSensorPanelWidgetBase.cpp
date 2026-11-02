@@ -25,10 +25,25 @@
 #include "Widgets/Layout/SBox.h"
 #include "Blueprint/WidgetTree.h"
 
+namespace
+{
+class FProjectDevicePanelHost final : public IDevicePanelHostBridge
+{
+    TWeakObjectPtr<UVirtualSensorToolWorkspaceSubsystem> Workspace;
+    TWeakObjectPtr<UVirtualSensorPanelWidgetBase> Panel;
+public:
+    FProjectDevicePanelHost(UVirtualSensorToolWorkspaceSubsystem* W,UVirtualSensorPanelWidgetBase* P):Workspace(W),Panel(P){}
+    bool IsOwned() const override {return Workspace.IsValid();}
+    float PixelScale() const override {return Workspace.IsValid()?Workspace->GetOwnedPixelScale():1.f;}
+    bool NavigateBack() override {return Panel.IsValid()&&Panel->NavigatePanelBack();}
+    FText BackLabel() const override {return Panel.IsValid()?Panel->GetPanelBackLabel():FText::GetEmpty();}
+};
+}
+
 bool UVirtualSensorPanelWidgetBase::SupportsOwnedDocking() const
 {return IsWorkspaceOwned()&&(!WidgetTree||!WidgetTree->RootWidget);}
 float UVirtualSensorPanelWidgetBase::GetSensorToolVisualScale() const
-{return SensorToolFontScale*(SupportsOwnedDocking()&&ToolWorkspace.IsValid()?ToolWorkspace->GetOwnedPixelScale()*.75f:1.f);} // Slate point sizes -> design pixels; stored scale/API is unchanged.
+{return SensorToolFontScale*(SupportsOwnedDocking()&&ToolWorkspace.IsValid()?GetDevicePanelHost()->PixelScale()*.75f:1.f);} // Slate point sizes -> design pixels; stored scale/API is unchanged.
 void UVirtualSensorPanelWidgetBase::ApplyWorkspaceDockRect(FVector2D Position,FVector2D Size)
 {
     if(!SupportsOwnedDocking())return;
@@ -66,12 +81,9 @@ TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolFormRow(const FText&
         +SVerticalBox::Slot().AutoHeight()[Feedback];
 }
 void UVirtualSensorPanelWidgetBase::PruneFontRegistrations()
-{
-    for(int32 I=SensorFontLifetimes.Num()-1;I>=0;--I)if(!SensorFontLifetimes[I]()){SensorFontLifetimes.RemoveAt(I);SensorFontSetters.RemoveAt(I);}
-    for(auto It=RegisteredSensorUmg.CreateIterator();It;++It)if(!It->IsValid())It.RemoveCurrent();
-}
+{ UDeviceSensorPanelBase::DevicePruneFontRegistrations(); }
 void UVirtualSensorPanelWidgetBase::AddFontRegistration(TFunction<void(float)> Setter,TFunction<bool()> IsAlive)
-{PruneFontRegistrations();SensorFontSetters.Add(MoveTemp(Setter));SensorFontLifetimes.Add(MoveTemp(IsAlive));}
+{ UDeviceSensorPanelBase::DeviceAddFontRegistration(Setter,IsAlive); }
 
 void UVirtualSensorPanelWidgetBase::SetGlobalSensorUiFontScale(float InScale)
 {
@@ -90,9 +102,7 @@ void UVirtualSensorPanelWidgetBase::ResetGlobalSensorUiFontScale()
 }
 
 int32 UVirtualSensorPanelWidgetBase::CalculateScaledFontSize(int32 BaseSize, float Scale)
-{
-	return FMath::Max(8, FMath::RoundToInt(BaseSize * (FMath::IsFinite(Scale) ? FMath::Clamp(Scale, 0.85f, 1.5f) : 1.0f)));
-}
+{ return UDeviceSensorPanelBase::DeviceScaledFontSize(BaseSize,Scale); }
 
 void UVirtualSensorPanelWidgetBase::NativeConstruct()
 {
@@ -123,74 +133,17 @@ void UVirtualSensorPanelWidgetBase::SetSensorToolFontScale(float Scale)
 	if (SensorAppearanceOwner.IsValid()) SensorAppearanceOwner->SetSensorToolFontScale(Scale);
 }
 void UVirtualSensorPanelWidgetBase::ApplySensorToolFontScale(float Scale)
-{
-	if ((!SensorAppearanceOwner.IsValid()&&!ToolWorkspace.IsValid()) || !FMath::IsFinite(Scale)) return;
-	const float PreviousScale = SensorToolFontScale;
-	SensorToolFontScale = FMath::Clamp(Scale, 0.85f, 1.5f);
-	if(IsWorkspaceOwned()){DragHandleHeight=FMath::Max(38.0f,26.0f*SensorToolFontScale+20.0f);SetPanelExpandedSize(DesiredPanelSize,false);}
-	PruneFontRegistrations();
-	for (auto& Setter : SensorFontSetters) Setter(GetSensorToolVisualScale());
-	InvalidateLayoutAndVolatility();
-	if (bSensorPanelConstructed && !FMath::IsNearlyEqual(PreviousScale, SensorToolFontScale))
-		OnSensorUiFontScaleChanged(SensorToolFontScale);
-}
+{ UDeviceSensorPanelBase::DeviceApplyFontScale(Scale); }
 void UVirtualSensorPanelWidgetBase::RegisterSensorNativeFont(TSharedRef<STextBlock> Widget, const STextBlock::FArguments& Args)
-{
-	FSlateFontInfo Base = Widget->GetFont();
-	// Respect the local control's wrapping contract. Forcing every caption to wrap
-	// makes short buttons/checkboxes split into syllables at larger font scales.
-    const auto Color=Widget->GetColorAndOpacity().GetSpecifiedColor();const bool Secondary=Color.Equals(FVirtualSensorUiStyle::SecondaryText)||Color.Equals(GetToolMutedColor());
-	AddFontRegistration([Weak=TWeakPtr<STextBlock>(Widget), Owner=TWeakObjectPtr<UVirtualSensorPanelWidgetBase>(this),Base,Secondary](float Scale)
-    {
-        if(auto W=Weak.Pin())
-        {
-            if(!Owner.IsValid()||!Owner->SupportsOwnedDocking()){auto Font=Base;Font.Size=FMath::Max(8,FMath::RoundToInt(Base.Size*Scale));W->SetFont(Font);return;}
-            W->SetFont(TAttribute<FSlateFontInfo>::CreateLambda([Owner,Base,Secondary,Scale](){auto Font=Base;const bool Owned=Owner.IsValid()&&Owner->SupportsOwnedDocking();const int32 Size=Owned?(Secondary?FSensorOwnedPresentationStyle::LabelSize:FSensorOwnedPresentationStyle::BodySize):Base.Size;Font.Size=FMath::Max(8,FMath::RoundToInt(Size*(Owned?Owner->GetSensorToolVisualScale():Scale)));return Font;}));
-        }
-    },[Weak=TWeakPtr<STextBlock>(Widget)](){return Weak.IsValid();});
-	if (SensorAppearanceOwner.IsValid()||IsWorkspaceOwned()) SensorFontSetters.Last()(GetSensorToolVisualScale());
-}
+{ UDeviceSensorPanelBase::RegisterSensorNativeFont(Widget,Args); }
 void UVirtualSensorPanelWidgetBase::RegisterSensorNativeFont(TSharedRef<SButton> Widget, const SButton::FArguments& Args)
-{
-	if(IsWorkspaceOwned())
-	{
-		if(Args._ButtonStyle==&FVirtualSensorUiStyle::ButtonStyle()||Args._ButtonStyle==&FSensorToolWorkspaceStyle::Button()||Args._ButtonStyle==&FCoreStyle::Get().GetWidgetStyle<FButtonStyle>("Button"))Widget->SetButtonStyle(&GetToolButtonStyle());
-		if(!Args._ForegroundColor.IsBound())Widget->SetForegroundColor(GetToolTextColor());
-	}
-	// Only SButton's own default caption, never user-supplied children.
-	if (Args._Content.Widget == SNullWidget::NullWidget && Widget->GetContent()->GetType() == FName(TEXT("STextBlock")))
-		RegisterSensorNativeFont(StaticCastSharedRef<STextBlock>(Widget->GetContent()), STextBlock::FArguments());
-}
+{ UDeviceSensorPanelBase::RegisterSensorNativeFont(Widget,Args); }
 void UVirtualSensorPanelWidgetBase::RegisterSensorNativeFont(TSharedRef<SEditableTextBox> Widget, const SEditableTextBox::FArguments& Args)
-{
-	FSlateFontInfo Base = Args._Font.Get(Args._Style->TextStyle.Font);
-	if(IsWorkspaceOwned())Widget->SetStyle(&GetToolInputStyle());
-	AddFontRegistration([Weak=TWeakPtr<SEditableTextBox>(Widget), Owner=TWeakObjectPtr<UVirtualSensorPanelWidgetBase>(this), Base](float Scale)
-    {
-        if(auto W=Weak.Pin())
-        {
-            if(!Owner.IsValid()||!Owner->SupportsOwnedDocking()){auto Font=Base;Font.Size=FMath::Max(8,FMath::RoundToInt(Base.Size*Scale));W->SetFont(Font);return;}
-            W->SetFont(TAttribute<FSlateFontInfo>::CreateLambda([Owner,Base,Scale](){auto Font=Base;const bool Owned=Owner.IsValid()&&Owner->SupportsOwnedDocking();const int32 Size=Owned?FSensorOwnedPresentationStyle::BodySize:Base.Size;Font.Size=FMath::Max(8,FMath::RoundToInt(Size*(Owned?Owner->GetSensorToolVisualScale():Scale)));return Font;}));
-        }
-    },[Weak=TWeakPtr<SEditableTextBox>(Widget)](){return Weak.IsValid();});
-	if (SensorAppearanceOwner.IsValid()||IsWorkspaceOwned()) SensorFontSetters.Last()(GetSensorToolVisualScale());
-}
+{ UDeviceSensorPanelBase::RegisterSensorNativeFont(Widget,Args); }
 void UVirtualSensorPanelWidgetBase::RegisterSensorTextControl(UTextBlock* Text)
-{
-	if (!Text || Text->GetTypedOuter<UUserWidget>() != this || RegisteredSensorUmg.Contains(Text)) return;
-	RegisteredSensorUmg.Add(Text);
-	const FSlateFontInfo Base = Text->GetFont();
-	AddFontRegistration([Weak=TWeakObjectPtr<UTextBlock>(Text), Base](float Scale) { if (Weak.IsValid()) { auto Font=Base; Font.Size=FMath::Max(8, FMath::RoundToInt(Base.Size * Scale)); Weak->SetFont(Font); } },[Weak=TWeakObjectPtr<UTextBlock>(Text)](){return Weak.IsValid();});
-	if (SensorAppearanceOwner.IsValid()||IsWorkspaceOwned()) SensorFontSetters.Last()(SensorToolFontScale);
-}
+{ UDeviceSensorPanelBase::DeviceRegisterTextControl(Text); }
 void UVirtualSensorPanelWidgetBase::RegisterSensorInputControl(UEditableTextBox* Input)
-{
-	if (!Input || Input->GetTypedOuter<UUserWidget>() != this || RegisteredSensorUmg.Contains(Input)) return;
-	RegisteredSensorUmg.Add(Input);
-	const FEditableTextBoxStyle Base = Input->WidgetStyle;
-	AddFontRegistration([Weak=TWeakObjectPtr<UEditableTextBox>(Input), Base](float Scale) { if (Weak.IsValid()) { auto Style=Base; Style.TextStyle.Font.Size=FMath::Max(8, FMath::RoundToInt(Base.TextStyle.Font.Size * Scale)); Weak->WidgetStyle=Style; Weak->SynchronizeProperties(); } },[Weak=TWeakObjectPtr<UEditableTextBox>(Input)](){return Weak.IsValid();});
-	if (SensorAppearanceOwner.IsValid()||IsWorkspaceOwned()) SensorFontSetters.Last()(SensorToolFontScale);
-}
+{ UDeviceSensorPanelBase::DeviceRegisterInputControl(Input); }
 
 void UVirtualSensorPanelWidgetBase::SetPanelPersistenceKey(FName InPanelPersistenceKey)
 {
@@ -357,16 +310,10 @@ FVector2D UVirtualSensorPanelWidgetBase::GetEffectivePanelSize() const
 }
 
 FVector2D UVirtualSensorPanelWidgetBase::ClampPanelPosition(FVector2D Position, FVector2D PanelSize, FVector2D ViewportSize, float Margin)
-{
-    const float MaxX = FMath::Max(Margin, ViewportSize.X - PanelSize.X - Margin);
-    const float MaxY = FMath::Max(Margin, ViewportSize.Y - FMath::Min(PanelSize.Y, 64.0f) - Margin);
-    return FVector2D(FMath::Clamp(Position.X, Margin, MaxX), FMath::Clamp(Position.Y, Margin, MaxY));
-}
+{ return UDeviceSensorPanelBase::DeviceClampPosition(Position,PanelSize,ViewportSize,Margin); }
 
 FVector2D UVirtualSensorPanelWidgetBase::CalculateDraggedPanelPosition(FVector2D CurrentPosition, FVector2D CursorDelta, float DpiScale)
-{
-    return CurrentPosition + CursorDelta / FMath::Max(0.01f, DpiScale);
-}
+{ return UDeviceSensorPanelBase::DeviceDraggedPosition(CurrentPosition,CursorDelta,DpiScale); }
 
 FVector2D UVirtualSensorPanelWidgetBase::CalculateResizedPanelSize(
     FVector2D CurrentSize,
@@ -374,12 +321,7 @@ FVector2D UVirtualSensorPanelWidgetBase::CalculateResizedPanelSize(
     float DpiScale,
     FVector2D MinimumSize,
     FVector2D MaximumSize)
-{
-    const FVector2D Candidate = CurrentSize + CursorDelta / FMath::Max(0.01f, DpiScale);
-    return FVector2D(
-        FMath::Clamp(Candidate.X, MinimumSize.X, FMath::Max(MinimumSize.X, MaximumSize.X)),
-        FMath::Clamp(Candidate.Y, MinimumSize.Y, FMath::Max(MinimumSize.Y, MaximumSize.Y)));
-}
+{ return UDeviceSensorPanelBase::DeviceResizedSize(CurrentSize,CursorDelta,DpiScale,MinimumSize,MaximumSize); }
 
 FReply UVirtualSensorPanelWidgetBase::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
@@ -707,6 +649,7 @@ void UVirtualSensorPanelWidgetBase::ApplyPanelSize()
 
 void UVirtualSensorPanelWidgetBase::SetToolWorkspace(UVirtualSensorToolWorkspaceSubsystem* Owner,ESensorToolPanelRole Role)
 {
+    BindDevicePanelHost(Owner,Owner?TSharedPtr<IDevicePanelHostBridge>(MakeShared<FProjectDevicePanelHost>(Owner,this)):TSharedPtr<IDevicePanelHostBridge>());
     if(ToolWorkspace.Get()!=Owner)CancelPanelPointerGesture();
     if(bOwnedPointerFocus){SetIsFocusable(bPreviousFocusable);bOwnedPointerFocus=false;}
     ToolWorkspace=Owner;ToolRole=Role;bPendingOwnedFontRefresh=SupportsOwnedDocking();
@@ -805,4 +748,10 @@ TSharedRef<SWidget> UVirtualSensorPanelWidgetBase::BuildToolPanelFrame(TSharedRe
          [SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("NoBorder")).Padding(4)
           .Cursor(EMouseCursor::ResizeSouthEast).ToolTipText(SensorToolUiText::ResizeHint())
           [SNewSensorTool(STextBlock).Text(NSLOCTEXT("SensorNavigation","ResizeMark","↘")).ColorAndOpacity(GetToolMutedColor())]]];
+}
+
+void UVirtualSensorPanelWidgetBase::DeviceFontLayoutChanged()
+{
+    if(IsWorkspaceOwned())
+    {DragHandleHeight=FMath::Max(38.0f,26.0f*SensorToolFontScale+20.0f);SetPanelExpandedSize(DesiredPanelSize,false);}
 }
