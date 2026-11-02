@@ -46,6 +46,15 @@ struct FTrainBatchState
     int32 ActiveIndex=INDEX_NONE;
     int64 Revision=0,QueuedBytes=0,WorkBytes=0,ParsedBytes=0;
     uint64 SubscriptionEpoch=0;
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    uint64 PumpCalls=0,AsyncStarts=0,SubscriptionRequests=0;
+#endif
+    void CountAsync()
+    {
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+        ++AsyncStarts;
+#endif
+    }
     TWeakObjectPtr<ASlabActor> Slab;
     TWeakObjectPtr<AVirtualLidarSensorActor> Lidar;
     TWeakObjectPtr<AVirtualCameraSensorActor> Camera;
@@ -102,6 +111,9 @@ void UTrainBatchSubsystem::Subscribe()
     Handler=NewObject<UTrainBatchScenarioTC>(this);Handler->SubscriptionEpoch=++State->SubscriptionEpoch;
     FSTOMPSubscriptionEvent Event;Event.BindDynamic(Handler.Get(),&UTrainBatchScenarioTC::OnSubscriptionMessage);
     FSTOMPRequestCompleted Done;Done.BindDynamic(Handler.Get(),&UTrainBatchScenarioTC::OnSubscriptionComplete);State->Subscribing=true;
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    ++State->SubscriptionRequests;
+#endif
     State->Subscription=WS->Subscribe(TrainBatchContract::Topic,Event,Done);if(State->Subscription.IsEmpty())State->Subscribing=false;
 }
 void UTrainBatchSubsystem::DisconnectOwnedSubscription()
@@ -176,6 +188,9 @@ void UTrainBatchSubsystem::EnsurePump()
 void UTrainBatchSubsystem::Pump()
 {
     if(!IsEnabled())return;auto& S=*State;
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    ++S.PumpCalls;
+#endif
     if(S.Work.IsValid())
     {
         if(!S.Work.IsReady())return;auto R=MA0T10::ConsumeReadyFuture(S.Work);const EWork Finished=S.Kind;S.Kind=EWork::None;
@@ -191,7 +206,7 @@ void UTrainBatchSubsystem::Pump()
     if(S.Parsed.IsSet())
     {
         auto M=MoveTemp(S.Parsed.GetValue());S.Parsed.Reset();S.Kind=EWork::Receive;S.WorkBytes=S.ParsedBytes;S.ParsedBytes=0;
-        S.Work=Async(EAsyncExecution::ThreadPool,[Storage,M=MoveTemp(M),Cancel]()
+        S.CountAsync();S.Work=Async(EAsyncExecution::ThreadPool,[Storage,M=MoveTemp(M),Cancel]()
         {FWorkResult R;if(Cancel->load())R.Error=TEXT("입력 접수 취소");else if(!Storage->Receive(M,R.Error)&&R.Error.IsEmpty())R.Error=TEXT("학습 입력 저장 거절");R.Views=Storage->Jobs;return R;});return;
     }
     if(!S.Inputs.IsEmpty())
@@ -199,10 +214,10 @@ void UTrainBatchSubsystem::Pump()
         auto In=MoveTemp(S.Inputs[0]);S.Inputs.RemoveAt(0);S.WorkBytes=In.Bytes;
         if(In.File)
         {
-            S.Kind=EWork::Import;S.Work=Async(EAsyncExecution::ThreadPool,[Storage,Path=MoveTemp(In.Text),Cancel]()
+            S.Kind=EWork::Import;S.CountAsync();S.Work=Async(EAsyncExecution::ThreadPool,[Storage,Path=MoveTemp(In.Text),Cancel]()
             {FWorkResult R;if(!Storage->Import(Path,*Cancel,R.Error)&&R.Error.IsEmpty())R.Error=TEXT("로컬 manifest 가져오기 실패");R.Views=Storage->Jobs;return R;});
         }
-        else {S.Kind=EWork::Parse;S.Work=Async(EAsyncExecution::ThreadPool,[Text=MoveTemp(In.Text)](){FWorkResult R;R.Transaction=UTrainBatchScenarioTC::ParsePayload(Text);return R;});}
+        else {S.Kind=EWork::Parse;S.CountAsync();S.Work=Async(EAsyncExecution::ThreadPool,[Text=MoveTemp(In.Text)](){FWorkResult R;R.Transaction=UTrainBatchScenarioTC::ParsePayload(Text);return R;});}
         return;
     }
     if(S.Preview)S.Preview->Pump(GetWorld());
@@ -216,7 +231,7 @@ void UTrainBatchSubsystem::Pump()
         if(S.Prepared)
         {
             if(S.CancelRequested){const FString Id=S.ActiveJob;const int32 Index=S.ActiveIndex;S.Prepared.Reset();S.Kind=EWork::Finish;
-                S.Work=Async(EAsyncExecution::ThreadPool,[Storage,Id,Index,Cancel=RunCancel](){FWorkResult R;Storage->Finish(Id,Index,false,TEXT("사용자 중단"),*Cancel,R.Error);R.Views=Storage->Jobs;return R;});return;}
+                S.CountAsync();S.Work=Async(EAsyncExecution::ThreadPool,[Storage,Id,Index,Cancel=RunCancel](){FWorkResult R;Storage->Finish(Id,Index,false,TEXT("사용자 중단"),*Cancel,R.Error);R.Views=Storage->Jobs;return R;});return;}
             if(Busy||D->IsActive()){S.Say(TEXT("일반 시나리오/데이터셋 우선 · 학습 대기"));return;}
             if(!S.TargetsMatch(J->Spec.CaptureCamera)){S.CancelRequested=true;S.RunCancel->store(true);S.Say(TEXT("센서 preset 변경으로 학습 중단"));return;}
             FString Available;
@@ -228,7 +243,7 @@ void UTrainBatchSubsystem::Pump()
             if(!S.Slab.IsValid()||S.Slab->GetMetricsConfigurationHash()!=S.Prepared->SlabConfiguration||!D->Start(C,S.Slab.Get(),S.Lidar.Get(),J->Spec.CaptureCamera?S.Camera.Get():nullptr,nullptr,Error,S.Prepared))
             {
                 const FString Id=S.ActiveJob;const int32 Index=S.ActiveIndex;S.Prepared.Reset();S.Kind=EWork::Finish;
-                S.Work=Async(EAsyncExecution::ThreadPool,[Storage,Id,Index,Error,Cancel=RunCancel](){FWorkResult R;Storage->Finish(Id,Index,false,Error,*Cancel,R.Error);R.Views=Storage->Jobs;return R;});return;
+                S.CountAsync();S.Work=Async(EAsyncExecution::ThreadPool,[Storage,Id,Index,Error,Cancel=RunCancel](){FWorkResult R;Storage->Finish(Id,Index,false,Error,*Cancel,R.Error);R.Views=Storage->Jobs;return R;});return;
             }
             S.Prepared.Reset();S.Say(TEXT("학습 시간축 생성 중"));
         }
@@ -242,7 +257,7 @@ void UTrainBatchSubsystem::Pump()
                 if(I.CompletedFrames!=D->CompletedScenes()){I.CompletedFrames=D->CompletedScenes();++S.Revision;}return;
             }
             const FString Id=S.ActiveJob,Reason=D->Message;const int32 Index=S.ActiveIndex;const bool Success=D->OwnsPlannedRun(I.RunId)&&D->HasSucceeded()&&!S.CancelRequested;
-            S.Kind=EWork::Finish;S.Work=Async(EAsyncExecution::ThreadPool,[Storage,Id,Index,Success,Reason,Cancel=RunCancel]()
+            S.Kind=EWork::Finish;S.CountAsync();S.Work=Async(EAsyncExecution::ThreadPool,[Storage,Id,Index,Success,Reason,Cancel=RunCancel]()
             {FWorkResult R;Storage->Finish(Id,Index,Success,Reason,*Cancel,R.Error);R.Views=Storage->Jobs;return R;});S.Say(TEXT("저장 결과 검증 중"));return;
         }
         if(S.CancelRequested){S.ActiveJob.Reset();S.Say(TEXT("학습 중단됨 · 미실행 항목 보존"));}
@@ -254,10 +269,10 @@ void UTrainBatchSubsystem::Pump()
             else
             {
                 S.ActiveIndex=Index;S.Kind=EWork::Prepare;const FString Id=S.ActiveJob;const auto Track=S.Slab->GetDatasetTrackTransform();const auto Dimension=S.Slab->GetDimensionUnit(),Position=S.Slab->GetPositionUnit();const uint32 Config=S.Slab->GetMetricsConfigurationHash();
-                const auto* Scan=S.Lidar->ScanComponent;const int64 Points=int64(Scan->HorizontalSamples)*Scan->VerticalChannels*FMath::Max(1,Scan->MaxHitsPerRay);
+                const auto* Scan=S.Lidar->ScanComponent.Get();const int64 Points=int64(Scan->HorizontalSamples)*Scan->VerticalChannels*FMath::Max(1,Scan->MaxHitsPerRay);
                 const int64 Pixels=J->Spec.CaptureCamera&&S.Camera.IsValid()?int64(S.Camera->CaptureComponent->CaptureResolution.X)*S.Camera->CaptureComponent->CaptureResolution.Y:0;
                 const int64 FrameBytes=Points*38+Pixels*64+2ll*1024*1024;
-                S.Work=Async(EAsyncExecution::ThreadPool,[Storage,Id,Index,Track,Dimension,Position,Config,FrameBytes,Cancel=RunCancel](){FWorkResult R;R.Plan=Storage->Prepare(Id,Index,Track,Dimension,Position,Config,FrameBytes,R.Error);if(!R.Plan){const FString Why=R.Error;Storage->Finish(Id,Index,false,Why,*Cancel,R.Error);}R.Views=Storage->Jobs;return R;});return;
+                S.CountAsync();S.Work=Async(EAsyncExecution::ThreadPool,[Storage,Id,Index,Track,Dimension,Position,Config,FrameBytes,Cancel=RunCancel](){FWorkResult R;R.Plan=Storage->Prepare(Id,Index,Track,Dimension,Position,Config,FrameBytes,R.Error);if(!R.Plan){const FString Why=R.Error;Storage->Finish(Id,Index,false,Why,*Cancel,R.Error);}R.Views=Storage->Jobs;return R;});return;
             }
         }
         else S.Say(TEXT("일반 시나리오/데이터셋 우선 · 학습 대기"));
@@ -282,4 +297,10 @@ void UTrainBatchSubsystem::Deinitialize()
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 bool UTrainBatchSubsystem::HasBackgroundWorkForTests() const
 {return State&&(State->Work.IsValid()||!State->Inputs.IsEmpty()||State->Parsed.IsSet()||!State->Subscription.IsEmpty()||GetWorld()->GetTimerManager().IsTimerActive(Timer));}
+FTrainBatchTestCounters UTrainBatchSubsystem::CountersForTests() const
+{
+    FTrainBatchTestCounters C;if(!State)return C;
+    C.PumpCalls=State->PumpCalls;C.AsyncStarts=State->AsyncStarts;C.SubscriptionRequests=State->SubscriptionRequests;
+    C.TimerActive=GetWorld()&&GetWorld()->GetTimerManager().IsTimerActive(Timer);C.FutureActive=State->Work.IsValid();C.SubscriptionActive=!State->Subscription.IsEmpty();return C;
+}
 #endif

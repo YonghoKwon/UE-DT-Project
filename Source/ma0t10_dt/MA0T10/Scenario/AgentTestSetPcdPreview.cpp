@@ -17,8 +17,8 @@ FTestSetPcdFrame FAgentTestSetPcdPreview::ReadFrame(const FAgentTestSetItem& Ite
     const FString Root=Item.Directory/(TEXT("run_")+Item.RunId)/FString::Printf(TEXT("scene_%05d"),Index);
     const bool TestSet=Item.LocalStorageRoot.IsEmpty()&&FPaths::IsUnderDirectory(Root,FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("TestSets")));
     const FString Batches=LocalCapturePath::Full(FPaths::ProjectSavedDir()/TEXT("TrainBatch/Jobs"));
-    const bool Local=!Item.LocalStorageRoot.IsEmpty()&&LocalCapturePath::Full(Item.LocalStorageRoot)==Batches&&LocalCapturePath::SafeDescendant(Batches,Root);
-    if((!TestSet&&!Local)||Cancel.load())return Out;
+    const bool LocalResultScope=!Item.LocalStorageRoot.IsEmpty()&&LocalCapturePath::Full(Item.LocalStorageRoot)==Batches&&LocalCapturePath::SafeDescendant(Batches,Root);
+    if((!TestSet&&!LocalResultScope)||Cancel.load())return Out;
     FString Text;TSharedPtr<FJsonObject> Label;
     if(IFileManager::Get().FileSize(*(Root/TEXT("label.json")))>1024*1024||!FFileHelper::LoadFileToString(Text,*(Root/TEXT("label.json")))||!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text),Label)||!Label)return Out;
     FString Scenario,Run,Schema;

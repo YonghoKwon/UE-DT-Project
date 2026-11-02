@@ -11,6 +11,13 @@ class AVirtualCameraSensorActor;
 class UTrainBatchScenarioTC;
 struct FTrainBatchTransaction;
 struct FTrainBatchState;
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+struct FTrainBatchTestCounters
+{
+    uint64 PumpCalls=0,AsyncStarts=0,SubscriptionRequests=0;
+    bool TimerActive=false,FutureActive=false,SubscriptionActive=false;
+};
+#endif
 
 /** 1A serial baseline in the current World. No resources before explicit enable/work. */
 UCLASS()
@@ -37,6 +44,7 @@ public:
     FString PreviewStatus() const;
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     bool HasBackgroundWorkForTests() const;
+    FTrainBatchTestCounters CountersForTests() const;
 #endif
 private:
     friend class UTrainBatchScenarioTC;

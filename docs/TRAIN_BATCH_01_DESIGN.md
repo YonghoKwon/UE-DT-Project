@@ -299,3 +299,9 @@ DTCore에는 새 기능이 필요하지 않은 방향이다. TC DataTable 등록
 로컬 manifest는 §2 Job 형식의 각 descriptor에 `input_file`을 추가한 파일이다. input_file은 manifest 폴더 내부 상대 경로이며 `..`·reparse/junction 탈출은 거절한다. 네트워크는 같은 Job manifest 뒤 `kind=scenario` 원문 메시지를 보내고 `seal`로 누락을 확인한다. 완료는 Dataset 완료 수/PCD33-byte/점 라벨5-byte/시간축·ID·파일 SHA256 목록 검증과 `complete.json` 확정까지 포함한다.
 
 추가한 자동화 이름은 `MA0T10.TrainBatch.*` 9개다(계약·20Hz·경로·저장/중복·로컬 가져오기·완료/미완료·기본 꺼짐·TC 분리). **코드 작성만 했으며 실행 수는 0**이다. Editor/Development/Shipping 빌드, 기존 Dataset/일반 시나리오 회귀, 실제 RHI·byte oracle/20Hz/fallback·직접 UI·release/perf 2%는 사용자 실행 허용 후 검증한다. 이 문서의 정적 확인을 그 gate의 PASS로 표시하지 않는다.
+
+### r41b 1A 실행 검증 (2026-11-02)
+
+사용자가 실행을 허용한 뒤 Editor/Development 빌드를 수행했다. 최초 빌드의 CNG 선언 호환·UObject/Slate delegate·TObjectPtr·지역 변수명 오류를 수정했으며 최초 실패 로그도 보존한다. 1A 단위9개+Claude I/O 단위3개, 관련 Dataset/TestSet 회귀6개, 표준 smoke36개가 성공했다. I/O Python 도구4개도 통과했다.
+
+별도 실제 D3D12 PIE 테스트는 초기3초 동안 학습 pump/비동기 시작/구독 요청·활성 자원 모두0을 확인한 뒤 두 시나리오의 20Hz 시간축6장면을 생성·파일 검증했다. 실제 native dispatch6개와 완료 결과의 저장 PCD 보기를 확인했으며, 보기가 센서 재획득/RT scan을 추가하지 않았다. 테스트는 Success(오류0·경고4), 직접 마우스 검증과 wall-clock 20Hz 주장은 아니다. 증거는 `Saved/Reports/TRAIN-BATCH-01/r41b/`에 보존한다. 1B 프로세스/lease/resume와 최종 통합 게이트는 별도 진행한다.
