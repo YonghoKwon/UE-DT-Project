@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "TrainBatchArchive.h"
 #include "TrainBatchSftp.h"
+#include "ma0t10_dt/MA0T10/Contracts/TrainBatchContract.h"
 #include "Async/Future.h"
 #include <atomic>
 
@@ -18,8 +19,10 @@ enum class ETrainDeliveryPhase : uint8 { Idle, Collecting, Hashing, Archiving, U
 struct FTrainDeliveryRequest
 {
     FString JobId;
-    /** Folder whose files become "<JobId>/..." inside the archive (already limited to confirmed results). */
+    /** Folder whose files become "<JobId>/..." inside the archive. Ignored when Entries is set. */
     FString StagingRoot;
+    /** Explicit confirmed files (see BuildJobEntries); preferred over StagingRoot. */
+    TArray<FTrainArchiveEntry> Entries;
     /** Local folder for the archive, its .sha256 and artifact.json. */
     FString OutputDir;
     FTrainDeliverySettings Settings;
@@ -52,6 +55,14 @@ namespace TrainBatchDelivery
     MA0T10_DT_API bool IsSafeJobId(const FString& JobId);
     /** "<JobId>-<first 12 hex of sha256>.<ext>": the name changes whenever the bytes change, so a .partial is only resumed for identical content. */
     MA0T10_DT_API FString RemoteArchiveName(const FString& JobId,const FString& Sha256,ETrainArchiveFormat Format);
+    /**
+     * Original inputs plus every completed scenario run as "<JobId>/input/..." and "<JobId>/scenarios/<id>/...".
+     * Unless bAllowPartial, any scenario that is not Completed refuses the whole job (user decision 2026-11-02);
+     * with it, skipped ids are returned in Excluded so the UI can show them before sending.
+     */
+    MA0T10_DT_API bool BuildJobEntries(const FTrainBatchJobView& Job,bool bAllowPartial,TArray<FTrainArchiveEntry>& Out,TArray<FString>& Excluded,FString& Error);
+    /** Saved/TrainBatch/Deliveries/<JobId> (or <JobId>-partial for a success-only package). */
+    MA0T10_DT_API FString OutputDirectory(const FString& JobId,bool bPartial);
 }
 
 /**
