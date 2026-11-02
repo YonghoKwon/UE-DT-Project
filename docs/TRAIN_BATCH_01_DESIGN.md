@@ -308,7 +308,7 @@ DTCore에는 새 기능이 필요하지 않은 방향이다. TC DataTable 등록
 
 ## 12. r41b 1B 프로세스 실행·복구
 
-학습 창의 워커 상한(1~4)을 **대상 적용**으로 확정한 뒤 시작하면, 현재 실행 파일의 독립 `-game -RenderOffscreen` 프로세스가 시나리오를 나눠 처리한다. Editor는 같은 Editor 실행 파일, 배포 게임은 같은 패키지 실행 파일을 사용한다. `.uproject` 절대경로와 저장된 로컬 맵을 지정하며 임의 실행 파일/원격 콘솔 명령을 입력받지 않는다. **한 lease당 게임 1회**를 실행하고 슬롯 UserDir는 재시도/Job 사이에도 유지한다. 상주 워커 재사용은 아직 없으므로 짧은 시나리오는 프로세스 시작 비용의 영향이 크다.
+학습 창의 워커 상한(1~4)을 **대상 적용**으로 확정한 뒤 시작하면, 현재 실행 파일의 독립 `-game -RenderOffscreen` 프로세스가 시나리오를 나눠 처리한다. Editor는 같은 Editor 실행 파일, 배포 게임은 같은 패키지 실행 파일을 사용한다. Editor에는 `.uproject` 절대경로와 저장된 로컬 맵을, 패키지 실행 파일에는 저장된 로컬 맵을 지정하며 임의 실행 파일/원격 콘솔 명령을 입력받지 않는다. **한 lease당 게임 1회**를 실행하고 슬롯 UserDir는 재시도/Job 사이에도 유지한다. 상주 워커 재사용은 아직 없으므로 짧은 시나리오는 프로세스 시작 비용의 영향이 크다.
 
 - 슬롯 경로: `<사용자 Saved>/TrainBatch/Workers/slot-00..03/UserDir`. 슬롯마다 native safety guard/cache가 다르며 새 attempt라고 지우거나 새 UserDir로 우회하지 않는다. 사용자 Saved 전체의 worker owner lock으로 동시에 다른 coordinator가 같은 슬롯을 점유하는 것을 막는다.
 - lease는 시나리오 index·UUID·epoch와 PID/64-bit creation stamp를 묶는다. heartbeat는2초, 활성 heartbeat 누락45초(부팅180초) 뒤 해당 소유 프로세스만 종료/재할당한다. 일반 실패는 자동2회 재시도 뒤 실패로 남기고 다른 워커는 계속한다. 늦은 완료/heartbeat는 lease/epoch로 거절한다.
@@ -329,3 +329,17 @@ DTCore에는 새 기능이 필요하지 않은 방향이다. TC DataTable 등록
 직접 UI 점검은 Computer Use가 새 창 선택/1회 재시도 모두 `failed to activate captured window`를 반환해 입력0회·미수행이다. Python 준비 단계의 실제 viewport1618×650·DPI scale0.60125는 기록했지만 화면 조작 수용을 대신하지 않는다. 개인 설정/빈 자동 Game.ini는 원래 상태로 복원했고, 초기 실패·중간 무효 회차·engine offscreen startup ensure 원문은 결과 보고서에 보존한다.
 
 단위/자동화 통과와 별도로 packaged worker 배포·전체 release matrix/Shipping smoke·현장 Linux SFTP 수용·직접 UI는 후속 범위다.1B는 같은 build/preset/driver 및 검증된 checksum/journal을 요구하며 손상된 journal 복구나 임의 runtime scene 완전 복제까지 보장하지 않는다. 고유 worker UserDir/native safety 기록은 자동 초기화하지 않는다.
+
+## 13. r41c 공통 해시·패키지 검증
+
+입력 Codec의 SHA-256은 `TrainBatchArchive::Sha256Bytes`를 호출한다. 파일의 스트리밍 SHA-256도 기존 `TrainBatchArchive::Sha256File`을 그대로 사용하며 BCrypt 구현과 프로젝트의 bcrypt.lib 의존을 제거했다. ZIP/libzip·tar.gz/zlib·OpenSSL 의존과 기존 해시·빈 입력·거절 기대값은 유지한다.
+
+워커는 Editor에서 절대 .uproject와 `-game`, 패키지에서 같은 게임 실행 파일을 사용한다. UE5.3 Shipping은 기본적으로 positional startup map을 무시한다. 명시적 worker lease는 할당한 `/Game/` 저장 맵이 실제 쿠킹됐는지 확인하고, 시작 World가 다르면 그 맵으로 이동한 뒤 동일 lease를 다시 검증한다. 일반 시작 맵·엔진 설정·전역 map override 정책은 바꾸지 않는다. 배포할 프리셋 맵은 패키지에 포함해야 하며, 단위는 저장 맵의 Slab 설정과 일치해야 한다.
+
+패키지 수용 진단은 명시적 `-TrainBatchDefaultOffSmoke=<ProjectDir/Saved/Reports/.../off.json>`에서만10초 동안 학습 State/Handler/timer 미생성을 검사한다. 이 opt-in 진단 자신의 timer를 학습의 기본 비용0 주장에 포함하지 않는다. 일반 시작에는 진단 subsystem도 생성되지 않는다.
+
+작은 Job 종단 검증은 실제 M=2가 만든 확정 결과에 `TrainBatchDelivery::BuildJobEntries(Job,false,...)`와 `FTrainBatchDelivery`를 적용하며 `bUpload=false`로 ZIP·tar.gz를 만든다. 위젯과 같은 업무 경로이며 별도 압축/전달 구현을 만들지 않는다. Python `Tools/TrainBatchTools/verify_archive.py`로 추출 없이 전 파일 SHA-256을 확인한다. Delivery가 내장하는 checksums manifest 자체도 독립 검증 목록에 포함한다.
+
+검증의20Hz는 sampled_timeline 간격이며 짧은 Job의 실제 wall-clock 처리율을 뜻하지 않는다. 실제 Linux SFTP·직접 UI 수용·4워커 동시 실행은 별도 증거가 필요하다. r41c 상세 수치와 최초 실패/시험 준비 보정은 `Saved/Reports/TRAIN-BATCH-01/r41c/RESULT.md`에 남긴다.
+
+실측된 작은 Job은4시나리오·12프레임이며 실제 최대 동시2, native dispatch16/fallback0이었다. ZIP·tar.gz 각각 Python 검증은 OK다. Development/Shipping 패키지의1시나리오·3프레임은 저장 맵의 GPU Depth Projection(backend2) 설정을 유지했으며, 이를 packaged native 처리량 검증으로 세지 않는다. 각 패키지의 기본 꺼짐10초 검사도 통과했다. 최종 release는 같은 코드의 표준 절차로 별도 기록하며, 초기 누락 fixture/옵션 실패를 숨기지 않는다.
