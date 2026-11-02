@@ -6,6 +6,15 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-11-02 SITE-GUIDE-26-FINAL-R39 — 최종 현장 메모리·LiDAR 가이드
+
+- 기준 `master 23d143b`(PR #95), DTCore `bc60f05`. 새 `docs/site-guide-26-final` 브랜치를 이 기준에서 만들고, 옛 `0da8379`의 문서 변경인 가이드 한 파일만 가져왔다. 옛 #26 코드 커밋을 cherry-pick하지 않았으며 기존 브랜치를 보존했다.
+- [현장 가이드](SITE_MEMORY_AND_LIDAR_GUIDE.md)를 운영자용으로 갱신했다. 준비 30분 제외·30분~종료 OS Commit OLS≤8MiB/h, 유효 관찰 최소60분(전체 최소90분), old gate/초기 증가량/plateau의 보조 의미를 구분했다. 예전 실패 이력은 수정하지 않았다.
+- r37 3시간의 현행 기울기는 해치 +5.14 / Slab native +2.36 / 원료 하역 +2.69MiB/h다. 원문은 `wt_26final/Saved/Reports/LIDAR-MEMORY-26-FINAL/revalidate-r37/RESULT.md`와 회차별 JSON이다. r36 원료 하역의 약+0.6은 같은 보고서 계열 `rootcause-commit/r36/attr/raw180-a1/os-counters.jsonl`의30~180분 사후 OLS +0.582238을 반올림한 진단 참고값이다. r36에는 무거운 진단과 UTC 역행 표본1개가 있어 현행 gate를 소급 적용하거나 r37과 동일 조건 A/B로 처리하지 않았다.
+- startup oracle, 1회 RHI 복구, 비정상 종료2회 조합별 비활성, 정상 장치 soft disable의 세션 한정·캐시 무효화를 현재 코드와 대조했다. 문구2종과 `Saved/NativeLidarSafety/active-<adapter·driver SHA1>.guard.state` 초기화는 기존 native safety 문서와 일치시켰다.
+- 해치 약5MiB/h는 현행 기준 통과지만24시간 운영 전 별도 관찰을 권장한다. ProcessStamp ACCESS_DENIED, 수신 처리 예산4MiB, 상태 문구의 실제 화면 미확인을 명시했다. 원본 `gates-r38/RESULT.md`의 안전 수정 커밋 `7ef51cb`·`54ec540`·`94b0a25`를 참조한다.
+- 이번 수행은 문서·링크/경로·수치/문구·git diff 검사뿐이다. 게임/Editor/패키지/빌드/GPU/화면 실행과 새 실측은 없으며 DTCore·Config·자산·기존 검증 기준을 변경하지 않았다. 증거는 이 worktree의 `Saved/Reports/SITE-GUIDE-26-FINAL-R39/`에 남긴다.
+
 ## 2026-10-24 ANALYSIS-24 — GT-on/Rev7 전후 ABAB GPU 재실패, 중단
 
 - 기준fd5fac1440d87a3a48c4aba71814486c1d56874d. 도구0bd709c: Perf01조건GT-on/Rev7/HWRT·의미분류on 및 GPU평균2%옵션 추가, 기존defaults/Scheduled GPU·RSS·Hz gate 유지. 기존5+GPU성공/단독3%악화/누락3개 합성8PASS. 최초nativePSsplat/EOF실패와수정이력 보존. 두revision동일instrument/sessionhash 검증.
