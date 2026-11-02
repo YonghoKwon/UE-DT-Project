@@ -51,8 +51,10 @@ struct FFixture
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTrainBatchContractTest,"MA0T10.TrainBatch.Contract",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FTrainBatchContractTest::RunTest(const FString&)
 {
-    FString H,E;TestTrue(TEXT("Windows SHA256 available"),TrainBatchCodec::Sha256("abc",3,H));TestEqual(TEXT("independent SHA256 known vector"),H,FString(TEXT("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")));
+    FString H,E;TestTrue(TEXT("shared SHA256 available"),TrainBatchCodec::Sha256("abc",3,H));TestEqual(TEXT("independent SHA256 known vector"),H,FString(TEXT("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")));
     TestTrue(TEXT("empty hash"),TrainBatchCodec::Sha256(nullptr,0,H));TestEqual(TEXT("empty known vector"),H,FString(TEXT("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")));
+    TestFalse(TEXT("nonempty null hash input rejected"),TrainBatchCodec::Sha256(nullptr,1,H));
+    TestTrue(TEXT("failed hash clears output"),H.IsEmpty());
     FFixture F;FTrainBatchMessage M;TestTrue(TEXT("job accepted"),TrainBatchCodec::Parse(Json(F.Manifest),M,E));TestEqual(TEXT("worker request retained; 1A runs one"),M.Job.WorkerLimit,4);
     TestFalse(TEXT("ordinary scenario not swallowed"),TrainBatchCodec::Parse(F.Raw,M,E));
     F.Manifest->SetStringField(TEXT("archive_format"),TEXT("tar.zst"));TestFalse(TEXT("deferred codec rejected"),TrainBatchCodec::Parse(Json(F.Manifest),M,E));

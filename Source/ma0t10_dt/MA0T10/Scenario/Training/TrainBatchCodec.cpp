@@ -1,13 +1,10 @@
 #include "TrainBatchCodec.h"
+#include "TrainBatchArchive.h"
 #include "ma0t10_dt/MA0T10/Contracts/LocalCapturePath.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabMotionComponent.h"
 #include "HAL/PlatformMisc.h"
 #include "Json.h"
-#if PLATFORM_WINDOWS
-#include "Windows/WindowsHWrapper.h"
-#include <bcrypt.h>
-#endif
 
 namespace
 {
@@ -38,28 +35,9 @@ bool TrainBatchCodec::CanonicalGuid(const FString& Id)
 bool TrainBatchCodec::Sha256(const void* Bytes,uint32 Size,FString& Out)
 {
     Out.Reset();
-#if PLATFORM_WINDOWS
-    // Use the CNG API exposed by UE5.3's Windows target definitions (no Win10-only
-    // pseudo-handle declarations). All native resources are released per call.
     if(Size&&!Bytes)return false;
-    BCRYPT_ALG_HANDLE Algorithm=nullptr;BCRYPT_HASH_HANDLE HashHandle=nullptr;
-    uint8 Digest[32];TArray<uint8> Object;bool Ok=false;
-    do
-    {
-        if(BCryptOpenAlgorithmProvider(&Algorithm,BCRYPT_SHA256_ALGORITHM,nullptr,0)<0)break;
-        ULONG ObjectBytes=0,Returned=0;
-        if(BCryptGetProperty(Algorithm,BCRYPT_OBJECT_LENGTH,reinterpret_cast<PUCHAR>(&ObjectBytes),sizeof(ObjectBytes),&Returned,0)<0||ObjectBytes>65536)break;
-        Object.SetNumUninitialized(ObjectBytes);
-        if(BCryptCreateHash(Algorithm,&HashHandle,Object.GetData(),Object.Num(),nullptr,0,0)<0)break;
-        if(Size&&BCryptHashData(HashHandle,const_cast<PUCHAR>(static_cast<const uint8*>(Bytes)),Size,0)<0)break;
-        Ok=BCryptFinishHash(HashHandle,Digest,sizeof(Digest),0)>=0;
-    }while(false);
-    if(HashHandle)BCryptDestroyHash(HashHandle);
-    if(Algorithm)BCryptCloseAlgorithmProvider(Algorithm,0);
-    if(Ok)Out=BytesToHex(Digest,sizeof(Digest)).ToLower();return Ok;
-#else
-    return false; // Windows client MVP; fail closed rather than call an unimplemented platform hash.
-#endif
+    Out=TrainBatchArchive::Sha256Bytes(Bytes,Size);
+    return Out.Len()==64;
 }
 FString TrainBatchCodec::JobsRoot(){return LocalCapturePath::Full(FPaths::ProjectSavedDir()/TEXT("TrainBatch/Jobs"));}
 FString TrainBatchCodec::JobDirectory(const FString& JobId){return JobsRoot()/JobId;}

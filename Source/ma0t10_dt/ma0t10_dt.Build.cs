@@ -42,11 +42,6 @@ public class ma0t10_dt : ModuleRules
         });
 
         PrivateDependencyModuleNames.AddRange(new string[] { "ma0t10_dtBootstrap" });
-        // TRAIN-BATCH-01: Windows built-in SHA256; no downloaded crypto/compressor dependency.
-        if (Target.Platform == UnrealTargetPlatform.Win64)
-        {
-            PublicSystemLibraries.Add("bcrypt.lib");
-        }
         // TRAIN-BATCH-01: result archives (ZIP via engine libzip, tar.gz via zlib) and SHA-256.
         PrivateDependencyModuleNames.AddRange(new string[] { "zlib", "libzip", "OpenSSL" });
 
