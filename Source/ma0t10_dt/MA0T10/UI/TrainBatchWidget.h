@@ -38,7 +38,8 @@ private:
     void FetchFingerprint();
     FText DeliveryStatusText() const;
     TSharedRef<ITableRow> GenerateRow(TSharedPtr<FTrainBatchListRow> Row,const TSharedRef<STableViewBase>& Owner);
-    TSharedPtr<SEditableTextBox> ManifestPath,Preset,SlabName,LidarId,CameraId;
+    TSharedPtr<SEditableTextBox> ManifestPath,Preset,SlabName,LidarId,CameraId,RestoreId;
+    int32 WorkerCount=1;
     TSharedPtr<SListView<TSharedPtr<FTrainBatchListRow>>> List;
     TSharedPtr<SComboBox<TSharedPtr<FString>>> JobPicker;
     TArray<TSharedPtr<FTrainBatchListRow>> Rows;

@@ -305,3 +305,19 @@ DTCore에는 새 기능이 필요하지 않은 방향이다. TC DataTable 등록
 사용자가 실행을 허용한 뒤 Editor/Development 빌드를 수행했다. 최초 빌드의 CNG 선언 호환·UObject/Slate delegate·TObjectPtr·지역 변수명 오류를 수정했으며 최초 실패 로그도 보존한다. 1A 단위9개+Claude I/O 단위3개, 관련 Dataset/TestSet 회귀6개, 표준 smoke36개가 성공했다. I/O Python 도구4개도 통과했다.
 
 별도 실제 D3D12 PIE 테스트는 초기3초 동안 학습 pump/비동기 시작/구독 요청·활성 자원 모두0을 확인한 뒤 두 시나리오의 20Hz 시간축6장면을 생성·파일 검증했다. 실제 native dispatch6개와 완료 결과의 저장 PCD 보기를 확인했으며, 보기가 센서 재획득/RT scan을 추가하지 않았다. 테스트는 Success(오류0·경고4), 직접 마우스 검증과 wall-clock 20Hz 주장은 아니다. 증거는 `Saved/Reports/TRAIN-BATCH-01/r41b/`에 보존한다. 1B 프로세스/lease/resume와 최종 통합 게이트는 별도 진행한다.
+
+## 12. r41b 1B 프로세스 실행·복구
+
+학습 창의 워커 상한(1~4)을 **대상 적용**으로 확정한 뒤 시작하면, 현재 실행 파일의 독립 `-game -RenderOffscreen` 프로세스가 시나리오를 나눠 처리한다. Editor는 같은 Editor 실행 파일, 배포 게임은 같은 패키지 실행 파일을 사용한다. `.uproject` 절대경로와 저장된 로컬 맵을 지정하며 임의 실행 파일/원격 콘솔 명령을 입력받지 않는다. **한 lease당 게임 1회**를 실행하고 슬롯 UserDir는 재시도/Job 사이에도 유지한다. 상주 워커 재사용은 아직 없으므로 짧은 시나리오는 프로세스 시작 비용의 영향이 크다.
+
+- 슬롯 경로: `<사용자 Saved>/TrainBatch/Workers/slot-00..03/UserDir`. 슬롯마다 native safety guard/cache가 다르며 새 attempt라고 지우거나 새 UserDir로 우회하지 않는다. 사용자 Saved 전체의 worker owner lock으로 동시에 다른 coordinator가 같은 슬롯을 점유하는 것을 막는다.
+- lease는 시나리오 index·UUID·epoch와 PID/64-bit creation stamp를 묶는다. heartbeat는2초, 활성 heartbeat 누락45초(부팅180초) 뒤 해당 소유 프로세스만 종료/재할당한다. 일반 실패는 자동2회 재시도 뒤 실패로 남기고 다른 워커는 계속한다. 늦은 완료/heartbeat는 lease/epoch로 거절한다.
+- coordinator가 사라지면 워커는 캡처 경계에서 pause한다.60초 안에 같은 Job을 재개하면 PID/creation stamp를 확인해 살아 있는 워커를 회수하고, 그 이후에는 정상 종료한 결과/미완료 항목을 검증해 재할당한다. **Job 복원**에 기존 UUID를 입력하고 같은 맵/프리셋으로 시작한다. 실행 버전·manifest·GPU/driver·프리셋 불일치나 journal 손상은 거절한다. 완료 파일은 SHA256 재검증 후 건너뛰며 중간 프레임부터의 재개는 없다.
+- 원본 backend·노이즈 설정·센서 편집 상태·Slab 단위/표면·track snapshot을 전달한다. 저장 맵의 다른 static mesh geometry signature도 비교한다. **저장 맵 기반 시나리오**만 대상이며, 임의 runtime Actor 생성/절차 메시/재질 parameter 변경을 완전 복제하는 기능은 아니다. 그런 장면은 별도 preset/scene contract와 추가 oracle 검증이 필요하다.
+- DXGI의 local budget/current usage를 직접 읽는다. 첫 작업은1개로 calibration하고 worker peak×1.25와 `max(2GiB, budget×20%)`를 예약해 상한을 계산한다. 요청4가 실제4를 보장하지 않는다. `pool.json`에 budget·coordinator usage·worker peak·허용/최대 동시 수를 기록한다. 품질/샘플률을 낮춰 M을 맞추지 않는다.
+- native 비정상 종료는 GPU/driver별 중복 lease를 제외해 집계한다.2회면 해당 조합은 새 워커에서 지원 RHI를 사용한다. 슬롯의1회 RHI 안전 복구 실행은 결과로 채택하지 않고 정상 종료 후 재시도한다. driver 변경은 별도 safety identity다. native marker/state를 자동 삭제하거나 엔진/DTCore/driver를 수정하지 않는다.
+- 완료 결과는 워커의 닫힌 디렉토리와 checksum marker를 검증한 뒤 같은 볼륨의 coordinator Job 폴더로 원자 이동한다. 캡처/저장/업로드는 분리되며, 다른 프로세스의 readback/버퍼를 공유하지 않는다. 서로 다른 볼륨으로의 결과 이동은 현재 명시 거절한다.
+
+로컬 headless 복구 점검은 `-TrainBatchCoordinator=<Saved/Reports 아래 설정 JSON>` opt-in 진입점을 사용한다. 일반 실행에서는 해당 subsystem이 생성되지 않는다. Editor 자동화의 `test_auto` actor 선택은 검증 전용이며 Shipping은 거절한다. 실제 사용은 명시적인 Actor 이름·센서/preset을 지정한다. [복구 probe](../Scripts/run_train_batch_recovery_probe.py)는 private UserDir에서만 워커1개 종료와 coordinator 재시작을 주입하며, PID/creation stamp가 맞는 소유 프로세스만 종료한다. 실제 서버/인증 설정을 사용하지 않는다.
+
+실측: 실제 게임 coordinator M=2에서8시나리오/24프레임을 완료했고, 워커1개 강제 종료 후 재할당·1회 native RHI 복구·coordinator 재시작 후 디스크 resume를 확인했다. M=4 요청은 이12GB PC에서 실제M=2로 제한됐으며 전부 완료했다. 두 실행의24개 PCD 레코드 bytes가 같고 채택 결과는 backend=HardwareRT·fallback0이었다. unrestricted M=4 통과로 해석하지 않는다. 상세 예산/수치/최종 gate는 r41b 결과 보고서를 따른다.

@@ -1,5 +1,6 @@
 #include "TrainBatchSubsystem.h"
 #include "TrainBatchStorage.h"
+#include "TrainBatchProcessPool.h"
 #include "ma0t10_dt/MA0T10/Contracts/ConsumeReadyFuture.h"
 #include "ma0t10_dt/MA0T10/Scenario/AgentTestSetPcdPreview.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.h"
@@ -15,19 +16,24 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "HAL/PlatformMisc.h"
+#include "HAL/FileManager.h"
 #include "Misc/Paths.h"
+#include "Misc/PackageName.h"
+#include "JsonObjectConverter.h"
 #include "TimerManager.h"
 #include "UObject/Class.h"
 
 namespace
 {
-enum class EWork { None,Parse,Receive,Import,Prepare,Finish };
+enum class EWork { None,Parse,Receive,Import,Prepare,Finish,Restore,PoolEvent };
 struct FWorkResult
 {
     FString Error;
     TSharedPtr<FTrainBatchTransaction> Transaction;
     TSharedPtr<FVirtualDatasetFramePlan,ESPMode::ThreadSafe> Plan;
     TArray<FTrainBatchJobView> Views;
+    FTrainBatchPoolEvent PoolEvent;
+    bool ValidResult=false;
 };
 struct FInput {FString Text;bool File=false;int64 Bytes=0;};
 bool WorldBusy(UWorld* World,ASlabActor* Slab)
@@ -46,6 +52,9 @@ struct FTrainBatchState
     int32 ActiveIndex=INDEX_NONE;
     int64 Revision=0,QueuedBytes=0,WorkBytes=0,ParsedBytes=0;
     uint64 SubscriptionEpoch=0;
+    int32 ProcessWorkers=1;
+    TSharedPtr<FTrainBatchProcessPool> Pool;
+    double NextPoolText=0;
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     uint64 PumpCalls=0,AsyncStarts=0,SubscriptionRequests=0;
 #endif
@@ -171,12 +180,41 @@ bool UTrainBatchSubsystem::StartJob(const FString& JobId,FString& Error)
     if(!J||!J->IsReady()||!Slab||!State->Lidar.IsValid()||J->Spec.PresetId!=State->Preset||J->Spec.DimensionUnit!=Unit(Slab->GetDimensionUnit())||J->Spec.PositionUnit!=Unit(Slab->GetPositionUnit())||(J->Spec.CaptureCamera&&!State->Camera.IsValid()))
     {Error=TEXT("입력 완료·preset·단위·대상 센서를 확인하세요");return false;}
     if(!State->TargetsMatch(J->Spec.CaptureCamera)){Error=TEXT("적용한 센서 preset이 변경되었습니다 · 다시 명시 적용하세요");return false;}
-    if(!J->Items.ContainsByPredicate([](const auto& I){return I.State==ETrainBatchItemState::Waiting;})){Error=TEXT("대기 시나리오가 없습니다");return false;}
+    if(!J->Items.ContainsByPredicate([](const auto& I){return I.State==ETrainBatchItemState::Waiting;})&&
+       !(State->ProcessWorkers>0&&IFileManager::Get().FileExists(*(TrainBatchCodec::JobDirectory(JobId)/TEXT("processes/pool.json")))))
+    {Error=TEXT("대기 시나리오가 없습니다");return false;}
+    if(State->ProcessWorkers>0)
+    {
+        FString Package=GetWorld()->GetOutermost()->GetName();FString Short=FPackageName::GetShortName(Package);
+        if(Short.StartsWith(TEXT("UEDPIE_"))){Short.RightChopInline(7);int32 Split=INDEX_NONE;if(Short.FindChar(TEXT('_'),Split))Short.RightChopInline(Split+1);Package=FPackageName::GetLongPackagePath(Package)/Short;}
+        if(!FPackageName::IsValidLongPackageName(Package)||!FPackageName::DoesPackageExist(Package)){Error=TEXT("워커 실행은 저장된 로컬 맵에서만 가능합니다");return false;}
+        auto Config=MakeShared<FJsonObject>();Config->SetStringField(TEXT("map"),Package);Config->SetStringField(TEXT("slab_actor"),Slab->GetName());Config->SetStringField(TEXT("lidar_id"),State->Lidar->GetSensorId());Config->SetStringField(TEXT("lidar_actor"),State->Lidar->GetName());
+        Config->SetStringField(TEXT("scene_signature"),TrainBatchProcess::SceneSignature(GetWorld(),Slab,State->Lidar.Get(),J->Spec.CaptureCamera?State->Camera.Get():nullptr));
+        Config->SetNumberField(TEXT("lidar_backend"),int32(State->Lidar->ScanComponent->AcquisitionBackend));Config->SetBoolField(TEXT("range_noise"),State->Lidar->ScanComponent->bEnableRangeNoise);
+        Config->SetNumberField(TEXT("noise_seed"),State->Lidar->ScanComponent->DeterministicNoiseSeed);
+        Config->SetStringField(TEXT("camera_id"),J->Spec.CaptureCamera?State->Camera->GetSensorId():FString());Config->SetStringField(TEXT("camera_actor"),J->Spec.CaptureCamera?State->Camera->GetName():FString());
+        FString L,C;FJsonObjectConverter::UStructToJsonObjectString(State->LidarPreset,L);if(J->Spec.CaptureCamera)FJsonObjectConverter::UStructToJsonObjectString(State->CameraPreset,C);Config->SetStringField(TEXT("lidar_state"),L);Config->SetStringField(TEXT("camera_state"),C);
+        Config->SetNumberField(TEXT("dimension_unit"),int32(Slab->GetDimensionUnit()));Config->SetNumberField(TEXT("position_unit"),int32(Slab->GetPositionUnit()));
+        Config->SetNumberField(TEXT("surface"),int32(Slab->GetSurfacePreset()));Config->SetNumberField(TEXT("roughness"),Slab->Roughness);Config->SetNumberField(TEXT("oxidation"),Slab->Oxidation);Config->SetBoolField(TEXT("hot"),Slab->bHotAppearance);Config->SetNumberField(TEXT("emissive"),Slab->EmissiveStrength);
+        Config->SetBoolField(TEXT("surface_linked"),Slab->IsSurfaceLidarLinked());
+        const FTransform Track=Slab->GetDatasetTrackTransform();auto T=MakeShared<FJsonObject>();const auto P=Track.GetLocation(),S=Track.GetScale3D();const auto Q=Track.GetRotation();TArray<TSharedPtr<FJsonValue>> X;for(double V:{P.X,P.Y,P.Z,Q.X,Q.Y,Q.Z,Q.W,S.X,S.Y,S.Z})X.Add(MakeShared<FJsonValueNumber>(V));T->SetArrayField(TEXT("values"),X);Config->SetObjectField(TEXT("track"),T);
+        auto Pool=MakeShared<FTrainBatchProcessPool>();if(!Pool->Start(*J,Config,State->ProcessWorkers,Error))return false;State->Pool=MoveTemp(Pool);
+    }
     State->ActiveJob=JobId;State->CancelRequested=false;State->RunCancel->store(false);State->ActiveIndex=INDEX_NONE;State->Say(TEXT("순차 생성 대기 · 1A 현재 프로세스 기준선"));EnsurePump();return true;
+}
+bool UTrainBatchSubsystem::SetProcessWorkers(int32 Count,FString& Error)
+{
+    if(!IsEnabled()||Count<1||Count>4||!State->ActiveJob.IsEmpty()){Error=TEXT("대기 상태에서 워커 상한 1~4를 선택하세요");return false;}State->ProcessWorkers=Count;return true;
+}
+bool UTrainBatchSubsystem::RestoreJob(const FString& Id,FString& Error)
+{
+    if(!IsEnabled()||!TrainBatchCodec::CanonicalGuid(Id)||State->Work.IsValid()||!State->ActiveJob.IsEmpty()){Error=TEXT("대기 상태와 복원 Job UUID를 확인하세요");return false;}
+    const auto Storage=State->Storage;State->Kind=EWork::Restore;State->CountAsync();State->Work=Async(EAsyncExecution::ThreadPool,[Storage,Id](){FWorkResult R;if(!Storage->Restore(Id,R.Error)&&R.Error.IsEmpty())R.Error=TEXT("Job 복원 실패");R.Views=Storage->Jobs;return R;});EnsurePump();return true;
 }
 void UTrainBatchSubsystem::CancelJob()
 {
     if(!State||State->ActiveJob.IsEmpty())return;State->CancelRequested=true;State->RunCancel->store(true);
+    if(State->Pool)State->Pool->Cancel();
     if(State->ActiveIndex!=INDEX_NONE)
         if(auto* D=GetWorld()->GetSubsystem<UVirtualDatasetSubsystem>())
             if(const auto* J=State->Views.FindByPredicate([&](const auto& V){return V.Spec.Id==State->ActiveJob;}))
@@ -188,6 +226,7 @@ void UTrainBatchSubsystem::EnsurePump()
 void UTrainBatchSubsystem::Pump()
 {
     if(!IsEnabled())return;auto& S=*State;
+    if(S.Pool)S.Pool->Tick(WorldBusy(GetWorld(),S.Slab.Get()));
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     ++S.PumpCalls;
 #endif
@@ -201,8 +240,28 @@ void UTrainBatchSubsystem::Pump()
         if(Finished==EWork::Prepare)
         {S.Prepared=MoveTemp(R.Plan);if(!S.Prepared)S.ActiveIndex=INDEX_NONE;}
         if(Finished==EWork::Finish){S.ActiveIndex=INDEX_NONE;if(S.CancelRequested)S.ActiveJob.Reset();}
+        if(Finished==EWork::PoolEvent&&S.Pool&&R.PoolEvent.Phase!=TEXT("leased"))S.Pool->Acknowledge(R.PoolEvent,R.ValidResult);
     }
     const auto Storage=S.Storage;const auto Cancel=S.Cancel;const auto RunCancel=S.RunCancel;
+    if(S.Pool)
+    {
+        FTrainBatchPoolEvent E;
+        if(S.Pool->Pop(E))
+        {
+            const FString Id=S.ActiveJob;S.Kind=EWork::PoolEvent;S.CountAsync();S.Work=Async(EAsyncExecution::ThreadPool,[Storage,Id,E,Cancel]()
+            {
+                FWorkResult R;R.PoolEvent=E;
+                if(E.Phase==TEXT("leased"))R.ValidResult=Storage->MarkLeased(Id,E.Index,E.Lease,R.Error);
+                else if(E.Phase==TEXT("completed"))R.ValidResult=Storage->Adopt(Id,E.Index,E.WorkerRoot,E.RunId,R.Error);
+                else if(E.Phase==TEXT("recovery")||E.Phase==TEXT("cancelled"))Storage->ReleaseLease(Id,E.Index,R.Error);
+                else Storage->Finish(Id,E.Index,false,E.Error,*Cancel,R.Error);
+                R.Views=Storage->Jobs;return R;
+            });return;
+        }
+        if(FPlatformTime::Seconds()>=S.NextPoolText){S.NextPoolText=FPlatformTime::Seconds()+.2;S.Say(S.Pool->Status());}
+        if(S.Pool->IsDone()){const FString Failure=S.Pool->Error();S.Pool.Reset();S.ActiveJob.Reset();S.Say(!Failure.IsEmpty()?Failure:S.CancelRequested?TEXT("워커 실행 중단됨 · 디스크 재개 가능"):TEXT("워커 Job 종료 · 완료/실패 목록 확인"));}
+        else return;
+    }
     if(S.Parsed.IsSet())
     {
         auto M=MoveTemp(S.Parsed.GetValue());S.Parsed.Reset();S.Kind=EWork::Receive;S.WorkBytes=S.ParsedBytes;S.ParsedBytes=0;
@@ -303,4 +362,5 @@ FTrainBatchTestCounters UTrainBatchSubsystem::CountersForTests() const
     C.PumpCalls=State->PumpCalls;C.AsyncStarts=State->AsyncStarts;C.SubscriptionRequests=State->SubscriptionRequests;
     C.TimerActive=GetWorld()&&GetWorld()->GetTimerManager().IsTimerActive(Timer);C.FutureActive=State->Work.IsValid();C.SubscriptionActive=!State->Subscription.IsEmpty();return C;
 }
+void UTrainBatchSubsystem::UseInProcessForTests(){if(State&&State->ActiveJob.IsEmpty())State->ProcessWorkers=0;}
 #endif

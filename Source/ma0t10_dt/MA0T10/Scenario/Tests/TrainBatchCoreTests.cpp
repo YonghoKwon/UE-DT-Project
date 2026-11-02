@@ -98,6 +98,8 @@ bool FTrainBatchStorageTest::RunTest(const FString&)
     TestTrue(TEXT("duplicate item idempotent"),Store.Receive(Item,E));FTrainBatchStorage::ReadUtf8(Path,TrainBatchContract::ScenarioBytes,After);TestEqual(TEXT("duplicate does not rewrite original"),Before,After);
     auto Conflict=Job;Conflict.Job.ManifestSha256=TEXT("different");TestFalse(TEXT("same ID different Job rejected"),Store.Receive(Conflict,E));
     FTrainBatchStorage Restart;TestFalse(TEXT("1A cannot overwrite a previous process Job"),Restart.Receive(Job,E));
+    if(!TestTrue(TEXT("explicit disk resume validates original and journal"),Restart.Restore(F.Id,E)))AddError(E);
+    if(!Restart.Jobs.IsEmpty())TestTrue(TEXT("restored input ready without replaying completed work"),Restart.Jobs[0].IsReady());
     FString Journal;FFileHelper::LoadFileToString(Journal,*(TrainBatchCodec::JobDirectory(F.Id)/TEXT("journal.ndjson")));TestTrue(TEXT("state transitions are journaled"),Journal.Contains(TEXT("input_stored")));TestTrue(TEXT("journal carries chain checksum"),Journal.Contains(TEXT("previous_sha256")));
     return true;
 }

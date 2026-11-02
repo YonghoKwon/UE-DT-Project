@@ -1,4 +1,5 @@
 #include "TrainBatchStorage.h"
+#include "TrainBatchProcessProtocol.h"
 #include "ma0t10_dt/MA0T10/Contracts/LocalCapturePath.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualPcdCodec.h"
@@ -12,6 +13,8 @@ namespace
 {
 FString Encode(const TSharedRef<FJsonObject>& O)
 {FString S;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&S));return S;}
+FString JournalJson(const TSharedRef<FJsonObject>& O)
+{FString S;FJsonSerializer::Serialize(O,TJsonWriterFactory<TCHAR,TCondensedJsonPrintPolicy<TCHAR>>::Create(&S));return S;}
 const TCHAR* StateName(ETrainBatchItemState S)
 {switch(S){case ETrainBatchItemState::Waiting:return TEXT("waiting");case ETrainBatchItemState::Running:return TEXT("running");case ETrainBatchItemState::Completed:return TEXT("completed");case ETrainBatchItemState::Failed:return TEXT("failed");default:return TEXT("receiving");}}
 FString InputPath(const FTrainBatchJobView& Job,int32 Index)
@@ -54,9 +57,9 @@ bool FTrainBatchStorage::Snapshot(FTrainBatchJobView& Job,const FString& Event,F
     auto E=MakeShared<FJsonObject>();const int64 Sequence=Sequences.FindRef(Job.Spec.Id)+1;
     E->SetStringField(TEXT("schema"),TEXT("ma0t10.train.journal.v1"));E->SetNumberField(TEXT("sequence"),double(Sequence));E->SetStringField(TEXT("previous_sha256"),PreviousHashes.FindRef(Job.Spec.Id));
     E->SetStringField(TEXT("event"),Event);E->SetStringField(TEXT("utc"),FDateTime::UtcNow().ToIso8601());
-    FString Hash;{const FString Body=Encode(E);FTCHARToUTF8 U(*Body);if(!TrainBatchCodec::Sha256(U.Get(),U.Length(),Hash))return false;}
+    FString Hash;{const FString Body=JournalJson(E);FTCHARToUTF8 U(*Body);if(!TrainBatchCodec::Sha256(U.Get(),U.Length(),Hash))return false;}
     E->SetStringField(TEXT("sha256"),Hash);
-    if(!FFileHelper::SaveStringToFile(Encode(E)+TEXT("\n"),*(Root/TEXT("journal.ndjson")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM,&IFileManager::Get(),FILEWRITE_Append))
+    if(!FFileHelper::SaveStringToFile(JournalJson(E)+TEXT("\n"),*(Root/TEXT("journal.ndjson")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM,&IFileManager::Get(),FILEWRITE_Append))
     {Error=TEXT("학습 journal 저장 실패");return false;}
     Sequences.Add(Job.Spec.Id,Sequence);PreviousHashes.Add(Job.Spec.Id,Hash);
     auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("schema"),TEXT("ma0t10.train.state.v1"));O->SetStringField(TEXT("job_id"),Job.Spec.Id);
@@ -182,4 +185,90 @@ bool FTrainBatchStorage::Finish(const FString& JobId,int32 Index,bool Success,co
     J->Message=J->CompleteCount()==J->Items.Num()?TEXT("Job 완료"):TEXT("대기/실패 항목 확인");
     if(!Snapshot(*J,Valid?TEXT("scenario_completed"):TEXT("scenario_failed"),Error))return false;
     return Valid;
+}
+
+namespace
+{
+bool ConfirmedFiles(const FString& Root,const FString& JobId,const FTrainBatchItemView& Item,FString& Error)
+{
+    const auto Marker=TrainBatchProcess::Read(Root/TEXT("complete.json"));FString Id,Scenario,Run,Expected,Text;double Frames=0;
+    if(!Marker||!Marker->TryGetStringField(TEXT("job_id"),Id)||Id!=JobId||!Marker->TryGetStringField(TEXT("scenario_id"),Scenario)||Scenario!=Item.Spec.Id||!Marker->TryGetStringField(TEXT("run_uuid"),Run)||Run!=Item.RunId||!Marker->TryGetNumberField(TEXT("frames"),Frames)||Frames!=FMath::CeilToInt(Item.Spec.Duration*20)||!Marker->TryGetStringField(TEXT("checksums_sha256"),Expected)||!FTrainBatchStorage::ReadUtf8(Root/TEXT("checksums.sha256"),16*1024*1024,Text))
+    {Error=TEXT("완료 marker ID/프레임/체크섬 목록 오류");return false;}
+    FTCHARToUTF8 U(*Text);FString Actual;if(!TrainBatchCodec::Sha256(U.Get(),U.Length(),Actual)||Actual!=Expected){Error=TEXT("체크섬 목록 손상");return false;}
+    TArray<FString> Lines;Text.ParseIntoArrayLines(Lines);if(Lines.IsEmpty()||Lines.Num()>100000)return false;TSet<FString> Seen;
+    for(const auto& Line:Lines)
+    {
+        if(Line.Len()<67||Line.Mid(64,2)!=TEXT("  ")){Error=TEXT("체크섬 행 형식 오류");return false;}
+        const FString Relative=Line.Mid(66),Path=Root/Relative;if(Relative.Contains(TEXT("\\"))||Relative.Contains(TEXT(":"))||!FPaths::IsRelative(Relative)||Seen.Contains(Relative.ToLower())||!LocalCapturePath::SafeDescendant(Root,Path))return false;
+        Seen.Add(Relative.ToLower());const int64 Size=IFileManager::Get().FileSize(*Path);TArray<uint8> Bytes;
+        if(Size<0||Size>64ll*1024*1024||!FFileHelper::LoadFileToArray(Bytes,*Path)||!TrainBatchCodec::Sha256(Bytes.GetData(),Bytes.Num(),Actual)||Actual!=Line.Left(64))
+        {Error=TEXT("결과 파일 SHA256 불일치");return false;}
+    }
+    return true;
+}
+}
+bool FTrainBatchStorage::Restore(const FString& JobId,FString& Error)
+{
+    if(!TrainBatchCodec::CanonicalGuid(JobId)||Find(JobId)||Jobs.Num()>=TrainBatchContract::MaxSessionJobs){Error=TEXT("복원 Job ID/세션 상태 오류");return false;}
+    const FString Root=TrainBatchCodec::JobDirectory(JobId);FString Raw;
+    if(!LocalCapturePath::SafeDescendant(TrainBatchCodec::JobsRoot(),Root)||!ReadUtf8(Root/TEXT("input/job.json"),TrainBatchContract::ManifestBytes,Raw))return false;
+    FTrainBatchMessage M;if(!TrainBatchCodec::Parse(Raw,M,Error)||M.Kind!=FTrainBatchMessage::EKind::Job||M.Job.Id!=JobId)return false;
+    const auto State=TrainBatchProcess::Read(Root/TEXT("job.json"),2*1024*1024);FString Hash,Commit,JournalHash;double Sequence=0;
+    if(!State||!State->TryGetStringField(TEXT("manifest_sha256"),Hash)||Hash!=M.Job.ManifestSha256||!State->TryGetStringField(TEXT("project_commit"),Commit)||Commit!=(FString(TEXT(MA0T10_PROJECT_COMMIT)).IsEmpty()?FString(TEXT("unknown")):FString(TEXT(MA0T10_PROJECT_COMMIT)))||!State->TryGetNumberField(TEXT("sequence"),Sequence)||!State->TryGetStringField(TEXT("journal_sha256"),JournalHash))
+    {Error=TEXT("복원 manifest/hash/실행 버전 불일치");return false;}
+    FString Journal;if(!ReadUtf8(Root/TEXT("journal.ndjson"),16*1024*1024,Journal))return false;TArray<FString> Lines;Journal.ParseIntoArrayLines(Lines);FString Previous;int64 Seq=0;bool SnapshotFound=Sequence==0;
+    for(const auto& Line:Lines)
+    {
+        TSharedPtr<FJsonObject> Event;if(!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Line),Event)||!Event)return false;
+        FString Prev,Stored;double Number=0;if(!Event->TryGetStringField(TEXT("previous_sha256"),Prev)||Prev!=Previous||!Event->TryGetNumberField(TEXT("sequence"),Number)||Number!=Seq+1||!Event->TryGetStringField(TEXT("sha256"),Stored))return false;
+        Event->RemoveField(TEXT("sha256"));const FString Body=JournalJson(Event.ToSharedRef());FTCHARToUTF8 B(*Body);FString H;if(!TrainBatchCodec::Sha256(B.Get(),B.Length(),H)||H!=Stored){Error=TEXT("journal chain 손상");return false;}
+        ++Seq;Previous=Stored;if(Seq==Sequence){if(Stored!=JournalHash)return false;SnapshotFound=true;}
+    }
+    if(!SnapshotFound){Error=TEXT("snapshot이 journal chain에 없습니다");return false;}
+    const TArray<TSharedPtr<FJsonValue>>* Items=nullptr;if(!State->TryGetArrayField(TEXT("scenarios"),Items)||Items->Num()!=M.Job.Scenarios.Num())return false;
+    FTrainBatchJobView J;J.Spec=M.Job;
+    for(int32 N=0;N<J.Spec.Scenarios.Num();++N)
+    {
+        FTrainBatchItemView I;I.Spec=J.Spec.Scenarios[N];FSlabScenarioDataPtr D;FString Input;
+        if(ReadUtf8(Root/TEXT("input")/I.Spec.Id/TEXT("original.json"),TrainBatchContract::ScenarioBytes,Input)&&TrainBatchCodec::ValidateScenario(I.Spec,Input,D,Error)){I.State=ETrainBatchItemState::Waiting;I.Message=TEXT("재개 대기");}
+        else {Error.Reset();I.State=ETrainBatchItemState::Receiving;I.Message=TEXT("원본 보충 필요");}
+        const auto O=(*Items)[N]->AsObject();FString Id,Status;
+        if(!O||!O->TryGetStringField(TEXT("scenario_id"),Id)||Id!=I.Spec.Id||!O->TryGetStringField(TEXT("state"),Status))return false;
+        if(Status==TEXT("completed"))
+        {
+            O->TryGetStringField(TEXT("run_uuid"),I.RunId);if(!TrainBatchCodec::CanonicalGuid(I.RunId))return false;
+            I.RunDirectory=TrainBatchCodec::RunDirectory(JobId,I.Spec.Id,I.RunId);
+            if(ConfirmedFiles(I.RunDirectory,JobId,I,Error)){I.State=ETrainBatchItemState::Completed;I.CompletedFrames=FMath::CeilToInt(I.Spec.Duration*20);I.Message=TEXT("완료 결과 복원됨");}
+            else {Error.Reset();I.RunId.Reset();I.RunDirectory.Reset();}
+        }
+        else if(Status==TEXT("failed")){I.State=ETrainBatchItemState::Failed;O->TryGetStringField(TEXT("message"),I.Message);}
+        J.Items.Add(MoveTemp(I));
+    }
+    Sequences.Add(JobId,Seq);PreviousHashes.Add(JobId,Previous);J.Message=TEXT("디스크 Job 복원됨");Jobs.Add(MoveTemp(J));return Snapshot(Jobs.Last(),TEXT("job_restored"),Error);
+}
+bool FTrainBatchStorage::MarkLeased(const FString& JobId,int32 Index,const FString& Lease,FString& Error)
+{
+    auto* J=Find(JobId);if(!J||!J->Items.IsValidIndex(Index)||!TrainBatchCodec::CanonicalGuid(Lease))return false;
+    auto& I=J->Items[Index];if(I.State==ETrainBatchItemState::Completed)return false;I.State=ETrainBatchItemState::Running;I.RunId=Lease;I.RunDirectory.Reset();I.Message=TEXT("외부 워커 실행 중");return Snapshot(*J,TEXT("worker_leased"),Error);
+}
+bool FTrainBatchStorage::ReleaseLease(const FString& JobId,int32 Index,FString& Error)
+{
+    auto* J=Find(JobId);if(!J||!J->Items.IsValidIndex(Index)||J->Items[Index].State==ETrainBatchItemState::Completed)return false;
+    auto& I=J->Items[Index];I.State=ETrainBatchItemState::Waiting;I.RunId.Reset();I.RunDirectory.Reset();I.Message=TEXT("재할당 대기");return Snapshot(*J,TEXT("worker_requeued"),Error);
+}
+bool FTrainBatchStorage::Adopt(const FString& JobId,int32 Index,const FString& ApprovedWorkerRoot,const FString& RunId,FString& Error)
+{
+    auto* J=Find(JobId);if(!J||!J->Items.IsValidIndex(Index)||!TrainBatchCodec::CanonicalGuid(RunId))return false;auto& I=J->Items[Index];
+    I.RunId=RunId;const FString Source=ApprovedWorkerRoot/JobId/TEXT("scenarios")/I.Spec.Id/(TEXT("run_")+RunId),Destination=TrainBatchCodec::RunDirectory(JobId,I.Spec.Id,RunId);
+    if(!LocalCapturePath::SafeDescendant(ApprovedWorkerRoot,Source)||!LocalCapturePath::SafeDescendant(TrainBatchCodec::JobsRoot(),Destination))return false;
+    if(!IFileManager::Get().DirectoryExists(*Destination))
+    {
+        if(!ConfirmedFiles(Source,JobId,I,Error))return false;
+        // Same-volume rename preserves closed, verified files and has no partial destination.
+        if(!IFileManager::Get().MakeDirectory(*FPaths::GetPath(Destination),true))return false;
+        if(!IPlatformFile::GetPlatformPhysical().MoveFile(*Destination,*Source))
+        {Error=TEXT("워커 결과 이동 실패 · 같은 볼륨의 Saved root가 필요합니다");return false;}
+    }
+    if(!ConfirmedFiles(Destination,JobId,I,Error))return false;
+    I.RunDirectory=Destination;I.State=ETrainBatchItemState::Completed;I.CompletedFrames=FMath::CeilToInt(I.Spec.Duration*20);I.Message=TEXT("워커 결과 검증 완료");return Snapshot(*J,TEXT("worker_result_adopted"),Error);
 }

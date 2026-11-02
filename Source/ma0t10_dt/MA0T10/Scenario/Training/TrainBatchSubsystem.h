@@ -32,6 +32,8 @@ public:
     UFUNCTION(BlueprintCallable,Category="Training") bool ConfigureTargets(const FString& PresetId,ASlabActor* Slab,AVirtualLidarSensorActor* Lidar,AVirtualCameraSensorActor* Camera,FString& Error);
     UFUNCTION(BlueprintCallable,Category="Training") bool ImportManifest(const FString& AbsolutePath,FString& Error);
     UFUNCTION(BlueprintCallable,Category="Training") bool StartJob(const FString& JobId,FString& Error);
+    UFUNCTION(BlueprintCallable,Category="Training") bool SetProcessWorkers(int32 Count,FString& Error);
+    UFUNCTION(BlueprintCallable,Category="Training") bool RestoreJob(const FString& JobId,FString& Error);
     UFUNCTION(BlueprintCallable,Category="Training") void CancelJob();
     UFUNCTION(BlueprintPure,Category="Training") FString GetStatus() const;
     bool SubmitEnvelope(const FString& Json,FString& Error);
@@ -45,6 +47,7 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
     bool HasBackgroundWorkForTests() const;
     FTrainBatchTestCounters CountersForTests() const;
+    void UseInProcessForTests();
 #endif
 private:
     friend class UTrainBatchScenarioTC;
