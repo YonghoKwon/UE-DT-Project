@@ -6,6 +6,8 @@
 #include "UObject/UnrealType.h"
 #include "ma0t10_dt/MA0T10/Sensor/DeviceSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeviceCoordinatorFacadeContract,
@@ -86,6 +88,29 @@ bool FDeviceCoordinatorEndPlayCleanup::RunTest(const FString&)
     Facade->Destroy();
     GEngine->DestroyWorldContext(World);
     World->DestroyWorld(false);
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeviceCoordinatorViewStateIsolation,
+    "MA0T10.DeviceBoundary.CoordinatorViewStateIsolation",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FDeviceCoordinatorViewStateIsolation::RunTest(const FString&)
+{
+    UWorld* World=GWorld;
+    if(!TestNotNull(TEXT("Editor world"),World))return false;
+    auto* A=World->SpawnActor<AVirtualSensorCoordinator>();
+    auto* B=World->SpawnActor<AVirtualSensorCoordinator>();
+    auto* LidarA=World->SpawnActor<AVirtualLidarSensorActor>();
+    auto* LidarB=World->SpawnActor<AVirtualLidarSensorActor>();
+    A->bPointCloudOnlyHideWorld=false;B->bPointCloudOnlyHideWorld=false;
+    A->RegisterLidar(LidarA->ScanComponent);B->RegisterLidar(LidarB->ScanComponent);
+    A->SetPointCloudOnlyMode(true);B->SetPointCloudOnlyMode(true);
+    TestEqual(TEXT("first base owns only its snapshot"),A->LidarPointCloudOnlyStates.Num(),1);
+    TestEqual(TEXT("second base owns only its snapshot"),B->LidarPointCloudOnlyStates.Num(),1);
+    A->SetPointCloudOnlyMode(false);
+    TestEqual(TEXT("first restoration empties its state"),A->LidarPointCloudOnlyStates.Num(),0);
+    TestEqual(TEXT("first restoration cannot clear another base"),B->LidarPointCloudOnlyStates.Num(),1);
+    B->SetPointCloudOnlyMode(false);
+    TestEqual(TEXT("second restoration empties its state"),B->LidarPointCloudOnlyStates.Num(),0);
+    A->Destroy();B->Destroy();LidarA->Destroy();LidarB->Destroy();
     return true;
 }
 #endif

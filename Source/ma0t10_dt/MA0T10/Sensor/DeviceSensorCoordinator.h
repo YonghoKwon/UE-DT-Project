@@ -19,6 +19,19 @@ class UVirtualSensorRecorderComponent;
 class UVirtualSensorStreamPublisherComponent;
 class IVirtualSensorMonitorView;
 
+struct FDeviceLidarPointCloudOnlyState
+{
+    bool bPointCloudPreviewEnabled = false;
+    bool bDrawDebugRays = false;
+    bool bDrawPointCloudPreviewDebugPoints = false;
+    int32 PointCloudPreviewStride = 1;
+    int32 MaxPointCloudPreviewInstances = 0;
+    int32 PreviewPointStride = 1;
+    int32 MaxPreviewPoints = 0;
+    bool bHadVisualizationComponent = false;
+    bool bShowWorldPointCloud = false;
+};
+
 /** Read-only host policy snapshot. No containers are copied and no UI types cross this boundary. */
 struct FDeviceSensorCoordinatorConfig
 {
@@ -110,6 +123,13 @@ private:
     bool ShouldKeepActorVisibleInPointCloudOnly(const AActor* Actor) const;
 
 private:
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    friend class FDeviceCoordinatorViewStateIsolation;
+#endif
+    void SaveLidarViewState(UVirtualLidarScanComponent* LidarComp);
+    void ApplyPointCloudOnlyToLidar(UVirtualLidarScanComponent* LidarComp,bool bSelected);
+    void RestoreLidarViewState(UVirtualLidarScanComponent* LidarComp);
+    TMap<TWeakObjectPtr<UVirtualLidarScanComponent>,FDeviceLidarPointCloudOnlyState> LidarPointCloudOnlyStates;
     IVirtualSensorMonitorView* GetMonitorView() const;
     TWeakObjectPtr<UObject> MonitorOwner;
 

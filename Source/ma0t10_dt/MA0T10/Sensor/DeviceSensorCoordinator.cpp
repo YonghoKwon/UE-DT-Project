@@ -15,31 +15,17 @@
 #include "VirtualSensorMonitorView.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 
-namespace
-{
-struct FLidarPointCloudOnlyState
-{
-    bool bPointCloudPreviewEnabled = false;
-    bool bDrawDebugRays = false;
-    bool bDrawPointCloudPreviewDebugPoints = false;
-    int32 PointCloudPreviewStride = 1;
-    int32 MaxPointCloudPreviewInstances = 0;
-    int32 PreviewPointStride = 1;
-    int32 MaxPreviewPoints = 0;
-    bool bHadVisualizationComponent = false;
-    bool bShowWorldPointCloud = false;
-};
 
-TMap<TWeakObjectPtr<UVirtualLidarScanComponent>, FLidarPointCloudOnlyState> GLidarPointCloudOnlyStates;
 
-void SaveLidarViewState(UVirtualLidarScanComponent* LidarComp)
+
+void ADeviceSensorCoordinator::SaveLidarViewState(UVirtualLidarScanComponent* LidarComp)
 {
-    if (!LidarComp || GLidarPointCloudOnlyStates.Contains(LidarComp))
+    if (!LidarComp || LidarPointCloudOnlyStates.Contains(LidarComp))
     {
         return;
     }
 
-    FLidarPointCloudOnlyState State;
+    FDeviceLidarPointCloudOnlyState State;
     State.bPointCloudPreviewEnabled = LidarComp->IsPointCloudPreviewEnabled();
     State.bDrawDebugRays = LidarComp->bDrawDebugRays;
     State.bDrawPointCloudPreviewDebugPoints = LidarComp->bDrawPointCloudPreviewDebugPoints;
@@ -55,10 +41,10 @@ void SaveLidarViewState(UVirtualLidarScanComponent* LidarComp)
             State.bShowWorldPointCloud = Visualization->GetVisualizationSettings().bShowWorldPointCloud;
         }
     }
-    GLidarPointCloudOnlyStates.Add(LidarComp, State);
+    LidarPointCloudOnlyStates.Add(LidarComp, State);
 }
 
-void ApplyPointCloudOnlyToLidar(UVirtualLidarScanComponent* LidarComp, bool bSelected)
+void ADeviceSensorCoordinator::ApplyPointCloudOnlyToLidar(UVirtualLidarScanComponent* LidarComp, bool bSelected)
 {
     if (!LidarComp)
     {
@@ -88,14 +74,14 @@ void ApplyPointCloudOnlyToLidar(UVirtualLidarScanComponent* LidarComp, bool bSel
     }
 }
 
-void RestoreLidarViewState(UVirtualLidarScanComponent* LidarComp)
+void ADeviceSensorCoordinator::RestoreLidarViewState(UVirtualLidarScanComponent* LidarComp)
 {
     if (!LidarComp)
     {
         return;
     }
 
-    if (FLidarPointCloudOnlyState* State = GLidarPointCloudOnlyStates.Find(LidarComp))
+    if (FDeviceLidarPointCloudOnlyState* State = LidarPointCloudOnlyStates.Find(LidarComp))
     {
         LidarComp->bDrawDebugRays = State->bDrawDebugRays;
         LidarComp->bDrawPointCloudPreviewDebugPoints = State->bDrawPointCloudPreviewDebugPoints;
@@ -113,13 +99,12 @@ void RestoreLidarViewState(UVirtualLidarScanComponent* LidarComp)
             }
         }
         LidarComp->SetPointCloudPreviewEnabled(State->bPointCloudPreviewEnabled);
-        GLidarPointCloudOnlyStates.Remove(LidarComp);
+        LidarPointCloudOnlyStates.Remove(LidarComp);
     }
     else
     {
         LidarComp->SetPointCloudPreviewEnabled(false);
     }
-}
 }
 
 ADeviceSensorCoordinator::ADeviceSensorCoordinator()
@@ -162,6 +147,7 @@ void ADeviceSensorCoordinator::EndPlay(const EEndPlayReason::Type EndPlayReason)
     {
         GetWorld()->GetTimerManager().ClearTimer(SynchronizedTimerHandle);
     }
+    LidarPointCloudOnlyStates.Reset();
     MonitorOwner.Reset();
     SensorActors.Reset(); Cameras.Reset(); Lidars.Reset(); RealSensorSources.Reset();
     Super::EndPlay(EndPlayReason);
