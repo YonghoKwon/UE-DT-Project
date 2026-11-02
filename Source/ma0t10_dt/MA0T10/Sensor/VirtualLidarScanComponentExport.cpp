@@ -1,4 +1,6 @@
 #include "VirtualLidarScanComponent.h"
+#include "SensorUploadDiagnostics.h"
+#include "MA0T10MemoryTags.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 #include "IndustrialLidarProfiles.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
@@ -80,6 +82,7 @@ void UVirtualLidarScanComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 
 void UVirtualLidarScanComponent::CompleteScheduledScan(double NowSeconds)
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
 #if WITH_DEV_AUTOMATION_TESTS
     if(bTimingTraceForTests&&TimingSamplesForTests.Num()<4096)
     {ActiveTimingSampleForTests.Completed=FPlatformTime::Seconds();ActiveTimingSampleForTests.CompletionFrame=GFrameCounter;TimingSamplesForTests.Add(ActiveTimingSampleForTests);}
@@ -545,6 +548,7 @@ bool UVirtualLidarScanComponent::ExportLastPointCloudJsonLines(const FString& Fi
 
 bool UVirtualLidarScanComponent::ExportLastPointCloudPcd(const FString& FileNamePrefix) const
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_PcdEncode);
     TArray<const FVirtualLidarPoint*> Points;
     CollectExportPoints(Points);
     FString Text = FString::Printf(
@@ -740,6 +744,7 @@ void UVirtualLidarScanComponent::ResetLastLazExportStatus(const FString& StatusT
 
 UInstancedStaticMeshComponent* UVirtualLidarScanComponent::EnsurePointCloudPreviewComponent()
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
     if (!PointCloudPreviewComponent)
     {
         UObject* PreviewOuter = GetOwner() ? Cast<UObject>(GetOwner()) : Cast<UObject>(this);
@@ -764,6 +769,7 @@ UInstancedStaticMeshComponent* UVirtualLidarScanComponent::EnsurePointCloudPrevi
 
 void UVirtualLidarScanComponent::RefreshPointCloudPreview()
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
     UWorld* World = GetWorld(); if (!bPointCloudPreviewEnabled || !World) { ClearPointCloudPreview(); return; }
     const TArray<FVirtualLidarPoint>& LastPoints = GetLastPoints();
     UInstancedStaticMeshComponent* Comp = EnsurePointCloudPreviewComponent(); if (!Comp) return; Comp->SetHiddenInGame(false); Comp->SetVisibility(true, true);
@@ -789,12 +795,14 @@ void UVirtualLidarScanComponent::RefreshPointCloudPreview()
     {
         // LastPoints stores world-space hit locations. Treating these as local-space
         // transforms applies the sensor transform twice and moves the cloud out of view.
+        SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::WorldPreviewInstances,GFrameCounter,uint64(CommonCount)*sizeof(FTransform),uint64(InstanceTransforms.Num())*sizeof(FTransform));
         Comp->BatchUpdateInstancesTransforms(0, TArrayView<const FTransform>(InstanceTransforms.GetData(), CommonCount), true, false, true);
     }
     if (NewCount > ExistingCount)
     {
         TArray<FTransform> AddedTransforms;
         AddedTransforms.Append(InstanceTransforms.GetData() + ExistingCount, NewCount - ExistingCount);
+        SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::WorldPreviewInstances,GFrameCounter,uint64(AddedTransforms.Num())*sizeof(FTransform),uint64(AddedTransforms.Num())*sizeof(FTransform));
         Comp->AddInstances(AddedTransforms, true, true);
     }
     else if (ExistingCount > NewCount)

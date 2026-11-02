@@ -18,10 +18,13 @@ class MA0T10_DT_API USlabRunResultsSubsystem : public UTickableWorldSubsystem
 {
     GENERATED_BODY()
 public:
+#if !UE_BUILD_SHIPPING || WITH_DEV_AUTOMATION_TESTS
+    FVirtualSensorResourceSnapshot GetMemoryDiagnosticSnapshot() const;
+#endif
 #if WITH_DEV_AUTOMATION_TESTS
     struct FFrameAudit { FString Key,RequestId;uint8 Flags=0; };
     TArray<FFrameAudit> GetRunFrameAuditForTesting(const FString& Run) const;
-    FVirtualSensorResourceSnapshot GetResourceSnapshotForTesting() const;
+    FVirtualSensorResourceSnapshot GetResourceSnapshotForTesting() const { return GetMemoryDiagnosticSnapshot(); }
 #endif
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
     virtual void Deinitialize() override;
@@ -51,6 +54,7 @@ public:
     UFUNCTION(BlueprintCallable,Category="Slab|Results") bool RetryRunReportSave(const FString& Run,FString& Reason);
     UFUNCTION(BlueprintPure,Category="Slab|Results") int64 GetResultsRevision() const { return ResultsRevision; }
     static FString Describe(const FSlabRunDeliverySummary& Result);
+    static FString DescribeConsumerValidation(const FSlabRunDeliverySummary& Result);
     static FString DescribeStreamDetails(const FSlabRunDeliverySummary& Result);
     UPROPERTY(BlueprintAssignable) FSlabRunResultsChanged OnResultsChanged;
 private:
@@ -78,6 +82,7 @@ private:
     static FString SerializeSummary(const FSlabRunDeliverySummary& Summary);
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FSlabRunLedgerTest;
+    friend class FSlabValidationDisabledTest;
     friend class FSlabRunHistoryTest;
     friend class FSlabRunPlacementSnapshotTest;
     friend class FSlabRunComparisonUiTest;

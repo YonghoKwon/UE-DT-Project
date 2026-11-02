@@ -36,16 +36,19 @@ void USlabRunResultsSubsystem::Tick(float)
 }
 TStatId USlabRunResultsSubsystem::GetStatId() const {RETURN_QUICK_DECLARE_CYCLE_STAT(USlabRunResultsSubsystem,STATGROUP_Tickables);}
 void USlabRunResultsSubsystem::Changed(bool Broadcast){++ResultsRevision;if(Broadcast&&!bEnding)OnResultsChanged.Broadcast();}
-#if WITH_DEV_AUTOMATION_TESTS
-FVirtualSensorResourceSnapshot USlabRunResultsSubsystem::GetResourceSnapshotForTesting() const
+#if !UE_BUILD_SHIPPING || WITH_DEV_AUTOMATION_TESTS
+FVirtualSensorResourceSnapshot USlabRunResultsSubsystem::GetMemoryDiagnosticSnapshot() const
 {
     FVirtualSensorResourceSnapshot S;S.Owner=TEXT("slab-results");
     int64 Strings=0;for(const auto& P:Requests)Strings+=P.Key.GetAllocatedSize()+P.Value.RequestId.GetAllocatedSize();
     S.Counts={{TEXT("results"),Results.Num()},{TEXT("requests"),Requests.Num()},{TEXT("writers"),Writes.Num()},
-        {TEXT("observation_delegate"),ObservationHandle.IsValid()},{TEXT("receive_delegate"),ReceiveHandle.IsValid()}};
+        {TEXT("observation_delegate"),ObservationHandle.IsValid()},{TEXT("receive_delegate"),ReceiveHandle.IsValid()},
+        {TEXT("active_run"),!ActiveRun.IsEmpty()},{TEXT("writing_runs"),WritingRuns.Num()}};
     S.OwnedCpuBytes.Add(TEXT("ledger_strings"),Strings);S.OwnedCpuBytes.Add(TEXT("ledger_container"),Requests.GetAllocatedSize());
     S.OwnedCpuBytes.Add(TEXT("result_container"),Results.GetAllocatedSize());return S;
 }
+#endif
+#if WITH_DEV_AUTOMATION_TESTS
 TArray<USlabRunResultsSubsystem::FFrameAudit> USlabRunResultsSubsystem::GetRunFrameAuditForTesting(const FString& Run) const
 {
     TArray<FFrameAudit> Audit;if(Run==ActiveRun){Audit.Reserve(Requests.Num());for(const auto& P:Requests)if(P.Value.Flags&LedgerAccepted)Audit.Add({P.Key,P.Value.RequestId,P.Value.Flags});}return Audit;
@@ -65,6 +68,7 @@ void USlabRunResultsSubsystem::BeginRun(const FString& Run,const FString& Scenar
     if(bEnding||Run.IsEmpty()||Find(Run))return;
     ClearPlacementBindings();ActiveRun=Run;Requests.Reset();auto& R=Results.AddDefaulted_GetRef();R.RunUUID=Run;R.ScenarioUUID=Scenario;R.Policy=Policy;R.Outputs=Outputs;R.PreparedUtc=FDateTime::UtcNow();
     R.bHasStreamDetails=true;
+    if(const auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>())R.bConsumerValidationEnabled=Raw->IsDiagnosticReceiverEnabled();
     if(auto* GI=GetWorld()->GetGameInstance())if(auto* Archive=GI->GetSubsystem<USlabScenarioReplaySubsystem>())if(const auto Data=Archive->GetValidatedScenario(Scenario))R.ScenarioContentHash=Data->OriginalContentSha1;
     while(Results.Num()>20)Results.RemoveAt(0);Changed(true);
 }
@@ -171,7 +175,7 @@ void USlabRunResultsSubsystem::ObserveTransport(const FVirtualSensorTransportObs
     if(Flag==LedgerReceipt)Rate(Detail->Receipts,Detail->FirstReceipt,Detail->LastReceipt,Detail->ReceiptHz,Detail->bHasReceiptRate);
     if(Flag==LedgerConsumed)Rate(Detail->ConsumerValidated,Detail->FirstConsumer,Detail->LastConsumer,Detail->ConsumerValidatedHz,Detail->bHasConsumerRate);
     if(Flag==LedgerAccepted)++R->Accepted;else if(Flag==LedgerSubmitted)++R->Submitted;else if(Flag==LedgerReceipt)++R->Receipts;
-    else if(Flag==LedgerConsumed)++R->ConsumerValidated;else if(Flag==LedgerInvalid)++R->ConsumerInvalid;else {++R->DeliveryFailures;if(R->Reason.IsEmpty())R->Reason=E.Message;}
+    else if(Flag==LedgerConsumed){R->bConsumerValidationEnabled=true;++R->ConsumerValidated;}else if(Flag==LedgerInvalid){R->bConsumerValidationEnabled=true;++R->ConsumerInvalid;}else {++R->DeliveryFailures;if(R->Reason.IsEmpty())R->Reason=E.Message;}
     Changed();
 }
 void USlabRunResultsSubsystem::RecordOutputFailure(const FString& Run,const FString& Sensor,int32 Kind,int64 Frame,const FString& Reason)
@@ -217,6 +221,10 @@ void USlabRunResultsSubsystem::Finalize(const FVirtualSlabSessionStatus& S,bool 
     ClearPlacementBindings();
     R->SaveState=TEXT("저장 요청 접수");QueueReport(*R);Changed(true);
 }
+FString USlabRunResultsSubsystem::DescribeConsumerValidation(const FSlabRunDeliverySummary& R)
+{
+    return R.bConsumerValidationEnabled?FString::Printf(TEXT("자체 검증(기록 시점) %lld · 검증 오류 %lld"),R.ConsumerValidated,R.ConsumerInvalid):FString(TEXT("자체 검증 꺼짐(외부 수신기 검증 사용)"));
+}
 FString USlabRunResultsSubsystem::DescribeStreamDetails(const FSlabRunDeliverySummary& R)
 {
     FString T=TEXT("센서별 측정 완료/실패");
@@ -226,9 +234,10 @@ FString USlabRunResultsSubsystem::DescribeStreamDetails(const FSlabRunDeliverySu
     for(const auto& D:R.StreamDetails)
     {
         const TCHAR* K=D.Kind==EVirtualSensorStreamKind::PointCloud?TEXT("PCD"):D.Kind==EVirtualSensorStreamKind::CameraImage?TEXT("Camera"):TEXT("LiDAR 정보");
-        T+=FString::Printf(TEXT("\n%s / %s: %lld/%lld/%lld/%lld/%lld/%lld/%lld"),*D.SensorId,K,D.Accepted,D.Submitted,D.Receipts,D.Failures,D.AcceptedUnconfirmed,D.ConsumerValidated,D.ConsumerInvalid);
+        T+=FString::Printf(TEXT("\n%s / %s: %lld/%lld/%lld/%lld/%lld"),*D.SensorId,K,D.Accepted,D.Submitted,D.Receipts,D.Failures,D.AcceptedUnconfirmed);
+        T+=R.bConsumerValidationEnabled?FString::Printf(TEXT("/%lld/%lld"),D.ConsumerValidated,D.ConsumerInvalid):FString(TEXT("/—/— · 자체 검증 꺼짐(외부 수신기 검증 사용)"));
         auto Hz=[](bool Known,double H){return Known?FString::Printf(TEXT("%.2f"),H):FString(TEXT("N/A"));};
-        T+=TEXT("\n  기록 이벤트 간격 Hz · 제출/receipt/자체검증 ")+Hz(D.bHasSubmittedRate,D.SubmittedHz)+TEXT(" / ")+Hz(D.bHasReceiptRate,D.ReceiptHz)+TEXT(" / ")+Hz(D.bHasConsumerRate,D.ConsumerValidatedHz);
+        T+=TEXT("\n  기록 이벤트 간격 Hz · 제출/receipt/자체검증 ")+Hz(D.bHasSubmittedRate,D.SubmittedHz)+TEXT(" / ")+Hz(D.bHasReceiptRate,D.ReceiptHz)+TEXT(" / ")+(R.bConsumerValidationEnabled?Hz(D.bHasConsumerRate,D.ConsumerValidatedHz):FString(TEXT("꺼짐")));
     }
     T+=FString::Printf(TEXT("\n귀속 불가 · 측정/측정실패/전송오류 %lld/%lld/%lld"),R.UnattributedAcquired,R.UnattributedAcquisitionFailures,R.UnattributedDeliveryFailures);
     return T;
@@ -238,6 +247,15 @@ FString USlabRunResultsSubsystem::SerializeSummary(const FSlabRunDeliverySummary
     TSharedPtr<FJsonObject> Root=FJsonObjectConverter::UStructToJsonObject(S);
     Root->SetStringField(TEXT("schema"),TEXT("ma0t10.slab-run.v1"));Root->SetStringField(TEXT("completionBoundary"),TEXT("broker-receipt; consumer processing not verified"));
     Root->SetStringField(TEXT("saveState"),TEXT("저장 완료"));
+    Root->SetStringField(TEXT("consumerValidationStatus"),DescribeConsumerValidation(S));
+    if(!S.bConsumerValidationEnabled)
+    {
+        Root->SetField(TEXT("consumerValidated"),MakeShared<FJsonValueNull>());Root->SetField(TEXT("consumerInvalid"),MakeShared<FJsonValueNull>());
+        Root->SetField(TEXT("consumerSnapshotUtc"),MakeShared<FJsonValueNull>());
+        const TArray<TSharedPtr<FJsonValue>>* Details=nullptr;
+        if(Root->TryGetArrayField(TEXT("streamDetails"),Details))for(const auto& Detail:*Details)if(const auto O=Detail->AsObject())
+        {O->SetField(TEXT("consumerValidated"),MakeShared<FJsonValueNull>());O->SetField(TEXT("consumerInvalid"),MakeShared<FJsonValueNull>());O->SetField(TEXT("consumerValidatedHz"),MakeShared<FJsonValueNull>());O->SetBoolField(TEXT("bHasConsumerRate"),false);}
+    }
     if(S.SurfaceAppearance.bPresent)
     {
         const auto Record=[](const FSlabSurfaceAppearanceRecord& A)
@@ -311,7 +329,7 @@ FString USlabRunResultsSubsystem::Describe(const FSlabRunDeliverySummary& R)
     const TCHAR* Outcome=R.Outcome==ESlabRunDeliveryOutcome::PreparationFailed?TEXT("준비 실패"):R.Outcome==ESlabRunDeliveryOutcome::UserStopped?TEXT("사용자 중단"):
         R.Outcome==ESlabRunDeliveryOutcome::Partial?TEXT("부분 전송"):R.Outcome==ESlabRunDeliveryOutcome::BrokerAccepted?TEXT("Broker 수락 완료"):
         R.Outcome==ESlabRunDeliveryOutcome::ObservationCompleted?TEXT("관찰 완료"):TEXT("진행 중");
-    return FString::Printf(TEXT("%s · %s\n승인/제출/receipt %lld/%lld/%lld · 오류 %lld · 미완료 %lld\n자체 검증(기록 시점) %lld · 검증 오류 %lld\n%s%s%s"),
-        Outcome,*R.MtlNo,R.Accepted,R.Submitted,R.Receipts,R.DeliveryFailures,R.Unfinished,R.ConsumerValidated,R.ConsumerInvalid,
+    return FString::Printf(TEXT("%s · %s\n승인/제출/receipt %lld/%lld/%lld · 오류 %lld · 미완료 %lld\n%s\n%s%s%s"),
+        Outcome,*R.MtlNo,R.Accepted,R.Submitted,R.Receipts,R.DeliveryFailures,R.Unfinished,*DescribeConsumerValidation(R),
         *R.Reason,*FString(R.Warning.IsEmpty()?TEXT(""):TEXT("\n주의: ")+R.Warning),*FString(R.SaveState.IsEmpty()?TEXT(""):TEXT("\n요약 파일: ")+R.SaveState));
 }

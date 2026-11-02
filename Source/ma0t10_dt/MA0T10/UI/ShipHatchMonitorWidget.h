@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "UI/DxWidget.h"
 #include "Components/VerticalBox.h"
+#include "StableHeaderReservation.h"
 #include "ShipHatchMonitorWidget.generated.h"
 class AShipHatchSimulation;
 class AShipHatchMonitorHost;
@@ -161,6 +162,11 @@ private:
     UFUNCTION() void OnSectionDrawer();
     UPROPERTY(Transient) TArray<TObjectPtr<UWrapBox>> ToolbarRows;
     float LastHeaderHeight=0,LastToolbarHeight=0,LastDrawerHeight=0,LastFooterHeight=0;
+    // Status text can grow, but must not repeatedly resize the 3D view as
+    // preview/fresh messages alternate. Reflow again on real size/font changes.
+    FVector2D HeaderReservationSize=FVector2D::ZeroVector;
+    float HeaderReservationFont=0;
+    FStableHeaderReservation HeaderReservation;
     UPROPERTY(Transient) TObjectPtr<UTextBlock> LegendText;
     UPROPERTY(Transient) TObjectPtr<UImage> AnalysisImage;
     UPROPERTY(Transient) TObjectPtr<UTexture2D> AnalysisTexture;

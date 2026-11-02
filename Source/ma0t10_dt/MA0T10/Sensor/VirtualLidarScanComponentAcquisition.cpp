@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "MA0T10MemoryTags.h"
 #include "IndustrialLidarProfiles.h"
 #include "VirtualLidarStaticCollisionQuery.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
@@ -224,6 +225,7 @@ int32 UVirtualLidarScanComponent::ProcessGpuDepthScan()
 
 void UVirtualLidarScanComponent::BeginScheduledScan(double NowSeconds)
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
 	if (auto* Slab = FVirtualSensorAcquisitionContextProviders::Get(GetWorld())) ScheduledSlabContext=Slab->CaptureAcquisitionContext(SensorId,FrameId+1);
     if(ActiveAcquisitionBackend!=EVirtualLidarAcquisitionBackend::HardwareRayTracing)ActiveAcquisitionBackend = EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
     RuntimeStatus.ActiveAcquisitionBackend=TEXT("accurate_cpu_trace");
@@ -412,6 +414,7 @@ void UVirtualLidarScanComponent::CompleteScheduledPayloadBuild(TSharedPtr<FVirtu
 
 void UVirtualLidarScanComponent::ScanAndSend()
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
     ++FrameId;
     ScheduledScanStartTime=FPlatformTime::Seconds();
     ScheduledAcquisitionStartUnixNanoseconds = UtcNowUnixNanoseconds();
@@ -456,6 +459,7 @@ bool UVirtualLidarScanComponent::SetReadOnlyPreviewFrame(TSharedRef<const FVirtu
 
 void UVirtualLidarScanComponent::InjectPointCloudFrame(const TArray<FVirtualLidarPoint>& Points, bool bSendTransport)
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
     ++FrameId;
     ScheduledScanStartTime=FPlatformTime::Seconds();ScheduledAcquisitionStartUnixNanoseconds=UtcNowUnixNanoseconds();
     LastPointStorage = MakeShared<TArray<FVirtualLidarPoint>, ESPMode::ThreadSafe>(Points);
@@ -505,6 +509,7 @@ void UVirtualLidarScanComponent::PublishLastFrameSnapshot(
 	int32 InVerticalChannels,
 	float InMaxDistanceCm)
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
 	TSharedPtr<FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> Snapshot = MakeShared<FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe>();
 	Snapshot->Points = GetLastPointSnapshot();
     Snapshot->SchemaVersion = TEXT("virtual-lidar.v2");

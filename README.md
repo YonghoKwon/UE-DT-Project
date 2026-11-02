@@ -96,6 +96,10 @@ MEMORY-TREND-26c(기준 `3ed0367`): Scheduler 주기 로그를 기본 억제하�
 
 26e(기준 `15326e6`, Runtime `eb4d515`): 해치 분석·지형 생성·저장 PCD 미리보기의 큰 future 결과를 복사 없이 한 번 이동하며 Pending 무효화와 버퍼 capacity를 검증했다. package20분 trace2회·비추적60분은 모두 누수 의심이고, 비추적 꼬리는 RSS+17.50/Commit+13.84/RHIMisc+11.81MiB/h다. D3D12 query·상한 있는 profiler cache·PCD encode가 반복된 양의 스택이며 전체 RSS 귀속은 미해결이다. 기존 HATCH06 픽셀 실패는 기준에서도 재현됐고 RT on ABAB1블록은 GPU mean+2.4487%로 FAIL이다. 기준 완화/추가 제품 기본값 변경 없이 보고했다. [변경·비교·한계](docs/MEMORY_OBSERVATION_26e.md)·[결과](Saved/Reports/MEMORY-26e/RESULT.md).
 
+26f GPU 제출·수명 추적(기준 `a2fd42d`, 최종 Runtime `3485774`): 배치·fenced GPU packet·고정 preview 재사용을 구현했다. 중간 SHA의 idle60분·2시간2회는8/8/2MiB/h와실제20Hz를통과했지만,반복디깅검증에서residency크래시가발견되어RTscene재사용을같은렌더프레임으로제한했다. **이전SHA장시간통과를최종소스에이월하지않으며#26은미해결**이다. 최종소스의원래5쌍8MiB·150ms기준은실패,RTonABAB2%와Development/Shipping30초smoke는통과했다. 추가메모리수정은중단하고재작성계획을남겼다. [결과·검증범위](docs/MEMORY_FIX_26f_GPU_SUBMISSION.md)·[재작성계획](docs/LIDAR_GPU_ACQUISITION_REWRITE_PLAN_26f.md)·[RESULT](Saved/Reports/MEMORY-FIX-26f/RESULT.md).
+
+26g 후속(기준 `c9e6e40`, Runtime `826c58f`): native 지속 TLAS/BLAS는 반복 GPU 오류로 진단 전용으로 남겼다. 지원 RHI 저장소 fallback은 byte/점·디깅·취소·20Hz를 유지했지만 패키지60분 꼬리 RSS/Commit/RHIMisc **12.58/11.81/9.77MiB/h**로8/8/2목표에 실패해 **#26 미해결·후속 gate 중단**이다. 다른SHA 통과를 이월하지 않는다. [설계·한계](docs/LIDAR_GPU_ACQUISITION_26g.md)·[현재 결과](Saved/Reports/LIDAR-GPU-REWRITE-26g/RESULT.md).
+
 ### FOLLOWUP-28 PCD 송신 예산·공정성
 
 기본 Ouster OS1-64 Rev7 3대(1024×64·20Hz 요청)에 센서별 토큰 버킷과 프레임 크기를 반영한 균등 Hz 상한을 적용한다. 기본 송신 예산은80MiB/s(사용자 승인2026-10-23)이며 PCD33-byte·승인FIFO·기본출력과 전역128MiB/스트림64MiB 예약 상한은 유지한다. `데이터 → 전송 → 고급 → PCD 예산`에서 현재 세션 예산을 바꾸며, 필요/예산 MiB/s와 최근 약1초의 실제 송신Hz를 표시한다. 저장 형식은 바꾸지 않는다.

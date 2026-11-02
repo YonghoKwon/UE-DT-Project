@@ -76,7 +76,36 @@ foreach ($TestGroup in $TestGroups) {
     if ($ReportRoot) {
         $runDirectory = Join-Path $ReportRoot ($TestGroup -replace '[^a-zA-Z0-9_.-]', '_')
         New-Item -ItemType Directory -Force -Path $runDirectory | Out-Null
-        $automationArgs += @('-RenderOffscreen', '-NoVSync', "-ReportExportPath=$runDirectory", "-HatchReport=$runDirectory/measurements", "-abslog=$runDirectory/automation.log")
+        # Preserve the exact existing fixtures inside this process's Saved root.
+        # Their tests deliberately reject map snapshots outside Saved/Reports.
+        $isolatedReports = Join-Path $runDirectory 'user/Saved/Reports'
+        if ($SensorSmokeMapDirectory) {
+            $sourceMap = Join-Path $SensorSmokeMapDirectory 'SensorTestMap.umap'
+            if (-not (Test-Path -LiteralPath $sourceMap -PathType Leaf)) { throw 'Committed SensorTestMap fixture missing' }
+            $isolatedMap = Join-Path $isolatedReports 'committed-map'
+            New-Item -ItemType Directory -Force -Path $isolatedMap | Out-Null
+            $copiedMap = Join-Path $isolatedMap 'SensorTestMap.umap'
+            Copy-Item -LiteralPath $sourceMap -Destination $copiedMap
+            if ((Get-FileHash -LiteralPath $sourceMap).Hash -ne (Get-FileHash -LiteralPath $copiedMap).Hash) { throw 'Committed map fixture copy mismatch' }
+            $automationArgs = @($automationArgs | Where-Object { $_ -notlike '-SensorSmokeMapDirectory=*' })
+            $automationArgs += "-SensorSmokeMapDirectory=$isolatedMap"
+        }
+        $projectDirectory = Split-Path -Parent $ProjectPath
+        $coilFixtures = Join-Path $projectDirectory 'Saved/Reports/COIL-CAP-01/fixtures'
+        if (Test-Path -LiteralPath $coilFixtures -PathType Container) {
+            $isolatedCoil = Join-Path $isolatedReports 'COIL-CAP-01/fixtures'
+            New-Item -ItemType Directory -Force -Path $isolatedCoil | Out-Null
+            foreach ($fixtureName in @('full','half','list','lowering','mixed','varied')) {
+                $sourceFixture = Join-Path $coilFixtures ($fixtureName + '.json')
+                if (-not (Test-Path -LiteralPath $sourceFixture -PathType Leaf)) { throw "Coil environment fixture missing: $fixtureName" }
+                $copiedFixture = Join-Path $isolatedCoil ($fixtureName + '.json')
+                Copy-Item -LiteralPath $sourceFixture -Destination $copiedFixture
+                if ((Get-FileHash -LiteralPath $sourceFixture).Hash -ne (Get-FileHash -LiteralPath $copiedFixture).Hash) { throw "Coil fixture copy mismatch: $fixtureName" }
+            }
+        }
+        # A successful Automation Quit can force process exit before module
+        # teardown. Give every process its own saved/native safety state.
+        $automationArgs += @('-RenderOffscreen', '-NoVSync', "-ReportExportPath=$runDirectory", "-HatchReport=$runDirectory/measurements", "-abslog=$runDirectory/automation.log", "-UserDir=$runDirectory/user")
         $quotedArgs = @($automationArgs | ForEach-Object { '"' + $_ + '"' })
         $process = Start-Process $EditorCmd -ArgumentList $quotedArgs -WindowStyle Hidden -Wait -PassThru `
             -RedirectStandardOutput (Join-Path $runDirectory 'console.log') -RedirectStandardError (Join-Path $runDirectory 'stderr.log')

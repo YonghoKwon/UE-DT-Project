@@ -909,3 +909,46 @@ Development Editor build·집중 외형1·대량 코일1 Success, 실제 D3D12 1
 Development build/집중 회귀·관련78Success/3조건부Skip/0Fail. 별도 opt-in PCD Full 비압축 loopback1Success: 외부20.023694Hz·16.731340MiB/s, 최대 필요16.759529/예산80MiB/s, 누락/중복/invalid/경고0, 최대gap82.889557ms. 단일 반환 전체 ray 본문 상한41.25MiB/s+헤더와 실측을 구분한다. 점군 포함1600px JPG2장을 보관했다. 직전 cd19f94 대 제품 커밋의 코일 RT on ABAB2%, 직접 UI·보호 경로/개인 설정 복원·실패/미수행은 [RESULT](../Saved/Reports/COIL-OUSTER/RESULT.md)/[result](../Saved/Reports/COIL-OUSTER/result.json)/[merge](../Saved/Reports/COIL-OUSTER/merge-check.json)을 따른다. [프로필·보존·예산 근거](research/COIL-OUSTER-basis.md). result/merge 기준은 a0ca52a이며 전체 release·회사 수용은 미수행이다.
 
 COIL-OUSTER 최종 성능: cd19f94(Hesai32)→a95d878(Ouster64)의 실제 변경을 유지한 RT on ABAB3블록/A6B6에서 wall FPS 저하0.002751%·engine p95변화0%는 통과, GT5.583417→6.046311ms(+8.290505%)·GPU5.689627→5.995552ms(+5.376885%)는2% FAIL이다. 원본12회와 원시CSV를 보존했고 품질/20Hz/정확도/2%를 낮추지 않았다. 정적TLAS 캐시 단일 진단은 GT6.022319/GPU5.985608ms로 효과가 부족해 원복했다(패치/실패 빌드·시험 원본 보존). 최종 공통GPU/Bootstrap/기존GPU 계약·variants 파일은 a95d878의 원래 코드다. 테스트 출력정리 대기만 별도 커밋해 명시 프로필 복원을 재검증했고 공개 기대값은 유지했다. 직접UI는 보안 팝업으로 미수행, 소유Editor exit0/개인 설정·보호 경로 복원 일치. 스키마PASS, merge_check BLOCKED(exit2), 성능 완료/머지 가능으로 표시하지 않는다.
+
+
+## 2026-10-25 MEMORY-FIX-26f — 해결 계획1·3단계 완료, 최종 성공 미평가
+
+기준d8048bf/진단Runtime e389af6. 기본 비활성 sidecar와60초 이상 주기 FMalloc.Trim(true)진단을 추가하고,같은 Development package로60분 baseline3회·30분 cut5회·30초 qualification6회를 완결했다. 첫600초 제외·공통 꼬리1200초 OLS·실행 간120초 쿨다운·환경 표본과 온도/clock/전력/RAM/CPU스냅샷을 사전에 고정했다. 재부팅/강제 캐시 비우기·제품 기본값/LLM태그 변경0이다.
+
+RSS/Commit/RHIMisc 꼬리 중앙값17.428779/19.145782/11.127623MiB/h,최소13.865519/9.550749/10.565001,최대20.571863/19.353255/11.293981,범위6.706344/9.802506/.728981다. N3범위는 모집단이나 통계적 유의성을 뜻하지 않는다. 후보는 baseline최소 미만이고 중앙값 대비 감소>max(range,1),최소센서Hz>=baseline최저98%(15.815810),다른RAM<=max+max(range,1),실제 control contrast/다른controls동일이라는 사전 운영 기준이다.
+
+cut 순서별 RSS/Commit/RHIMisc: crash-off11.392/8.766/6.976,gpu-stats-off24.238/16.865/9.417,rdg-events-off20.277/16.920/9.684,mimalloc34.070/30.289/9.278,trim60s24.385/25.958/10.000MiB/h. GPUStats/RDG/Trim은 RHIMisc 한정 기여 후보이고 RSS/Commit 개선 후보는 없다. crash-off는 최저15.1928Hz로 비교 불가,mimalloc은RAM악화로 제외했다. GPUStats0는 realtime GPUstat timestamp 부분 경로이며 모든D3D12 query off가 아니다. 조건별1회/고정순서/처리량 차이 한계와 모든 원시수치를 보존했다. Trim30회/총58.875ms/평균1.963·최대2.567ms,즉시RSS감소 중앙값26.988MiB이며 꼬리 개선 확정이나 기본값 승격은 하지 않았다.
+
+14프로세스 동일exe·모든 본실행 exit0/complete/decoder0/controls일정·UObject꼬리0이다. 요청20Hz를 유지하고 실제 전센서Hz를 별도 기록했다. 인코딩/전달/검증/overload/duplicate0이나 송신 제어 생략과 수신gap은 baseline각13/14/16,crash6/6/7,다른cut각6/7/8이다. 무손실/20Hz/업무ACK 수용이 아니다. Editor/Game build PASS,순수NullRHI2Success/Python32PASS(신규9),최종quick/layer0→0/guard/schema/merge는 result manifest를 따른다.
+
+개인44 exactset/SHA·보호483/Runtime해시·기존 사용자 상태를 보존했다. DTCore/gitlink/ConfigGame/PixelStreaming/운영맵/uasset/Claude메모 수정0이다. 패키지를3단계까지 보관·재사용한 뒤663파일2558500424bytes를 목록/SHA보존 후 삭제했다(빈폴더 유지). 최종2시간 RSS/Commit≤8/RHIMisc≤2·원래5쌍PASS·ABAB2%·전체release/직접mouse/회사 수용은 미수행이다. 2단계는 다른worktree이며4단계는Claude후속지시대기로 시작하지 않았다. push/PR/merge0. [상세](MEMORY_FIX_26f_STAGE13.md)·[RESULT](../Saved/Reports/MEMORY-FIX-26f/RESULT.md)·[result](../Saved/Reports/MEMORY-FIX-26f/result.json)·[merge check](../Saved/Reports/MEMORY-FIX-26f/merge-check.json).
+
+## 2026-10-26 MEMORY-FIX-26f — 2단계 통합·4/5단계 완료, 원인 미확정
+
+전체기준d8048bf/단계시작6b682da, Runtime f8dc70d. 4018dcd·719270f를a0461e3에서병합하며Probe엔진진단hook과LLM기록을모두보존했다. 5bdf5b1·f8dc70d는기본꺼짐재사용옵션·자원카운터·packagepreviewqualification을지원한다. 제품메모리개선수정은적용하지않았다.
+
+같은package의30분조건별RSS/Commit/RHIMisc꼬리MiB/h: baseline18.350/15.269/7.766, preview29.333/31.493/10.343, scene13.470/11.449/8.371, readback16.899/17.634/10.579, point4 15.970/13.460/7.647, PCDscratch25.085/20.468/10.603. 기존범위6.706/9.803/.729와최소효과1·Hz하한15.815810·다른RAM악화기준을그대로사용했다. baseline/scene/point4는Hz13.845469/15.398692/15.768930으로하한미달,preview는RAM악화,readback/PCD는감소량미달이다. 5개모두후보없음. BLAS추가생성은모두0,각옵션의TLAS/readback/preview/PCD재사용과pointfallback제거를카운터로확인했지만증가원인을확정하지못했다.
+
+수정없는추가60분은RSS18.237/Commit15.014/RHIMisc11.819MiB/h,최저Hz16.336519,UObject꼬리0이다. 첫10분제외50분전체는16.944/15.008/10.132다. leaf들은대체로평탄했으며카메라GT는미관측(0대체없음)이다. 7태그writer는별도30초에서만4KiB CameraGT registrycanary로확인했고CameraGT기능수용으로세지않았다. 장시간14동일exe프로세스 중본관측7개는complete/exit0/decoder0/invalid0이다. 제어생략·수신gap은따로보존한다.
+
+Editor/Development빌드·Python40·순수7·관련RHI13Success/1Fail/0skip(반복실행기준). HATCH03.DigRuntimeRhi의8MiB rawRSS/retainedRSS/Commit3assert실패는그대로남겼다. RTon실제Rev7 HWRT 1Camera+1Lidar/offscreen1920×1080/10+30초/ABAB3블록12구간은FPS감소.000257%/p95변화0/GT증가.480829%/GPU감소5.722628%로2%통과했다. samplerGT평균2.529~2.804ms/표본,최대10.098ms다.
+
+개인253/보호483원본집합·SHA복원,DTCore/gitlink·ConfigGame·PixelStreaming·운영맵/uasset·Claude메모기존상태보존. 소유패키지/현재ABAB사본5729파일16,875,385,127bytes를검증후파일별삭제(빈폴더유지),trace생성0. 엔진/드라이버/allocator보존과계측밖native경로는여전히가설이며최종2시간/원래5쌍·전체release·직접mouse/회사수용은미수행이다. 기준완화·push/PR/외부merge없음(승인된LLM로컬병합만수행). [상세](MEMORY_FIX_26f_STAGE45.md)·[RESULT](../Saved/Reports/MEMORY-FIX-26f/RESULT.md)·[result](../Saved/Reports/MEMORY-FIX-26f/result.json)·[mergecheck](../Saved/Reports/MEMORY-FIX-26f/merge-check.json).
+
+## 2026-10-26 MEMORY-FIX-26f — GPU 제출·수명 최적화 시도 및 안전 fallback
+
+자율추적기준a2fd42d.9d8a255는호환센서요청batch와fencedGPU packet재사용, e6d009f는mainrender전Scheduler제출, f436073은정적hit/missrecord와package고정preview재사용, d323e98은명시7200초지원이다. 프로젝트7태그off/동일RHIMisc를위한engineLLMon,trace없음,Rev7×3/PCD기본/preview기본/요청20Hz,1920×1080offscreen,font100/UMG1,binned2,controls1·1·1/timepref0/Trim0이다.
+
+첫60분e6꼬리RSS3.274/Commit.505/RHI6.363MiB/h·17Hz로목표미달. 추가수정f436의60분은-.547/-1.014/-.111·20Hz, d323의2시간2회마지막40분은1.759/2.466/.070과4.771/4.801/-.007·20Hz로중간소스에서통과했다. 모든이전장시간원본을보존했다.
+
+그러나d323원래5쌍수집은pair3controlD3D12UpdateResidency/GPUmaskassertion으로중단됐다. UE5.3D3D12는SingleFrame RTscene만지원하고build시rawresidencyhandle을저장한다. 정확한handle깨짐원인전체는미확정이나crossframe재사용의안전근거가부족하여3485774에서캐시hit를같은렌더프레임으로제한했다. byte/pointoracle와8MiB/150ms/20Hz/2%기준은유지했다. 이후추가장시간메모리최적화실험은중단했고이전SHA의장시간통과를최종소스PASS로이월하지않는다.
+
+348의안전RHI4Success/0skip,Editor/Development/Shippingbuild,Development/Shipping30초smoke통과. 최종5쌍10실행에서동일residency크래시는관찰되지않았지만absolute8MiB와dig-control8MiB모두FAIL(Commit차이중앙값90.926MiB),pair2의150ms GT/콜백실패도보존했다. RTonABAB3블록12구간(a2→348,1Camera+1Rev7실제HWRT/offscreen/10+30초)은FPS감소.000470%/p95변화0/GT-.154541%/GPU-3.598122%로2%통과다.
+
+직접UI는Windows잠금화면확인후0input/미수행,해제·우회하지않았다. 최종quick/release관련/layer/guard/schema/보호·정리·mergecheck는최종result.json을따른다. [상세](MEMORY_FIX_26f_GPU_SUBMISSION.md)·[재작성계획](LIDAR_GPU_ACQUISITION_REWRITE_PLAN_26f.md)·[RESULT](../Saved/Reports/MEMORY-FIX-26f/RESULT.md). #26미해결,기준완화없음,push/merge없음.
+
+## 2026-10-26 — LIDAR-GPU-REWRITE-26g
+
+Base c9e6e40 / branch feat/lidar-gpu-acq-rewrite-26g / Runtime826c58f. Native committed TLAS/BLAS prototype repeatedly failed device-removal safety despite byte oracle success, graphics-queue and upload-boundary trials. It is diagnostic-only. Supported SingleFrame metadata + persistent RHI storage fallback passed full bytes/points, pose/revision/unequal-count/mixed-cancel and fifty-dig/scheduled tests, then completed packaged60 min actual19.998640+ Hz. Tail20 RSS/Commit/RHIMisc +12.579751/+11.812793/+9.768926 MiB/h failed8/8/2; UObject tail0. Final50 min storage/packet/view creations0, scene/SBT updates146331. No leak/allocator/driver root-cause certainty is claimed.
+
+Two-hourx2, original five pairs8MiB, RTonABAB2%, Shipping/full release/night were NOT_RUN after blocking preflight. No previousSHApass substituted. Personal253/protected310 preserved; owned package/raw-crash8.25GB removed with file-only hash-checked cleanup. No engine/DTCore/default-quality/threshold change or push/merge. [RESULT](../Saved/Reports/LIDAR-GPU-REWRITE-26g/RESULT.md) · [design](LIDAR_GPU_ACQUISITION_26g.md).

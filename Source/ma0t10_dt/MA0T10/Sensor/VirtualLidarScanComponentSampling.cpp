@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "MA0T10MemoryTags.h"
 #include "HAL/IConsoleManager.h"
 #include "IndustrialLidarProfiles.h"
 #include "VirtualLidarSemanticDiagnostics.h"
@@ -272,6 +273,7 @@ void UVirtualLidarScanComponent::BindGpuDepthProjectionComponent(
 
 void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAcquisitionFrame& Frame)
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
 	RuntimeStatus.AcquisitionBackendMessage = Frame.SemanticStatus;
 	ScheduledSlabContext=Frame.Request.SlabContext;
     ScheduledScanWidth = FMath::Max(1, Frame.Request.HorizontalSamples);
@@ -446,6 +448,7 @@ void UVirtualLidarScanComponent::ConvertGpuDepthFrame(const FVirtualLidarDepthAc
 
 void UVirtualLidarScanComponent::EnsureGpuDepthBeamLookup(const FVirtualLidarDepthAcquisitionFrame& Frame)
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
     const uint32 CalibrationHash = HashCombine(
         FCrc::MemCrc32(Frame.Request.HorizontalAngles.GetData(), Frame.Request.HorizontalAngles.Num() * sizeof(float)),
         FCrc::MemCrc32(Frame.Request.VerticalAngles.GetData(), Frame.Request.VerticalAngles.Num() * sizeof(float)));
@@ -602,6 +605,7 @@ void UVirtualLidarScanComponent::PrepareScheduledScan(double NowSeconds)
 
 int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
     if (bGpuDepthScanInProgress)
     {
         return ProcessGpuDepthScan();
@@ -705,6 +709,7 @@ int32 UVirtualLidarScanComponent::ProcessScheduledScanChunk(int32 MaxRays)
 
 void UVirtualLidarScanComponent::ExecuteScan(TArray<FVirtualLidarPoint>& OutPoints, TArray<uint8>& OutHeatmapPixels)
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
     OutPoints.Reset();
     const int32 W = FMath::Max(1, HorizontalSamples);
     const int32 H = FMath::Max(1, VerticalChannels);

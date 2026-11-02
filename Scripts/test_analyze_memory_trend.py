@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from analyze_memory_trend import INSUFFICIENT, MIB, STABLE, SUSPECT, analyze, load_curve, main
+from analyze_memory_trend import INSUFFICIENT, MIB, PROJECT_LLM_TAGS, STABLE, SUSPECT, analyze, load_curve, main
 
 
 def curve():
@@ -63,6 +63,105 @@ class MemoryTrendTests(unittest.TestCase):
         for p in points:
             p["llm_default"]["UObject"] += 20 * MIB * p["seconds"] / 3600
         self.assertEqual(analyze(points, complete=True)["growth_indicators"], ["LLM:UObject"])
+
+    def test_all_project_tags_outside_top_list_are_reported(self):
+        points = curve()
+        for p in points:
+            p["llm_default"].update({tag: (index + 1) * MIB for index, tag in enumerate(PROJECT_LLM_TAGS)})
+            p["llm_default_top"] = {"UnrelatedLargeTag": 1000 * MIB}
+        result = analyze(points, complete=True)
+        self.assertEqual(result["verdict"], STABLE)
+        self.assertEqual(set(result["project_llm_default"]), set(PROJECT_LLM_TAGS))
+        for index, tag in enumerate(PROJECT_LLM_TAGS):
+            row = result["project_llm_default"][tag]
+            self.assertEqual(row["observed_samples"], len(points))
+            self.assertEqual(row["coverage"], 1)
+            self.assertEqual(row["last_bytes"], (index + 1) * MIB)
+            self.assertEqual(row["last_third"]["slope_per_hour"], 0)
+
+    def test_project_growth_detected_even_inside_constant_rss(self):
+        points, tag = curve(), "MA0T10/LidarReadback"
+        for p in points:
+            p["llm_default"][tag] = 24 * MIB * p["seconds"] / 3600
+        result = analyze(points, complete=True)
+        self.assertEqual(result["verdict"], SUSPECT)
+        self.assertEqual(result["growth_indicators"], ["LLM:" + tag])
+        self.assertAlmostEqual(result["project_llm_default"][tag]["full"]["slope_per_hour"], 24)
+        self.assertAlmostEqual(result["project_llm_default"][tag]["observed_delta_mib"], 12)
+
+    def test_short_smoke_reports_presence_but_is_insufficient(self):
+        points, tag = curve()[:7], "MA0T10/PcdEncode"
+        for p in points:
+            p["llm_default"][tag] = 0
+        result = analyze(points, complete=True)
+        self.assertEqual(result["verdict"], INSUFFICIENT)
+        self.assertEqual(result["project_llm_default"][tag]["coverage"], 1)
+        self.assertEqual(result["project_llm_default"][tag]["last_bytes"], 0)
+        absent = result["project_llm_default"]["MA0T10/CameraGT"]
+        self.assertEqual(absent["observed_samples"], 0)
+        self.assertIsNone(absent["last_bytes"])
+        self.assertIsNone(absent["observed_delta_mib"])
+
+    def test_project_missing_or_disabled_sample_is_not_zero_filled(self):
+        for disabled in (False, True):
+            with self.subTest(disabled=disabled):
+                points, tag = curve(), "MA0T10/LidarPoints"
+                for p in points:
+                    p["llm_default"][tag] = 4 * MIB
+                if disabled:
+                    points[-1]["llm_enabled"] = False
+                    points[-1]["llm_default"][tag] = 0
+                else:
+                    del points[-1]["llm_default"][tag]
+                row = analyze(points, complete=True)["project_llm_default"][tag]
+                self.assertEqual(row["observed_samples"], len(points) - 1)
+                self.assertLess(row["coverage"], 1)
+                self.assertIsNone(row["full"])
+                self.assertIsNone(row["last_third"])
+                self.assertEqual(row["last_bytes"], 4 * MIB)
+
+    def test_project_parent_and_rhi_are_not_summed(self):
+        points, tag = curve(), "MA0T10/LidarRtScene"
+        for p in points:
+            p["llm_default"].update({tag: 2 * MIB, "MA0T10": 10 * MIB, "RHIMisc": 30 * MIB})
+            # The fixed watched counter wins over the top-N duplicate.
+            p["llm_default_top"] = {tag: 99 * MIB}
+        row = analyze(points, complete=True)["project_llm_default"][tag]
+        self.assertEqual(row["last_bytes"], 2 * MIB)
+        self.assertEqual(row["observed_delta_mib"], 0)
+
+    def test_project_malformed_values_are_rejected(self):
+        for value in (True, float("inf"), "1048576", None):
+            points = curve()
+            points[-1]["llm_default"][PROJECT_LLM_TAGS[0]] = value
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                analyze(points, complete=True)
+
+    def test_partial_jsonl_keeps_project_attribution_without_acceptance(self):
+        points, tag = curve()[:7], "MA0T10/HatchAnalysis"
+        for p in points:
+            p["llm_default"][tag] = 3 * MIB
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "partial.jsonl"
+            path.write_text(jsonl(points, False) + '{"type":', encoding="utf-8")
+            loaded, context, warnings = load_curve(path)
+            result = analyze(loaded, complete=context["complete"])
+        self.assertTrue(warnings)
+        self.assertEqual(result["verdict"], INSUFFICIENT)
+        self.assertEqual(result["project_llm_default"][tag]["observed_samples"], 7)
+        self.assertEqual(result["project_llm_default"][tag]["last_bytes"], 3 * MIB)
+
+    def test_cli_writes_project_table_for_short_smoke(self):
+        points, tag = curve()[:7], "MA0T10/LidarPreview"
+        for p in points:
+            p["llm_default"][tag] = MIB
+        with tempfile.TemporaryDirectory() as temp, contextlib.redirect_stdout(io.StringIO()):
+            source, output = Path(temp) / "smoke.jsonl", Path(temp) / "analysis.json"
+            source.write_text(jsonl(points), encoding="utf-8")
+            self.assertEqual(main([str(source), "--output", str(output)]), 2)
+            row = json.loads(output.read_text(encoding="utf-8"))["project_llm_default"][tag]
+        self.assertEqual(row["coverage"], 1)
+        self.assertEqual(row["last_bytes"], MIB)
 
     def test_top_tag_missing_is_censored_not_zero(self):
         points = curve()

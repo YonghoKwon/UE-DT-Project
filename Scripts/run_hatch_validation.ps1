@@ -14,6 +14,8 @@ param(
     [ValidateSet(0,1)][int]$DigView=1,
     [switch]$MemoryAudit,
     [switch]$SchedulerTelemetry,
+    [switch]$NativeGeometryPool,
+    [switch]$DisableNativeGeometryPool,
     [switch]$MemoryDeepReport,
     [switch]$FullRhiDrain=$true,
     [switch]$Visible,
@@ -31,6 +33,7 @@ param(
 )
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
+if($NativeGeometryPool -and $DisableNativeGeometryPool){throw 'Conflicting native geometry-pool overrides'}
 if(Get-Process UnrealEditor,UnrealEditor-Cmd,LiveCodingConsole -ErrorAction SilentlyContinue){throw 'Close Editor/PIE before HATCH validation'}
 if($PresentationCaptures -and $Mode -ne 'Showcase'){throw 'PresentationCaptures requires Showcase'}
 if($WorldTraceReference -and $Mode -ne 'Performance'){throw 'WorldTraceReference is a diagnostic Performance comparison only'}
@@ -51,6 +54,11 @@ $sourceCommit=(& git -C $root rev-parse HEAD) -join ''
     $sourceHashes['Content/MA0T10/Hatch/Materials/M_HatchCargo.uasset']=(Get-FileHash -LiteralPath "$root/Content/MA0T10/Hatch/Materials/M_HatchCargo.uasset" -Algorithm SHA256).Hash
     if($trend){foreach($relative in @('ma0t10_dt.uproject','Content/MA0T10/Maps/Tests/ShipHatchTestMap.umap')){$sourceHashes[$relative]=(Get-FileHash -LiteralPath (Join-Path $root $relative) -Algorithm SHA256).Hash}}
     @{Commit=$sourceCommit; Mode=$Mode; SourceHashes=$sourceHashes; FontPercent=$FontPercent; Width=$Width; Height=$Height; MemoryWarmupSeconds=$MemoryWarmupSeconds; MatchedMemorySeconds=$MatchedMemorySeconds; MemoryAudit=([bool]$MemoryAudit -or $trend); SchedulerTelemetry=[bool]$SchedulerTelemetry; MemoryTrendSeconds=$MemoryTrendSeconds; MemorySampleSeconds=$MemorySampleSeconds; DiagnosticOnly=$trend; FullRhiDrain=([bool]$FullRhiDrain -and !$trend); WorldTraceReference=[bool]$WorldTraceReference; CpuReference=[bool]$CpuReference; FastCaptureOnly=[bool]$FastCaptures; Visible=[bool]$Visible; Submodule=((& git -C "$root/Plugins/DTCore" rev-parse HEAD) -join '')} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$ReportRoot/source-manifest.json" -Encoding UTF8
+    $record=Get-Content -Raw -Encoding UTF8 -LiteralPath "$ReportRoot/source-manifest.json"|ConvertFrom-Json
+    $record|Add-Member -NotePropertyName NativeGeometryPoolFlag -NotePropertyValue ([bool]$NativeGeometryPool)
+    $record|Add-Member -NotePropertyName NativeGeometryPoolMode -NotePropertyValue $(if($DisableNativeGeometryPool){'Off'}elseif($NativeGeometryPool){'On'}else{'ProjectDefault'})
+    $record|Add-Member -NotePropertyName FreshUserDirectory -NotePropertyValue $true
+    $record|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 -LiteralPath "$ReportRoot/source-manifest.json"
     if($cost){
         $record=Get-Content -Raw -Encoding UTF8 -LiteralPath "$ReportRoot/source-manifest.json"|ConvertFrom-Json
         $record.MemoryTrendSeconds=60
@@ -78,7 +86,7 @@ try {
     $hatchArgs=@("$root/ma0t10_dt.uproject",'/Engine/Maps/Entry','-d3d12','-nosplash','-nosound','-nop4',
         "-ExecCmds=${execPrefix}Automation RunTests $test; Quit",'-TestExit=Automation Test Queue Empty',
         "-ReportExportPath=$ReportRoot/automation","-HatchReport=$ReportRoot","-HatchSourceCommit=$sourceCommit","-HatchSensorCount=$Sensors","-HatchMemoryWarmup=$MemoryWarmupSeconds","-HatchFontPercent=$FontPercent","-HatchDigView=$DigView",
-        "-abslog=$ReportRoot/automation.log")
+        "-abslog=$ReportRoot/automation.log","-UserDir=$ReportRoot/user")
     if($Mode -eq 'CornerCaptures' -and $CornerCaptureDirectory){$hatchArgs+="-HatchCornerOutput=$([IO.Path]::GetFullPath($CornerCaptureDirectory))"}
     if($Mode -eq 'CornerCaptures' -and $CornerReferenceDirectory){$hatchArgs+="-HatchCornerReference=$([IO.Path]::GetFullPath($CornerReferenceDirectory))"}
     if($Mode -eq 'Showcase' -and $ShowcaseDirectory){$hatchArgs+="-HatchShowcaseOutput=$([IO.Path]::GetFullPath($ShowcaseDirectory))"}
@@ -89,6 +97,8 @@ try {
     if($Mode -in @('Manual','OrientationManual','IndustrialManual')){$hatchArgs+='-HatchManual'}else{$hatchArgs+='-unattended'}
     if($MemoryAudit){$hatchArgs+='-HatchMemoryAudit'}
     if($SchedulerTelemetry){$hatchArgs+='-LogCmds=LogVirtualSensorTelemetry Verbose'}
+    if($NativeGeometryPool){$hatchArgs+='-SensorNativeGeometryPool'}
+    if($DisableNativeGeometryPool){$hatchArgs+='-SensorNativeNoGeometryPool'}
     if($MemoryDeepReport){if(!$MemoryAudit){throw 'MemoryDeepReport requires MemoryAudit'};$hatchArgs+='-HatchMemoryDeepReport'}
     if(($MemoryAudit -and $Mode -like 'Dig*') -or $trend){$hatchArgs+='-llm'}
     if($trend){$hatchArgs+=@('-HatchMemoryTrend',('-HatchMemoryTrendSeconds='+$MemoryTrendSeconds.ToString([Globalization.CultureInfo]::InvariantCulture)),('-HatchMemorySampleSeconds='+$MemorySampleSeconds.ToString([Globalization.CultureInfo]::InvariantCulture)))}

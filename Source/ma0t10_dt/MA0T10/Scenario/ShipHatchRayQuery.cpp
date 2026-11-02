@@ -1,4 +1,5 @@
 #include "ShipHatchSimulation.h"
+#include "MA0T10MemoryTags.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorRayQuery.h"
 #include "ProceduralMeshComponent.h"
 #include "Components/PrimitiveComponent.h"
@@ -63,6 +64,7 @@ struct FTree
  }
  const FVirtualSensorCollisionMesh& ExportGpuMesh() const
  {
+  MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
   if(GpuMesh.Vertices)return GpuMesh;
   auto Vertices=MakeShared<TArray<FVector3f>,ESPMode::ThreadSafe>();
   auto Attributes=MakeShared<TArray<FVector4f>,ESPMode::ThreadSafe>();

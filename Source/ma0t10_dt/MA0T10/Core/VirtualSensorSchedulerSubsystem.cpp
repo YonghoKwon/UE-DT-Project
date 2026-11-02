@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
+#include "SensorOwnedRayTracing.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 
 #include "Engine/World.h"
@@ -340,6 +341,10 @@ void UVirtualSensorSchedulerSubsystem::Tick(float DeltaTime)
         if (Lidar.IsValid()) Lidar->PrepareScheduledScan(NowSeconds);
     }
 
+    // Keep the immutable per-sensor snapshots, but submit their shared RHI batch
+    // before main-view rendering. End-frame submission remains the fallback for
+    // manual callers, not an added GPU-frame delay in scheduled acquisition.
+    SensorOwnedRayTracing::FlushPendingSubmissions();
     RefreshTelemetry(static_cast<float>((FPlatformTime::Seconds() - StartSeconds) * 1000.0));
 
     TelemetryLogAccumulator += FMath::Max(0.0f, DeltaTime);

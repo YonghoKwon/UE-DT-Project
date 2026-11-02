@@ -1,4 +1,5 @@
 #include "ShipHatchMonitorWidget.h"
+#include "MA0T10MemoryTags.h"
 #include "ma0t10_dt/MA0T10/Contracts/ConsumeReadyFuture.h"
 #include "ShipHatchMetricPresentation.h"
 #include "ShipHatchLabelPresentation.h"
@@ -148,7 +149,7 @@ void UShipHatchDetailsSection::Toggle()
 void UShipHatchMonitorWidget::Bind(AShipHatchMonitorHost* H,AShipHatchSimulation* S)
 {
     Host=H;Simulation=S;if(!S||!SeedInput)return;
-    SyncSettings();SetCameraPreset(2);SetMapHeat(bMapHeat);UpdateSection();ApplyLighting();LastLayout=FVector2D::ZeroVector;Layout();
+    SyncSettings();SetCameraPreset(2);SetMapHeat(bMapHeat);UpdateSection();ApplyLighting();LastLayout=FVector2D::ZeroVector;HeaderReservationSize=FVector2D::ZeroVector;HeaderReservation=FStableHeaderReservation();Layout();
 }
 void UShipHatchMonitorWidget::SyncSettings()
 {
@@ -164,10 +165,11 @@ void UShipHatchMonitorWidget::SyncSettings()
         if(FieldChoices.IsValidIndex(I))FieldChoices[I]->SetSelectedIndex(!S->SensorEnabled(I)?0:S->FieldProfiles[I]+1);
     }
 }
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void UShipHatchMonitorWidget::NativeOnInitialized()
 {
     Super::NativeOnInitialized();bPersistent=true;SetIsFocusable(true);Work=MakeShared<FShipHatchMonitorWork>();
+    // UE5.3 combo styling only; DTCore bPersistent is not deprecated.
+    PRAGMA_DISABLE_DEPRECATION_WARNINGS
     auto* Root=WidgetTree->ConstructWidget<UCanvasPanel>();WidgetTree->RootWidget=Root;Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     auto Label=[&](const FString& Value,int32 Size=Style::BodySize,bool Bold=false,FLinearColor Color=Style::Text())
     {auto* W=WidgetTree->ConstructWidget<UTextBlock>();W->SetText(FText::FromString(Value));W->SetFont(Style::Font(Size,1,Bold));W->SetColorAndOpacity(Color);W->SetAutoWrapText(false);TextBlocks.Add(W);BaseFontSizes.Add(Size);return W;};
@@ -314,6 +316,7 @@ void UShipHatchMonitorWidget::NativeOnInitialized()
     CargoChoice->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnCargo);SensorChoice->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnSensor);FontChoice->OnSelectionChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnFont);GridSize->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnGrid);SizeSlider->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnSizeSlider);DensitySlider->OnValueChanged.AddDynamic(this,&UShipHatchMonitorWidget::OnDensitySlider);SetFontPercent(100);UpdateSegments();
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 void UShipHatchMonitorWidget::NativeDestruct(){RestoreSiteVisualization();if(Overlay)Overlay->DestroyComponent();RestoreFeedbackGrab();RestorePointVisibility();Work.Reset();Super::NativeDestruct();}
 void UShipHatchMonitorWidget::RestorePointVisibility()
 {
@@ -361,7 +364,10 @@ void UShipHatchMonitorWidget::Layout()
         for(auto Row:ToolbarRows)Row->SetWrapSize(FMath::Max(100.,Left-2*P-Style::SectionGap));
         ForceLayoutPrepass();
     }
-    const double Header=FMath::Max(76*S,double(LayoutSlots[1]->Content->GetDesiredSize().Y)),Metrics=72*S,Footer=FMath::Max(44.,double(LayoutSlots[6]->Content->GetDesiredSize().Y)),DataTop=P+Header+Gap+Metrics+Gap,DataHeight=FMath::Max(120.,Size.Y-DataTop-P-Footer-Gap);
+    const double DesiredHeader=FMath::Max(76*S,double(LayoutSlots[1]->Content->GetDesiredSize().Y));
+    if(!Size.Equals(HeaderReservationSize,.1)||!FMath::IsNearlyEqual(FontScale,HeaderReservationFont))
+    {HeaderReservationSize=Size;HeaderReservationFont=FontScale;HeaderReservation.Reset(DesiredHeader,FPlatformTime::Seconds());}
+    const double Header=HeaderReservation.Update(DesiredHeader,FPlatformTime::Seconds()),Metrics=72*S,Footer=FMath::Max(44.,double(LayoutSlots[6]->Content->GetDesiredSize().Y)),DataTop=P+Header+Gap+Metrics+Gap,DataHeight=FMath::Max(120.,Size.Y-DataTop-P-Footer-Gap);
     const double ToolbarHeight=LayoutSlots[3]->Content->GetDesiredSize().Y;
     const double DrawerHeight=FMath::Min(DataHeight-ToolbarHeight,double(ToolbarContent->GetDesiredSize().Y)+2*P);
     if(Size.Equals(LastLayout,.1)&&FMath::IsNearlyEqual(Header,double(LastHeaderHeight),.1)&&FMath::IsNearlyEqual(ToolbarHeight,double(LastToolbarHeight),.1)&&FMath::IsNearlyEqual(DrawerHeight,double(LastDrawerHeight),.1)&&FMath::IsNearlyEqual(Footer,double(LastFooterHeight),.1))return;
@@ -556,6 +562,7 @@ FText UShipHatchMonitorWidget::CellTooltip(int32 I) const
 }
 void UShipHatchMonitorWidget::RefreshAnalysis()
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_HatchAnalysis);
     auto* S=Simulation.Get();if(!S||!Work)return;
     if(Work->Pending.IsValid())
     {if(!Work->Pending.IsReady())return;auto R=MA0T10::ConsumeReadyFuture(Work->Pending);Work->ObservationScratch=MoveTemp(R.Observations);Work->ComparisonScratch=MoveTemp(R.ComparisonScratch);Work->ComparisonAnalysis=MoveTemp(R.ComparisonAnalysis);if(R.Revision==S->Revision()&&R.CabRevision==S->CabRevision()&&R.Cell==CellSize)
@@ -567,6 +574,7 @@ void UShipHatchMonitorWidget::RefreshAnalysis()
     // Move the bounded analysis allocations with the task; thread-pool workers
     // do not each build their own short-lived per-sensor cell/point arrays.
     Work->Pending=Async(EAsyncExecution::ThreadPool,[Points=MoveTemp(Points),Frames=MoveTemp(Frames),Analysis=MoveTemp(Work->AnalysisScratch),One=MoveTemp(Work->ComparisonScratch),Comparison=MoveTemp(Work->ComparisonAnalysis),Settings,Pose,Cell,Revision,CabRevision,M,L,C]() mutable{
+        MA0T10_LLM_SCOPE_BYTAG(MA0T10_HatchAnalysis);
         FShipHatchMonitorWork::FResult R;R.Revision=Revision;R.CabRevision=CabRevision;R.Cell=Cell;R.MLX=M;R.Livox=L;R.CabRight=C;R.Settings=Settings;R.HoldPose=Pose;
         ShipHatch::AnalyzeInto(Settings,Cell,Points,Analysis);R.Analysis=MoveTemp(Analysis);R.Observations=MoveTemp(Points);
         const TCHAR* Roles[]={ShipHatchLabelPresentation::SensorRole(0),ShipHatchLabelPresentation::SensorRole(1),ShipHatchLabelPresentation::SensorRole(2)};

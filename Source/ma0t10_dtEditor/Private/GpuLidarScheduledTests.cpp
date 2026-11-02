@@ -80,6 +80,8 @@ public:
             const bool PcdRequested=FParse::Value(FCommandLine::Get(),TEXT("GpuLidarPcdLoopbackPort="),PcdPort);
             if(PcdRequested)
             {
+                // This fixture explicitly checks internal receive rates; product publishing keeps observation off.
+                W->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->ConfigureReceiver(FVirtualSensorReceiveSelection{});
                 if(!Test->TestTrue(TEXT("PCD proof requires an unprivileged local loopback port"),PcdPort>=1024&&PcdPort<=65535))return true;
                 auto* Transport=NewObject<UVirtualSensorTransportComponent>(Sim);Sim->AddInstanceComponent(Transport);
                 Transport->RegisterComponent();Transport->TransportMode=EVirtualSensorTransportMode::StompWebSocket;

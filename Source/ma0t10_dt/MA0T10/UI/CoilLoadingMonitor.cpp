@@ -30,10 +30,11 @@ namespace {using Style=FSensorOwnedPresentationStyle;}
 void UCoilLoadingWarningButton::Bind(ACoilLoadingSimulation* S,const TArray<int32>& C){Sim=S;Indices=C;OnClicked.AddDynamic(this,&UCoilLoadingWarningButton::Highlight);}
 void UCoilLoadingWarningButton::Highlight(){if(auto* S=Sim.Get())S->HighlightCoils(Indices);}
 bool UCoilLoadingMonitor::DataExpanded() const{return DataRows&&DataRows->IsVisible();}
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void UCoilLoadingMonitor::NativeOnInitialized()
 {
     Super::NativeOnInitialized();bPersistent=true;
+    // UE5.3 combo styling only; DTCore bPersistent is not deprecated.
+    PRAGMA_DISABLE_DEPRECATION_WARNINGS
     auto* Root=WidgetTree->ConstructWidget<UCanvasPanel>();WidgetTree->RootWidget=Root;Root->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     for(int I=0;I<4;++I){auto* B=WidgetTree->ConstructWidget<UBorder>();B->SetBrush(*Style::PanelBrush());B->SetBrushColor(FLinearColor(.012,.018,.022,1));B->SetVisibility(ESlateVisibility::HitTestInvisible);auto* MaskSlot=Root->AddChildToCanvas(B);MaskSlot->SetZOrder(-1);SceneMasks.Add(MaskSlot);}
     auto* SceneInput=WidgetTree->ConstructWidget<UBorder>();SceneInput->SetBrushColor(FLinearColor::Transparent);SceneInputSlot=Root->AddChildToCanvas(SceneInput);
@@ -100,6 +101,7 @@ void UCoilLoadingMonitor::NativeOnInitialized()
     for(auto* C:{TypeChoice.Get(),InnerChoice.Get(),GearChoice.Get(),MotionChoice.Get(),RowDirection.Get()})C->OnGenerateWidgetEvent.BindDynamic(this,&UCoilLoadingMonitor::ComboEntry);
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 void UCoilLoadingMonitor::Bind(ACoilLoadingMonitorHost* H,ACoilLoadingSimulation* S){Host=H;Sim=S;SyncInputs();Refresh();}
 void UCoilLoadingMonitor::SyncInputs()
 {

@@ -192,6 +192,7 @@ public:
 	TArray<FVirtualSensorStreamTelemetry> GetStreamTelemetry() const;
 	FVirtualPcdBandwidthSample GetRecentPcdBandwidth(const FString& SensorId, double Now) const;
 	void ConfigureReceiver(const FVirtualSensorReceiveSelection& Selection);
+	bool IsDiagnosticReceiverEnabled() const { return ReceiverSelection.bEnabled; }
 	FVirtualSensorReceiveEvent OnReceived;
 	FVirtualSensorTransportObservationEvent OnTransportObservation;
 	int64 GetDroppedReceiveEvents() const;
@@ -205,6 +206,7 @@ public:
 	static FVirtualSensorHighThroughputProfile MakeProfile(const FVirtualSensorTransportProfile& Profile);
 
 private:
+    friend class FVirtualSensorReceiverRequestPolicyTest;
 	TMap<FString,uint64> KnownManagedRuns;
 	TMap<FString,uint64> ActiveManagedRuns;
 	uint64 NextManagedRunGeneration=0;
@@ -222,5 +224,7 @@ private:
 	double NextDiagnosticLogSeconds[4]={};
 	int64 PendingDiagnosticLogs[4]={},SuppressedConsoleLogs=0;
 	FString ActivePasscode;
-	FVirtualSensorReceiveSelection ReceiverSelection;
+	// Control replies are always read. Payload subscriptions require an explicit
+	// receiver request; publishing alone must not enable diagnostic self-consumption.
+	FVirtualSensorReceiveSelection ReceiverSelection{false};
 };

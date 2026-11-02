@@ -1,4 +1,5 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
+#include "LidarNativeSafetyText.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "SensorToolWidgetDecl.h"
@@ -392,6 +393,8 @@ FString UVirtualSensorSettingsPanelWidget::GetCurrentLoadSummaryText() const
                 Status.DeadlineMissCount,
                 *Status.ActiveAcquisitionBackend,
                 *BackendSuffix);
+            const TCHAR* NativeSafety=LidarNativeSafetyText::Message(SensorNativeSafety::GetStatus());
+            if(*NativeSafety)LoadText+=FString(TEXT("\n"))+NativeSafety;
         }
     }
 

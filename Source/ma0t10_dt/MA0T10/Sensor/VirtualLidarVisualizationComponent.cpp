@@ -1,4 +1,6 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "SensorUploadDiagnostics.h"
+#include "MA0T10MemoryTags.h"
 #include "ma0t10_dt/MA0T10/Sensor/LidarPlayerDisplayComponent.h"
 #include "VirtualLidarHeight.h"
 
@@ -201,6 +203,7 @@ FIntPoint ProjectInteractivePlane(
 
 TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> BuildProjectionFrame(FLidarProjectionBuildInput Input)
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
     TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> Result = MakeShared<FLidarProjectionBuildResult, ESPMode::ThreadSafe>();
     Result->Generation = Input.Generation;
     const TArray<FVirtualLidarPoint>& Points = Input.Points.IsValid() ? *Input.Points : TArray<FVirtualLidarPoint>();
@@ -575,6 +578,7 @@ void UVirtualLidarVisualizationComponent::SetProjectionPreviewEnabled(bool Enabl
 }
 void UVirtualLidarVisualizationComponent::RefreshColoredCpuPoints()
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
     if(!Settings.bShowWorldPointCloud)
     {
         if(ColoredPointBatch&&(ColoredPointBatch->IsVisible()||ColoredPointBatch->BatchedPoints.Num()))
@@ -942,6 +946,7 @@ void UVirtualLidarVisualizationComponent::RebuildProjectionTextures()
 
 void UVirtualLidarVisualizationComponent::StartProjectionBuild()
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
     if (!bProjectionPreviewEnabled || !ScanComponent || bProjectionBuildInFlight) return;
 	const TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> Frame = ScanComponent->GetLastFrameSnapshot();
 	if (!Frame.IsValid() || !Frame->IsValid()) return;
@@ -970,9 +975,11 @@ void UVirtualLidarVisualizationComponent::StartProjectionBuild()
     TWeakObjectPtr<UVirtualLidarVisualizationComponent> WeakThis(this);
     Async(EAsyncExecution::ThreadPool, [Input = MoveTemp(Input), WeakThis]() mutable
     {
+        MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
         TSharedPtr<FLidarProjectionBuildResult, ESPMode::ThreadSafe> Result = BuildProjectionFrame(Input);
         AsyncTask(ENamedThreads::GameThread, [WeakThis, Result]()
         {
+            MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
             UVirtualLidarVisualizationComponent* Self = WeakThis.Get();
             if (!Self) return;
             Self->bProjectionBuildInFlight = false;
@@ -1171,6 +1178,7 @@ UTexture2D* UVirtualLidarVisualizationComponent::UploadTexture(TObjectPtr<UTextu
     uint8* UploadData = new uint8[ByteCount];
     FMemory::Memcpy(UploadData, Pixels.GetData(), ByteCount);
     FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, Width, Height);
+    SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::VisualizationTexture,GFrameCounter,uint64(Width)*Height*sizeof(FColor),ByteCount);
     Texture->UpdateTextureRegions(0, 1, Region, Width * sizeof(FColor), sizeof(FColor), UploadData,
         [Region](uint8* Data, const FUpdateTextureRegion2D*)
         {
@@ -1218,6 +1226,7 @@ void UVirtualLidarVisualizationComponent::RefreshWorldPointCloud()
 
 bool UVirtualLidarVisualizationComponent::TryRefreshNiagaraPointCloud()
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPreview);
     if (!Settings.bShowWorldPointCloud)
     {
         if (NiagaraPointCloudComponent) NiagaraPointCloudComponent->SetVisibility(false, true);

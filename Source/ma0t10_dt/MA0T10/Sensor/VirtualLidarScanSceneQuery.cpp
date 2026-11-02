@@ -1,4 +1,6 @@
 #include "VirtualLidarScanComponent.h"
+#include "MA0T10MemoryTags.h"
+#include "Memory26Diagnostics.h"
 #include "IndustrialLidarProfiles.h"
 #include "VirtualLidarSemanticDiagnostics.h"
 #include "SensorOwnedRayTracing.h"
@@ -28,8 +30,9 @@ struct FVirtualLidarScenePointPool
  std::atomic<int32> PendingResets{0};
  explicit FVirtualLidarScenePointPool(int32 Capacity)
  {
-  Free.Reserve(3);
-  for(int I=0;I<3;++I){auto* P=new FPoints;P->SetNum(Capacity);P->Reset();Bytes+=P->GetAllocatedSize();Free.Add(P);}
+  const int32 Leases=Memory26::Enabled(Memory26::ECase::Points)?4:3;
+  Free.Reserve(Leases);Memory26::Count(Memory26::ECounter::PointPoolCreate);
+  for(int I=0;I<Leases;++I){auto* P=new FPoints;P->SetNum(Capacity);P->Reset();Bytes+=P->GetAllocatedSize();Free.Add(P);}
  }
  ~FVirtualLidarScenePointPool(){for(auto* P:Free)delete P;}
  FPoints* Take(){FScopeLock Lock(&Mutex);return Free.IsEmpty()?nullptr:Free.Pop(false);}
@@ -124,11 +127,13 @@ void InitializeWorkerPoint(const FVirtualLidarSceneQueryJob& J,int I,FVirtualLid
 }
 void NormalizeHardware(const TSharedPtr<FVirtualLidarSceneQueryJob,ESPMode::ThreadSafe>& J,TArray<FSensorRtHit>&& Hits)
 {
- if(J->Cancelled.load(std::memory_order_acquire)){J->Buffer->Busy.store(false,std::memory_order_release);J->WorkerReady.store(true,std::memory_order_release);return;}
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
+ if(J->Cancelled.load(std::memory_order_acquire)){SensorOwnedRayTracing::RecycleHitArray(MoveTemp(Hits));J->Buffer->Busy.store(false,std::memory_order_release);J->WorkerReady.store(true,std::memory_order_release);return;}
  if(J->bCollectSemanticDiagnostics)J->DiagnosticReport=VirtualLidarSemanticDiagnostics::BuildHardwareReport(J->DiagnosticMeshes,Hits);
- const int Count=Hits.Num();J->WorkerPoints.SetNum(Count);J->Buffer->Hits.SetNum(Count);J->RequiresResolve.SetNumZeroed(Count);
+ const int Count=Hits.Num();{MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);J->WorkerPoints.SetNum(Count);}J->Buffer->Hits.SetNum(Count);J->RequiresResolve.SetNumZeroed(Count);
  ParallelFor(FMath::DivideAndRoundUp(Count,512),[J,&Hits,Count](int Chunk)
  {
+  MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
   if(J->Cancelled.load(std::memory_order_acquire))return;
   for(int I=Chunk*512;I<FMath::Min(Count,(Chunk+1)*512);++I)
   {
@@ -151,13 +156,16 @@ void NormalizeHardware(const TSharedPtr<FVirtualLidarSceneQueryJob,ESPMode::Thre
 #if WITH_DEV_AUTOMATION_TESTS
  J->NormalizeFinished.store(FPlatformTime::Seconds(),std::memory_order_relaxed);
 #endif
+ SensorOwnedRayTracing::RecycleHitArray(MoveTemp(Hits));
  J->Buffer->Busy.store(false,std::memory_order_release);J->WorkerReady.store(true,std::memory_order_release);
 }
 void NormalizeCpuSnapshot(const TSharedPtr<FVirtualLidarSceneQueryJob,ESPMode::ThreadSafe>& J)
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
  const int Count=J->Width*J->Height;J->WorkerPoints.SetNum(Count);J->RequiresResolve.SetNumZeroed(Count);
  ParallelFor(FMath::DivideAndRoundUp(Count,512),[J,Count](int Chunk)
  {
+  MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
   if(J->Cancelled.load(std::memory_order_acquire))return;
   for(int I=Chunk*512;I<FMath::Min(Count,(Chunk+1)*512);++I)
   {
@@ -186,6 +194,7 @@ void NormalizeCpuSnapshot(const TSharedPtr<FVirtualLidarSceneQueryJob,ESPMode::T
 }
 void UVirtualLidarScanComponent::BeginSceneQueryBatch()
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarRtScene);
  const bool bRequestedHardware=ActiveAcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing;
  HardwareSurfaceIdentities.Reset();
  if(!ScheduledRayQuery)
@@ -205,6 +214,7 @@ void UVirtualLidarScanComponent::BeginSceneQueryBatch()
   J->bMultiEcho=bUseMultiHit||(bUseProfileEchoCapability&&DeviceSpec.MaxEchoesPerPixel>1);
   J->bWorkerNormalize=!bEnableMotionDistortion&&!bDrawDebugRays;
   FSensorRtRequest Request;
+  Request.OwnerToken=GetUniqueID();
   if(J->Scene->CollisionMeshes(J->GpuMeshes))
   {
    J->FrozenSurfaces.SetNum(J->GpuMeshes.Num());int MeshIndex=0;
@@ -225,7 +235,7 @@ void UVirtualLidarScanComponent::BeginSceneQueryBatch()
    {
    CSV_SCOPED_TIMING_STAT(LidarWallclock28b,RayPacket);
    CSV_CUSTOM_STAT(LidarWallclock28b,Admissions,1,ECsvCustomStatOp::Accumulate);
-   const int32 RayCount=J->Width*J->Height;Request.Rays.SetNumUninitialized(RayCount);const auto Origin=J->Pose.GetLocation();
+   const int32 RayCount=J->Width*J->Height;Request.Rays=SensorOwnedRayTracing::TakeRayArray();Request.Rays.SetNumUninitialized(RayCount,false);const auto Origin=J->Pose.GetLocation();
    const auto FillRay=[&](int I)
    {
     const int Row=I/J->Width,Col=I%J->Width;const FVector Local=J->Directions?FVector((*J->Directions)[I]):IndustrialLidar::Beam(J->Profile,I,J->Width,J->Height,J->Frame,J->Vertical[Row],J->Horizontal[Col]).Vector();
@@ -245,6 +255,7 @@ void UVirtualLidarScanComponent::BeginSceneQueryBatch()
      {J->DiagnosticMeshes=CaptureDiagnosticMeshes(*J);J->bCollectSemanticDiagnostics=true;}
     Request.OnReadback=[J](TArray<FSensorRtHit>&& Hits,const FString& Error)
     {
+     MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
      if(J->Cancelled.load(std::memory_order_acquire))return;
      if(!Error.IsEmpty()||Hits.Num()!=J->Width*J->Height)
      {J->ReadbackFailure=Error.IsEmpty()?TEXT("HWRT hit count differs"):Error;J->ReadbackFailed.store(true,std::memory_order_release);return;}
@@ -284,6 +295,7 @@ void UVirtualLidarScanComponent::BeginSceneQueryBatch()
 }
 bool UVirtualLidarScanComponent::PollSceneQueryBatch()
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarReadback);
  auto J=SceneQueryJob;if(!J)return true;
  if(J->Generation!=ScheduledGeneration||J->Cancelled.load(std::memory_order_acquire))return false;
  if(J->ReadyRays.load(std::memory_order_acquire)>ScheduledNextRayIndex)return true;
@@ -411,6 +423,7 @@ void UVirtualLidarScanComponent::RecordSceneQueryWork(double Seconds,bool Comple
 }
 void UVirtualLidarScanComponent::AcquireScenePointStorage(int32 Capacity)
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_LidarPoints);
  CSV_SCOPED_TIMING_STAT(LidarWallclock28b,PointStorage);
  RecycleScenePointStorage();
  if(ScenePointCapacity!=Capacity)
@@ -444,6 +457,7 @@ void UVirtualLidarScanComponent::AcquireScenePointStorage(int32 Capacity)
  // A transport/export consumer may legally retain every lease. Never mutate
  // its immutable payload or block acquisition; ordinary bounded output policy
  // continues to own that consumer's memory reservation.
+ Memory26::Count(Memory26::ECounter::PointFallback);
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
  ++ScenePointPoolFallbacksForTesting;
 #endif

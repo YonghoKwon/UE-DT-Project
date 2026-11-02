@@ -1,4 +1,5 @@
 #include "ShipHatchSimulation.h"
+#include "SensorUploadDiagnostics.h"
 #include "ProceduralMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "HAL/PlatformTime.h"
@@ -117,7 +118,7 @@ void AShipHatchSimulation::BuildGrabModel()
  Mesh.BeveledBox(FVector(0,Lip.Y,H+.6),FVector(3.2,3.8,1.2),.12,FLinearColor(.012,.13,.075)); // moving hoist carriage
  TArray<FVector> Normals;Normals.Init(FVector::ZeroVector,Mesh.V.Num());for(int I=0;I<Mesh.T.Num();I+=3){const auto N=FVector::CrossProduct(Mesh.V[Mesh.T[I+2]]-Mesh.V[Mesh.T[I]],Mesh.V[Mesh.T[I+1]]-Mesh.V[Mesh.T[I]]);for(int J=0;J<3;++J)Normals[Mesh.T[I+J]]+=N;}for(auto& N:Normals)N.Normalize();
  const auto* Old=GrabPresentation->GetProcMeshSection(0);bool Same=Old&&Old->ProcVertexBuffer.Num()==Mesh.V.Num()&&Old->ProcIndexBuffer.Num()==Mesh.T.Num();if(Same)for(int I=0;I<Mesh.V.Num();++I)if(!FVector(Old->ProcVertexBuffer[I].Position).Equals(Mesh.V[I],1.e-4)){Same=false;break;}
- if(!Same){if(Old&&Old->ProcVertexBuffer.Num()==Mesh.V.Num()&&Old->ProcIndexBuffer.Num()==Mesh.T.Num())GrabPresentation->UpdateMeshSection_LinearColor(0,Mesh.V,Normals,TArray<FVector2D>(),Mesh.C,TArray<FProcMeshTangent>());else GrabPresentation->CreateMeshSection_LinearColor(0,Mesh.V,Mesh.T,Normals,TArray<FVector2D>(),Mesh.C,TArray<FProcMeshTangent>(),true);++GrabMeshCommits;}
+ if(!Same){if(Old&&Old->ProcVertexBuffer.Num()==Mesh.V.Num()&&Old->ProcIndexBuffer.Num()==Mesh.T.Num())(SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((Mesh.V).Num())*sizeof((Mesh.V)[0]),0),GrabPresentation->UpdateMeshSection_LinearColor(0,Mesh.V,Normals,TArray<FVector2D>(),Mesh.C,TArray<FProcMeshTangent>()));else (SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((Mesh.V).Num())*sizeof((Mesh.V)[0])+uint64((Mesh.T).Num())*sizeof((Mesh.T)[0]),0),GrabPresentation->CreateMeshSection_LinearColor(0,Mesh.V,Mesh.T,Normals,TArray<FVector2D>(),Mesh.C,TArray<FProcMeshTangent>(),true));++GrabMeshCommits;}
  if(auto* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/MA0T10/Hatch/Materials/M_HatchCargo.M_HatchCargo")))
  {auto* MID=Cast<UMaterialInstanceDynamic>(GrabPresentation->GetMaterial(0));if(!MID||MID->Parent!=Base){MID=UMaterialInstanceDynamic::Create(Base,UnloaderPresentation);MID->SetScalarParameterValue(TEXT("Hardware"),1);MID->SetScalarParameterValue(TEXT("Metallic"),.55);GrabPresentation->SetMaterial(0,MID);}}
  GrabPresentation->SetVisibility(bShowGrab);GrabPresentation->SetCollisionEnabled(bShowGrab?ECollisionEnabled::QueryOnly:ECollisionEnabled::NoCollision);

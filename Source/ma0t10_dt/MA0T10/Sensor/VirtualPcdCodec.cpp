@@ -1,7 +1,22 @@
 #include "VirtualPcdCodec.h"
+#include "MA0T10MemoryTags.h"
+#include "Memory26Diagnostics.h"
 
 namespace
 {
+struct FCodecScratch
+{
+    TArray<uint8> Soa,Compressed;
+    TArray<int32> Hash;
+    uint64 Bytes() const{return Soa.GetAllocatedSize()+Compressed.GetAllocatedSize()+Hash.GetAllocatedSize();}
+};
+Memory26::TPool<FCodecScratch> CodecPool;
+bool UseCodecScratch()
+{
+    // Reuse is the production path. Explicit baseline/other diagnostic cases
+    // keep their original isolated allocation behavior for comparisons.
+    return Memory26::GetCase()==Memory26::ECase::None||Memory26::Enabled(Memory26::ECase::Pcd);
+}
 constexpr int32 PcdMaxDecodedBytes = 128 * 1024 * 1024;
 const TCHAR* PcdFieldNames[] = {TEXT("x"),TEXT("y"),TEXT("z"),TEXT("intensity"),TEXT("ring"),TEXT("horizontal_index"),TEXT("return_index"),TEXT("return_count"),TEXT("time_offset_ns"),TEXT("validity"),TEXT("confidence")};
 constexpr int32 PcdFieldSizes[] = {4,4,4,2,2,2,1,1,8,1,4};
@@ -50,12 +65,13 @@ double FVirtualPcdCodec::EstimateBytesPerSecond(const FVirtualPcdSendOptions& O,
 	return double(FMath::Max(0,Points))*BytesPerPoint(O)*FMath::Max(0.,Hz)/O.Divisor();
 }
 
-void FVirtualPcdCodec::CompressLzf(const TArray<uint8>& Input,TArray<uint8>& Out)
+static void CompressLzfHash(const TArray<uint8>& Input,TArray<uint8>& Out,TArray<int32>& Hash)
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_PcdEncode);
 	// Original implementation of the public LZF stream format (32-byte literals,
 	// 13-bit backward distance, 3..264-byte matches). No third-party source copied.
 	Out.Reset(); Out.Reserve(Input.Num()+Input.Num()/32+1);
-	TArray<int32> Hash; Hash.Init(-1,65536);
+	Hash.Init(-1,65536);
 	int32 I=0,Start=0;
 	auto Flush=[&](int32 End) { while(Start<End) { const int32 N=FMath::Min(32,End-Start);Out.Add(uint8(N-1));Out.Append(Input.GetData()+Start,N);Start+=N; } };
 	while(I+2<Input.Num())
@@ -76,6 +92,16 @@ void FVirtualPcdCodec::CompressLzf(const TArray<uint8>& Input,TArray<uint8>& Out
 		else { ++I;if(I-Start==32)Flush(I); }
 	}
 	Flush(Input.Num());
+}
+void FVirtualPcdCodec::CompressLzf(const TArray<uint8>& Input,TArray<uint8>& Out)
+{
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_PcdEncode);
+    if(UseCodecScratch())
+    {
+        auto Scratch=CodecPool.Take(Memory26::ECounter::PcdCreate,Memory26::ECounter::PcdReuse);
+        CompressLzfHash(Input,Out,Scratch->Hash);CodecPool.Return(MoveTemp(Scratch));
+    }
+    else {TArray<int32> Hash;CompressLzfHash(Input,Out,Hash);}
 }
 bool FVirtualPcdCodec::DecompressLzf(const uint8* Input,int32 InSize,int32 OutSize,TArray<uint8>& Out)
 {
@@ -112,6 +138,7 @@ int64 FVirtualPcdCodec::EncodedPointBytes(const TArray<uint8>& Bytes,bool bCompr
 
 bool FVirtualPcdCodec::Encode(const TArray<const FVirtualLidarPoint*>& Points,const FString& Meta,const FVirtualPcdSendOptions& Options,TArray<uint8>& Out)
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_PcdEncode);
 	Out.Reset();const int32 Step=BytesPerPoint(Options),Mask=Options.FieldMask();
 	if(int64(Points.Num())*Step>PcdMaxDecodedBytes)return false;
 	FString Fields,Size,Type,Count;
@@ -126,9 +153,14 @@ bool FVirtualPcdCodec::Encode(const TArray<const FVirtualLidarPoint*>& Points,co
 	}
 	else
 	{
-		TArray<uint8> Soa,Compressed;Soa.Reserve(Points.Num()*Step);
+        FCodecScratch Local;TUniquePtr<FCodecScratch> Lease;
+        if(UseCodecScratch())Lease=CodecPool.Take(Memory26::ECounter::PcdCreate,Memory26::ECounter::PcdReuse);
+        else Memory26::Count(Memory26::ECounter::PcdCreate);
+        auto& Scratch=Lease?*Lease:Local;auto& Soa=Scratch.Soa;auto& Compressed=Scratch.Compressed;
+        Soa.Reset();Soa.Reserve(Points.Num()*Step);
 		for(int32 I=0;I<11;++I)if(Mask&(1<<I))for(const auto* P:Points)PcdAppendLe(Soa,PcdPointFieldValue(*P,I),PcdFieldSizes[I]);
-		CompressLzf(Soa,Compressed);PcdAppendLe(Out,Compressed.Num(),4);PcdAppendLe(Out,Soa.Num(),4);Out.Append(Compressed);
+		CompressLzfHash(Soa,Compressed,Scratch.Hash);PcdAppendLe(Out,Compressed.Num(),4);PcdAppendLe(Out,Soa.Num(),4);Out.Append(Compressed);
+        if(Lease){Soa.Reset();Compressed.Reset();CodecPool.Return(MoveTemp(Lease));}
 	}
 	return true;
 }

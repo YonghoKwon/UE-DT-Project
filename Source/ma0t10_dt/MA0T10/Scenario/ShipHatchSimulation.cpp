@@ -1,4 +1,6 @@
 #include "ShipHatchSimulation.h"
+#include "SensorUploadDiagnostics.h"
+#include "MA0T10MemoryTags.h"
 #include "ma0t10_dt/MA0T10/Contracts/ConsumeReadyFuture.h"
 #include "ProceduralMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -20,6 +22,8 @@
 #include "EngineUtils.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "HAL/LowLevelMemTracker.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 namespace
 {
@@ -42,9 +46,20 @@ void Mesh(UProceduralMeshComponent* M,const TArray<FVector>& V,const TArray<int3
     const auto* Existing=M->GetProcMeshSection(0);
     bool SameTopology=Existing&&Existing->ProcVertexBuffer.Num()==V.Num()&&Existing->ProcIndexBuffer.Num()==T.Num();
     if(SameTopology)for(int32 I=0;I<T.Num();++I)if(Existing->ProcIndexBuffer[I]!=uint32(T[I])){SameTopology=false;break;}
+#if WITH_EDITOR
+    // Allocation attribution only: keep authoritative CPU triangles/collision,
+    // deliberately leave this cargo render proxy stale. Never a product path.
+    if(SameTopology&&M->GetOwner()&&M->GetOwner()->ActorHasTag(TEXT("HatchCargo"))&&
+        FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit"))&&FParse::Param(FCommandLine::Get(),TEXT("HatchMemorySkipCargoRender")))
+    {
+        auto* Section=M->GetProcMeshSection(0);Section->SectionLocalBox=FBox(V);
+        for(int32 I=0;I<V.Num();++I){auto& P=Section->ProcVertexBuffer[I];P.Position=V[I];P.Normal=N[I];if(Colors.Num()==V.Num())P.Color=Colors[I].ToFColor(false);}
+        return;
+    }
+#endif
     if(SameTopology)
-        M->UpdateMeshSection_LinearColor(0,V,N,TArray<FVector2D>(),Colors,TArray<FProcMeshTangent>());
-    else M->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),Colors,TArray<FProcMeshTangent>(),true);
+        (SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((V).Num())*sizeof((V)[0]),0),M->UpdateMeshSection_LinearColor(0,V,N,TArray<FVector2D>(),Colors,TArray<FProcMeshTangent>()));
+    else (SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((V).Num())*sizeof((V)[0])+uint64((T).Num())*sizeof((T)[0]),0),M->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),Colors,TArray<FProcMeshTangent>(),true));
 }
 }
 AShipHatchPart::AShipHatchPart()
@@ -279,7 +294,13 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
     if(Refitting)Existing->bEnableCollision=false;
     MeshNX=Current.NX;MeshNY=Current.NY;Mesh(Cargo->Mesh,V,T,&CargoNormals,Colors);
     if(Refitting)Existing->bEnableCollision=true;
-    if(Refitting)
+    bool SkipDiagnosticCook=false;
+#if WITH_EDITOR
+    // Deliberately stale collision is an opt-in allocation isolation only.
+    // Never enabled in a packaged product or an ordinary acceptance run.
+    SkipDiagnosticCook=FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit"))&&FParse::Param(FCommandLine::Get(),TEXT("HatchMemorySkipCargoCook"));
+#endif
+    if(Refitting&&!SkipDiagnosticCook)
     {
         // UE 5.3's live triangle refit leaves stale query bounds after refill.
         // Reuse the render buffers and the one BodySetup, but cook its current
@@ -373,6 +394,17 @@ bool AShipHatchSimulation::SetSensorSelection(bool EnableMLX,bool EnableLivox,bo
 }
 void AShipHatchSimulation::ConfigureSensors()
 {
+    // Explicit laboratory all-off baseline: prevent any LiDAR creation (and
+    // its initial RT work), rather than retaining stopped scan/preview state.
+    // This never changes a map or persistent sensor setting.
+    #if !UE_BUILD_SHIPPING
+    FString ProbeDirectory;
+    if(FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryAllOff"))&&FParse::Value(FCommandLine::Get(),TEXT("LidarMapMemoryReport="),ProbeDirectory)&&!ProbeDirectory.IsEmpty())
+    {
+        for(auto* A:{MLX.Get(),Livox.Get(),CabRight.Get()})if(IsValid(A)){A->StopSensor();A->Destroy();}
+        MLX=nullptr;Livox=nullptr;CabRight=nullptr;bMLX=false;bLivox=false;bCabRight=false;return;
+    }
+    #endif
     FrameGates[0]=MLX?MLX->ScanComponent->GetRuntimeStatus().FrameId:-1;
     FrameGates[1]=Livox?Livox->ScanComponent->GetRuntimeStatus().FrameId:-1;
     FrameGates[2]=CabRight?CabRight->ScanComponent->GetRuntimeStatus().FrameId:-1;
@@ -425,6 +457,7 @@ void AShipHatchSimulation::ConfigureSensors()
 }
 void AShipHatchSimulation::CollectObservations(TArray<ShipHatch::FObservation>& Out) const
 {
+    MA0T10_LLM_SCOPE_BYTAG(MA0T10_HatchAnalysis);
     Out.Reset();if(bGenerating)return;
     for(int32 Index=0;Index<3;++Index)
     {auto* A=SensorEnabled(Index)?SensorAt(Index):nullptr;

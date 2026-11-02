@@ -10,11 +10,54 @@ import argparse
 import asyncio
 import hashlib
 import json
+import math
 import time
 from pathlib import Path
 
 MAX_BODY = 8 * 1024 * 1024
 NATIVE_LZF_VALIDATOR = None
+NATIVE_RECORD_VALIDATOR = None
+NATIVE_LIBRARY = None
+SEMANTIC_VALIDATION = True  # Imported validator API; CLI selects its mode explicitly.
+
+
+def configure_native_validator(path):
+    import ctypes
+    global NATIVE_LIBRARY, NATIVE_LZF_VALIDATOR, NATIVE_RECORD_VALIDATOR
+    NATIVE_LIBRARY = ctypes.CDLL(str(path.resolve()))
+    NATIVE_LZF_VALIDATOR = NATIVE_LIBRARY.pcd_validate_lzf
+    NATIVE_LZF_VALIDATOR.argtypes = [ctypes.c_char_p, ctypes.c_ulonglong, ctypes.c_ulonglong]
+    NATIVE_LZF_VALIDATOR.restype = ctypes.c_int
+    NATIVE_RECORD_VALIDATOR = getattr(NATIVE_LIBRARY, 'pcd_validate_records', None)
+    if NATIVE_RECORD_VALIDATOR is not None:
+        NATIVE_RECORD_VALIDATOR.argtypes = [ctypes.c_char_p, ctypes.c_ulonglong, ctypes.c_ulonglong,
+                                          ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint,
+                                          ctypes.c_uint, ctypes.c_uint, ctypes.c_int]
+        NATIVE_RECORD_VALIDATOR.restype = ctypes.c_int
+
+
+def validate_records(data, points, names, sizes, compressed):
+    import struct
+    stride = sum(sizes)
+    offsets = dict(zip(names, [sum(sizes[:i]) for i in range(len(sizes))]))
+    if NATIVE_RECORD_VALIDATOR is not None:
+        if not NATIVE_RECORD_VALIDATOR(data, len(data), points, stride, offsets['x'], offsets['y'], offsets['z'],
+                                       offsets.get('confidence', 0xffffffff), offsets.get('validity', 0xffffffff), compressed):
+            raise ValueError('invalid decoded XYZ/confidence/validity or LZF payload')
+        return
+    records = decode_lzf(data, points*stride) if compressed else data
+    for p in range(points):
+        def value(name):
+            offset = offsets[name]*points+p*4 if compressed else p*stride+offsets[name]
+            return struct.unpack_from('<f', records, offset)[0]
+        if not all(math.isfinite(value(n)) for n in ('x', 'y', 'z')):
+            raise ValueError('nonfinite decoded XYZ')
+        if 'confidence' in offsets and (not math.isfinite(value('confidence')) or not 0 <= value('confidence') <= 1):
+            raise ValueError('invalid decoded confidence')
+        if 'validity' in offsets:
+            offset = offsets['validity']*points+p if compressed else p*stride+offsets['validity']
+            if records[offset] > 5:
+                raise ValueError('invalid decoded validity')
 
 
 def canonical_sensor_id(sensor_id):
@@ -102,7 +145,7 @@ def validate_pcd(body, headers):
             raise ValueError("PCD field type differs")
     points = int(fields["POINTS"])
     expected = points * sum(sizes)
-    if points < 0 or expected > MAX_BODY or int(fields["WIDTH"]) * int(fields["HEIGHT"]) != points:
+    if points < 0 or expected > MAX_BODY or int(fields['WIDTH']) < 0 or int(fields['HEIGHT']) < 1 or int(fields["WIDTH"]) * int(fields["HEIGHT"]) != points:
         raise ValueError("PCD dimensions/size differ")
     data = body[start:]
     if fields["DATA"] == "binary_compressed":
@@ -111,12 +154,14 @@ def validate_pcd(body, headers):
         compressed, uncompressed = struct.unpack_from("<II", data)
         if uncompressed != expected or compressed != len(data)-8:
             raise ValueError("LZF size prefix differs")
-        # Identical literal/reference bounds and exact output-size validation.
-        # The probe never consumes point values, so do not allocate/copy SoA.
-        # C++ round-trip/golden tests independently compare every decoded byte.
-        decode_lzf(data[8:], uncompressed, validate_only=True)
+        if SEMANTIC_VALIDATION:
+            validate_records(data[8:], points, names, sizes, True)
+        else:
+            decode_lzf(data[8:], uncompressed, validate_only=True)
     elif len(data) != expected:
         raise ValueError("PCD record length differs")
+    elif SEMANTIC_VALIDATION:
+        validate_records(data, points, names, sizes, False)
     if int(headers["point-count"]) != points:
         raise ValueError("point count header differs")
     if hashlib.sha1(body).hexdigest() != headers["checksum"]:
@@ -127,7 +172,12 @@ def validate_pcd(body, headers):
 async def main(args):
     report = {"scope": "127.0.0.1 credential-free STOMP receipt + echo fixture",
               "started_unix": time.time(), "connections": 0, "invalid": 0,
-              "schema_record_bytes": 33, "sensors": {}, "errors": []}
+              "schema_record_bytes": 33, "sensors": {}, "errors": [],
+              "subscriptions": 0, "unsubscriptions": 0, "receipts_sent": 0,
+              "messages_sent": 0, "validated_frames": 0,
+              "native_validator_enabled": NATIVE_LZF_VALIDATOR is not None,
+              "native_records_enabled": NATIVE_RECORD_VALIDATOR is not None,
+              "semantic_validated_frames": 0, "semantic_validation": SEMANTIC_VALIDATION}
     clients = set()
 
     async def serve(reader, writer):
@@ -162,8 +212,10 @@ async def main(args):
                         raise ValueError("fixture requires empty credentials")
                     writer.write(b"CONNECTED\nversion:1.2\nheart-beat:0,0\n\n\0")
                 elif command == "SUBSCRIBE":
+                    report["subscriptions"] += 1
                     subscriptions[headers["id"]] = headers["destination"]
                 elif command == "UNSUBSCRIBE":
+                    report["unsubscriptions"] += 1
                     subscriptions.pop(headers["id"], None)
                 elif command == "SEND":
                     try:
@@ -172,6 +224,9 @@ async def main(args):
                         report["invalid"] += 1
                         raise ValueError(str(error)) from error
                     sensor, frame = canonical_sensor_id(headers["sensor-id"]), int(headers["frame-id"])
+                    report["validated_frames"] += 1
+                    if SEMANTIC_VALIDATION:
+                        report["semantic_validated_frames"] += 1
                     row = report["sensors"].setdefault(sensor, {"frames": 0, "bytes": 0,
                         "gaps": 0, "duplicates": 0, "max_gap_ms": 0,
                         "first_frame": frame, "first_unix": time.time(), "samples": []})
@@ -188,11 +243,13 @@ async def main(args):
                         row["samples"].append([now, frame, size])
                     receipt = headers.get("receipt", "")
                     if receipt:
+                        report["receipts_sent"] += 1
                         writer.write(f"RECEIPT\nreceipt-id:{receipt}\n\n\0".encode())
                     for sub, destination in subscriptions.items():
                         if destination != headers["destination"]:
                             continue
                         echo = dict(headers, subscription=sub, **{"message-id": receipt})
+                        report["messages_sent"] += 1
                         echo.pop("receipt", None)
                         writer.write(("MESSAGE\n" + "".join(f"{k}:{v}\n" for k, v in echo.items()) + "\n").encode())
                         writer.write(body)
@@ -237,15 +294,14 @@ if __name__ == "__main__":
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--stop-file", type=Path, required=True)
     parser.add_argument("--native-validator", type=Path)
+    parser.add_argument("--semantic", action="store_true",
+                        help="Also validate every point's finite XYZ, confidence and validity; required for memory acceptance")
     parser.add_argument("--sample-limit", type=int, default=8192,
                         help="Bounded per-frame metadata; use 0 for long runs with periodic aggregate snapshots")
     options = parser.parse_args()
+    SEMANTIC_VALIDATION = options.semantic
     if options.native_validator:
-        import ctypes
-        native_library = ctypes.CDLL(str(options.native_validator.resolve()))
-        NATIVE_LZF_VALIDATOR = native_library.pcd_validate_lzf
-        NATIVE_LZF_VALIDATOR.argtypes = [ctypes.c_char_p, ctypes.c_ulonglong, ctypes.c_ulonglong]
-        NATIVE_LZF_VALIDATOR.restype = ctypes.c_int
+        configure_native_validator(options.native_validator)
     if not 1024 <= options.port <= 65535:
         parser.error("use an unprivileged local port")
     if not 0 <= options.sample_limit <= 8192:

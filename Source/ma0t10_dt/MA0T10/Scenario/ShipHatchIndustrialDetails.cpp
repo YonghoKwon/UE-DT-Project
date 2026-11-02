@@ -1,4 +1,5 @@
 #include "ShipHatchSimulation.h"
+#include "SensorUploadDiagnostics.h"
 #include "ProceduralMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Components/TextRenderComponent.h"
@@ -29,7 +30,7 @@ struct FIndustrialDetailMesh
   for(int I=0;I<Segments;++I){const auto U=(X*FMath::Cos(2*PI*I/Segments)+Y*FMath::Sin(2*PI*I/Segments))*Radius,W=(X*FMath::Cos(2*PI*(I+1)/Segments)+Y*FMath::Sin(2*PI*(I+1)/Segments))*Radius;Quad(A+U,B+U,B+W,A+W,Color);Quad(A,A+U,A+W,A,Color*.7f);Quad(B,B+W,B+U,B,Color*1.05f);}
  }
  void Commit(UProceduralMeshComponent* Mesh)
- {Mesh->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),C,TArray<FProcMeshTangent>(),false);}
+ {(SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((V).Num())*sizeof((V)[0])+uint64((T).Num())*sizeof((T)[0]),0),Mesh->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),C,TArray<FProcMeshTangent>(),false));}
 };
 UProceduralMeshComponent* DetailComponent(AActor* Owner,const TCHAR* Name,double CullMeters)
 {

@@ -712,12 +712,13 @@ private:
 	{
 		if (!Socket) return false;
 		uint32 PendingSize = 0;
-		while (Socket->HasPendingData(PendingSize) && PendingSize > 0)
+		int32 RemainingBytes = 4 * 1024 * 1024;
+		while (RemainingBytes > 0 && Socket->HasPendingData(PendingSize) && PendingSize > 0)
 		{
-			TArray<uint8> Chunk;
-			Chunk.SetNumUninitialized(FMath::Min<uint32>(PendingSize, 1024 * 1024));
+			// Bounded worker-owned scratch, including short reads after a large PCD.
+			ReceiveChunk.SetNumUninitialized(FMath::Min3<uint32>(PendingSize, 1024 * 1024, RemainingBytes), false);
 			int32 Read = 0;
-			if (!Socket->Recv(Chunk.GetData(), Chunk.Num(), Read) || Read <= 0)
+			if (!Socket->Recv(ReceiveChunk.GetData(), ReceiveChunk.Num(), Read) || Read <= 0)
 			{
 				const ESocketErrors Error = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetLastErrorCode();
 				if (Error == SE_EWOULDBLOCK || Error == SE_NO_ERROR) return true;
@@ -725,7 +726,8 @@ private:
 				return false;
 			}
 			LastSocketReadSeconds = FPlatformTime::Seconds();
-			if (!Parser.Append(Chunk.GetData(), Read, OutFrames, OutError)) return false;
+			RemainingBytes -= Read;
+			if (!Parser.Append(ReceiveChunk.GetData(), Read, OutFrames, OutError)) return false;
 		}
 		// GetConnectionState is a readiness heuristic in UE's BSD socket layer:
 		// a full send buffer plus no readable data can return NotConnected.
@@ -989,7 +991,8 @@ private:
 	}
 
 	FVirtualSensorHighThroughputProfile Profile;
-	FVirtualSensorReceiveSelection ReceiveSelection;
+	TArray<uint8> ReceiveChunk;
+	FVirtualSensorReceiveSelection ReceiveSelection{false};
 	TQueue<FVirtualSensorReceiveSelection,EQueueMode::Mpsc> ReceiverChanges;
 	TSet<int32> SubscribedKinds;
 	TAtomic<int32> PendingReceiveEvents{0};
@@ -1406,6 +1409,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorRawRunRetentionTest,"MA0T10.SlabReliabil
 bool FSensorRawRunRetentionTest::RunTest(const FString&)
 {
 	FVirtualSensorHighThroughputProfile Profile;FVirtualSensorHighThroughputTransportWorker Worker{Profile,FString()};
+	// This test exercises diagnostic self-consumption explicitly; publishing alone keeps it off.
+	Worker.ReceiveSelection=FVirtualSensorReceiveSelection{};
 	FVirtualSensorStompFrame Message;Message.Command=TEXT("MESSAGE");Message.Body={0xff,0xd8,0xff,0xd9};
 	Message.Headers.Add(TEXT("schema"),TEXT("virtual-camera.jpeg.v1"));Message.Headers.Add(TEXT("sensor-id"),TEXT("retention-camera"));Message.Headers.Add(TEXT("frame-id"),TEXT("1"));
 	FVirtualSensorBinaryFrame Binary;Binary.SensorId=TEXT("retention-camera");Binary.StreamKind=EVirtualSensorStreamKind::CameraImage;Binary.FrameId=1;Binary.Body32=MakeShared<const TArray<uint8>,ESPMode::ThreadSafe>(Message.Body);

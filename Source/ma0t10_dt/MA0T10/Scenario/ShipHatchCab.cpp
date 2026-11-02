@@ -1,4 +1,5 @@
 #include "ShipHatchSimulation.h"
+#include "SensorUploadDiagnostics.h"
 #include "ProceduralMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
@@ -33,7 +34,7 @@ void AShipHatchSimulation::BuildCabModel()
         Box(FVector(0,0,(2.75+Rail)*.5),FVector(.3,.3,Rail-2.75),Steel);
         Box(FVector(0,0,Rail+.2),FVector(1.4,2.2,.4),Paint);
         N.Init(FVector::ZeroVector,V.Num());for(int32 I=0;I<T.Num();I+=3){const FVector Normal=FVector::CrossProduct(V[T[I+2]]-V[T[I]],V[T[I+1]]-V[T[I]]);for(int J=0;J<3;++J)N[T[I+J]]+=Normal;}for(auto& Normal:N)Normal.Normalize();
-        CabPresentation->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),C,TArray<FProcMeshTangent>(),true);
+        (SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SceneMeshInput,GFrameCounter,uint64((V).Num())*sizeof((V)[0])+uint64((T).Num())*sizeof((T)[0]),0),CabPresentation->CreateMeshSection_LinearColor(0,V,T,N,TArray<FVector2D>(),C,TArray<FProcMeshTangent>(),true));
         if(auto* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/MA0T10/Hatch/Materials/M_HatchCargo.M_HatchCargo")))
         {auto* MID=UMaterialInstanceDynamic::Create(Base,UnloaderPresentation);MID->SetScalarParameterValue(TEXT("Hardware"),1);CabPresentation->SetMaterial(0,MID);}
     }

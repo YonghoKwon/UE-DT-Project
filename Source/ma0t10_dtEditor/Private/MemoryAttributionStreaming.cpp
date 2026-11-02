@@ -23,15 +23,22 @@ namespace MemoryStream
 {
 struct FHeap {uint16 Parent=65535,Flags=0;FString Name;};
 struct FImage {uint64 Base=0;uint32 Size=0;FString File;bool Symbols=false;};
+struct FTag {int32 Parent=0;FString Name;};
 struct FInventory final:UE::Trace::IAnalyzer
 {
     TMap<uint16,FHeap> Heaps;TMap<uint32,TArray<uint64>> Stacks;TArray<FImage> Images;TMap<uint64,FString> Specs;TArray<TPair<uint64,double>> Marks;
-    uint8 BaseShift=16;double Begin=-1,End=-1;
+    TMap<uint32,FTag> Tags;
+    TArray<double> GameFrames;uint64 LastGameFrameCycle=0;
+    uint8 BaseShift=16;double Begin=-1,End=-1,LastMemoryMarker=-1;TMap<FString,double> BookmarkTimes;
     virtual void OnAnalysisBegin(const FOnAnalysisContext& C) override
     {
         C.InterfaceBuilder.RouteEvent(1,"Memory","HeapSpec");C.InterfaceBuilder.RouteEvent(2,"Memory","CallstackSpec");
         C.InterfaceBuilder.RouteEvent(3,"Misc","BookmarkSpec");C.InterfaceBuilder.RouteEvent(4,"Misc","Bookmark");
         C.InterfaceBuilder.RouteEvent(5,"Diagnostics","ModuleInit");C.InterfaceBuilder.RouteEvent(6,"Diagnostics","ModuleLoad");
+        C.InterfaceBuilder.RouteEvent(7,"Memory","Marker");
+        C.InterfaceBuilder.RouteEvent(8,"Memory","TagSpec");
+        C.InterfaceBuilder.RouteEvent(9,"Misc","BeginFrame");
+        C.InterfaceBuilder.RouteEvent(10,"Misc","BeginGameFrame");C.InterfaceBuilder.RouteEvent(11,"Misc","EndGameFrame");
     }
     virtual bool OnEvent(uint16 Route,EStyle,const FOnEventContext& C) override
     {
@@ -42,13 +49,23 @@ struct FInventory final:UE::Trace::IAnalyzer
         if(Route==4)Marks.Emplace(E.GetValue<uint64>("BookmarkPoint"),C.EventTime.AsSeconds(E.GetValue<uint64>("Cycle")));
         if(Route==5)BaseShift=E.GetValue<uint8>("ModuleBaseShift",16);
         if(Route==6){FImage I;I.Base=BaseShift?uint64(E.GetValue<uint32>("Base"))<<BaseShift:E.GetValue<uint64>("Base");I.Size=E.GetValue<uint32>("Size");E.GetString("Name",I.File);Images.Add(MoveTemp(I));}
+        if(Route==7)LastMemoryMarker=C.EventTime.AsSeconds(E.GetValue<uint64>("Cycle"));
+        if(Route==8){FTag T;T.Parent=E.GetValue<int32>("Parent");E.GetString("Display",T.Name);Tags.Add(E.GetValue<uint32>("Tag"),MoveTemp(T));}
+        if(Route==9&&E.GetValue<uint8>("FrameType")==0)GameFrames.Add(C.EventTime.AsSeconds(E.GetValue<uint64>("Cycle")));
+        if(Route==10||Route==11)
+        {
+            const uint8* P=E.GetAttachment();uint64 Delta=0;uint32 Shift=0;
+            if(P)for(int32 I=0;I<10;++I){const uint8 V=*P++;Delta|=uint64(V&127)<<Shift;if(!(V&128))break;Shift+=7;}
+            LastGameFrameCycle+=Delta;if(Route==10)GameFrames.Add(C.EventTime.AsSeconds(LastGameFrameCycle));
+        }
         return true;
     }
-    void Finish(){for(const auto& M:Marks)if(const FString* S=Specs.Find(M.Key)){if(*S==TEXT("MEMORY26B_BEGIN"))Begin=M.Value;if(*S==TEXT("MEMORY26B_END"))End=M.Value;}}
+    void Finish(){for(const auto& M:Marks)if(const FString* S=Specs.Find(M.Key)){BookmarkTimes.Add(*S,M.Value);if(*S==TEXT("MEMORY26B_BEGIN"))Begin=M.Value;if(*S==TEXT("MEMORY26B_END"))End=M.Value;}}
     uint16 Root(uint16 Id) const {for(int N=0;N<128;++N){const auto* H=Heaps.Find(Id);if(!H||H->Parent==65535||(H->Flags&1))return Id;Id=H->Parent;}return 65535;}
 };
-struct FActive {uint64 Size=0,Owner=0;uint32 Stack=0;uint16 Group=0;bool IsHeap=false;};
+struct FActive {uint64 Size=0,Owner=0;uint32 Stack=0,Tag=0;uint16 Group=0;bool IsHeap=false;};
 struct FStat {int64 Bytes=0,Count=0;};
+struct FBackingPoint{uint64 Address=0,Size=0;uint32 Stack=0,Tag=0;uint16 Heap=0;};
 template<typename V>struct TKeyHash:TDefaultMapHashableKeyFuncs<uint64,V,false>
 {
     // Packed stack/address keys need low-bit avalanche for power-of-two UE buckets.
@@ -62,13 +79,30 @@ struct FLive final:UE::Trace::IAnalyzer
     using FHeapList=TArray<FActive,TInlineAllocator<2>>;
     const FInventory& Inventory;FMap64<FActive> Normal;FMap64<FHeapList> Backing;std::map<uint64,FLinear> Linear;
     FTotals Totals,A,B;double TargetA,TargetB,Time=0,ActualA=-1,ActualB=-1;uint8 Shift=0;bool Init=false;
+    FTotals TagTotals,TagsA,TagsB,AllocatedTraffic,FreedTraffic;
+    TMap<uint32,TArray<uint32,TInlineAllocator<16>>> ThreadTags;
+    TArray<FBackingPoint> BackingA,BackingB;
+    uint64 ScopeUnderflows=0,PointerTagMisses=0;
+    bool ReadTags=false;
     uint64 Events=0,MissingBefore=0,MissingWindow=0,Duplicates=0,ImplicitFrees=0,ImplicitHeapFrees=0,OverlappingHeapMarks=0;
     uint64 LastKey=0;FActive LastValue;bool LastUsed=false;
     FString DebugPrefix;uint16 CurrentRoute=0;TMap<uint16,int64> MissingRoutes;
-    FLive(const FInventory& I,double T1,double T2):Inventory(I),TargetA(T1),TargetB(T2){}
+    FLive(const FInventory& I,double T1,double T2):Inventory(I),TargetA(T1),TargetB(T2)
+    {ReadTags=FParse::Param(FCommandLine::Get(),TEXT("MemoryReadTags"));}
     static uint64 GroupKey(const FActive& X){return (uint64(X.Stack)<<24)|(uint64(X.Group)<<1)|uint64(X.IsHeap);}
     static uint64 PtrKey(uint8 Root,uint64 Address){return (uint64(Root)<<56)|Address;}
-    void Add(const FActive& X,int Sign){auto& S=Totals.FindOrAdd(GroupKey(X));S.Bytes+=int64(X.Size)*Sign;S.Count+=Sign;}
+    void Add(const FActive& X,int Sign)
+    {
+        auto& S=Totals.FindOrAdd(GroupKey(X));S.Bytes+=int64(X.Size)*Sign;S.Count+=Sign;
+        if(ReadTags){auto& T=TagTotals.FindOrAdd((uint64(X.Tag)<<17)|(uint64(X.Group)<<1)|uint64(X.IsHeap));T.Bytes+=int64(X.Size)*Sign;T.Count+=Sign;}
+    }
+    void Traffic(const FActive& X,bool Alloc)
+    {if(Time>=TargetA&&Time<=TargetB){auto& S=(Alloc?AllocatedTraffic:FreedTraffic).FindOrAdd(GroupKey(X));S.Bytes+=X.Size;++S.Count;}}
+    void CaptureBacking(TArray<FBackingPoint>& Out)
+    {
+        for(const auto& P:Backing)if((P.Key>>56)==0)for(const auto& X:P.Value)
+        {FBackingPoint V;V.Address=P.Key&0x00ffffffffffffffull;V.Size=X.Size;V.Stack=X.Stack;V.Tag=X.Tag;V.Heap=X.Group;Out.Add(V);}
+    }
     void Missing(){if(Time<TargetA)++MissingBefore;else if(Time<=TargetB){++MissingWindow;++MissingRoutes.FindOrAdd(CurrentRoute);}}
     void DebugDump(const TCHAR* Label)
     {
@@ -95,9 +129,9 @@ struct FLive final:UE::Trace::IAnalyzer
             // UE5.3 EditFree implicitly unmarks a still-marked heap allocation
             // before freeing it. Binned2 uses this path for OS backing pages.
             if(!PopHeap(Key,X)){Missing();return;}
-            Add(X,-1);ReleaseLinear(Key);++ImplicitHeapFrees;return;
+            Traffic(X,false);Add(X,-1);ReleaseLinear(Key);++ImplicitHeapFrees;return;
         }
-        Add(X,-1);
+        Traffic(X,false);Add(X,-1);
         if(TouchOwner&&X.Owner){auto I=Linear.find(X.Owner);const auto* Remaining=Normal.Find(Key);if(I!=Linear.end()&&(!Remaining||Remaining->Owner!=X.Owner))I->second.Children.Remove(Key);}
     }
     void ReleaseLinear(uint64 Key)
@@ -116,19 +150,40 @@ struct FLive final:UE::Trace::IAnalyzer
     {
         const ANSICHAR* Names[]={"Init","Alloc","AllocSystem","AllocVideo","Free","FreeSystem","FreeVideo","ReallocAlloc","ReallocAllocSystem","ReallocFree","ReallocFreeSystem","Marker","HeapMarkAlloc","HeapUnmarkAlloc"};
         for(uint16 I=0;I<14;++I)C.InterfaceBuilder.RouteEvent(I,"Memory",Names[I]);
+        if(ReadTags){C.InterfaceBuilder.RouteEvent(14,"Memory","MemoryScope",true);C.InterfaceBuilder.RouteEvent(15,"Memory","MemoryScopePtr",true);}
     }
-    virtual bool OnEvent(uint16 Route,EStyle,const FOnEventContext& C) override
+    virtual bool OnEvent(uint16 Route,EStyle Style,const FOnEventContext& C) override
     {
         ++Events;CurrentRoute=Route;const auto& E=C.EventData;
         if(Route==0){Init=E.GetValue<uint32>("Version")==2;Shift=E.GetValue<uint8>("SizeShift");return Init;}
         if(!Init)return true;
-        if(LastUsed&&(Route==4||Route==5||Route==6||Route==9||Route==10)){const uint64 P=E.GetValue<uint64>("Address");const uint8 H=E.GetValue<uint8>("RootHeap",Route==6?1:0);if(P&&P<(1ull<<56)&&PtrKey(H,P)==LastKey){LastUsed=false;return true;}}
+        if(LastUsed&&(Route==4||Route==5||Route==6||Route==9||Route==10)){const uint64 P=E.GetValue<uint64>("Address");const uint8 H=E.GetValue<uint8>("RootHeap",Route==6?1:0);if(P&&P<(1ull<<56)&&PtrKey(H,P)==LastKey){Traffic(LastValue,false);LastUsed=false;return true;}}
+        if(Route==14||Route==15)
+        {
+            auto& Tags=ThreadTags.FindOrAdd(C.ThreadInfo.GetSystemId());
+            if(Style==EStyle::EnterScope)
+            {
+                uint32 Tag=0;
+                if(Route==14)Tag=E.GetValue<uint32>("Tag");
+                else
+                {
+                    const uint64 Key=PtrKey(0,E.GetValue<uint64>("Ptr"));
+                    if(LastUsed&&LastKey==Key)Tag=LastValue.Tag;
+                    else if(const auto* X=Normal.Find(Key))Tag=X->Tag;
+                    else if(const auto* HeapItems=Backing.Find(Key);HeapItems&&!HeapItems->IsEmpty())Tag=HeapItems->Last().Tag;
+                    else ++PointerTagMisses;
+                }
+                Tags.Add(Tag);
+            }
+            else if(Style==EStyle::LeaveScope){if(Tags.Num())Tags.Pop(false);else ++ScopeUnderflows;}
+            return true;
+        }
         FlushLast();
         if(Route==11)
         {
             const double Next=C.EventTime.AsSeconds(E.GetValue<uint64>("Cycle"));
-            if(ActualA<0&&Next>TargetA){A=Totals;ActualA=Time;DebugDump(TEXT(".A"));}
-            if(ActualB<0&&Next>TargetB){B=Totals;ActualB=Time;DebugDump(TEXT(".B"));return false;}
+            if(ActualA<0&&Next>TargetA){A=Totals;TagsA=TagTotals;CaptureBacking(BackingA);ActualA=Time;DebugDump(TEXT(".A"));}
+            if(ActualB<0&&Next>TargetB){B=Totals;TagsB=TagTotals;CaptureBacking(BackingB);ActualB=Time;DebugDump(TEXT(".B"));return false;}
             Time=Next;return true;
         }
         const uint64 Address=E.GetValue<uint64>("Address");if(!Address||Address>=(1ull<<56))return true;
@@ -137,6 +192,8 @@ struct FLive final:UE::Trace::IAnalyzer
         {
             if(Normal.Contains(Key)){++Duplicates;FreeNormal(Key);}
             FActive X;X.Size=(uint64(E.GetValue<uint32>("Size"))<<Shift)|(E.GetValue<uint8>("AlignmentPow2_SizeLower")&((1u<<Shift)-1));X.Stack=E.GetValue<uint32>("CallstackId",0);X.Group=Root;
+            if(ReadTags)if(const auto* Tags=ThreadTags.Find(C.ThreadInfo.GetSystemId());Tags&&!Tags->IsEmpty())X.Tag=Tags->Last();
+            Traffic(X,true);
             LastKey=Key;LastValue=X;LastUsed=true;return true;
         }
         if(Route==4||Route==5||Route==6||Route==9||Route==10){FreeNormal(Key);return true;}
@@ -160,9 +217,10 @@ struct FLive final:UE::Trace::IAnalyzer
 bool Process(const FString& Input,UE::Trace::IAnalyzer& Analyzer,const TCHAR* Label)
 {
     UE::Trace::FFileDataStream File;if(!File.Open(*Input))return false;UE::Trace::FAnalysisContext Context;Context.AddAnalyzer(Analyzer);auto Worker=Context.Process(File);double Start=FPlatformTime::Seconds(),Next=0;
+    double Timeout=3600;FParse::Value(FCommandLine::Get(),TEXT("MemoryAnalysisTimeout="),Timeout);Timeout=FMath::Clamp(Timeout,60.,14400.);
     while(Worker.IsActive())
     {
-        double Now=FPlatformTime::Seconds();if(Now-Start>3600||FPlatformMemory::GetStats().UsedPhysical>24ull*1024*1024*1024){Worker.Stop();Worker.Wait();return false;}
+        double Now=FPlatformTime::Seconds();if(Now-Start>Timeout||FPlatformMemory::GetStats().UsedPhysical>24ull*1024*1024*1024){Worker.Stop();Worker.Wait();return false;}
         // The analyzer runs on its worker. Read its counters only after Wait().
         if(Now>=Next){Next=Now+15;UE_LOG(LogTemp,Display,TEXT("[MemoryStream] %s elapsed %.0fs RSS %.2fGiB"),Label,Now-Start,FPlatformMemory::GetStats().UsedPhysical/double(1ull<<30));}FPlatformProcess::Sleep(.1f);
     }
@@ -174,11 +232,21 @@ int32 ExportStreamingMemory(const FString& Input,const FString& Output,double Of
 {
     using namespace MemoryStream;FInventory Inventory;
     if(!Process(Input,Inventory,TEXT("inventory")))return 2;Inventory.Finish();
+    const bool HasEndBookmark=Inventory.End>=0;
+    if(!HasEndBookmark)Inventory.End=Inventory.LastMemoryMarker;
     if(Inventory.Begin<0||Inventory.End<=Inventory.Begin+Offset)return 2;
-    FLive Live(Inventory,Inventory.Begin+Offset,Inventory.End-.001);
+    double TargetA=Inventory.Begin+Offset,TargetB=Inventory.End-.001;
+    FString StartMark,EndMark;
+    FParse::Value(FCommandLine::Get(),TEXT("MemoryStartBookmark="),StartMark);
+    FParse::Value(FCommandLine::Get(),TEXT("MemoryEndBookmark="),EndMark);
+    if(!StartMark.IsEmpty()){const double* T=Inventory.BookmarkTimes.Find(StartMark);if(!T){UE_LOG(LogTemp,Error,TEXT("Requested start bookmark missing"));return 2;}TargetA=*T;}
+    if(!EndMark.IsEmpty()){const double* T=Inventory.BookmarkTimes.Find(EndMark);if(!T){UE_LOG(LogTemp,Error,TEXT("Requested end bookmark missing"));return 2;}TargetB=*T;}
+    if(TargetB<=TargetA){UE_LOG(LogTemp,Error,TEXT("Invalid explicit memory snapshot interval"));return 2;}
+    FLive Live(Inventory,TargetA,TargetB);
     if(FParse::Param(FCommandLine::Get(),TEXT("MemoryDebugLive")))Live.DebugPrefix=Output;
     if(!Process(Input,Live,TEXT("live-only"))||Live.ActualA<0||Live.ActualB<0)return 2;
     auto R=MakeShared<FJsonObject>();R->SetBoolField(TEXT("Valid"),true);R->SetBoolField(TEXT("streaming"),true);R->SetStringField(TEXT("input_trace"),Input);
+    R->SetBoolField(TEXT("end_bookmark_present"),HasEndBookmark);R->SetBoolField(TEXT("end_is_last_memory_marker_fallback"),!HasEndBookmark);
     R->SetNumberField(TEXT("snapshot_a"),Live.TargetA);R->SetNumberField(TEXT("snapshot_b"),Live.TargetB);R->SetNumberField(TEXT("snapshot_a_last_marker"),Live.ActualA);R->SetNumberField(TEXT("snapshot_b_last_marker"),Live.ActualB);
     R->SetNumberField(TEXT("events"),double(Live.Events));R->SetNumberField(TEXT("unmatched_before_a"),double(Live.MissingBefore));R->SetNumberField(TEXT("unmatched_window"),double(Live.MissingWindow));R->SetNumberField(TEXT("duplicate_allocs"),double(Live.Duplicates));R->SetNumberField(TEXT("implicit_linear_frees"),double(Live.ImplicitFrees));
     R->SetNumberField(TEXT("implicit_heap_frees"),double(Live.ImplicitHeapFrees));
@@ -230,7 +298,8 @@ int32 ExportStreamingMemory(const FString& Input,const FString& Output,double Of
         const bool ProjectSource=SourceFile.Contains(TEXT("/Source/ma0t10_dt/"))||SourceFile.Contains(TEXT("/Source/ma0t10_dtEditor/"))||SourceFile.Contains(TEXT("/Source/ma0t10_dtBootstrap/"));
         const bool EngineSource=SourceFile.Contains(TEXT("/Engine/Source/"));
         const bool ProjectDll=Name.StartsWith(TEXT("UnrealEditor-ma0t10_dt"));
-        J->SetStringField(TEXT("source_origin"),ProjectSource?TEXT("project"):EngineSource?TEXT("engine"):ProjectDll?TEXT("project-module"):TEXT("unknown"));
+        const bool DtCoreSource=SourceFile.Contains(TEXT("/Plugins/DTCore/"));
+        J->SetStringField(TEXT("source_origin"),ProjectSource?TEXT("project"):DtCoreSource?TEXT("dtcore"):EngineSource?TEXT("engine"):ProjectDll?TEXT("project-module"):TEXT("unknown"));
         FrameCache.Add(Address,J);return TSharedPtr<FJsonObject>(J);
     };
     auto Convert=[&](const FRow& X)
@@ -238,6 +307,47 @@ int32 ExportStreamingMemory(const FString& Input,const FString& Output,double Of
         auto J=MakeShared<FJsonObject>();const uint32 Stack=uint32(X.Key>>24);J->SetNumberField(TEXT("stack_id"),Stack);J->SetNumberField(TEXT("root_heap"),uint16((X.Key>>1)&65535));J->SetBoolField(TEXT("is_heap"),(X.Key&1)!=0);J->SetNumberField(TEXT("before_bytes"),double(X.A.Bytes));J->SetNumberField(TEXT("after_bytes"),double(X.B.Bytes));J->SetNumberField(TEXT("delta_bytes"),double(X.Delta));J->SetNumberField(TEXT("count_delta"),double(X.B.Count-X.A.Count));
         TArray<TSharedPtr<FJsonValue>> Frames;bool Project=false;if(const auto* Addresses=Inventory.Stacks.Find(Stack))for(uint64 Address:*Addresses){auto F=Frame(Address);Project|=F->GetStringField(TEXT("source_origin")).StartsWith(TEXT("project"));Frames.Add(MakeShared<FJsonValueObject>(F));}J->SetArrayField(TEXT("frames"),Frames);J->SetBoolField(TEXT("has_project_frame"),Project);return MakeShared<FJsonValueObject>(J);
     };
+    R->SetNumberField(TEXT("tag_scope_underflows"),double(Live.ScopeUnderflows));R->SetNumberField(TEXT("pointer_tag_misses"),double(Live.PointerTagMisses));
+    R->SetBoolField(TEXT("allocation_tag_scopes_read"),Live.ReadTags);
+    TSet<uint64> TagKeys;for(const auto& P:Live.TagsA)TagKeys.Add(P.Key);for(const auto& P:Live.TagsB)TagKeys.Add(P.Key);
+    TArray<TSharedPtr<FJsonValue>> TagRows;
+    for(uint64 Key:TagKeys)
+    {
+        const auto A=Live.TagsA.FindRef(Key),B=Live.TagsB.FindRef(Key);if(A.Bytes==B.Bytes&&A.Count==B.Count)continue;
+        const uint32 Tag=uint32(Key>>17);auto J=MakeShared<FJsonObject>();J->SetNumberField(TEXT("tag_id"),Tag);
+        if(const auto* Spec=Inventory.Tags.Find(Tag)){J->SetStringField(TEXT("tag_name"),Spec->Name);J->SetNumberField(TEXT("parent_tag_id"),Spec->Parent);}
+        J->SetNumberField(TEXT("heap_id"),uint16((Key>>1)&65535));J->SetBoolField(TEXT("is_heap"),(Key&1)!=0);J->SetNumberField(TEXT("before_bytes"),double(A.Bytes));J->SetNumberField(TEXT("after_bytes"),double(B.Bytes));J->SetNumberField(TEXT("delta_bytes"),double(B.Bytes-A.Bytes));J->SetNumberField(TEXT("count_delta"),double(B.Count-A.Count));TagRows.Add(MakeShared<FJsonValueObject>(J));
+    }
+    R->SetArrayField(TEXT("tag_live_deltas"),TagRows);
+    auto ConvertBacking=[](const TArray<FBackingPoint>& Points)
+    {
+        TArray<TSharedPtr<FJsonValue>> Out;
+        for(const auto& X:Points){auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("address"),FString::Printf(TEXT("0x%llx"),X.Address));J->SetNumberField(TEXT("size"),double(X.Size));J->SetNumberField(TEXT("stack_id"),X.Stack);J->SetNumberField(TEXT("tag_id"),X.Tag);J->SetNumberField(TEXT("heap_id"),X.Heap);Out.Add(MakeShared<FJsonValueObject>(J));}
+        return Out;
+    };
+    R->SetArrayField(TEXT("cpu_backing_addresses_before"),ConvertBacking(Live.BackingA));R->SetArrayField(TEXT("cpu_backing_addresses_after"),ConvertBacking(Live.BackingB));
+    TSet<uint32> BackingStacks;for(const auto& X:Live.BackingA)BackingStacks.Add(X.Stack);for(const auto& X:Live.BackingB)BackingStacks.Add(X.Stack);
+    auto StackSpecs=MakeShared<FJsonObject>();
+    for(uint32 Id:BackingStacks)
+    {
+        TArray<TSharedPtr<FJsonValue>> Frames;if(const auto* Addresses=Inventory.Stacks.Find(Id))for(uint64 Address:*Addresses)Frames.Add(MakeShared<FJsonValueObject>(Frame(Address)));
+        StackSpecs->SetArrayField(FString::FromInt(Id),Frames);
+    }
+    R->SetObjectField(TEXT("cpu_backing_stack_dictionary"),StackSpecs);
+    int64 WindowFrames=0;for(double At:Inventory.GameFrames)if(At>=TargetA&&At<=TargetB)++WindowFrames;
+    R->SetNumberField(TEXT("window_game_frame_count"),double(WindowFrames));
+    // Allocation traffic is distinct from retained bytes; a high churn count is not a leak.
+    TArray<FRow> TrafficRows;
+    for(const auto& P:Live.AllocatedTraffic){FRow X{P.Key,Live.A.FindRef(P.Key),Live.B.FindRef(P.Key),0};X.Delta=X.B.Bytes-X.A.Bytes;TrafficRows.Add(X);}
+    TrafficRows.Sort([&Live](const FRow& A,const FRow& B){return Live.AllocatedTraffic.FindRef(A.Key).Count>Live.AllocatedTraffic.FindRef(B.Key).Count;});
+    TArray<TSharedPtr<FJsonValue>> Churn;
+    for(int32 I=0;I<FMath::Min(Top,TrafficRows.Num());++I)
+    {
+        const auto& X=TrafficRows[I];auto V=Convert(X);auto J=V->AsObject();const auto A=Live.AllocatedTraffic.FindRef(X.Key),F=Live.FreedTraffic.FindRef(X.Key);
+        J->SetNumberField(TEXT("allocated_count"),double(A.Count));J->SetNumberField(TEXT("allocated_bytes"),double(A.Bytes));J->SetNumberField(TEXT("freed_count"),double(F.Count));J->SetNumberField(TEXT("freed_bytes"),double(F.Bytes));Churn.Add(V);
+        if(WindowFrames>0)J->SetNumberField(TEXT("allocation_events_per_game_frame"),double(A.Count)/WindowFrames);
+    }
+    R->SetArrayField(TEXT("top_allocation_churn"),Churn);
     TArray<TSharedPtr<FJsonValue>> Growth,Decline,Cpu,CpuHeap,Gpu,Modules,HeapSpecs;
     for(const auto& X:Rows)if(X.Delta>0)
     {

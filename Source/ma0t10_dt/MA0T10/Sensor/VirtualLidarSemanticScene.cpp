@@ -1,4 +1,5 @@
 #include "VirtualLidarSemanticScene.h"
+#include "SensorUploadDiagnostics.h"
 #include "VirtualLidarSurfaceResponseComponent.h"
 #include "VirtualLidarScanComponent.h"
 #include "VirtualLidarSemanticDiagnostics.h"
@@ -130,8 +131,8 @@ bool FVirtualLidarSemanticScene::Capture(UWorld* World, AActor* IgnoreOwner, con
             {
                 FTransform T, Previous;
                 Instances->GetInstanceTransform(I, T, false);
-                if (I >= Proxy->GetInstanceCount()) Proxy->AddInstance(T);
-                else if (Proxy->GetInstanceTransform(I, Previous, false) && !Previous.Equals(T)) { Proxy->UpdateInstanceTransform(I, T, false, false, true); bInstancesChanged = true; }
+                if (I >= Proxy->GetInstanceCount()) { Proxy->AddInstance(T); SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SemanticInstances,GFrameCounter,sizeof(FTransform),sizeof(FTransform)); }
+                else if (Proxy->GetInstanceTransform(I, Previous, false) && !Previous.Equals(T)) { Proxy->UpdateInstanceTransform(I, T, false, false, true); SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::SemanticInstances,GFrameCounter,sizeof(FTransform),sizeof(FTransform)); bInstancesChanged = true; }
             }
             if (bInstancesChanged) Proxy->MarkRenderStateDirty();
         }
