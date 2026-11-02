@@ -1,5 +1,5 @@
 #include "VirtualSensorLayoutSubsystem.h"
-#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
+#include "ma0t10_dt/MA0T10/Contracts/DeviceIdentityPolicy.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "VirtualSensorPlacementSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/DeviceSensorCoordinator.h"
@@ -243,8 +243,8 @@ FString UVirtualSensorLayoutSubsystem::PreviewLayoutRestore(const FString& Name)
     if(IFileManager::Get().FileSize(*Path)>1024*1024||!FFileHelper::LoadFileToString(Json,*Path)||!FJsonObjectConverter::JsonObjectStringToUStruct(Json,&D))return AddOperation(EVirtualSensorLayoutOperation::Failed,TEXT("배치 파일을 읽을 수 없습니다. 원본 보존"),Path);
     for(auto& E:D.Sensors)
     {
-        E.State.SensorId=VirtualSensorIdentity::Canonical(E.State.SensorId);
-        E.State.OriginalSensorId=VirtualSensorIdentity::Canonical(E.State.OriginalSensorId);
+        E.State.SensorId=DeviceIdentityPolicy::Canonical(E.State.SensorId);
+        E.State.OriginalSensorId=DeviceIdentityPolicy::Canonical(E.State.OriginalSensorId);
     }
     TArray<AVirtualSensorActorBase*> Matches,Excess;if(!ValidateDocument(D,Matches,Excess,Reason))return AddOperation(EVirtualSensorLayoutOperation::Failed,Reason,Path);
     int32 Create=0,Update=0;for(auto* S:Matches){if(S)++Update;else ++Create;}

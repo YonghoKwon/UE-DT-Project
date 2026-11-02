@@ -1,4 +1,5 @@
 #include "VirtualLidarFidelity.h"
+#include "DeviceSemanticPolicy.h"
 #include "VirtualLidarSurfaceResponseComponent.h"
 #include "VirtualSensorSemanticLabels.h"
 #include "Components/PrimitiveComponent.h"
@@ -37,11 +38,7 @@ float SemanticReflectivity(FName Label, bool bOxidized)
 {
     // Project assumptions at 940nm; these are not measured material constants.
     if (bOxidized) return .08f;
-    if (Label == TEXT("Slab")) return .20f;
-    if (Label == TEXT("Roller")) return .35f;
-    if (Label == TEXT("Floor")) return .25f;
-    if (Label == TEXT("Conveyor")) return .12f;
-    return .20f;
+    return DeviceSemanticPolicy::Reflectance(Label);
 }
 
 FSurface ResolveSurface(const UPrimitiveComponent* Primitive)

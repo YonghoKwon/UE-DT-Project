@@ -1,4 +1,5 @@
 #include "VirtualLidarSemanticDiagnostics.h"
+#include "DeviceSemanticPolicy.h"
 
 #include "VirtualLidarSensorTypes.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorAcquisitionBackend.h"
@@ -37,7 +38,7 @@ TSharedRef<FJsonObject> BuildHardwareReport(const TArray<FMesh>& Meshes, const T
         Valid += Surface.bSnapshotValid;
         Expired += Surface.bSnapshotValid && !Surface.bComponentAlive;
         Named += Surface.bSnapshotValid && !Surface.ActorName.IsNone();
-        Slab += Surface.bSnapshotValid && Surface.Label == TEXT("Slab");
+        Slab += Surface.bSnapshotValid && Surface.Label == DeviceSemanticPolicy::DiagnosticLabel();
         SlabTag += Surface.bSnapshotValid && Surface.bSlabTag;
     }
     Report->SetNumberField(TEXT("surface_count"), Slots);
@@ -57,7 +58,7 @@ TSharedRef<FJsonObject> BuildHardwareReport(const TArray<FMesh>& Meshes, const T
         if (Mapping != EHardwareMapping::Mapped) continue;
         const auto& Surface = Meshes[Hit.Mesh].Surfaces[Hit.Surface];
         MappedNamed += !Surface.ActorName.IsNone();
-        MappedSlab += Surface.Label == TEXT("Slab");
+        MappedSlab += Surface.Label == DeviceSemanticPolicy::DiagnosticLabel();
         MappedUnclassified += Surface.Label.IsNone();
     }
     const TCHAR* Keys[] = {TEXT("miss"), TEXT("invalid_distance"), TEXT("invalid_mesh"),
@@ -83,8 +84,8 @@ TSharedRef<FJsonObject> BuildDepthReport(const FVirtualLidarDepthAcquisitionFram
     for (const auto& Entry : Frame.SemanticIdentities)
     {
         Named += !Entry.Value.ActorName.IsNone();
-        Slab += Entry.Value.Label == TEXT("Slab");
-        SlabTag += Entry.Value.ActorTags.Contains(TEXT("Slab"));
+        Slab += Entry.Value.Label == DeviceSemanticPolicy::DiagnosticLabel();
+        SlabTag += Entry.Value.ActorTags.Contains(DeviceSemanticPolicy::DiagnosticTag());
     }
     Report->SetNumberField(TEXT("snapshot_named_surfaces"), Named);
     Report->SetNumberField(TEXT("snapshot_slab_surfaces"), Slab);
@@ -130,7 +131,7 @@ TSharedRef<FJsonObject> BuildDepthReport(const FVirtualLidarDepthAcquisitionFram
     {
         ++OutputHits;
         OutputNamed += !Point.HitActorName.IsNone();
-        OutputSlab += Point.SemanticLabel == TEXT("Slab");
+        OutputSlab += Point.SemanticLabel == DeviceSemanticPolicy::DiagnosticLabel();
     }
     Report->SetNumberField(TEXT("output_hits"), OutputHits);
     Report->SetNumberField(TEXT("output_named_hits"), OutputNamed);

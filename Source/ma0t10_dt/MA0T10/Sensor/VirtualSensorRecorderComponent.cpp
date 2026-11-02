@@ -1,5 +1,5 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
-#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
+#include "ma0t10_dt/MA0T10/Contracts/DeviceIdentityPolicy.h"
 
 #include "Json.h"
 #include "Misc/FileHelper.h"
@@ -12,14 +12,14 @@ namespace
 {
 FString ReadPayloadIdentity(const FString& Json)
 {
-    if(!Json.Contains(VirtualSensorIdentity::LegacyCoilQuay,ESearchCase::CaseSensitive))return Json;
+    if(!DeviceIdentityPolicy::ContainsLegacy(Json))return Json;
     TSharedPtr<FJsonObject> Object;
     if(!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json),Object)||!Object.IsValid())return Json;
     bool Changed=false;
     for(const TCHAR* Key:{TEXT("sensorId"),TEXT("sensor_id")})
     {
-        FString Id;if(Object->TryGetStringField(Key,Id)&&Id==VirtualSensorIdentity::LegacyCoilQuay)
-        {Object->SetStringField(Key,VirtualSensorIdentity::CoilQuay);Changed=true;}
+        FString Id;if(Object->TryGetStringField(Key,Id))
+        {const FString Canonical=DeviceIdentityPolicy::Canonical(Id);if(Canonical!=Id){Object->SetStringField(Key,Canonical);Changed=true;}}
     }
     if(!Changed)return Json;
     FString Result;FJsonSerializer::Serialize(Object.ToSharedRef(),TJsonWriterFactory<>::Create(&Result));return Result;
@@ -128,7 +128,7 @@ bool UVirtualSensorRecorderComponent::LoadSessionFromFile(const FString& Absolut
         }
 
         FVirtualSensorRecordedFrame Frame;
-        Frame.SensorId = VirtualSensorIdentity::Canonical((*FrameObject)->GetStringField(TEXT("sensorId")));
+        Frame.SensorId = DeviceIdentityPolicy::Canonical((*FrameObject)->GetStringField(TEXT("sensorId")));
         Frame.SensorType = (*FrameObject)->GetStringField(TEXT("sensorType"));
         Frame.FrameId = static_cast<int64>((*FrameObject)->GetNumberField(TEXT("frameId")));
         FDateTime::ParseIso8601(*(*FrameObject)->GetStringField(TEXT("timestampUtc")), Frame.TimestampUtc);

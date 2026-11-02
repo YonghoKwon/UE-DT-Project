@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "DeviceSemanticPolicy.h"
 #include "MA0T10MemoryTags.h"
 #include "Memory26Diagnostics.h"
 #include "IndustrialLidarProfiles.h"
@@ -101,7 +102,7 @@ TArray<VirtualLidarSemanticDiagnostics::FMesh> CaptureDiagnosticMeshes(const FVi
    const auto& Frozen=J.FrozenSurfaces[MeshIndex][SurfaceIndex];
    Surface.bSnapshotValid=Frozen.bValid;Surface.bIgnored=Frozen.bIgnore;
    Surface.ActorName=Frozen.Metadata.HitActorName;Surface.Label=Frozen.Metadata.SemanticLabel;
-   Surface.bSlabTag=Frozen.Metadata.HitActorTags.Contains(TEXT("Slab"));
+   Surface.bSlabTag=Frozen.Metadata.HitActorTags.Contains(DeviceSemanticPolicy::DiagnosticTag());
   }
  }
  return Meshes;
