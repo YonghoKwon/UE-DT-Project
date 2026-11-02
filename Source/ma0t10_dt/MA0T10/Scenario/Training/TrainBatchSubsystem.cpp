@@ -90,6 +90,8 @@ struct FTrainBatchState
 bool UTrainBatchSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {const auto* W=Cast<UWorld>(Outer);return W&&(W->WorldType==EWorldType::Game||W->WorldType==EWorldType::PIE);}
 bool UTrainBatchSubsystem::IsEnabled() const{return State&&State->Enabled;}
+bool UTrainBatchSubsystem::IsDormantForDiagnostics() const
+{return !State&&!Handler&&GetWorld()&&!GetWorld()->GetTimerManager().IsTimerActive(Timer);}
 const TArray<FTrainBatchJobView>& UTrainBatchSubsystem::Jobs() const
 {static const TArray<FTrainBatchJobView> Empty;return State?State->Views:Empty;}
 int64 UTrainBatchSubsystem::Revision() const{return State?State->Revision:0;}

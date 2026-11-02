@@ -52,6 +52,16 @@ bool FTrainOwnershipTest::RunTest(const FString&)
     TestFalse(TEXT("reused PID identity rejected"),TrainBatchProcess::SameProcess(Pid,Stamp+1));TestFalse(TEXT("unknown identity not adopted"),TrainBatchProcess::SameProcess(Pid,0));
     TestTrue(TEXT("quoted internal path with spaces"),TrainBatchProcess::Quote(TEXT("C:/Unreal Projects/worker"))==TEXT("\"C:/Unreal Projects/worker\""));TestTrue(TEXT("argument injection rejected"),TrainBatchProcess::Quote(TEXT("x\" -evil")).IsEmpty());return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTrainWorkerArgumentsTest,"MA0T10.TrainBatch.WorkerExecutableArguments",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FTrainWorkerArgumentsTest::RunTest(const FString&)
+{
+    using namespace TrainBatchProcess;const FString Map=TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap");
+    TestEqual(TEXT("packaged executable receives only its cooked map"),WorkerMapArguments(FString(),Map,false),Quote(Map));
+    TestEqual(TEXT("Editor executable receives absolute project and game mode"),WorkerMapArguments(TEXT("C:/Project Space/game.uproject"),Map,true),TEXT("\"C:/Project Space/game.uproject\" ")+Quote(Map)+TEXT(" -game"));
+    TestTrue(TEXT("missing Editor project rejected"),WorkerMapArguments(FString(),Map,true).IsEmpty());
+    TestTrue(TEXT("missing map rejected"),WorkerMapArguments(TEXT("C:/game.uproject"),FString(),false).IsEmpty());
+    TestTrue(TEXT("quote injection rejected"),WorkerMapArguments(FString(),TEXT("/Game/X\" -ExecCmds=quit"),false).IsEmpty());return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTrainLiveLeaseReadTest,"MA0T10.TrainBatch.LiveLeaseRead",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FTrainLiveLeaseReadTest::RunTest(const FString&)
 {

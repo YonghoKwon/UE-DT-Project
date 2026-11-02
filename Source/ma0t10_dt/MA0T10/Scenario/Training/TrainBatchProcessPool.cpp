@@ -75,8 +75,8 @@ bool FTrainBatchProcessPool::Launch(int32 Index)
     C->SetStringField(TEXT("pool_lock"),WorkerBase/TEXT("owner.lock"));
     FString Map;C->TryGetStringField(TEXT("map"),Map);const FString Config=S.Ipc/TEXT("config.json");
     if(Map.IsEmpty()||!TrainBatchProcess::Write(S.Ipc,Config,C)||!Save()){Failure=TEXT("Worker assignment persistence failed");return false;}
-    const FString Executable=FPlatformProcess::ExecutablePath();FString Args=TrainBatchProcess::Quote(FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()))+TEXT(" ")+TrainBatchProcess::Quote(Map);
-    if(FPaths::GetCleanFilename(Executable).Contains(TEXT("UnrealEditor")))Args+=TEXT(" -game");
+    const FString Executable=FPlatformProcess::ExecutablePath();FString Args=TrainBatchProcess::WorkerMapArguments(FPaths::ConvertRelativePathToFull(FPaths::GetProjectFilePath()),Map,FPaths::GetCleanFilename(Executable).Contains(TEXT("UnrealEditor")));
+    if(Args.IsEmpty()){Failure=TEXT("Worker map/project argument rejected");return false;}
     Args+=TEXT(" -d3d12 -RenderOffscreen -unattended -nosplash -nosound -nop4 -ResX=1920 -ResY=1080 -UserDir=")+TrainBatchProcess::Quote(User)+TEXT(" -TrainBatchWorker=")+TrainBatchProcess::Quote(Config)+TEXT(" -abslog=")+TrainBatchProcess::Quote(S.Ipc/TEXT("worker.log"))+FString::Printf(TEXT(" -graphicsadapter=%d"),AdapterIndex);if(BanNative)Args+=TEXT(" -SensorRtRhi");
     S.Process=FPlatformProcess::CreateProc(*Executable,*Args,true,true,true,&S.Pid,0,*FPaths::ProjectDir(),nullptr);bool Alive=false;S.Stamp=TrainBatchProcess::ProcessStamp(S.Pid,Alive);Save();
     if(S.Process.IsValid()&&S.Stamp){FTrainBatchPoolEvent E;E.Index=S.Task;E.Slot=Index;E.Lease=S.Lease;E.Epoch=S.Epoch;E.Phase=TEXT("leased");Events.Add(MoveTemp(E));return true;}return false;

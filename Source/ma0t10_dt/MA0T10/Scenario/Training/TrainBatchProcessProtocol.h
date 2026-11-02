@@ -41,5 +41,7 @@ namespace TrainBatchProcess
     MA0T10_DT_API TSharedPtr<FJsonObject> Read(const FString& Path,int64 Limit=1024*1024);
     MA0T10_DT_API bool Write(const FString& Root,const FString& Path,const TSharedRef<FJsonObject>& Json);
     MA0T10_DT_API FString Quote(const FString& Value);
+    /** Cooked game executables take a map, not an Editor .uproject argument. */
+    MA0T10_DT_API FString WorkerMapArguments(const FString& Project,const FString& Map,bool EditorExecutable);
     MA0T10_DT_API FString SceneSignature(UWorld* World,const AActor* Slab,const AActor* Lidar,const AActor* Camera);
 }

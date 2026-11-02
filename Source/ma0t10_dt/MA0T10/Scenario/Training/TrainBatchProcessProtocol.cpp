@@ -133,6 +133,13 @@ FString TrainBatchProcess::Quote(const FString& Value)
     for(TCHAR C:Value)if(C<32||C==TEXT('"'))return FString();
     FString V=Value;while(V.EndsWith(TEXT("\\")))V.LeftChopInline(1,false);return TEXT("\"")+V+TEXT("\"");
 }
+FString TrainBatchProcess::WorkerMapArguments(const FString& Project,const FString& Map,bool EditorExecutable)
+{
+    const FString MapArg=Quote(Map);if(Map.IsEmpty()||MapArg.IsEmpty())return FString();
+    if(!EditorExecutable)return MapArg;
+    const FString ProjectArg=Quote(Project);if(Project.IsEmpty()||ProjectArg.IsEmpty())return FString();
+    return ProjectArg+TEXT(" ")+MapArg+TEXT(" -game");
+}
 FString TrainBatchProcess::SceneSignature(UWorld* World,const AActor* Slab,const AActor* Lidar,const AActor* Camera)
 {
     TArray<FString> Rows;

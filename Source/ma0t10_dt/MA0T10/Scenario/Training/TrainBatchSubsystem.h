@@ -37,6 +37,8 @@ public:
     UFUNCTION(BlueprintCallable,Category="Training") void CancelJob();
     UFUNCTION(BlueprintPure,Category="Training") FString GetStatus() const;
     bool SubmitEnvelope(const FString& Json,FString& Error);
+    /** Read-only packaged smoke probe; no diagnostics work is installed by this accessor. */
+    bool IsDormantForDiagnostics() const;
     void AcceptTransaction(const FTrainBatchTransaction& Transaction);
     const TArray<FTrainBatchJobView>& Jobs() const;
     int64 Revision() const;
