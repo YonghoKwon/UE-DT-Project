@@ -1,10 +1,17 @@
 #include "LidarMemoryAttributionProbe.h"
+#ifndef MA0T10_DTCORE_PRIVATE_PROBE
+#define MA0T10_DTCORE_PRIVATE_PROBE 0
+#endif
+
+#if MA0T10_DTCORE_PRIVATE_PROBE
 #include "Core/DxWidgetSubsystem.h"
-#include "Core/DxDataSubsystem.h"
-#include "Core/DxWebSocketSubsystem.h"
 #include "Core/DxLogSubsystem.h"
 #include "Player/DxPlayerControllerBase.h"
 #include "UI/DxWidget.h"
+#endif
+#include "Core/DxDataSubsystem.h"
+#include "Core/DxWebSocketSubsystem.h"
+#include "GameFramework/PlayerController.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/Widget.h"
 #include "Engine/Texture.h"
@@ -32,7 +39,27 @@ namespace SlateTraceDetail { extern uint32 GWidgetCount; }
 
 namespace
 {
+struct FClassCount{int64 Count=0,BodyBytes=0;};
+TMap<UClass*,FClassCount> ClassCounts;
+void NullFields(const TSharedRef<FJsonObject>& Out,std::initializer_list<const TCHAR*> Fields)
+{
+    for(const TCHAR* Field:Fields)Out->SetField(Field,MakeShared<FJsonValueNull>());
+}
+void InitializePrivateFields(const TSharedRef<FJsonObject>& D)
+{
+    D->SetBoolField(TEXT("dtcore_private_probe_compiled"),MA0T10_DTCORE_PRIVATE_PROBE!=0);
+    D->SetStringField(TEXT("dtcore_private_probe_availability"),MA0T10_DTCORE_PRIVATE_PROBE?TEXT("explicit diagnostic build only"):TEXT("unavailable: MA0T10_DTCORE_PRIVATE_PROBE=0"));
+    D->SetBoolField(TEXT("hover_timer_observer_available"),false);
+    NullFields(D,{TEXT("dx_open_widgets"),TEXT("dx_open_widgets_capacity_bytes"),TEXT("observed_frames"),TEXT("hover_timer_reset_calls"),TEXT("hover_ambiguous_hitch_frames"),TEXT("minimum_is_mouse_over_calls"),TEXT("minimum_prune_calls"),TEXT("observer_total_gt_ms")});
+    auto Data=MakeShared<FJsonObject>();Data->SetBoolField(TEXT("warned_sets_read"),false);
+    NullFields(Data,{TEXT("warned_api_keys_count"),TEXT("warned_api_keys_container_bytes"),TEXT("warned_api_keys_string_bytes"),TEXT("warned_websocket_keys_count"),TEXT("warned_websocket_keys_container_bytes"),TEXT("warned_websocket_keys_string_bytes")});D->SetObjectField(TEXT("dx_data"),Data);
+    auto Web=MakeShared<FJsonObject>();NullFields(Web,{TEXT("route_logged_topics_count"),TEXT("route_logged_topics_container_bytes"),TEXT("route_logged_topics_string_bytes")});D->SetObjectField(TEXT("dx_websocket"),Web);
+    auto Log=MakeShared<FJsonObject>();Log->SetBoolField(TEXT("buffer_read"),false);NullFields(Log,{TEXT("buffer_count"),TEXT("buffer_container_bytes"),TEXT("buffer_string_bytes")});D->SetObjectField(TEXT("dx_log"),Log);
+}
+
+#if MA0T10_DTCORE_PRIVATE_PROBE
 // Explicit-instantiation member access keeps DTCore sources/ABI unchanged.
+// Historical r36 opt-in only; normal builds never compile this access mechanism.
 // Only sizes/counters are read; no keys, message bodies or log text are serialized.
 template<class Tag,typename Tag::Member Ptr>struct TReadMember
 {friend typename Tag::Member ReadMember(Tag){return Ptr;}};
@@ -59,8 +86,6 @@ double BeforeTimer=0;
 bool HaveBefore=false;
 uint64 ObserverFrames=0,HoverTimerResets=0,AmbiguousHoverFrames=0;
 double ObserverCycles=0;
-struct FClassCount{int64 Count=0,BodyBytes=0;};
-TMap<UClass*,FClassCount> ClassCounts;
 
 void BeforeFrame()
 {
@@ -93,6 +118,7 @@ void SetSizes(const TSharedRef<FJsonObject>& Out,const TCHAR* Prefix,const FStri
     {uint64 Bytes=0;for(const FString& Value:Set)Bytes+=Value.GetAllocatedSize();Out->SetNumberField(FString(Prefix)+TEXT("_string_bytes"),double(Bytes));}
     else Out->SetBoolField(FString(Prefix)+TEXT("_string_size_skipped_over_100k"),true);
 }
+#endif
 }
 #endif
 
@@ -108,9 +134,12 @@ void LidarMemoryAttribution::Begin(UWorld* World)
 {
 #if !UE_BUILD_SHIPPING
     if(!IsEnabled())return;
-    check(IsInGameThread());ObservedWorld=World;
+    check(IsInGameThread());
+#if MA0T10_DTCORE_PRIVATE_PROBE
+    ObservedWorld=World;
     BeginHandle=FCoreDelegates::OnBeginFrame.AddStatic(&BeforeFrame);
     EndHandle=FCoreDelegates::OnEndFrame.AddStatic(&AfterFrame);
+#endif
     TRACE_BOOKMARK(TEXT("MEMORY26B_BEGIN"));
 #endif
 }
@@ -119,16 +148,19 @@ void LidarMemoryAttribution::Snapshot(UWorld* World,double Seconds,const TShared
 #if !UE_BUILD_SHIPPING
     if(!IsEnabled()||!World)return;
     check(IsInGameThread());LLM_SCOPE_BYNAME(TEXT("MA0T10/R36Diagnostics"));
-    const double Start=FPlatformTime::Seconds();auto D=MakeShared<FJsonObject>();
+    const double Start=FPlatformTime::Seconds();auto D=MakeShared<FJsonObject>();InitializePrivateFields(D);
     auto* ActualController=World->GetFirstPlayerController();
+#if MA0T10_DTCORE_PRIVATE_PROBE
     const bool HoverObserverAvailable=Cast<ADxPlayerControllerBase>(ActualController)!=nullptr;
     D->SetBoolField(TEXT("hover_timer_observer_available"),HoverObserverAvailable);
+#endif
     if(ActualController)
     {
         D->SetStringField(TEXT("player_controller_class"),ActualController->GetClass()->GetPathName());
         D->SetBoolField(TEXT("player_controller_tick_enabled"),ActualController->IsActorTickEnabled());
         D->SetBoolField(TEXT("player_controller_show_cursor"),ActualController->bShowMouseCursor);
     }
+#if MA0T10_DTCORE_PRIVATE_PROBE
     D->SetNumberField(TEXT("observed_frames"),double(ObserverFrames));
     D->SetNumberField(TEXT("hover_timer_reset_calls"),double(HoverTimerResets));
     D->SetNumberField(TEXT("hover_ambiguous_hitch_frames"),double(AmbiguousHoverFrames));
@@ -137,6 +169,7 @@ void LidarMemoryAttribution::Snapshot(UWorld* World,double Seconds,const TShared
     if(!HoverObserverAvailable)
     {D->SetField(TEXT("minimum_is_mouse_over_calls"),MakeShared<FJsonValueNull>());D->SetField(TEXT("minimum_prune_calls"),MakeShared<FJsonValueNull>());}
     D->SetNumberField(TEXT("observer_total_gt_ms"),ObserverCycles*FPlatformTime::GetSecondsPerCycle64()*1000.);
+#endif
     D->SetNumberField(TEXT("fname_entry_bytes"),FName::GetNameEntryMemorySize());
     D->SetNumberField(TEXT("fname_ansi_count"),FName::GetNumAnsiNames());
     D->SetNumberField(TEXT("fname_wide_count"),FName::GetNumWideNames());
@@ -155,35 +188,49 @@ void LidarMemoryAttribution::Snapshot(UWorld* World,double Seconds,const TShared
         J->SetNumberField(TEXT("total_graphics_budget_bytes"),double(Rhi.TotalGraphicsMemory));
         D->SetObjectField(TEXT("rhi_texture_memory"),J);
     }
+#if MA0T10_DTCORE_PRIVATE_PROBE
     D->SetStringField(TEXT("call_count_method"),TEXT("Read-only pre/post controller hover timer reset observation; source CheckMouseHover->IsMouseOverAnyWidget->Prune once. Extra Blueprint/UI/input calls not claimed; trace allocation traffic is independent evidence."));
+#else
+    D->SetStringField(TEXT("call_count_method"),TEXT("unavailable: MA0T10_DTCORE_PRIVATE_PROBE=0; no DTCore private access or frame observer compiled"));
+#endif
     if(auto* GI=World->GetGameInstance())
     {
+#if MA0T10_DTCORE_PRIVATE_PROBE
         if(auto* W=GI->GetSubsystem<UDxWidgetSubsystem>())
         {
             const auto& Open=W->*ReadMember(FOpen{});
             D->SetNumberField(TEXT("dx_open_widgets"),Open.Num());D->SetNumberField(TEXT("dx_open_widgets_capacity_bytes"),double(Open.GetAllocatedSize()));
         }
+#endif
         if(auto* Data=GI->GetSubsystem<UDxDataSubsystem>())
         {
-            const auto S=Data->GetStatistics();auto J=MakeShared<FJsonObject>();
+            const auto S=Data->GetStatistics();auto J=D->GetObjectField(TEXT("dx_data"));
             J->SetNumberField(TEXT("processed_api"),double(S.ProcessedApi));J->SetNumberField(TEXT("processed_websocket"),double(S.ProcessedWebSocket));
             J->SetNumberField(TEXT("json_failures"),double(S.JsonParseFailures));J->SetNumberField(TEXT("missing_dispatch"),double(S.MissingDispatchKeys));
             J->SetNumberField(TEXT("unknown_handler"),double(S.UnknownHandlerKeys));J->SetNumberField(TEXT("queued_api"),double(S.QueuedApi));J->SetNumberField(TEXT("queued_websocket"),double(S.QueuedWebSocket));
+#if MA0T10_DTCORE_PRIVATE_PROBE
             auto& Mutex=Data->*ReadMember(FUnknownMutex{});const bool Locked=Mutex.TryLock();J->SetBoolField(TEXT("warned_sets_read"),Locked);
             if(Locked){SetSizes(J,TEXT("warned_api_keys"),Data->*ReadMember(FWarnApi{}));SetSizes(J,TEXT("warned_websocket_keys"),Data->*ReadMember(FWarnWs{}));Mutex.Unlock();}
+#endif
             D->SetObjectField(TEXT("dx_data"),J);
         }
         if(auto* Web=GI->GetSubsystem<UDxWebSocketSubsystem>())
         {
-            auto J=MakeShared<FJsonObject>();J->SetNumberField(TEXT("connection_state"),int32(Web->GetConnectionState()));J->SetNumberField(TEXT("reconnect_attempts"),Web->GetReconnectAttemptCount());
-            J->SetNumberField(TEXT("last_subscribe_failures"),Web->GetLastSubscribeFailureCount());SetSizes(J,TEXT("route_logged_topics"),Web->*ReadMember(FRouteTopics{}));D->SetObjectField(TEXT("dx_websocket"),J);
+            auto J=D->GetObjectField(TEXT("dx_websocket"));J->SetNumberField(TEXT("connection_state"),int32(Web->GetConnectionState()));J->SetNumberField(TEXT("reconnect_attempts"),Web->GetReconnectAttemptCount());
+            J->SetNumberField(TEXT("last_subscribe_failures"),Web->GetLastSubscribeFailureCount());
+#if MA0T10_DTCORE_PRIVATE_PROBE
+            SetSizes(J,TEXT("route_logged_topics"),Web->*ReadMember(FRouteTopics{}));
+#endif
+            D->SetObjectField(TEXT("dx_websocket"),J);
         }
+#if MA0T10_DTCORE_PRIVATE_PROBE
         if(auto* Log=GI->GetSubsystem<UDxLogSubsystem>())
         {
             auto J=MakeShared<FJsonObject>();auto& Mutex=Log->*ReadMember(FLogMutex{});const bool Locked=Mutex.TryLock();J->SetBoolField(TEXT("buffer_read"),Locked);
             if(Locked){const auto& Buffer=Log->*ReadMember(FLogBuffer{});uint64 Bytes=0;for(const auto& Pair:Buffer)Bytes+=Pair.Key.GetAllocatedSize()+Pair.Value.GetAllocatedSize();J->SetNumberField(TEXT("buffer_count"),Buffer.Num());J->SetNumberField(TEXT("buffer_container_bytes"),double(Buffer.GetAllocatedSize()));J->SetNumberField(TEXT("buffer_string_bytes"),double(Bytes));Mutex.Unlock();}
             D->SetObjectField(TEXT("dx_log"),J);
         }
+#endif
     }
     ClassCounts.Reset();int64 Widgets=0,UserWidgets=0,Textures=0,RenderTargets=0;
     for(TObjectIterator<UObject> I;I;++I)
@@ -212,6 +259,26 @@ void LidarMemoryAttribution::End()
 {
 #if !UE_BUILD_SHIPPING
     if(!IsEnabled())return;TRACE_BOOKMARK(TEXT("MEMORY26B_END"));
-    FCoreDelegates::OnBeginFrame.Remove(BeginHandle);FCoreDelegates::OnEndFrame.Remove(EndHandle);Controller.Reset();ObservedWorld.Reset();ClassCounts.Reset();
+#if MA0T10_DTCORE_PRIVATE_PROBE
+    FCoreDelegates::OnBeginFrame.Remove(BeginHandle);FCoreDelegates::OnEndFrame.Remove(EndHandle);Controller.Reset();ObservedWorld.Reset();
+#endif
+    ClassCounts.Reset();
 #endif
 }
+
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR && !UE_BUILD_SHIPPING
+#include "Misc/AutomationTest.h"
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarPrivateProbeAvailabilityTest,"MA0T10.MemoryAttribution.PrivateProbeAvailability",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLidarPrivateProbeAvailabilityTest::RunTest(const FString&)
+{
+    auto D=MakeShared<FJsonObject>();InitializePrivateFields(D);
+    TestEqual(TEXT("availability matches explicit build definition"),D->GetBoolField(TEXT("dtcore_private_probe_compiled")),MA0T10_DTCORE_PRIVATE_PROBE!=0);
+    for(const TCHAR* Field:{TEXT("dx_open_widgets"),TEXT("dx_open_widgets_capacity_bytes"),TEXT("observed_frames"),TEXT("hover_timer_reset_calls"),TEXT("minimum_is_mouse_over_calls"),TEXT("minimum_prune_calls"),TEXT("observer_total_gt_ms")})
+        TestTrue(FString(TEXT("unobserved private field is null: "))+Field,D->Values[Field]->IsNull());
+    TestFalse(TEXT("unobserved hover timer is unavailable"),D->GetBoolField(TEXT("hover_timer_observer_available")));
+    TestTrue(TEXT("private warning set is not invented zero"),D->GetObjectField(TEXT("dx_data"))->Values[TEXT("warned_api_keys_count")]->IsNull());
+    TestTrue(TEXT("private route set is not invented zero"),D->GetObjectField(TEXT("dx_websocket"))->Values[TEXT("route_logged_topics_count")]->IsNull());
+    TestTrue(TEXT("private log buffer is not invented zero"),D->GetObjectField(TEXT("dx_log"))->Values[TEXT("buffer_count")]->IsNull());
+    return true;
+}
+#endif
