@@ -2,6 +2,7 @@
 #include "Misc/AutomationTest.h"
 #include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchArchive.h"
 #include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchSftp.h"
+#include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchDelivery.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -123,6 +124,47 @@ bool FTrainBatchArchiveTest::RunTest(const FString&)
     TestFalse(TEXT("case-insensitive duplicate rejected"),Write(Dup,Output/TEXT("dup.zip"),FTrainArchiveOptions()).bOk);
     FTrainArchiveOptions StoreGz;StoreGz.Format=ETrainArchiveFormat::TarGz;StoreGz.Level=0;
     TestFalse(TEXT("tar.gz has no store level"),Write(Entries,Output/TEXT("store.tar.gz"),StoreGz).bOk);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTrainBatchDeliveryTest,"MA0T10.TrainBatch.Delivery",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FTrainBatchDeliveryTest::RunTest(const FString&)
+{
+    const FString Job=TEXT("8cdf7e10-7972-4493-b5d2-a7d36c1c04dd");
+    TestTrue(TEXT("uuid job id accepted"),TrainBatchDelivery::IsSafeJobId(Job));
+    TestFalse(TEXT("dotted job id rejected"),TrainBatchDelivery::IsSafeJobId(TEXT("a.b")));
+    TestEqual(TEXT("hash-bound remote name"),TrainBatchDelivery::RemoteArchiveName(Job,TEXT("0123456789abcdef"),ETrainArchiveFormat::TarGz),Job+TEXT("-0123456789ab.tar.gz"));
+
+    // Settings round trip without disturbing a real user profile.
+    const FString SettingsFile=TrainBatchDelivery::SettingsPath();FString Backup;const bool bHadSettings=FFileHelper::LoadFileToString(Backup,*SettingsFile);
+    FTrainDeliverySettings S;S.Format=ETrainArchiveFormat::TarGz;S.Level=6;S.Sftp.Host=TEXT("train.example");S.Sftp.Port=2222;S.Sftp.User=TEXT("trainer");S.Sftp.RemoteDirectory=TEXT("/data/inbox");S.Sftp.PrivateKeyPath=TEXT("C:/Keys/id_ed25519");
+    FString Error;TestTrue(TEXT("settings saved"),TrainBatchDelivery::SaveSettings(S,Error));
+    FString Saved;FFileHelper::LoadFileToString(Saved,*SettingsFile);
+    TestFalse(TEXT("no secret fields persisted"),Saved.Contains(TEXT("password"))||Saved.Contains(TEXT("passphrase"))||Saved.Contains(TEXT("BEGIN OPENSSH")));
+    FTrainDeliverySettings L;TestTrue(TEXT("settings loaded"),TrainBatchDelivery::LoadSettings(L,Error));
+    TestTrue(TEXT("settings round trip"),L.Format==S.Format&&L.Level==6&&L.Sftp.Host==S.Sftp.Host&&L.Sftp.Port==2222&&L.Sftp.User==S.Sftp.User&&L.Sftp.RemoteDirectory==S.Sftp.RemoteDirectory&&L.Sftp.PrivateKeyPath==S.Sftp.PrivateKeyPath&&L.Sftp.KnownHostsPath==TrainBatchDelivery::KnownHostsPath());
+    if(bHadSettings)FFileHelper::SaveStringToFile(Backup,*SettingsFile,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);else IFileManager::Get().Delete(*SettingsFile,false,true);
+
+    const FString Root=FixtureRoot()/TEXT("delivery"),Staging=Root/TEXT("staging"),Out=Root/TEXT("out");
+    IFileManager::Get().DeleteDirectory(*Root,false,true);MakeFixture(Staging);
+    FTrainDeliveryRequest R;R.JobId=Job;R.StagingRoot=Staging;R.OutputDir=Out;R.Settings.Format=ETrainArchiveFormat::Zip;
+    auto D=MakeShared<FTrainBatchDelivery,ESPMode::ThreadSafe>();
+    TestTrue(TEXT("package-only delivery starts"),D->Start(R,Error));D->Wait();
+    const FTrainDeliveryStatus First=D->Status();
+    TestTrue(*(TEXT("package-only delivery done: ")+First.Error),First.Phase==ETrainDeliveryPhase::Done&&!First.bReusedArchive&&First.ArchiveBytes>0);
+    TestEqual(TEXT("status remote name bound to hash"),First.RemoteName,TrainBatchDelivery::RemoteArchiveName(Job,First.ArchiveSha256,ETrainArchiveFormat::Zip));
+    FString Side;FFileHelper::LoadFileToString(Side,*(First.ArchivePath+TEXT(".sha256")));
+    TestEqual(TEXT("sha256sum-compatible sidecar"),Side,First.ArchiveSha256+TEXT("  ")+First.RemoteName+TEXT("\n"));
+    TMap<FString,TArray<uint8>> Read;TestTrue(TEXT("archive readable"),ReadZip(First.ArchivePath,Read,Error));
+    TestTrue(TEXT("in-archive checksum manifest"),Read.Contains(Job+TEXT("/checksums.sha256")));
+    TestTrue(TEXT("second start reuses matching archive"),D->Start(R,Error));D->Wait();
+    TestTrue(TEXT("archive reused, not rebuilt"),D->Status().Phase==ETrainDeliveryPhase::Done&&D->Status().bReusedArchive&&D->Status().ArchiveSha256==First.ArchiveSha256);
+    // Tamper: the recorded hash no longer matches, so it must refuse rather than overwrite.
+    {TUniquePtr<FArchive> A(IFileManager::Get().CreateFileWriter(*First.ArchivePath,FILEWRITE_Append));uint8 B=0;A->Serialize(&B,1);}
+    TestTrue(TEXT("tampered start"),D->Start(R,Error));D->Wait();
+    TestEqual(TEXT("mismatched archive refused"),D->Status().Phase,ETrainDeliveryPhase::Failed);
+    FTrainDeliveryRequest Bad=R;Bad.bUpload=true;Bad.Settings.Sftp.Host=TEXT("-x");
+    TestFalse(TEXT("upload with invalid settings refused before work starts"),D->Start(Bad,Error));
     return true;
 }
 
