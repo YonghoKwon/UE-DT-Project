@@ -94,10 +94,11 @@ FString TrainBatchSftp::Quote(const FString& Value)
 FString TrainBatchSftp::CommandLine(const FTrainSftpSettings& S,const FString& BatchPath,bool bAcceptNewHostKey,const FString& KnownHostsOverride)
 {
     const FString Known=KnownHostsOverride.IsEmpty()?S.KnownHostsPath:KnownHostsOverride;
+    // ssh splits -o values on whitespace, so the path is quoted inside the option ("C:/Unreal Projects/...").
     TArray<FString> A={TEXT("-b"),Arg(BatchPath),TEXT("-P"),FString::FromInt(S.Port),TEXT("-i"),Arg(S.PrivateKeyPath),
         TEXT("-o"),TEXT("BatchMode=yes"),TEXT("-o"),TEXT("IdentitiesOnly=yes"),TEXT("-o"),TEXT("PasswordAuthentication=no"),
         TEXT("-o"),bAcceptNewHostKey?TEXT("StrictHostKeyChecking=accept-new"):TEXT("StrictHostKeyChecking=yes"),
-        TEXT("-o"),Arg(TEXT("UserKnownHostsFile=")+Known),TEXT("-o"),TEXT("GlobalKnownHostsFile=NUL"),
+        TEXT("-o"),Arg(TEXT("UserKnownHostsFile=\"")+Known.Replace(TEXT("\\"),TEXT("/"))+TEXT("\"")),TEXT("-o"),TEXT("GlobalKnownHostsFile=NUL"),
         TEXT("-o"),FString::Printf(TEXT("ConnectTimeout=%d"),S.ConnectTimeoutSec),TEXT("-o"),TEXT("ServerAliveInterval=15"),TEXT("-o"),TEXT("ServerAliveCountMax=4"),
         TEXT("-o"),TEXT("LogLevel=ERROR"),S.User+TEXT("@")+S.Host};
     return FString::Join(A,TEXT(" "));
