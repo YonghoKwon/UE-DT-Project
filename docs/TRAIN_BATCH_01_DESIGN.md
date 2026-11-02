@@ -321,3 +321,11 @@ DTCore에는 새 기능이 필요하지 않은 방향이다. TC DataTable 등록
 로컬 headless 복구 점검은 `-TrainBatchCoordinator=<Saved/Reports 아래 설정 JSON>` opt-in 진입점을 사용한다. 일반 실행에서는 해당 subsystem이 생성되지 않는다. Editor 자동화의 `test_auto` actor 선택은 검증 전용이며 Shipping은 거절한다. 실제 사용은 명시적인 Actor 이름·센서/preset을 지정한다. [복구 probe](../Scripts/run_train_batch_recovery_probe.py)는 private UserDir에서만 워커1개 종료와 coordinator 재시작을 주입하며, PID/creation stamp가 맞는 소유 프로세스만 종료한다. 실제 서버/인증 설정을 사용하지 않는다.
 
 실측: 실제 게임 coordinator M=2에서8시나리오/24프레임을 완료했고, 워커1개 강제 종료 후 재할당·1회 native RHI 복구·coordinator 재시작 후 디스크 resume를 확인했다. M=4 요청은 이12GB PC에서 실제M=2로 제한됐으며 전부 완료했다. 두 실행의24개 PCD 레코드 bytes가 같고 채택 결과는 backend=HardwareRT·fallback0이었다. unrestricted M=4 통과로 해석하지 않는다. 상세 예산/수치/최종 gate는 r41b 결과 보고서를 따른다.
+
+### r41b 최종 검증과 남은 범위
+
+코드 커밋 `7cf5c34`에서 Editor/Development 빌드, feature/관련24개, 표준 smoke36개, quick/layer/DTCore guard를 통과했다. RT ProjectDefault·1920×1080·1Camera+1LiDAR·10초 준비/60초·ABAB3블록(각 revision6샘플)의2% gate는 FPS 저하−0.005945%, engine p95 변화0%, GT 변화−0.780141%로 통과했다. 기준은 `ad118a7`이며 과거 waiver를 적용하지 않았다. GPU timer 수치는 해당 계측에서 제공하지 않아 GPU % 통과로 주장하지 않는다.
+
+직접 UI 점검은 Computer Use가 새 창 선택/1회 재시도 모두 `failed to activate captured window`를 반환해 입력0회·미수행이다. Python 준비 단계의 실제 viewport1618×650·DPI scale0.60125는 기록했지만 화면 조작 수용을 대신하지 않는다. 개인 설정/빈 자동 Game.ini는 원래 상태로 복원했고, 초기 실패·중간 무효 회차·engine offscreen startup ensure 원문은 결과 보고서에 보존한다.
+
+단위/자동화 통과와 별도로 packaged worker 배포·전체 release matrix/Shipping smoke·현장 Linux SFTP 수용·직접 UI는 후속 범위다.1B는 같은 build/preset/driver 및 검증된 checksum/journal을 요구하며 손상된 journal 복구나 임의 runtime scene 완전 복제까지 보장하지 않는다. 고유 worker UserDir/native safety 기록은 자동 초기화하지 않는다.

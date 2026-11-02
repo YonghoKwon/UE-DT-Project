@@ -1405,6 +1405,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level pe
 | `MA0T10_WORKSPACE_RHI` | MA0T10.SensorWorkspace.Runtime | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
 | `MA0T10_WORKSPACE_SCREENSHOT` | MA0T10.SensorWorkspace.Runtime | screenshot 파일 경로; 실제 RHI + 쓰기 권한 |
 | `MA0T10_DATASET_SCENES` | MA0T10.Dataset.RealRhiGeneration | 명시한 10–100장면 실제 RHI 생성; Saved/Datasets에 시험 파일을 만드는 opt-in |
+| `MA0T10_TRAIN_WORKERS` | MA0T10.TrainRuntime.ProcessRhi | Editor 자동화의 워커 요청 상한1~4. 실제 수는 GPU 예산으로 제한하며 일반 제품 실행에서는 읽지 않는다. |
 | `MA0T10_DATASET_PYTHON` | EXPORT-01 선택적 오프라인 변환 | requirements를 설치한 python.exe의 절대 경로. export_format 기본 none에서는 읽거나 실행하지 않는다. |
 | `MA0T10_STOMP_USER` | IMU-01 Editor acceptance fixture only | Existing broker session username, read only with explicit `-ImuAutomated -ImuBroker`; never logged/saved; does not enable production output |
 | `MA0T10_STOMP_PASSWORD` | IMU-01 Editor acceptance fixture only | Existing broker session passcode, inherited process environment only with explicit `-ImuAutomated -ImuBroker`; never logged/saved; no broker configuration change |
