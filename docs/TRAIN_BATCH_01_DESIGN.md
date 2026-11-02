@@ -343,3 +343,5 @@ DTCore에는 새 기능이 필요하지 않은 방향이다. TC DataTable 등록
 검증의20Hz는 sampled_timeline 간격이며 짧은 Job의 실제 wall-clock 처리율을 뜻하지 않는다. 실제 Linux SFTP·직접 UI 수용·4워커 동시 실행은 별도 증거가 필요하다. r41c 상세 수치와 최초 실패/시험 준비 보정은 `Saved/Reports/TRAIN-BATCH-01/r41c/RESULT.md`에 남긴다.
 
 실측된 작은 Job은4시나리오·12프레임이며 실제 최대 동시2, native dispatch16/fallback0이었다. ZIP·tar.gz 각각 Python 검증은 OK다. Development/Shipping 패키지의1시나리오·3프레임은 저장 맵의 GPU Depth Projection(backend2) 설정을 유지했으며, 이를 packaged native 처리량 검증으로 세지 않는다. 각 패키지의 기본 꺼짐10초 검사도 통과했다. 최종 release는 같은 코드의 표준 절차로 별도 기록하며, 초기 누락 fixture/옵션 실패를 숨기지 않는다.
+
+후속 병합 주의: 전체 패키지·실행·release 검증 코드는 `35ec727`이다. 작업 종료 직전 Claude가 SFTP known_hosts 인용 수정·수신기 시험(`43efd60`/병합 `33e5c5f`)을 추가했다. 이 후속 소스는 Editor/Development/Shipping 빌드와 TrainBatch 단위19개를 확인했고 새 `SftpLive`1개는 서버 미지정 semantic Skip이다. 이 병합 후 전체 패키지 실행·release를 다시 수행한 것으로 표시하지 않는다. 최신 판정과 미수행은 r41c result.json/merge-check를 따른다.
