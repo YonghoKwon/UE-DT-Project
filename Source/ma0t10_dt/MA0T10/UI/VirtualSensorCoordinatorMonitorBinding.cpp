@@ -4,10 +4,11 @@
 void AVirtualSensorCoordinator::BindMonitorWidget(UVirtualSensorMonitorPanelWidget* MonitorWidget)
 {
     BoundMonitorWidget = MonitorWidget;
-    ApplyWidgetBinding();
+    BindDeviceMonitorView(MonitorWidget);
 }
 
-IVirtualSensorMonitorView* AVirtualSensorCoordinator::GetMonitorView() const
+void AVirtualSensorCoordinator::EndPlay(const EEndPlayReason::Type Reason)
 {
-    return Cast<IVirtualSensorMonitorView>(BoundMonitorWidget.Get());
+    Super::EndPlay(Reason);
+    BoundMonitorWidget = nullptr;
 }

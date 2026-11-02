@@ -92,10 +92,10 @@ public:
         {
             auto* Layout=C.World()->GetSubsystem<UVirtualSensorLayoutSubsystem>();
             auto* Coordinator=Layout?Layout->Coordinator():nullptr;
-            if(!Coordinator||!Coordinator->StreamPublisherComponent)return false;
+            if(!Coordinator||!Coordinator->GetDeviceCoordinatorConfig().StreamPublisherComponent)return false;
             auto* Sensor=It->Lidar.Get();
             Test->TestEqual(TEXT("new scene displays canonical role ID"),Sensor->GetSensorId(),FString(VirtualSensorIdentity::CoilQuay));
-            auto* Publisher=Coordinator->StreamPublisherComponent.Get();
+            auto* Publisher=Coordinator->GetDeviceCoordinatorConfig().StreamPublisherComponent;
             auto Stream=Publisher->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud,Sensor->GetSensorId());
             Stream.bEnabled=false;Stream.SensorId=VirtualSensorIdentity::LegacyCoilQuay;Publisher->ConfigureStream(Stream);Sensor->StopSensor();
             Test->TestEqual(TEXT("old output configuration resolves to same stream"),Publisher->GetEffectiveStreamConfig(Stream.StreamKind,VirtualSensorIdentity::CoilQuay).SensorId,FString(VirtualSensorIdentity::CoilQuay));

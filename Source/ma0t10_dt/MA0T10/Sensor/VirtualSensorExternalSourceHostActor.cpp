@@ -1,5 +1,5 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorExternalSourceHostActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/DeviceSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 

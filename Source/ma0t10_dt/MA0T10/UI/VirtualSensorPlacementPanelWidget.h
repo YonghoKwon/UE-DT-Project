@@ -76,7 +76,7 @@ private:
     bool bSelectedMeasuring=false;
     FText CachedMeasureCaption,CachedManipulationCaption;
     FString PreviousStatus;
-    mutable TWeakObjectPtr<class AVirtualSensorCoordinator> CachedCoordinator;
+    mutable TWeakObjectPtr<class ADeviceSensorCoordinator> CachedCoordinator;
     mutable double NextCoordinatorLookup=0;
     bool bCanMove=false,bCanDelete=false;
     TSharedPtr<SComboBox<TSharedPtr<FString>>> LayoutCombo;

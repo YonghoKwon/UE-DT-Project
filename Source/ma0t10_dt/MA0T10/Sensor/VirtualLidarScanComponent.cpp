@@ -23,7 +23,7 @@
 #include "Misc/Paths.h"
 #include "Serialization/BufferArchive.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/DeviceSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
@@ -179,9 +179,9 @@ bool UVirtualLidarScanComponent::IsSemanticCaptureRequested() const
     if(bDatasetSemanticDemand)return true;
     if(bEnableSemanticClassification&&ViewMode==EVirtualLidarViewMode::ActorClassColor)return true;
     if(!GetWorld())return false;
-    for(TActorIterator<AVirtualSensorCoordinator> It(GetWorld());It;++It)
+    for(TActorIterator<ADeviceSensorCoordinator> It(GetWorld());It;++It)
     {
-        const auto* Publisher=It->StreamPublisherComponent.Get();if(!Publisher||!Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,SensorId))continue;
+        const auto* Publisher=It->GetDeviceCoordinatorConfig().StreamPublisherComponent;if(!Publisher||!Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,SensorId))continue;
         const auto Filter=Publisher->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud,SensorId).PointCloudFilter;
         if(Filter.IncludeActorTags.Num()||Filter.ExcludeActorTags.Num()||Filter.IncludeSemanticLabels.Num()||Filter.ExcludeSemanticLabels.Num())return true;
     }
@@ -597,5 +597,5 @@ void UVirtualLidarScanComponent::RebuildLastPointStatistics()
 
 void UVirtualLidarScanComponent::TryAutoRegisterToManager()
 {
-    if (!bAutoRegisterToManager || !GetWorld()) return; for (TActorIterator<AVirtualSensorCoordinator> It(GetWorld()); It; ++It) { if (*It) { It->RegisterLidar(this); return; } }
+    if (!bAutoRegisterToManager || !GetWorld()) return; for (TActorIterator<ADeviceSensorCoordinator> It(GetWorld()); It; ++It) { if (*It) { It->RegisterLidar(this); return; } }
 }

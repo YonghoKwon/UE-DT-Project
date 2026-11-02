@@ -25,7 +25,7 @@
 #include "RenderingThread.h"
 #include "TextureResource.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/DeviceSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
 #include <atomic>
@@ -1128,7 +1128,7 @@ void UVirtualCameraCaptureComponent::TryAutoRegisterToManager()
         return;
     }
 
-    for (TActorIterator<AVirtualSensorCoordinator> It(GetWorld()); It; ++It)
+    for (TActorIterator<ADeviceSensorCoordinator> It(GetWorld()); It; ++It)
     {
         It->RegisterCamera(this);
         break;

@@ -1,5 +1,5 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorExternalSourceHostActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/DeviceSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 
@@ -29,9 +29,9 @@ void AVirtualSensorExternalSourceHostActor::InitializeTopicReceiverRuntime()
 {
 	if(GetWorld()&&!SharedReceiveHandle.IsValid())
 		if(auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()) SharedReceiveHandle=Raw->OnReceived.AddUObject(this,&AVirtualSensorExternalSourceHostActor::HandleSharedReceived);
-	if(!BoundPublisher.IsValid()) if(auto* C=FindCoordinator()) if(C->StreamPublisherComponent)
+	if(!BoundPublisher.IsValid()) if(auto* C=FindCoordinator()) if(C->GetDeviceCoordinatorConfig().StreamPublisherComponent)
 	{
-		BoundPublisher=C->StreamPublisherComponent;
+		BoundPublisher=C->GetDeviceCoordinatorConfig().StreamPublisherComponent;
 		PublisherChangeHandle=BoundPublisher->OnStreamConfigurationChanged.AddUObject(this,&AVirtualSensorExternalSourceHostActor::AttemptTopicSubscriptions);
 	}
 	if(GetWorld()&&!GetWorldTimerManager().IsTimerActive(ReceiverRefreshTimer))
@@ -50,9 +50,9 @@ void AVirtualSensorExternalSourceHostActor::InitializeTopicReceiverRuntime()
 	}
 }
 
-AVirtualSensorCoordinator* AVirtualSensorExternalSourceHostActor::FindCoordinator() const
+ADeviceSensorCoordinator* AVirtualSensorExternalSourceHostActor::FindCoordinator() const
 {
-	if(GetWorld()) for(TActorIterator<AVirtualSensorCoordinator> It(GetWorld());It;++It) return *It;
+	if(GetWorld()) for(TActorIterator<ADeviceSensorCoordinator> It(GetWorld());It;++It) return *It;
 	return nullptr;
 }
 void AVirtualSensorExternalSourceHostActor::SetTopicReceiverScope(EVirtualSensorTopicReceiverScope Scope)
@@ -63,14 +63,14 @@ void AVirtualSensorExternalSourceHostActor::SetTopicReceiverScope(EVirtualSensor
 }
 bool AVirtualSensorExternalSourceHostActor::IsActiveReceiveKind(EVirtualSensorTopicReceiveKind Kind) const
 {
-	if(auto* C=FindCoordinator()) if(C->StreamPublisherComponent)
-		for(const auto& S:C->StreamPublisherComponent->GetStreamStatuses())
+	if(auto* C=FindCoordinator()) if(C->GetDeviceCoordinatorConfig().StreamPublisherComponent)
+		for(const auto& S:C->GetDeviceCoordinatorConfig().StreamPublisherComponent->GetStreamStatuses())
 			if(static_cast<int32>(S.StreamKind)==static_cast<int32>(Kind)&&(S.bEnabled||S.InputQueueDepth||S.PreparedQueueDepth||S.ReceiptQueueDepth)) return true;
 	return false;
 }
 bool AVirtualSensorExternalSourceHostActor::TrySharedReceiver()
 {
-	auto* C=FindCoordinator(); auto* P=C?C->StreamPublisherComponent.Get():nullptr;
+	auto* C=FindCoordinator(); auto* P=C?C->GetDeviceCoordinatorConfig().StreamPublisherComponent:nullptr;
 	auto* Raw=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>():nullptr;
 	const bool bCanShare=ReceiverScope==EVirtualSensorTopicReceiverScope::ActiveTransmitOnly && P && P->CanUseHighThroughputTransport() && Raw;
 	if(!bCanShare)
@@ -79,7 +79,7 @@ bool AVirtualSensorExternalSourceHostActor::TrySharedReceiver()
 		return false;
 	}
 	if(!bUsingSharedReceiver) { StopTopicReceivers(); bTopicReceiversRequested=true; bUsingSharedReceiver=true; }
-	const auto& Profile=C->SharedTransportComponent->GetTransportProfile();
+	const auto& Profile=C->GetDeviceCoordinatorConfig().SharedTransportComponent->GetTransportProfile();
 	LidarReceiveTopic=Profile.LidarTopic; CameraReceiveTopic=Profile.CameraTopic; PointCloudReceiveTopic=Profile.ExportTopic;
 	FVirtualSensorReceiveSelection Selection; Selection.bEnabled=true; Selection.bAllTopics=false;
 	Selection.MaxMessageBytes=FMath::Clamp(MaxReceiverMessageBytes,1024,16777216);
@@ -203,7 +203,7 @@ TArray<FVirtualSensorTopicReceiverStatus> AVirtualSensorExternalSourceHostActor:
 FString AVirtualSensorExternalSourceHostActor::GetReceiverBrokerUrl() const
 {
 	if(ReceiverScope==EVirtualSensorTopicReceiverScope::ActiveTransmitOnly)
-		if(auto* C=FindCoordinator()) if(C->SharedTransportComponent) return C->SharedTransportComponent->GetTransportProfile().BrokerUrl;
+		if(auto* C=FindCoordinator()) if(C->GetDeviceCoordinatorConfig().SharedTransportComponent) return C->GetDeviceCoordinatorConfig().SharedTransportComponent->GetTransportProfile().BrokerUrl;
 	if (FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE")).Equals(TEXT("1")))
 	{
 		const FString TestBrokerUrl = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_URL"));
@@ -377,8 +377,8 @@ void AVirtualSensorExternalSourceHostActor::EnsureRawPointCloudClient()
 		GConfig->GetString(TEXT("DTCoreRuntimeOverride"), TEXT("WebSocketPasscode"), Passcode, GGameIni);
 	}
 	if(ReceiverScope==EVirtualSensorTopicReceiverScope::ActiveTransmitOnly)
-		if(auto* C=FindCoordinator()) if(C->SharedTransportComponent)
-		{ Login=C->SharedTransportComponent->GetTransportProfile().UserName; Passcode=C->SharedTransportComponent->GetSessionPasscodeForHighThroughput(); }
+		if(auto* C=FindCoordinator()) if(C->GetDeviceCoordinatorConfig().SharedTransportComponent)
+		{ Login=C->GetDeviceCoordinatorConfig().SharedTransportComponent->GetTransportProfile().UserName; Passcode=C->GetDeviceCoordinatorConfig().SharedTransportComponent->GetSessionPasscodeForHighThroughput(); }
 	if (FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RUN_SENSOR_MAP_STREAM_SMOKE")).Equals(TEXT("1")))
 	{
 		const FString TestLogin = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_USER"));

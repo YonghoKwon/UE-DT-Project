@@ -19,7 +19,7 @@ class UVirtualLidarStreamReceiverTC;
 class UVirtualCameraStreamReceiverTC;
 class UVirtualPointCloudStreamReceiverTC;
 class UVirtualSensorStreamPublisherComponent;
-class AVirtualSensorCoordinator;
+class ADeviceSensorCoordinator;
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnVirtualSensorUiReceiveCompletedNative,const FVirtualSensorTopicReceivedDataBase&);
 
 /** Test-map host that exposes every implemented external source without auto-starting network listeners. */
@@ -106,7 +106,7 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
-	AVirtualSensorCoordinator* FindCoordinator() const;
+	ADeviceSensorCoordinator* FindCoordinator() const;
 	bool TrySharedReceiver();
 	bool IsActiveReceiveKind(EVirtualSensorTopicReceiveKind Kind) const;
 	void HandleSharedReceived(const TSharedPtr<FVirtualSensorTopicReceivedDataBase>& Data);

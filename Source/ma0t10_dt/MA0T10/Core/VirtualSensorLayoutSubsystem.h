@@ -6,7 +6,7 @@
 #include "Async/Future.h"
 #include "VirtualSensorLayoutSubsystem.generated.h"
 class AVirtualSensorActorBase;
-class AVirtualSensorCoordinator;
+class ADeviceSensorCoordinator;
 USTRUCT(BlueprintType)
 struct FVirtualSensorLayoutItem
 {
@@ -29,7 +29,7 @@ public:
     virtual void Deinitialize() override;
     virtual void Tick(float Delta) override;
     virtual TStatId GetStatId() const override;
-    AVirtualSensorCoordinator* Coordinator() const;
+    ADeviceSensorCoordinator* Coordinator() const;
     UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorLayout") TArray<FVirtualSensorLayoutItem> GetLayoutSensors() const;
     UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorLayout") bool CanCreateSensor(EVirtualSensorKind Kind,FString& Reason) const;
     UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorLayout") AVirtualSensorActorBase* CreateSensorAtView(EVirtualSensorKind Kind,FString& Reason);

@@ -2,7 +2,7 @@
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "VirtualSensorPlacementSubsystem.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/DeviceSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
@@ -21,10 +21,10 @@
 
 namespace { FCriticalSection LayoutFileMutex; }
 
-AVirtualSensorCoordinator* UVirtualSensorLayoutSubsystem::Coordinator() const
+ADeviceSensorCoordinator* UVirtualSensorLayoutSubsystem::Coordinator() const
 {
-    AVirtualSensorCoordinator* Found=nullptr;
-    for(TActorIterator<AVirtualSensorCoordinator> It(GetWorld());It;++It){if(Found)return nullptr;Found=*It;}
+    ADeviceSensorCoordinator* Found=nullptr;
+    for(TActorIterator<ADeviceSensorCoordinator> It(GetWorld());It;++It){if(Found)return nullptr;Found=*It;}
     return Found;
 }
 void UVirtualSensorLayoutSubsystem::Changed()
@@ -61,7 +61,7 @@ bool UVirtualSensorLayoutSubsystem::CanCreateSensor(EVirtualSensorKind Kind,FStr
     if(bEnding||!GetWorld()||!C){Reason=TEXT("센서 Coordinator가 정확히 하나 필요합니다.");return false;}
     if(Kind!=EVirtualSensorKind::Camera&&Kind!=EVirtualSensorKind::Lidar){Reason=TEXT("지원하지 않는 장비 종류입니다.");return false;}
     if(C->GetSensorActors().Num()>=32){Reason=TEXT("현재 배치 도구의 장비 상한은 32대입니다. 성능 지원 범위와는 별개입니다.");return false;}
-    if(C->StreamPublisherComponent)for(const auto& S:C->StreamPublisherComponent->GetStreamStatuses())
+    if(C->GetDeviceCoordinatorConfig().StreamPublisherComponent)for(const auto& S:C->GetDeviceCoordinatorConfig().StreamPublisherComponent->GetStreamStatuses())
         if(S.SensorId.IsEmpty()&&(S.bEnabled||S.InputQueueDepth||S.PreparedQueueDepth||S.ReceiptQueueDepth)&&
             ((S.StreamKind==EVirtualSensorStreamKind::CameraImage)==(Kind==EVirtualSensorKind::Camera)))
         {Reason=TEXT("전체 센서 송신을 중지하고 정리가 끝난 뒤 추가하세요. 새 장비의 자동 송신을 방지합니다.");return false;}

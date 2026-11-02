@@ -46,14 +46,14 @@ public:
         auto* Restored=L->Coordinator()->GetSensorActors().FindByPredicate([&](auto* A){return A&&A->GetSensorId()==SensorId;});
         Test->TestTrue(TEXT("saved SensorId retained on recreated runtime actor"),Restored!=nullptr);
         if(Restored)Test->TestTrue(TEXT("preview stopped flag restored"),!(*Restored)->IsSensorRunning());
-        for(const auto& S:L->Coordinator()->StreamPublisherComponent->GetStreamStatuses())Test->TestFalse(TEXT("restore never starts Topic sending"),S.bEnabled);
+        for(const auto& S:L->Coordinator()->GetDeviceCoordinatorConfig().StreamPublisherComponent->GetStreamStatuses())Test->TestFalse(TEXT("restore never starts Topic sending"),S.bEnabled);
         const FString Stale=L->PreviewLayoutRestore(TEXT("persistence fixture"));Level->SetActorLocation(FVector(25,0,0));
         Test->TestFalse(TEXT("pose change invalidates preview"),L->ApplyLayoutRestore(Stale,Error));
         Test->TestTrue(TEXT("rejection leaves pose intact"),Level->GetActorLocation().Equals(FVector(25,0,0)));
         const FString Busy=L->PreviewLayoutRestore(TEXT("persistence fixture"));
-        L->Coordinator()->StreamPublisherComponent->StartStream(EVirtualSensorStreamKind::PointCloud,Level->GetSensorId());
+        L->Coordinator()->GetDeviceCoordinatorConfig().StreamPublisherComponent->StartStream(EVirtualSensorStreamKind::PointCloud,Level->GetSensorId());
         Test->TestFalse(TEXT("collection lock rechecked at apply"),L->ApplyLayoutRestore(Busy,Error));
-        L->Coordinator()->StreamPublisherComponent->StopAllStreams(Level->GetSensorId());
+        L->Coordinator()->GetDeviceCoordinatorConfig().StreamPublisherComponent->StopAllStreams(Level->GetSensorId());
         FString Json;FFileHelper::LoadFileToString(Json,*Status.Path);FVirtualSensorLayoutDocument D;
         FJsonObjectConverter::JsonObjectStringToUStruct(Json,&D);D.MapPackage=TEXT("/Game/WrongMap");
         FJsonObjectConverter::UStructToJsonObjectString(D,Json);FFileHelper::SaveStringToFile(Json,*Status.Path);

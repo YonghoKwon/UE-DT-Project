@@ -16,7 +16,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/DeviceSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h"
 #include "EngineUtils.h"
@@ -209,7 +209,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 
 void UVirtualSensorStreamPublisherComponent::UpdateCameraStreamDemand()
 {
-	if (AVirtualSensorCoordinator* Coordinator = Cast<AVirtualSensorCoordinator>(GetOwner()))
+	if (ADeviceSensorCoordinator* Coordinator = Cast<ADeviceSensorCoordinator>(GetOwner()))
 	{
 		for (AVirtualSensorActorBase* SensorActor : Coordinator->GetSensorActors())
 		{

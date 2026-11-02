@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
+#include "DeviceSensorCoordinator.h"
 #include "VirtualSensorDeviceProfileTypes.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
 #include "VirtualSensorCoordinator.generated.h"
@@ -19,85 +19,8 @@ class UVirtualSensorRecorderComponent;
 class UVirtualSensorStreamPublisherComponent;
 class IVirtualSensorMonitorView;
 
-UENUM(BlueprintType)
-enum class EVirtualSensorViewMode : uint8
-{
-    RealWorld UMETA(DisplayName = "Real World"),
-    Camera UMETA(DisplayName = "Camera"),
-    Lidar UMETA(DisplayName = "Lidar"),
-    PointCloudOnly UMETA(DisplayName = "Point Cloud Only")
-};
-
-USTRUCT(BlueprintType)
-struct MA0T10_DT_API FVirtualSensorSummary
-{
-    GENERATED_BODY()
-
-    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|Sensor")
-    FString SensorId;
-
-    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|Sensor")
-    FString SensorType;
-
-    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|Sensor")
-    int32 Index = INDEX_NONE;
-
-    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|Sensor")
-    bool bValid = false;
-};
-
-USTRUCT(BlueprintType)
-struct MA0T10_DT_API FVirtualSensorHealthSummary
-{
-    GENERATED_BODY()
-
-    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
-    FString Summary;
-
-    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
-    int32 CameraCount = 0;
-
-    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
-    int32 LidarCount = 0;
-
-    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
-    int32 RealSensorSourceCount = 0;
-
-    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
-    int32 RunningRealSensorSourceCount = 0;
-
-    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
-    int32 ErrorRealSensorSourceCount = 0;
-
-    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
-    int32 ExternalEvidenceRequiredRealSensorSourceCount = 0;
-
-    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
-    int32 StaleSensorCount = 0;
-
-    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorHealth")
-    bool bHealthy = true;
-};
-
-USTRUCT()
-struct MA0T10_DT_API FVirtualSensorHiddenComponentState
-{
-    GENERATED_BODY()
-
-    UPROPERTY()
-    TObjectPtr<UPrimitiveComponent> Component;
-
-    UPROPERTY()
-    bool bWasHiddenInGame = false;
-
-    UPROPERTY()
-    bool bWasVisible = true;
-};
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVirtualSensorViewModeChanged, EVirtualSensorViewMode, NewMode);
-
 UCLASS()
-class MA0T10_DT_API AVirtualSensorCoordinator : public AActor
+class MA0T10_DT_API AVirtualSensorCoordinator : public ADeviceSensorCoordinator
 {
     GENERATED_BODY()
 
@@ -118,7 +41,6 @@ public:
     void RegisterSensorActor(AVirtualSensorActorBase* SensorActor);
     UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorCoordinator") void UnregisterSensorActor(AVirtualSensorActorBase* SensorActor);
     UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorCoordinator") bool SelectSensorActor(AVirtualSensorActorBase* SensorActor);
-    FSimpleMulticastDelegate OnSensorInventoryChanged;
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
     void RegisterCamera(UVirtualCameraCaptureComponent* CameraComp);
@@ -196,7 +118,7 @@ public:
     UVirtualCameraCaptureComponent* GetSelectedCamera() const;
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
-	int32 GetCameraCount() const { return Cameras.Num(); }
+	int32 GetCameraCount() const { return Super::GetCameraCount(); }
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
 	UVirtualCameraCaptureComponent* GetCameraByIndex(int32 Index) const;
@@ -226,7 +148,7 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
     TArray<FVirtualSensorSummary> GetLidarSummaries() const;
 
-    const TArray<TObjectPtr<UVirtualLidarScanComponent>>& GetLidarComponents() const { return Lidars; }
+    const TArray<TObjectPtr<UVirtualLidarScanComponent>>& GetLidarComponents() const { return Super::GetLidarComponents(); }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
     TArray<FVirtualSensorSummary> GetRealSensorSourceSummaries() const;
@@ -235,10 +157,10 @@ public:
     FVirtualSensorHealthSummary GetHealthSummary() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
-    EVirtualSensorViewMode GetViewMode() const { return CurrentViewMode; }
+    EVirtualSensorViewMode GetViewMode() const { return Super::GetViewMode(); }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
-    bool IsPointCloudOnlyModeEnabled() const { return bPointCloudOnlyModeEnabled; }
+    bool IsPointCloudOnlyModeEnabled() const { return Super::IsPointCloudOnlyModeEnabled(); }
 
     UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|SensorManager")
     FOnVirtualSensorViewModeChanged OnViewModeChanged;
@@ -276,46 +198,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager")
     TObjectPtr<UVirtualSensorStreamPublisherComponent> StreamPublisherComponent;
 
+protected:
+    virtual FDeviceSensorCoordinatorConfig GetDeviceCoordinatorConfig() const override;
+    virtual void NotifyDeviceViewModeChanged(EVirtualSensorViewMode Mode) override { OnViewModeChanged.Broadcast(Mode); }
 private:
-    UFUNCTION() void HandleSensorEndPlay(AActor* Actor,EEndPlayReason::Type Reason);
-    void HandleSensorActivated(AVirtualSensorActorBase* Actor) { SelectSensorActor(Actor); }
-    void ApplyWidgetBinding();
-    void RunSynchronizedCapture();
-    void AssignSharedServicesIfPossible(UActorComponent* SensorComp);
-    void ApplyPointCloudOnlyVisibility();
-    void RestorePointCloudOnlyVisibility();
-    bool ShouldKeepActorVisibleInPointCloudOnly(const AActor* Actor) const;
-
-private:
-    IVirtualSensorMonitorView* GetMonitorView() const;
-
-    UPROPERTY(Transient)
-    TArray<TObjectPtr<UVirtualCameraCaptureComponent>> Cameras;
-
-    UPROPERTY(Transient)
-    TArray<TObjectPtr<AVirtualSensorActorBase>> SensorActors;
-
-    UPROPERTY(Transient)
-    TArray<TObjectPtr<UVirtualLidarScanComponent>> Lidars;
-
-    UPROPERTY(Transient)
-    TArray<TObjectPtr<URealSensorSourceComponent>> RealSensorSources;
-
     UPROPERTY(Transient)
     TObjectPtr<UVirtualSensorMonitorPanelWidget> BoundMonitorWidget;
-
-    UPROPERTY(Transient)
-    TArray<FVirtualSensorHiddenComponentState> HiddenComponentStates;
-
-    // View-local ownership only. Never hide source primitives from sensor SceneCaptures.
-    TWeakObjectPtr<APlayerController> PointCloudOnlyViewController;
-    TArray<TWeakObjectPtr<UPrimitiveComponent>> OwnedViewHiddenComponents;
-
-    int32 SelectedCameraIndex = 0;
-    int32 SelectedLidarIndex = 0;
-    int32 SelectedRealSensorSourceIndex = 0;
-    EVirtualSensorViewMode CurrentViewMode = EVirtualSensorViewMode::Camera;
-    EVirtualSensorViewMode PreviousViewModeBeforePointCloudOnly = EVirtualSensorViewMode::Camera;
-    bool bPointCloudOnlyModeEnabled = false;
-    FTimerHandle SynchronizedTimerHandle;
 };

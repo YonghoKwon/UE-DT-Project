@@ -4,7 +4,7 @@
 #include "VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorAcquisitionContext.h"
 #include "VirtualSensorStreamPublisherComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "ma0t10_dt/MA0T10/Sensor/DeviceSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
@@ -70,8 +70,8 @@ FVirtualSensorOutputPreflightResult UVirtualSensorOutputPreflight::InspectForPre
 {
     FVirtualSensorOutputPreflightResult R;auto* World=Context?Context->GetWorld():nullptr;
     auto* Layout=World?World->GetSubsystem<UVirtualSensorLayoutSubsystem>():nullptr;auto* C=Layout?Layout->Coordinator():nullptr;
-    if(!C||!C->StreamPublisherComponent||!C->SharedTransportComponent){R.BlockingReasons.Add(TEXT("센서 Coordinator와 전송 설정이 필요합니다."));return EvaluatePreflight(MoveTemp(R),8388608,bBuildDetails);}
-    auto* P=C->StreamPublisherComponent.Get();auto* T=C->SharedTransportComponent.Get();const auto& Profile=T->GetTransportProfile();
+    if(!C||!C->GetDeviceCoordinatorConfig().StreamPublisherComponent||!C->GetDeviceCoordinatorConfig().SharedTransportComponent){R.BlockingReasons.Add(TEXT("센서 Coordinator와 전송 설정이 필요합니다."));return EvaluatePreflight(MoveTemp(R),8388608,bBuildDetails);}
+    auto* P=C->GetDeviceCoordinatorConfig().StreamPublisherComponent;auto* T=C->GetDeviceCoordinatorConfig().SharedTransportComponent;const auto& Profile=T->GetTransportProfile();
     R.SubmissionsPerFrame=P->MaxSubmissionsPerFrame;R.PcdBudgetMegabytesPerSecond=P->PointCloudBandwidthLimitMegabytesPerSecond;
     if(ObservedFps<=0)if(const auto* Scheduler=World->GetSubsystem<UVirtualSensorSchedulerSubsystem>())ObservedFps=Scheduler->GetTelemetry().AverageFps;
     R.bAssumedFps=!FMath::IsFinite(ObservedFps)||ObservedFps<=0;R.FpsUsed=R.bAssumedFps?60:ObservedFps;
