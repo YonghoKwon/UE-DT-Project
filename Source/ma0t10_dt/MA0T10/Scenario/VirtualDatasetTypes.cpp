@@ -1,4 +1,17 @@
 #include "VirtualDatasetTypes.h"
+#include "ma0t10_dt/MA0T10/Contracts/LocalCapturePath.h"
+#include "Training/TrainBatchCodec.h"
+
+bool IsValidDatasetPlanRoot(const FVirtualDatasetFramePlan& Plan)
+{
+    if(Plan.BatchJobId.IsEmpty())
+        return Plan.LocalStorageRoot.IsEmpty()&&FPaths::IsUnderDirectory(Plan.Root,FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("TestSets")));
+    if(!TrainBatchCodec::CanonicalGuid(Plan.BatchJobId)||!TrainBatchCodec::CanonicalGuid(Plan.RunId)||!TrainBatchCodec::SafeId(Plan.ScenarioId))return false;
+    const FString Allowed=TrainBatchCodec::JobsRoot();
+    return LocalCapturePath::Full(Plan.LocalStorageRoot)==Allowed&&
+        LocalCapturePath::Full(Plan.Root)==TrainBatchCodec::RunDirectory(Plan.BatchJobId,Plan.ScenarioId,Plan.RunId)&&
+        LocalCapturePath::SafeDescendant(Allowed,Plan.Root);
+}
 #include "Json.h"
 
 bool FVirtualDatasetSettings::Validate(FString& Error) const

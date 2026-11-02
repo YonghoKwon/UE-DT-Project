@@ -34,6 +34,9 @@ public:
     static bool WriteTestSetSceneBundle(const FString& Directory, const TArray<FVirtualSensorVerificationFile>& Files, TFunctionRef<bool()> Cancelled);
     /** Same-directory atomic replace, restricted to Saved/TestSets. Worker thread only. */
     static bool CommitTestSetManifest(const FString& Destination,const FString& Pending);
+    /** Trusted app-owned local capture scope; no knowledge of application job types. */
+    static bool WriteLocalSceneBundle(const FString& StorageRoot,const FString& Directory,const TArray<FVirtualSensorVerificationFile>& Files,TFunctionRef<bool()> Cancelled);
+    static bool CommitLocalSceneManifest(const FString& StorageRoot,const FString& Destination,const FString& Pending);
 	/** Always returns a request ID, including explicit rejected/Failed requests. Query status immediately. */
 	UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorFiles") FString RequestSave(EVirtualSensorFileSaveMode Mode,AVirtualSensorActorBase* Sensor,const FVirtualSensorCaptureSelection& Selection);
 	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorFiles") FVirtualSensorFileSaveStatus GetRequestStatus(const FString& RequestId) const;

@@ -56,7 +56,7 @@ FSessionGuard& Session()
 void FSessionGuard::SaveState()
 {
     // The live marker's exclusive writer serializes state changes across instances.
-    const FString State=FString::Printf(TEXT("failures=%d\nvalidated=%d\nrevalidate=%d\nreason=%s\n"),Failures,Validated?1:0,RevalidationRequired?1:0,*LastDecision);
+    const FString State=FString::Printf(TEXT("failures=%d\nvalidated=%d\nrevalidate=%d\nfaulted=%d\nreason=%s\n"),Failures,Validated?1:0,RevalidationRequired?1:0,Unhealthy.load()?1:0,*LastDecision);
     const FString Destination=Path+TEXT(".state"),Temporary=Destination+TEXT(".tmp");
     if(!FFileHelper::SaveStringToFile(State,*Temporary,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)
         ||!IFileManager::Get().Move(*Destination,*Temporary,true,true,false,true))
@@ -161,6 +161,12 @@ bool CanAttempt(bool Explicit)
 }
 bool NeedsValidation(){return ValidationRequested.load()&&!Disabled.load();}
 EStatus GetStatus(){FScopeLock Lock(&PolicyMutex);return Prepared?Session().GetStatus():EStatus::None;}
+FSnapshot GetSnapshot()
+{
+    FScopeLock Lock(&PolicyMutex);FSnapshot S;
+    if(Prepared){S.Status=Session().GetStatus();S.Failures=Session().FailureCount();S.Faulted=Session().HasDeviceFault()||!SensorNativeRayTracing::IsHealthy();}return S;
+}
+FString StateFileName(){return FPaths::GetCleanFilename(MarkerPath())+TEXT(".state");}
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 void RequestValidationForTests(){CanAttempt(false);FScopeLock Lock(&PolicyMutex);Allowed=false;Disabled.store(false);ValidationRequested.store(true);}
 #endif

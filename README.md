@@ -811,6 +811,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
 
+TRAIN-BATCH-01(2026-11-02 r41c)는 L0 중립 Job/경로 계약, L2 입력·20Hz sampled timeline·독립 게임 워커/lease·디스크 재개, L3 DTCore 학습 위젯을 추가한다. 기본 꺼짐·PCD/wire·DTCore pin 불변이며 L1은 학습/UI 타입을 참조하지 않는다. native M=2 생성→ZIP/tar.gz는 위젯과 같은 Delivery 경로 및 독립 Python 검증을 통과했다. Development/Shipping 패키지에서 기본 꺼짐과 M=1 생성(저장 맵의 GPU Depth Projection preset)을 검증했고, Shipping 워커는 쿠킹된 할당 맵으로 명시적으로 이동한다. M=4 요청은12GB 예산상 실제2로 제한됐으며 현장 Linux SFTP·직접 UI 수용은 별도다. [설계·검증 범위](docs/TRAIN_BATCH_01_DESIGN.md#13-r41c-공통-해시패키지-검증); 최종 gate·최초 실패·미수행은 `Saved/Reports/TRAIN-BATCH-01/r41c/RESULT.md`를 따른다.
+
 HATCH06-REGRESSION-34는 Editor 테스트의 바닥 카메라 fixture만 기존 자유 카메라 상태에 연결한다. Runtime·획득·렌더·저장·DTCore 변경 없이 layer/allowlist **0→0**을 유지한다. 첫 충돌·회색49/49 기준을 보존하고 카메라 유지·49개 화면 광선 검사도 추가했다. [원인 이분 탐색·검증·제한](Saved/Reports/HATCH06-REGRESSION-34/RESULT.md).
 
 UXR-H150은 기존 L3 해치 Widget 내부의 재배치·접기·분할 비율만 바꾼다. layer/allowlist **0→0**, 기존 UDxWidget·selector·분석 인스턴스·L1/L2·DTCore·wire·저장 형식 변경 없음. [검증과 제한](Saved/Reports/UXR-H150/RESULT.md).
@@ -1403,6 +1405,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level pe
 | `MA0T10_WORKSPACE_RHI` | MA0T10.SensorWorkspace.Runtime | 1; 실제 D3D12/PIE, 해당 fixture. 렌더 fixture는 직접 마우스 수용과 구분 |
 | `MA0T10_WORKSPACE_SCREENSHOT` | MA0T10.SensorWorkspace.Runtime | screenshot 파일 경로; 실제 RHI + 쓰기 권한 |
 | `MA0T10_DATASET_SCENES` | MA0T10.Dataset.RealRhiGeneration | 명시한 10–100장면 실제 RHI 생성; Saved/Datasets에 시험 파일을 만드는 opt-in |
+| `MA0T10_TRAIN_WORKERS` | MA0T10.TrainRuntime.ProcessRhi | Editor 자동화의 워커 요청 상한1~4. 실제 수는 GPU 예산으로 제한하며 일반 제품 실행에서는 읽지 않는다. |
+| `MA0T10_SFTP_LIVE_HOST` | 기본 미지정 · 사용자 승인 수신 서버 테스트 전용 | `MA0T10.TrainBatch.SftpLive`; 대상 호스트; HOST 미지정은 semantic skip. 서버 설치·시스템 설정 자동 변경 없음. |
+| `MA0T10_SFTP_LIVE_PORT` | 기본 미지정 · 사용자 승인 수신 서버 테스트 전용 | `MA0T10.TrainBatch.SftpLive`; 대상 포트; HOST 미지정은 semantic skip. 서버 설치·시스템 설정 자동 변경 없음. |
+| `MA0T10_SFTP_LIVE_USER` | 기본 미지정 · 사용자 승인 수신 서버 테스트 전용 | `MA0T10.TrainBatch.SftpLive`; SSH 사용자; HOST 미지정은 semantic skip. 서버 설치·시스템 설정 자동 변경 없음. |
+| `MA0T10_SFTP_LIVE_KEY` | 기본 미지정 · 사용자 승인 수신 서버 테스트 전용 | `MA0T10.TrainBatch.SftpLive`; 개인키 경로(값/내용 로그·커밋 금지); HOST 미지정은 semantic skip. 서버 설치·시스템 설정 자동 변경 없음. |
+| `MA0T10_SFTP_LIVE_DIR` | 기본 미지정 · 사용자 승인 수신 서버 테스트 전용 | `MA0T10.TrainBatch.SftpLive`; 허용된 원격 테스트 디렉토리; HOST 미지정은 semantic skip. 서버 설치·시스템 설정 자동 변경 없음. |
 | `MA0T10_DATASET_PYTHON` | EXPORT-01 선택적 오프라인 변환 | requirements를 설치한 python.exe의 절대 경로. export_format 기본 none에서는 읽거나 실행하지 않는다. |
 | `MA0T10_STOMP_USER` | IMU-01 Editor acceptance fixture only | Existing broker session username, read only with explicit `-ImuAutomated -ImuBroker`; never logged/saved; does not enable production output |
 | `MA0T10_STOMP_PASSWORD` | IMU-01 Editor acceptance fixture only | Existing broker session passcode, inherited process environment only with explicit `-ImuAutomated -ImuBroker`; never logged/saved; no broker configuration change |

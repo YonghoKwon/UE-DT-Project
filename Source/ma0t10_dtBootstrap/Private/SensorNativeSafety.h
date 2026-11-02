@@ -25,6 +25,7 @@ namespace SensorNativeSafety
         bool IsBanned() const {return Failures>=2;}
         EStatus GetStatus() const {return IsBanned()?EStatus::Banned:(Recovery?EStatus::Recovery:EStatus::None);}
         int32 FailureCount() const {return Failures;}
+        bool HasDeviceFault() const {return Unhealthy.load();}
         bool HasValidation() const {return Validated&&!IsBanned();}
         bool RequiresValidation() const {return RevalidationRequired;}
         void Validate();

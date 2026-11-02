@@ -1,4 +1,5 @@
 #include "AgentTestSetPcdPreview.h"
+#include "ma0t10_dt/MA0T10/Contracts/LocalCapturePath.h"
 #include "ma0t10_dt/MA0T10/Contracts/ConsumeReadyFuture.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualPcdCodec.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
@@ -14,7 +15,10 @@ FTestSetPcdFrame FAgentTestSetPcdPreview::ReadFrame(const FAgentTestSetItem& Ite
 {
     FTestSetPcdFrame Out;Out.Index=Index;Out.Error=TEXT("저장된 PCD 또는 라벨이 올바르지 않습니다");
     const FString Root=Item.Directory/(TEXT("run_")+Item.RunId)/FString::Printf(TEXT("scene_%05d"),Index);
-    if(!FPaths::IsUnderDirectory(Root,FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("TestSets")))||Cancel.load())return Out;
+    const bool TestSet=Item.LocalStorageRoot.IsEmpty()&&FPaths::IsUnderDirectory(Root,FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("TestSets")));
+    const FString Batches=LocalCapturePath::Full(FPaths::ProjectSavedDir()/TEXT("TrainBatch/Jobs"));
+    const bool LocalResultScope=!Item.LocalStorageRoot.IsEmpty()&&LocalCapturePath::Full(Item.LocalStorageRoot)==Batches&&LocalCapturePath::SafeDescendant(Batches,Root);
+    if((!TestSet&&!LocalResultScope)||Cancel.load())return Out;
     FString Text;TSharedPtr<FJsonObject> Label;
     if(IFileManager::Get().FileSize(*(Root/TEXT("label.json")))>1024*1024||!FFileHelper::LoadFileToString(Text,*(Root/TEXT("label.json")))||!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text),Label)||!Label)return Out;
     FString Scenario,Run,Schema;

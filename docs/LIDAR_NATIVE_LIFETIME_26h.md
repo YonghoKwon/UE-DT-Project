@@ -345,3 +345,14 @@ startup oracle을 다시 수행한다. 실제 장치 손실/Faulted는 기존 �
 stale `.guard`가 남아 있으면 상태 파일을 초기화해도 다음 1회는 안전 RHI 복구를
 거친다. 초기화 후 native 선택은 기존 검증된 조합/제한된 startup oracle 정책을
 따르며 강제 native 진단 플래그를 복구 수단으로 안내하지 않는다.
+
+
+## r42: 학습 워커의 native 실패 분류
+
+학습 코디네이터는 결과 파일 부재·heartbeat 만료로 직접 종료·사용자 취소를 native fault로 누적하지 않는다. `native_fault` heartbeat/result 또는 해당 세션의 안전 상태 `faulted=1`만 실제 fault 진단에 사용한다. 마지막 heartbeat가 유실돼도 상태 파일의 fault 증거는 보존한다. 진단 lease 목록이2개라는 이유만으로 영구 차단하지 않는다.
+
+차단 기준은 기존 SensorNativeSafety와 같다. 해당 adapter/driver·UserDir의 guard가 비정상 종료2회로 판정한 `.guard.state`의 `failures>=2` 또는 그 guard를 읽은 워커의 Banned 상태만 사용한다. 워커 슬롯별 guard는 `<코디네이터 Saved>/TrainBatch/Workers/slot-00..03/UserDir/Saved/NativeLidarSafety/active-<adapter·driver SHA1>.guard.state`다. 파생 요약은 `<코디네이터 Saved>/TrainBatch/Workers/safety-<GPU identity SHA256>.json`에 schema2로 기록한다. 구버전 pool의 단순 실패 횟수/ban 플래그는 차단 근거로 재사용하지 않는다.
+
+직접 종료/취소한 워커가 죽은 뒤에는 PID와64-bit 생성 시각이 일치하는 그 워커의 `.guard`만 정리할 수 있다. 살아 있거나 소유권이 불명확한 marker, 실제 fault 증거가 있는 marker, `.state`의 기존 실패 횟수는 자동 삭제/초기화하지 않는다. 이로써 timeout/취소가 다음 실행의 비정상 종료로 다시 집계되는 것을 막는다.
+
+수동 해제는 위 r38b와 동일하게 **관련 Editor·코디네이터·워커를 모두 종료한 뒤**, 해당 조합에서 차단된 슬롯의 `active-<adapter·driver SHA1>.guard.state`만 삭제한다. 다른 조합/슬롯의 상태나 개인 SaveGame은 지우지 않는다. 일치하는 `safety-<GPU identity SHA256>.json` 요약도 지울 수 있으나 이 파일만 삭제해서 guard 차단을 우회하지는 못한다. 다음 시작에 요약은 guard 상태로 다시 만들어진다. stale `.guard`가 남아 있으면 기존처럼1회 RHI 복구를 거치며, 활성 소유자의 `.guard`를 강제로 지우지 않는다. 드라이버 변경은 새 조합이며 이후 native 선택에는 검증 캐시/startup oracle 조건이 그대로 적용된다.
