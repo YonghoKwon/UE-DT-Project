@@ -62,6 +62,10 @@ void UTrainBatchWorkerSubsystem::OnWorldBeginPlay(UWorld& World)
     // Only this isolated worker World is affected. Stop automatic acquisition before Actor BeginPlay.
     for(TActorIterator<AVirtualLidarSensorActor> It(&World);It;++It)It->ScanComponent->bAutoStartScan=false;
     for(TActorIterator<AVirtualCameraSensorActor> It(&World);It;++It)It->CaptureComponent->bAutoStartCapture=false;
+    FString Map,Error;S.Config->TryGetStringField(TEXT("map"),Map);
+    const auto Entry=TrainBatchProcess::EnterAssignedMap(&World,Map,Error);
+    if(Entry==TrainBatchProcess::EMapEntry::Rejected){Finish(TEXT("failed"),Error);return;}
+    if(Entry==TrainBatchProcess::EMapEntry::Travelling)return; // New World revalidates the same durable lease; no result from this bootstrap World.
     World.GetTimerManager().SetTimer(Timer,this,&ThisClass::Pump,.05f,true);
 }
 void UTrainBatchWorkerSubsystem::Pump()

@@ -47,6 +47,13 @@ void UTrainBatchCoordinatorProbe::OnWorldBeginPlay(UWorld& World)
 #endif
     if(auto* GI=World.GetGameInstance())if(auto* WS=GI->GetSubsystem<UDxWebSocketSubsystem>())WS->DisconnectStompClient(TMap<FName,FString>());
     for(TActorIterator<AVirtualLidarSensorActor> It(&World);It;++It)It->ScanComponent->bAutoStartScan=false;
+    FString Map,Error;
+    if(S.Config->TryGetStringField(TEXT("map"),Map))
+    {
+        const auto Entry=TrainBatchProcess::EnterAssignedMap(&World,Map,Error);
+        if(Entry==TrainBatchProcess::EMapEntry::Rejected){Finish(false,Error);return;}
+        if(Entry==TrainBatchProcess::EMapEntry::Travelling)return;
+    }
     S.Service=World.GetSubsystem<UTrainBatchSubsystem>();World.GetTimerManager().SetTimer(Timer,this,&ThisClass::Pump,.1f,true);
 }
 void UTrainBatchCoordinatorProbe::Pump()

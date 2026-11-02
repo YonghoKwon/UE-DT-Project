@@ -43,5 +43,9 @@ namespace TrainBatchProcess
     MA0T10_DT_API FString Quote(const FString& Value);
     /** Cooked game executables take a map, not an Editor .uproject argument. */
     MA0T10_DT_API FString WorkerMapArguments(const FString& Project,const FString& Map,bool EditorExecutable);
+    enum class EMapEntry : uint8 { Ready, Travelling, Rejected };
+    MA0T10_DT_API bool IsProjectMap(const FString& Map);
+    /** Shipping ignores positional startup maps. Only explicit workers/probes call this. */
+    MA0T10_DT_API EMapEntry EnterAssignedMap(UWorld* World,const FString& Map,FString& Error);
     MA0T10_DT_API FString SceneSignature(UWorld* World,const AActor* Slab,const AActor* Lidar,const AActor* Camera);
 }

@@ -10,6 +10,9 @@
 #include "EngineUtils.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Misc/PackageName.h"
+#include "Kismet/GameplayStatics.h"
+#include "TimerManager.h"
 #if PLATFORM_WINDOWS
 #include "Windows/WindowsHWrapper.h"
 #include <dxgi1_4.h>
@@ -139,6 +142,16 @@ FString TrainBatchProcess::WorkerMapArguments(const FString& Project,const FStri
     if(!EditorExecutable)return MapArg;
     const FString ProjectArg=Quote(Project);if(Project.IsEmpty()||ProjectArg.IsEmpty())return FString();
     return ProjectArg+TEXT(" ")+MapArg+TEXT(" -game");
+}
+bool TrainBatchProcess::IsProjectMap(const FString& Map)
+{return Map.StartsWith(TEXT("/Game/"))&&FPackageName::IsValidLongPackageName(Map);}
+TrainBatchProcess::EMapEntry TrainBatchProcess::EnterAssignedMap(UWorld* World,const FString& Map,FString& Error)
+{
+    if(!World||!IsProjectMap(Map)||!FPackageName::DoesPackageExist(Map)){Error=TEXT("Assigned project map is invalid or not cooked");return EMapEntry::Rejected;}
+    if(World->GetOutermost()->GetName()==Map)return EMapEntry::Ready;
+    const TWeakObjectPtr<UWorld> Owner(World);
+    World->GetTimerManager().SetTimerForNextTick([Owner,Map](){if(Owner.IsValid())UGameplayStatics::OpenLevel(Owner.Get(),FName(*Map),true);});
+    return EMapEntry::Travelling;
 }
 FString TrainBatchProcess::SceneSignature(UWorld* World,const AActor* Slab,const AActor* Lidar,const AActor* Camera)
 {

@@ -62,6 +62,14 @@ bool FTrainWorkerArgumentsTest::RunTest(const FString&)
     TestTrue(TEXT("missing map rejected"),WorkerMapArguments(TEXT("C:/game.uproject"),FString(),false).IsEmpty());
     TestTrue(TEXT("quote injection rejected"),WorkerMapArguments(FString(),TEXT("/Game/X\" -ExecCmds=quit"),false).IsEmpty());return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTrainWorkerMapBoundaryTest,"MA0T10.TrainBatch.WorkerMapBoundary",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FTrainWorkerMapBoundaryTest::RunTest(const FString&)
+{
+    using namespace TrainBatchProcess;
+    TestTrue(TEXT("saved project map allowed"),IsProjectMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap")));
+    for(const TCHAR* Invalid:{TEXT(""),TEXT("/Engine/Maps/Entry"),TEXT("/Game/../Other"),TEXT("/Game/X?listen"),TEXT("C:/Other.umap")})TestFalse(TEXT("map URL/traversal/non-project map rejected"),IsProjectMap(Invalid));
+    FString Error;TestTrue(TEXT("no world cannot request travel"),EnterAssignedMap(nullptr,TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),Error)==EMapEntry::Rejected);return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTrainLiveLeaseReadTest,"MA0T10.TrainBatch.LiveLeaseRead",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FTrainLiveLeaseReadTest::RunTest(const FString&)
 {
