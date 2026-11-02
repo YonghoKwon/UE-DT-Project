@@ -1,6 +1,7 @@
 #include "SlabActor.h"
 #include "ma0t10_dt/MA0T10/Scenario/AgentTestSetTrigger.h"
 #include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
 #include "SlabScenarioCodec.h"
 #include "SlabDataSyncComponent.h"
@@ -146,6 +147,8 @@ bool ASlabActor::ReceiveScenario(FSlabScenarioDataPtr Data)
 		if(TestSet->IsTrigger(*Data)){FString Error;const bool Accepted=TestSet->Enqueue(Data,this,Error);if(!Accepted)UE_LOG(LogTemp,Warning,TEXT("[TESTSET-01] %s"),*Error);return Accepted;}
 		TestSet->YieldToOrdinaryScenario();
 	}
+    // All planned local capture must restore before an ordinary scenario mutates the World.
+    if(auto* Dataset=GetWorld()->GetSubsystem<UVirtualDatasetSubsystem>())Dataset->YieldPlannedCapture();
 	auto* Replay=GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();
 	const bool Duplicate=Replay&&Replay->GetValidatedScenario(Data->ScenarioUUID).IsValid();
 	if(Replay&&!Replay->RegisterValidatedScenario(Data))

@@ -811,6 +811,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
 
+TRAIN-BATCH-01 1A(2026-11-02)는 L0 중립 Job/경로 계약, L2 입력·20Hz sampled timeline·현재 World 순차 생성/저장, L3 DTCore 학습 위젯 골격을 추가한다. 기본 꺼짐·기존 PCD/wire·DTCore pin 불변, L1은 학습/UI 타입을 참조하지 않는다. **코드 작성 단계로 빌드·실행/화면·성능은 미검증**이며 독립 워커·disk resume·ZIP/tar.gz·SFTP는 후속 단계다. [설계/사용자 결정·1A 진입점과 제한](docs/TRAIN_BATCH_01_DESIGN.md#11-r41-1a-코드-작성-범위--미컴파일미실행).
+
 HATCH06-REGRESSION-34는 Editor 테스트의 바닥 카메라 fixture만 기존 자유 카메라 상태에 연결한다. Runtime·획득·렌더·저장·DTCore 변경 없이 layer/allowlist **0→0**을 유지한다. 첫 충돌·회색49/49 기준을 보존하고 카메라 유지·49개 화면 광선 검사도 추가했다. [원인 이분 탐색·검증·제한](Saved/Reports/HATCH06-REGRESSION-34/RESULT.md).
 
 UXR-H150은 기존 L3 해치 Widget 내부의 재배치·접기·분할 비율만 바꾼다. layer/allowlist **0→0**, 기존 UDxWidget·selector·분석 인스턴스·L1/L2·DTCore·wire·저장 형식 변경 없음. [검증과 제한](Saved/Reports/UXR-H150/RESULT.md).

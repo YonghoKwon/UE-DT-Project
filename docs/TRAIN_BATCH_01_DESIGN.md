@@ -1,6 +1,6 @@
 # TRAIN-BATCH-01 — 학습 시나리오 배치 설계
 
-설계 기준: 2026-11-02(r41 사용자 결정 반영), `feat/train-batch-01`, parent `23d143b53f4bbf85b10846a2b740903bb9649cd3`, DTCore `bc60f05` 고정. **구현 전 제안**이며 이번 변경은 문서뿐이다. 빌드·게임·Editor·GPU·화면·외부 프로그램/다운로드 검증은 수행하지 않았다.
+설계 기준: 2026-11-02(r41 사용자 결정 반영), `feat/train-batch-01`, parent `23d143b53f4bbf85b10846a2b740903bb9649cd3`, DTCore `bc60f05` 고정. r40 설계 뒤 r41에서 사용자 결정을 반영하고 1A 코드를 작성했다. **미컴파일·미실행 상태**이며 작성 범위는 §11을 따른다. 빌드·게임·Editor·GPU·화면·외부 프로그램/다운로드 검증은 수행하지 않았다.
 
 사용자가 결정한 것은 독립 게임 워커 M개, 20Hz sampled_timeline, ZIP / tar.gz, Linux SFTP 업로드, 학습 전용 목록과 선택 재생이다. tar.zst는 보류하며 zstd 소스를 포함하지 않는다. 부분 실패는 기본 전송 거절, 실패 목록 확인 뒤 성공분만 보내기를 명시 선택할 때만 허용한다. 아래의 메시지 이름·상한·API·시간 정책은 구현을 위한 제안이며 서버/현장 수용 완료를 뜻하지 않는다. N개와 N초를 혼동하지 않도록 **K=시나리오 개수, Dᵢ=항목 길이(초), M=동시 워커 수**로 표기한다.
 
@@ -14,7 +14,7 @@
 | [저장 PCD 보기](../Source/ma0t10_dt/MA0T10/Scenario/AgentTestSetPcdPreview.cpp) | 독립 미리보기 컴포넌트, 읽기 worker 1건+다음 프레임 1개, 취소/generation, 저장 시각 간격을 재사용한다. 현재 `FAgentTestSetItem`과 `scene_XXXXX` 레이아웃에 결합돼 있으므로 중립 읽기 descriptor adapter가 필요하다. |
 | [SlabScenarioReplaySubsystem](../Source/ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h), [SlabMotionComponent](../Source/ma0t10_dt/MA0T10/Slab/SlabMotionComponent.cpp), [codec](../Source/ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.cpp) | 일반 시나리오 우선·관찰 전용·중복/실행 ID 분리를 유지한다. 학습 목록을 일반 보관 목록(메모리 10개)에 등록하지 않는다. `Sample`/`BuildPose`와 단위·TrackReference를 재사용한다. |
 | [EXPORT-01 도구](../Tools/DatasetTools/README.md) | 완료 파일을 읽는 선택적 COCO/KITTI 후처리만 연결한다. Python 및 요구 환경이 준비되지 않으면 해당 옵션을 거절하며 실행 중 설치하지 않는다. |
-| [서버 UI 패턴](../Source/ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.Owned.cpp), [Transport](../Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.cpp) | URL/마스킹 입력·상태 표시 패턴만 따른다. 현재 센서 HTTP 전송은 `SetContent(Bytes)`로 전체 body를 메모리에 올리므로 대용량 archive 전송기로 사용하지 않는다. 기존 인증은 세션 전용이며 학습용 Saved 자격증명은 새로 분리한다. |
+| [서버 UI 패턴](../Source/ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.Owned.cpp), [Transport](../Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.cpp) | 마스킹 입력·상태 표시 패턴만 따른다. 센서 HTTP 송신과 학습 SFTP를 연결하지 않으며 기존 세션 인증은 그대로다. 학습은 SSH 키 경로·앱 전용 known_hosts를 별도 Saved 설정으로 관리한다. |
 | [AUTO-01](../Source/ma0t10_dt/MA0T10/Scenario/Automation/AutomationControlSubsystem.cpp) | 기본 꺼짐, 명시적 `-MA0T10Job`, loopback 제어·취소·결과 기록 패턴을 참고한다. 워커마다 같은 8099 listener를 열지 않는다. 새 워커 모드는 파일 IPC가 기본이다. |
 
 구조는 같은 Runtime 모듈 안에서 L0 `Contracts/`(Job/IPC 값 계약), L2 `Scenario/Training/`(접수·계획·프로세스·저장·압축·업로드), L3 `UI/`(학습 화면)로 나눈다. L1 센서가 학습 UI/업무 타입을 include하지 않으며 새 UE 모듈·플러그인·DTCore 수정은 만들지 않는다. 후보 파일명은 `TrainBatchTypes`, `TrainBatchCoordinatorSubsystem`, `TrainBatchWorker`, `TrainBatchArchive`, `TrainBatchUpload`, `TrainBatchWidget`이다. 이 문서가 해당 파일 생성 승인은 아니다.
@@ -23,7 +23,7 @@
 
 ### 2.1 접수 경로
 
-권장 경로는 **별도 `topic.train.scenario` + `MESSAGE_ID=ITrain-agent-batch`**다. 기존 DTCore `UDxWebSocketSubsystem → UDxDataSubsystem → 프로젝트 TC`를 이용한다. 현재 DTCore DataTable handler map은 초기화 뒤 불변이고 공개 동적 등록 API가 없다. 1A는 공개 `Subscribe` callback을 프로젝트 TC adapter에 연결해 background `ParseToStruct` → GT `ProcessStructData`를 수행한다. 기존 업무 구독/DataTable·private map은 건드리지 않고 별도 STOMP 연결을 만들지 않는다. 명시 활성화할 때만 학습 Topic을 구독하고 자기가 만든 구독만 해제한다. 자산 실행이 허용된 후 DataTable 행으로 옮기는 선택지는 별도 검토한다.
+경로는 **별도 `topic.train.scenario` + `MESSAGE_ID=ITrain-agent-batch`**다. DTCore `UDxWebSocketSubsystem`과 프로젝트 TC를 이용한다. 현재 DTCore DataTable handler map은 초기화 뒤 불변이고 공개 동적 등록 API가 없다. 1A는 공개 `Subscribe` callback을 프로젝트 TC adapter에 연결해 background `ParseToStruct` → GT `ProcessStructData`를 수행하며 `UDxDataSubsystem`의 기존 handler map을 우회한다. 기존 업무 구독/DataTable·private map은 건드리지 않고 별도 STOMP 연결을 만들지 않는다. 명시 활성화할 때만 학습 Topic을 구독하고 자기가 만든 구독만 해제한다. 자산 실행이 허용된 후 DataTable 행으로 옮기는 선택지는 별도 검토한다.
 
 `topic.scenario/IFactory-agent`는 일반 입력과 기존 TESTSET 트리거 의미를 그대로 유지한다. 학습 envelope를 그 경로에 보내면 기존 시나리오로 해석하지 않고 명확히 거절한다. 서버가 기존 Topic만 쓸 수 있다면 **서버 adapter에서 새 Topic으로 변환**하는 안을 우선 협의한다. 일반 메시지를 학습용으로 가로채는 변경은 이번 설계에 포함하지 않는다.
 
@@ -144,13 +144,13 @@ M = min(requested_M, 4, K, max(0, M_gpu), M_cpu, M_ram, M_disk)
 
 ## 4. 결과 폴더·무결성·압축
 
-기본 결과 root는 사용자 Saved이며 서버 토큰/worker 설정은 archive 대상 밖이다.
+기본 결과 root는 사용자 Saved이며 키/known_hosts·서버/worker 설정은 archive 대상 밖이다.
 
 ```text
 Saved/TrainBatch/
   Jobs/<JobId>/job.json, journal.ndjson, input/job.json
     input/<ScenarioId>/original.json
-    scenarios/<ScenarioId>/attempt_<RunUUID>/
+    scenarios/<ScenarioId>/run_<RunUUID>/
       dataset.json
       scene_00000/lidar.pcd, lidar_labels.bin, label.json
       scene_00000/rgb.png, depth.exr, seg.png, instance.png  (선택 출력만)
@@ -284,3 +284,18 @@ DTCore에는 새 기능이 필요하지 않은 방향이다. TC DataTable 등록
 소스 근거는 위 링크 및 [README §10](../README.md#10-아키텍처-뼈대), [DTCore DataSubsystem](../Plugins/DTCore/Source/DTCore/Private/Core/DxDataSubsystem.cpp), [DTCore WidgetSubsystem](../Plugins/DTCore/Source/DTCore/Public/Core/DxWidgetSubsystem.h), [native safety 설명](LIDAR_NATIVE_LIFETIME_26h.md)을 따른다. 엔진 설치본은 `Engine/Source/Runtime/Core/Private/Misc/Paths.cpp`의 `ProjectUserDir/ProjectSavedDir`, `Engine/Source/Runtime/Online/HTTP/Public/Interfaces/IHttpRequest.h`, `Engine/Source/ThirdParty/{libzip,zlib,Licenses,vcpkg}`를 읽었다.
 
 현재 기반에 다중 UE worker·disk resume·archive/실제 학습 업로드가 이미 있다고 해석하지 않는다. ZIP64·OpenSSH/SFTP 서버 호환성·UserDir 별 안전 상태·카메라/운동 정합·GPU M 상한은 후속 실제 빌드/실행에서 검증할 설계 위험이다. r40은 문서만 작성했다. r41은 1A 코드/테스트 코드를 작성하되 빌드·Unreal/GPU·화면 실행 금지이므로 미컴파일·실행 미검증을 명시한다. DTCore·Config·자산·개인 설정은 변경하지 않는다.
+
+## 11. r41 1A 코드 작성 범위 — 미컴파일·미실행
+
+- [TrainBatchCodec](../Source/ma0t10_dt/MA0T10/Scenario/Training/TrainBatchCodec.h): strict schema/상한·원문 SHA256·20Hz `[0,D)` planner. `scenario_elapsed_s`/`simulation_elapsed_s`는 샘플 시각, `source_row_elapsed_s`/`scenario_frame_no`는 원본 행 시각/번호다. Job은 ZIP/tar.gz 선택만 허용하며 tar.zst·실시간/IMU/fidelity·미지원 필드를 거절한다. 해시는 Windows 기본 CNG(`bcrypt.lib`)를 사용하며 외부 crypto/zstd 도입은 없다.
+- [TrainBatchSubsystem](../Source/ma0t10_dt/MA0T10/Scenario/Training/TrainBatchSubsystem.h): 기본 비활성, 명시 enable 때만 DTCore 구독, 입력/실행/미리보기 작업이 있을 때만 timer/단일 background operation. 구독 epoch·weak ownership으로 늦은 callback을 분리한다. TC는 공개 Subscribe adapter를 사용하며 DTCore DataTable/private 멤버를 바꾸지 않는다.
+- [TrainBatchStorage](../Source/ma0t10_dt/MA0T10/Scenario/Training/TrainBatchStorage.h): Job 원문/시나리오 원문·checksummed journal·원자 상태 저장, 입력/출력 디스크 여유 검사. 재시도/재시작을 이유로 기존 Job 폴더를 덮지 않는다. **프로세스 재시작 후 disk resume는 1B**이며 1A는 기존 ID 폴더를 거절한다. 세션 최대 Job16개·입력 대기64MiB다.
+- 1A의 M=1은 **UI 프로세스의 현재 World에서 동시 시나리오 1개를 생성하는 기준선**이다. child game process를 아직 띄우지 않는다. state에 `execution_host=coordinator_baseline`, `concurrent_scenarios=1`, `worker_processes=0`을 명시한다. 독립 M개 프로세스·heartbeat/재할당/UserDir·안전 상태 집계는 1B다.
+- Dataset은 기본 TestSet 경로를 유지하고, 학습 plan만 정확한 `Saved/TrainBatch/Jobs/<JobId>/scenarios/<Id>/run_<RunUUID>` 경로를 추가 허용한다. L1 file writer에는 업무 타입 대신 중립 local storage scope만 전달한다. ordinary 시나리오가 시작되기 전에 planned capture를 양보하고, 외부 사용자/다른 Dataset의 작업은 중지하지 않는다. 센서 preset 변경은 혼합 생성 대신 중단한다.
+- [TrainBatchWidget](../Source/ma0t10_dt/MA0T10/UI/TrainBatchWidget.h)은 UDxWidget 기반의 목록/상태·명시 대상 적용·manifest 경로 가져오기·시작/중단·검증 완료 PCD 보기 골격이다. **압축/SFTP 성공 표시나 전송 버튼 동작은 아직 없다.** 메뉴/자산 wiring·공통 Workspace 배치 확장은 후속 UI 통합 대상이며 운영맵을 수정하지 않았다.
+
+후속 실행 허용 뒤의 개발 진입점은 Blueprint `Open Training Panel`(`UTrainBatchWidget::OpenTrainingPanel(WorldContextObject)`)이다. DTCore가 중복 창/BringToFront/input blocker/닫기를 관리한다. 창을 연 것만으로 기능은 켜지지 않는다. 기능 켜기→같은 World의 정확한 Slab Actor 이름/LiDAR ID·선택 Camera ID와 preset 적용→manifest 절대 경로 가져오기→모든 입력 저장 확인→Job 선택/시작 순서다. 선택 센서의 기존 측정/송신/저장은 사용자가 먼저 정리해야 하며 기본 PCD 정책을 자동 변경하지 않는다. 단위는 manifest와 Slab 입력 단위가 같아야 한다.
+
+로컬 manifest는 §2 Job 형식의 각 descriptor에 `input_file`을 추가한 파일이다. input_file은 manifest 폴더 내부 상대 경로이며 `..`·reparse/junction 탈출은 거절한다. 네트워크는 같은 Job manifest 뒤 `kind=scenario` 원문 메시지를 보내고 `seal`로 누락을 확인한다. 완료는 Dataset 완료 수/PCD33-byte/점 라벨5-byte/시간축·ID·파일 SHA256 목록 검증과 `complete.json` 확정까지 포함한다.
+
+추가한 자동화 이름은 `MA0T10.TrainBatch.*` 9개다(계약·20Hz·경로·저장/중복·로컬 가져오기·완료/미완료·기본 꺼짐·TC 분리). **코드 작성만 했으며 실행 수는 0**이다. Editor/Development/Shipping 빌드, 기존 Dataset/일반 시나리오 회귀, 실제 RHI·byte oracle/20Hz/fallback·직접 UI·release/perf 2%는 사용자 실행 허용 후 검증한다. 이 문서의 정적 확인을 그 gate의 PASS로 표시하지 않는다.
