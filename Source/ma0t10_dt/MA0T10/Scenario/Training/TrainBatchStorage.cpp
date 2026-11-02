@@ -1,13 +1,15 @@
 #include "TrainBatchStorage.h"
 #include "TrainBatchProcessProtocol.h"
 #include "ma0t10_dt/MA0T10/Contracts/LocalCapturePath.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualPcdCodec.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/FileHelper.h"
 #include "Json.h"
+#if PLATFORM_WINDOWS
+#include "Windows/WindowsHWrapper.h"
+#endif
 
 namespace
 {
@@ -31,13 +33,25 @@ bool FTrainBatchStorage::AtomicText(const FString& Path,const FString& Text,bool
 {
     if(!LocalCapturePath::SafeDescendant(TrainBatchCodec::JobsRoot(),Path))return false;
     if(!IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path),true))return false;
-    const FString Pending=Path+TEXT(".pending");
+    FTCHARToUTF8 U(*Text);
+    if(!Replace&&IFileManager::Get().FileExists(*Path))
+    {
+        // Recovery after publish-before-snapshot: accept identical immutable bytes only.
+        TArray<uint8> Existing;
+        return IFileManager::Get().FileSize(*Path)==U.Length()&&FFileHelper::LoadFileToArray(Existing,*Path)&&Existing.Num()==U.Length()&&
+            (U.Length()==0||FMemory::Memcmp(Existing.GetData(),U.Get(),U.Length())==0);
+    }
+    const FString Pending=Path+TEXT(".")+FGuid::NewGuid().ToString(EGuidFormats::Digits)+TEXT(".pending");
+    if(!LocalCapturePath::SafeDescendant(TrainBatchCodec::JobsRoot(),Pending))return false;
     TUniquePtr<FArchive> File(IFileManager::Get().CreateFileWriter(*Pending,FILEWRITE_NoReplaceExisting));
-    if(!File)return false;FTCHARToUTF8 U(*Text);File->Serialize((void*)U.Get(),U.Length());File->Flush();
-    const bool Written=!File->IsError();File.Reset();if(!Written)return false;
-    if(Replace)return UVirtualSensorFileSaveSubsystem::CommitLocalSceneManifest(TrainBatchCodec::JobsRoot(),Path,Pending);
-    // The physical move does not replace an existing destination (Windows MVP).
-    return IPlatformFile::GetPlatformPhysical().MoveFile(*Path,*Pending);
+    if(!File)return false;File->Serialize((void*)U.Get(),U.Length());File->Flush();
+    const bool Written=!File->IsError()&&File->Close();File.Reset();
+    bool Committed=false;
+#if PLATFORM_WINDOWS
+    if(Written)Committed=::MoveFileExW(*Pending,*Path,MOVEFILE_WRITE_THROUGH|(Replace?MOVEFILE_REPLACE_EXISTING:0))!=0;
+#endif
+    if(!Committed)IFileManager::Get().Delete(*Pending,false,true); // Only this writer's unique temporary file.
+    return Committed;
 }
 FTrainBatchJobView* FTrainBatchStorage::Find(const FString& Id)
 {return Jobs.FindByPredicate([&](const auto& J){return J.Spec.Id==Id;});}
@@ -152,11 +166,16 @@ bool FTrainBatchStorage::Verify(FTrainBatchJobView& Job,int32 Index,const std::a
     FString Schema;
     if(!ReadUtf8(Root/TEXT("dataset.json"),2*1024*1024,Text)||!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text),O)||!O->TryGetStringField(TEXT("schema_version"),Schema)||Schema!=TEXT("ma0t10.dataset.v1")||!O->TryGetNumberField(TEXT("completed_scenes"),Done)||Done!=Frames){Error=TEXT("dataset 완료 수/schema 불일치");return false;}
     FString Checksums;
+    auto HashBytes=[&](const FString& Relative,const TArray<uint8>& B)->bool
+    {
+        FString Hash;if(Cancel.load()||!TrainBatchCodec::Sha256(B.GetData(),B.Num(),Hash))return false;
+        Checksums+=Hash+TEXT("  ")+Relative+TEXT("\n");return true;
+    };
     auto HashFile=[&](const FString& Relative)->bool
     {
-        const FString Path=Root/Relative;const int64 Size=IFileManager::Get().FileSize(*Path);TArray<uint8> B;FString Hash;
-        if(Cancel.load()||Size<0||Size>64ll*1024*1024||!LocalCapturePath::SafeDescendant(Root,Path)||!FFileHelper::LoadFileToArray(B,*Path)||B.Num()!=Size||!TrainBatchCodec::Sha256(B.GetData(),B.Num(),Hash))return false;
-        Checksums+=Hash+TEXT("  ")+Relative+TEXT("\n");return true;
+        const FString Path=Root/Relative;const int64 Size=IFileManager::Get().FileSize(*Path);TArray<uint8> B;
+        if(Cancel.load()||Size<0||Size>64ll*1024*1024||!LocalCapturePath::SafeDescendant(Root,Path)||!FFileHelper::LoadFileToArray(B,*Path)||B.Num()!=Size)return false;
+        return HashBytes(Relative,B);
     };
     if(!HashFile(TEXT("dataset.json")))return false;
     for(int32 K=0;K<Frames;++K)
@@ -165,10 +184,11 @@ bool FTrainBatchStorage::Verify(FTrainBatchJobView& Job,int32 Index,const std::a
         const FString Frame=FString::Printf(TEXT("scene_%05d"),K);const FString Dir=Root/Frame;TArray<uint8> Bytes;FVirtualPcdDocument Doc;FString DecodeError;
         if(!LocalCapturePath::SafeDescendant(Root,Dir/TEXT("lidar.pcd"))){Error=TEXT("결과 경로 거절");return false;}
         const int64 PcdSize=IFileManager::Get().FileSize(*(Dir/TEXT("lidar.pcd")));
-        if(PcdSize<0||PcdSize>16ll*1024*1024||!FFileHelper::LoadFileToArray(Bytes,*(Dir/TEXT("lidar.pcd")))||!FVirtualPcdCodec::Decode(Bytes,Doc,DecodeError)||Doc.Encoding!=TEXT("binary")||Doc.PointBytes!=33||Doc.PointCount>250000||IFileManager::Get().FileSize(*(Dir/TEXT("lidar_labels.bin")))!=int64(Doc.PointCount)*5){Error=TEXT("PCD/점별 라벨 결과 검증 실패");return false;}
+        if(PcdSize<0||PcdSize>16ll*1024*1024||!FFileHelper::LoadFileToArray(Bytes,*(Dir/TEXT("lidar.pcd")))||Bytes.Num()!=PcdSize||!FVirtualPcdCodec::Decode(Bytes,Doc,DecodeError)||Doc.Encoding!=TEXT("binary")||Doc.PointBytes!=33||Doc.PointCount>250000||IFileManager::Get().FileSize(*(Dir/TEXT("lidar_labels.bin")))!=int64(Doc.PointCount)*5){Error=TEXT("PCD/점별 라벨 결과 검증 실패");return false;}
         FString Scenario,Run;double T=0;
         if(!ReadUtf8(Dir/TEXT("label.json"),1024*1024,Text)||!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text),O)||!O->TryGetStringField(TEXT("schema_version"),Schema)||Schema!=TEXT("ma0t10.dataset.scene.v1")||!O->TryGetStringField(TEXT("scenario_id"),Scenario)||Scenario!=I.Spec.Id||!O->TryGetStringField(TEXT("run_uuid"),Run)||Run!=I.RunId||!O->TryGetNumberField(TEXT("simulation_elapsed_s"),T)||!FMath::IsFinite(T)||FMath::Abs(T-double(K)/20)>1.e-6){Error=TEXT("확정 프레임 ID/시간축/schema 불일치");return false;}
-        for(const TCHAR* Name:{TEXT("lidar.pcd"),TEXT("lidar_labels.bin"),TEXT("label.json")})if(!HashFile(Frame/Name))return false;
+        if(!HashBytes(Frame/TEXT("lidar.pcd"),Bytes))return false; // Hash the exact bytes decoded above; no second PCD read.
+        for(const TCHAR* Name:{TEXT("lidar_labels.bin"),TEXT("label.json")})if(!HashFile(Frame/Name))return false;
         if(Job.Spec.CaptureCamera&&!HashFile(Frame/TEXT("rgb.png")))return false;
         if(Job.Spec.CameraTruth)for(const TCHAR* Name:{TEXT("depth.exr"),TEXT("seg.png"),TEXT("instance.png")})if(!HashFile(Frame/Name))return false;
     }
@@ -260,16 +280,19 @@ bool FTrainBatchStorage::ReleaseLease(const FString& JobId,int32 Index,FString& 
 bool FTrainBatchStorage::Adopt(const FString& JobId,int32 Index,const FString& ApprovedWorkerRoot,const FString& RunId,FString& Error)
 {
     auto* J=Find(JobId);if(!J||!J->Items.IsValidIndex(Index)||!TrainBatchCodec::CanonicalGuid(RunId))return false;auto& I=J->Items[Index];
-    I.RunId=RunId;const FString Source=ApprovedWorkerRoot/JobId/TEXT("scenarios")/I.Spec.Id/(TEXT("run_")+RunId),Destination=TrainBatchCodec::RunDirectory(JobId,I.Spec.Id,RunId);
+    const FTrainBatchItemView Previous=I;FTrainBatchItemView Candidate=I;Candidate.RunId=RunId;
+    const FString Source=ApprovedWorkerRoot/JobId/TEXT("scenarios")/I.Spec.Id/(TEXT("run_")+RunId),Destination=TrainBatchCodec::RunDirectory(JobId,I.Spec.Id,RunId);
     if(!LocalCapturePath::SafeDescendant(ApprovedWorkerRoot,Source)||!LocalCapturePath::SafeDescendant(TrainBatchCodec::JobsRoot(),Destination))return false;
     if(!IFileManager::Get().DirectoryExists(*Destination))
     {
-        if(!ConfirmedFiles(Source,JobId,I,Error))return false;
+        if(!ConfirmedFiles(Source,JobId,Candidate,Error))return false;
         // Same-volume rename preserves closed, verified files and has no partial destination.
         if(!IFileManager::Get().MakeDirectory(*FPaths::GetPath(Destination),true))return false;
         if(!IPlatformFile::GetPlatformPhysical().MoveFile(*Destination,*Source))
         {Error=TEXT("워커 결과 이동 실패 · 같은 볼륨의 Saved root가 필요합니다");return false;}
     }
-    if(!ConfirmedFiles(Destination,JobId,I,Error))return false;
-    I.RunDirectory=Destination;I.State=ETrainBatchItemState::Completed;if(!TrainBatchCodec::SampleCount(I.Spec.Duration,I.CompletedFrames,Error))return false;I.Message=TEXT("워커 결과 검증 완료");return Snapshot(*J,TEXT("worker_result_adopted"),Error);
+    if(!ConfirmedFiles(Destination,JobId,Candidate,Error))return false;
+    Candidate.RunDirectory=Destination;Candidate.State=ETrainBatchItemState::Completed;if(!TrainBatchCodec::SampleCount(Candidate.Spec.Duration,Candidate.CompletedFrames,Error))return false;Candidate.Message=TEXT("워커 결과 검증 완료");
+    I=MoveTemp(Candidate);if(Snapshot(*J,TEXT("worker_result_adopted"),Error))return true;
+    I=Previous;return false; // Keep the lease intact even if durable state publication fails.
 }

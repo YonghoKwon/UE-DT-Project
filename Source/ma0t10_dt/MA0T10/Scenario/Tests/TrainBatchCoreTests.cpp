@@ -169,4 +169,70 @@ bool FTrainBatchSampleBoundaryTest::RunTest(const FString&)
     FSlabScenarioData Data=*Original;Data.DurationSec=600;FVirtualDatasetFramePlan Plan;Error.Reset();TestFalse(TEXT("Plan cap rejected"),TrainBatchCodec::Plan(Data,600,FTransform::Identity,ESlabInputUnit::Millimeters,ESlabInputUnit::Centimeters,Plan,Error));TestTrue(TEXT("Plan cap reason names frame limit"),Error.Contains(TEXT("frame limit")));
     return true;
 }
+namespace
+{
+bool WriteRecoveryDataset(const FVirtualDatasetFramePlan& P)
+{
+    auto Write=[&](const FString& Path,const TSharedRef<FJsonObject>& O){IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path),true);return FFileHelper::SaveStringToFile(Json(O),*Path,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);};
+    auto D=MakeShared<FJsonObject>();D->SetStringField(TEXT("schema_version"),TEXT("ma0t10.dataset.v1"));D->SetNumberField(TEXT("completed_scenes"),P.Frames.Num());if(!Write(P.Root/TEXT("dataset.json"),D))return false;
+    FVirtualLidarPoint Point;Point.bHit=true;Point.SensorLocalPositionMeters=FVector(1,0,0);TArray<const FVirtualLidarPoint*> Points={&Point};TArray<uint8> Pcd,Labels;Labels.SetNumZeroed(5);
+    if(!FVirtualPcdCodec::Encode(Points,TEXT("{}"),FVirtualPcdSendOptions(),Pcd))return false;
+    for(int32 K=0;K<P.Frames.Num();++K)
+    {
+        const FString Dir=P.Root/FString::Printf(TEXT("scene_%05d"),K);IFileManager::Get().MakeDirectory(*Dir,true);
+        if(!FFileHelper::SaveArrayToFile(Pcd,*(Dir/TEXT("lidar.pcd")))||!FFileHelper::SaveArrayToFile(Labels,*(Dir/TEXT("lidar_labels.bin"))))return false;
+        auto L=MakeShared<FJsonObject>();L->SetStringField(TEXT("schema_version"),TEXT("ma0t10.dataset.scene.v1"));L->SetStringField(TEXT("scenario_id"),P.ScenarioId);L->SetStringField(TEXT("run_uuid"),P.RunId);L->SetNumberField(TEXT("simulation_elapsed_s"),double(K)/20);if(!Write(Dir/TEXT("label.json"),L))return false;
+    }
+    return true;
+}
+bool SaveOwnedText(const FString& Path,const FString& Text)
+{IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path),true);return FFileHelper::SaveStringToFile(Text,*Path,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);}
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTrainAtomicRecoveryTest,"MA0T10.TrainBatch.AtomicCrashRecovery",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FTrainAtomicRecoveryTest::RunTest(const FString&)
+{
+    FFixture F;FTrainBatchStorage S;FString E;std::atomic<bool> Cancel(false);
+    if(!TestTrue(TEXT("manifest"),S.Receive(F.Job(),E)))return false;
+    const FString Original=TrainBatchCodec::JobDirectory(F.Id)/TEXT("input/case-001/original.json");
+    TestTrue(TEXT("stale input pending fixture"),SaveOwnedText(Original+TEXT(".pending"),TEXT("interrupted")));
+    // A crash may publish immutable input before journaling the waiting state.
+    TestTrue(TEXT("published original before state"),SaveOwnedText(Original,F.Raw));const auto OriginalTime=IFileManager::Get().GetTimeStamp(*Original);
+    TestTrue(TEXT("original re-reception recovers exact published bytes"),S.Receive(F.Item(),E));TestTrue(TEXT("original not rewritten"),OriginalTime==IFileManager::Get().GetTimeStamp(*Original));
+    FTrainBatchStorage Restart;TestTrue(TEXT("crash-state resume"),Restart.Restore(F.Id,E));TestTrue(TEXT("original resend after restore"),Restart.Receive(F.Item(),E));
+    auto P=Restart.Prepare(F.Id,0,FTransform::Identity,ESlabInputUnit::Millimeters,ESlabInputUnit::Centimeters,1,1024,E);if(!P||!WriteRecoveryDataset(*P))return false;
+    TestTrue(TEXT("stale checksum pending"),SaveOwnedText(P->Root/TEXT("checksums.sha256.pending"),TEXT("partial")));TestTrue(TEXT("stale completion pending"),SaveOwnedText(P->Root/TEXT("complete.json.pending"),TEXT("partial")));
+    if(!TestTrue(*(TEXT("completion unaffected by stale pending: ")+E),Restart.Finish(F.Id,0,true,TEXT(""),Cancel,E)))return false;
+    FString Checksum,Marker;FFileHelper::LoadFileToString(Checksum,*(P->Root/TEXT("checksums.sha256")));FFileHelper::LoadFileToString(Marker,*(P->Root/TEXT("complete.json")));
+    TestTrue(TEXT("retry identical confirmed marker is idempotent"),Restart.Finish(F.Id,0,true,TEXT(""),Cancel,E));
+    TestTrue(TEXT("simulate crash before completion marker publish"),IFileManager::Get().Delete(*(P->Root/TEXT("complete.json")),false,true));
+    TestTrue(TEXT("recreate completion with already-confirmed checksum list"),Restart.Finish(F.Id,0,true,TEXT(""),Cancel,E));
+    FString Again;FFileHelper::LoadFileToString(Again,*(P->Root/TEXT("complete.json")));TestEqual(TEXT("recreated marker bytes"),Again,Marker);
+    SaveOwnedText(P->Root/TEXT("complete.json"),TEXT("conflicting immutable marker"));TestFalse(TEXT("conflicting final never replaced"),Restart.Finish(F.Id,0,true,TEXT(""),Cancel,E));FFileHelper::LoadFileToString(Again,*(P->Root/TEXT("complete.json")));TestEqual(TEXT("conflicting bytes retained"),Again,FString(TEXT("conflicting immutable marker")));
+    FFixture Other;FTrainBatchStorage OtherStore;OtherStore.Receive(Other.Job(),E);const FString OtherOriginal=TrainBatchCodec::JobDirectory(Other.Id)/TEXT("input/case-001/original.json");SaveOwnedText(OtherOriginal,TEXT("conflicting original"));TestFalse(TEXT("original conflict refused"),OtherStore.Receive(Other.Item(),E));FFileHelper::LoadFileToString(Again,*OtherOriginal);TestEqual(TEXT("original conflict bytes retained"),Again,FString(TEXT("conflicting original")));
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTrainAdoptRollbackTest,"MA0T10.TrainBatch.AdoptTransactional",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FTrainAdoptRollbackTest::RunTest(const FString&)
+{
+    FFixture F;FTrainBatchStorage S;FString E;std::atomic<bool> Cancel(false);if(!S.Receive(F.Job(),E)||!S.Receive(F.Item(),E))return false;
+    auto P=S.Prepare(F.Id,0,FTransform::Identity,ESlabInputUnit::Millimeters,ESlabInputUnit::Centimeters,1,1024,E);if(!P||!WriteRecoveryDataset(*P)||!S.Finish(F.Id,0,true,TEXT(""),Cancel,E))return false;
+    S.Jobs[0].Items[0].State=ETrainBatchItemState::Waiting;const FString Lease=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);S.MarkLeased(F.Id,0,Lease,E);const auto Before=S.Jobs[0].Items[0];
+    const FString Worker=LocalCapturePath::Full(FPaths::ProjectSavedDir()/TEXT("TrainBatchTestWorker"));
+    TestFalse(TEXT("unverified source rejected"),S.Adopt(F.Id,0,Worker,FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower),E));
+    TestEqual(TEXT("failure keeps lease id"),S.Jobs[0].Items[0].RunId,Before.RunId);TestEqual(TEXT("failure keeps lease state"),S.Jobs[0].Items[0].State,Before.State);TestEqual(TEXT("failure keeps run directory"),S.Jobs[0].Items[0].RunDirectory,Before.RunDirectory);TestEqual(TEXT("failure keeps message"),S.Jobs[0].Items[0].Message,Before.Message);
+    const FString State=TrainBatchCodec::JobDirectory(F.Id)/TEXT("job.json"),Backup=State+TEXT(".test-backup");
+    if(!IFileManager::Get().Move(*Backup,*State,false,true)||!IFileManager::Get().MakeDirectory(*State,true))return false;
+    TestFalse(TEXT("snapshot publication failure rejected"),S.Adopt(F.Id,0,Worker,P->RunId,E));TestEqual(TEXT("snapshot failure also keeps lease"),S.Jobs[0].Items[0].RunId,Before.RunId);TestEqual(TEXT("snapshot failure keeps running state"),S.Jobs[0].Items[0].State,Before.State);
+    IFileManager::Get().DeleteDirectory(*State,false,false);IFileManager::Get().Move(*State,*Backup,false,true);
+    TestTrue(TEXT("verified destination can be adopted on retry"),S.Adopt(F.Id,0,Worker,P->RunId,E));TestEqual(TEXT("committed run id"),S.Jobs[0].Items[0].RunId,P->RunId);TestTrue(TEXT("committed completed state"),S.Jobs[0].Items[0].State==ETrainBatchItemState::Completed);return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTrainRestoreIntegrityTest,"MA0T10.TrainBatch.RestoreSameMetadataTamper",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FTrainRestoreIntegrityTest::RunTest(const FString&)
+{
+    FFixture F;FTrainBatchStorage S;FString E;std::atomic<bool> Cancel(false);if(!S.Receive(F.Job(),E)||!S.Receive(F.Item(),E))return false;
+    auto P=S.Prepare(F.Id,0,FTransform::Identity,ESlabInputUnit::Millimeters,ESlabInputUnit::Centimeters,1,1024,E);if(!P||!WriteRecoveryDataset(*P)||!S.Finish(F.Id,0,true,TEXT(""),Cancel,E))return false;
+    FTrainBatchStorage Good;TestTrue(TEXT("untouched results restore"),Good.Restore(F.Id,E));TestTrue(TEXT("untouched completed"),!Good.Jobs.IsEmpty()&&Good.Jobs[0].Items[0].State==ETrainBatchItemState::Completed);
+    const FString Path=P->Root/TEXT("scene_00000/lidar.pcd");const auto Time=IFileManager::Get().GetTimeStamp(*Path);TArray<uint8> Bytes;FFileHelper::LoadFileToArray(Bytes,*Path);if(Bytes.IsEmpty())return false;Bytes.Last()^=1;FFileHelper::SaveArrayToFile(Bytes,*Path);IFileManager::Get().SetTimeStamp(*Path,Time);
+    FTrainBatchStorage Bad;TestTrue(TEXT("job remains resumable after output corruption"),Bad.Restore(F.Id,E));TestTrue(TEXT("same size/mtime cannot bypass SHA256"),!Bad.Jobs.IsEmpty()&&Bad.Jobs[0].Items[0].State!=ETrainBatchItemState::Completed);return true;
+}
 #endif
