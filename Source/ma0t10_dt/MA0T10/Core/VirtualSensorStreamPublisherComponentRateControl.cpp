@@ -135,7 +135,7 @@ bool UVirtualSensorStreamPublisherComponent::OmitPointCloudForRateControl(const 
     Sequence.AdmissionCredit+=Ratio;
     if(Sequence.AdmissionCredit>=1-1e-8){Sequence.AdmissionCredit=FMath::Max(0.0,Sequence.AdmissionCredit-1);return false;}
     ++R.Status.RateControlSkippedFrameCount;
-    RecordSlabFailure(Frame.SlabContext.RunId,Frame.SensorId,R.Config.StreamKind,Frame.FrameId,TEXT("송신율 조절로 생략"));
+    RecordRunFailure(Frame.SlabContext.RunId,Frame.SensorId,R.Config.StreamKind,Frame.FrameId,TEXT("송신율 조절로 생략"));
     if(Now-R.LastRateLogSeconds>=2)
     {
         R.LastRateLogSeconds=Now;

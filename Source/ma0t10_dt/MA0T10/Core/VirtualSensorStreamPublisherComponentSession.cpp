@@ -80,7 +80,7 @@ void UVirtualSensorStreamPublisherComponent::PumpPreparedMessages(double NowSeco
 		FPreparedMessage& Message = *MessagePtr;
 		if (Message.bHighThroughputBinary && !CanUseHighThroughputTransport())
 		{
-			RecordSlabFailure(Message.SlabContext.RunId,Message.SensorId,Message.StreamKind,Message.FrameId);
+			RecordRunFailure(Message.SlabContext.RunId,Message.SensorId,Message.StreamKind,Message.FrameId);
 			// A broker/backend change invalidates the old binary-only camera/telemetry
 			// derivation. Never downgrade WSS to TCP or retry the incompatible body forever.
 			++Runtime->Status.StaleResultDiscardCount;
@@ -247,11 +247,9 @@ bool UVirtualSensorStreamPublisherComponent::NeedsCompatibilityLidarOutputForCon
         }}
     return false;
 }
-void UVirtualSensorStreamPublisherComponent::RecordSlabFailure(const FString& RunId,const FString& SensorId,EVirtualSensorStreamKind Kind,int64 FrameId,const FString& Reason)
+void UVirtualSensorStreamPublisherComponent::RecordRunFailure(const FString& RunId,const FString& SensorId,EVirtualSensorStreamKind Kind,int64 FrameId,const FString& Reason)
 {
 	if(RunId.IsEmpty()) return;
 	if(auto* Provider=FVirtualSensorAcquisitionContextProviders::Get(GetWorld()))Provider->RecordAcquisitionOutputFailure(RunId,SensorId,VirtualSensorAcquisitionOutput(Kind),FrameId,Reason);
-	if(!SlabRunFailures.Contains(RunId)&&SlabRunFailures.Num()>=32)
-		for(auto It=SlabRunFailures.CreateIterator();It;++It) if(It.Key()!=RunId) { It.RemoveCurrent(); break; }
-	SlabRunFailures.FindOrAdd(RunId).Add(SensorId+TEXT("|")+LexToString(static_cast<uint8>(Kind))+TEXT("|")+LexToString(FrameId));
+	RunFailures.Record(RunId,SensorId,static_cast<uint8>(Kind),FrameId);
 }

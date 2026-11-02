@@ -59,7 +59,7 @@ bool FPointCloudOverloadResumeTest::RunTest(const FString& Case)
     {
         FVirtualSensorFrameEnvelope F; F.SensorId = C.SensorId; F.FrameId = 11;
         F.SlabContext.RunId = TEXT("discard-run");
-        R.PendingFrameQueue.Add(F); R.LastInputSlabContext = F.SlabContext; R.LastInputSensorId = F.SensorId;
+        R.PendingFrameQueue.Add(F); R.LastInputContext = F.SlabContext; R.LastInputSensorId = F.SensorId;
         R.Status.LastInputFrameId = 12; R.SerializationRunId = F.SlabContext.RunId;
         R.SerializationSensorId = F.SensorId; R.SerializationFrameId = 10; R.bSerializationInFlight = true;
     }

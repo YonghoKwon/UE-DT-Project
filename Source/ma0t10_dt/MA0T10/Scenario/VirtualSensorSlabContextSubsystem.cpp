@@ -1,4 +1,5 @@
 #include "VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Scenario/ProjectRunDeliveryAdapter.h"
 #include "EngineUtils.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
@@ -405,7 +406,7 @@ void UVirtualSensorSlabContextSubsystem::Tick(float DeltaTime)
 	Status.StreamFailures = FMath::Max<int64>(0, CountStreamErrors() - InitialStreamErrors);
 	if (Coordinator.IsValid() && Coordinator->StreamPublisherComponent)
 	{
-		Waiting+=Coordinator->StreamPublisherComponent->GetPendingSlabRunCount(Status.RunId);
+		Waiting+=ProjectRunDeliveryAdapter::Pending(*Coordinator->StreamPublisherComponent,Status.RunId);
 	}
 	if (auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>())
 	{
@@ -478,7 +479,7 @@ void UVirtualSensorSlabContextSubsystem::FinalizeRunResult(bool PreparationFaile
 	Raw->GatherPendingRunKeys(Status.RunId,Outputs,SensorFrames);
 	int64 CompatibilityReceipts=0;
 	if(Coordinator.IsValid()&&Coordinator->StreamPublisherComponent)
-		Coordinator->StreamPublisherComponent->GatherPendingSlabRunKeys(Status.RunId,Outputs,SensorFrames,&Snapshot.PendingOutputPreparation,&CompatibilityReceipts);
+		ProjectRunDeliveryAdapter::Gather(*Coordinator->StreamPublisherComponent,Status.RunId,Outputs,SensorFrames,&Snapshot.PendingOutputPreparation,&CompatibilityReceipts);
 	Snapshot.AwaitingBrokerReceipt+=CompatibilityReceipts;
     Snapshot.PendingOutputPreparation+=CompatibilityDerivations.Num();
     for(const auto& Key:CompatibilityDerivations){Outputs.Add(TEXT("0|")+Key);SensorFrames.Add(Key);}
@@ -493,7 +494,7 @@ int64 UVirtualSensorSlabContextSubsystem::CountStreamErrors() const
 {
 	int64 Count=0;
 	if (Coordinator.IsValid() && Coordinator->StreamPublisherComponent)
-		Count+=Coordinator->StreamPublisherComponent->GetFailedSlabRunCount(Status.RunId);
+		Count+=ProjectRunDeliveryAdapter::Failed(*Coordinator->StreamPublisherComponent,Status.RunId);
 	// Raw socket failures are counted separately in Tick. Never add merged UI counters twice.
 	return Count;
 }

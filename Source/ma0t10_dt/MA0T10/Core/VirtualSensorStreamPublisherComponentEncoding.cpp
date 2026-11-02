@@ -456,13 +456,13 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 	{
 		return;
 	}
-	Runtime.LastInputSlabContext=Frame.SlabContext;
+	Runtime.LastInputContext=Frame.SlabContext;
 	Runtime.LastInputSensorId=Frame.SensorId;
 	if (Sequence.bHave && Frame.FrameId > Sequence.Frame + 1)
 	{
 		Runtime.Status.FrameGapCount += Frame.FrameId - Sequence.Frame - 1;
 	}
-	Sequence.Frame=Frame.FrameId;Sequence.bHave=true;Runtime.LastSlabSegment=SegmentKey;
+	Sequence.Frame=Frame.FrameId;Sequence.bHave=true;Runtime.LastRunSegment=SegmentKey;
 	++Sequence.InputCount;
 	++Runtime.Status.InputFrameCount;
 	Runtime.Status.LastInputFrameId = Frame.FrameId;
@@ -587,7 +587,7 @@ void UVirtualSensorStreamPublisherComponent::QueueFrameForRuntime(const FString&
 	}
 	if (!Frame.HasJsonPayload())
 	{
-		RecordSlabFailure(Frame.SlabContext.RunId,Frame.SensorId,Runtime.Config.StreamKind,Frame.FrameId);
+		RecordRunFailure(Frame.SlabContext.RunId,Frame.SensorId,Runtime.Config.StreamKind,Frame.FrameId);
 		++Runtime.Status.EncodeFailureCount;
 		Runtime.Status.Message = TEXT("완료된 JSON Payload가 없습니다.");
 		return;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "DeviceRunDeliveryLedger.h"
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
@@ -50,8 +51,11 @@ public:
     FVirtualSensorResourceSnapshot GetResourceSnapshot() const;
 	/** Local publisher work only; Raw TCP owns its own run-scoped pending counters. */
 	int64 GetPendingSlabRunCount(const FString& RunId) const;
+    int64 GetPendingRunCount(const FString& RunId) const;
 	void GatherPendingSlabRunKeys(const FString& RunId,TSet<FString>& Outputs,TSet<FString>& SensorFrames,int64* Preparation=nullptr,int64* Receipts=nullptr) const;
+    void GatherPendingRunKeys(const FString& RunId,TSet<FString>& Outputs,TSet<FString>& SensorFrames,int64* Preparation=nullptr,int64* Receipts=nullptr) const;
 	int64 GetFailedSlabRunCount(const FString& RunId) const;
+    int64 GetFailedRunCount(const FString& RunId) const;
 	void RefreshSessionOutputDemand() { UpdateCameraStreamDemand(); }
 	static bool SerializePointCloudFrame(
 		const FVirtualSensorFrameEnvelope& Frame,
@@ -211,14 +215,14 @@ private:
 		double NextPcdConsoleLogSeconds=0;
 		int64 PendingPcdConsoleLogs=0;
 		bool bSerializationInFlight = false;
-		FVirtualSensorAcquisitionContext LastInputSlabContext;
+		FVirtualSensorAcquisitionContext LastInputContext;
 		FString LastInputSensorId;
 		FString SerializationRunId;
 		FString SerializationSensorId;
 		int64 SerializationFrameId=0;
 		int64 SerializationCompletedCount = 0;
 		TArray<float> SerializationLatencySamples;
-		FString LastSlabSegment;
+		FString LastRunSegment;
 		bool bHasInputFrameInSegment=false;
 		struct FSensorSequence
 		{
@@ -263,8 +267,8 @@ private:
 	void AddLog(const FString& StreamKey, const FString& State, const FString& Message, const FVirtualSensorTransportResult* Result = nullptr, int64 FrameId = 0);
 	void HandleTransportResult(const FVirtualSensorTransportResult& Result);
 	void UpdateCameraStreamDemand();
-	void RecordSlabFailure(const FString& RunId, const FString& SensorId, EVirtualSensorStreamKind Kind, int64 FrameId,const FString& Reason=TEXT("파생 처리·직렬화·전송 결과 폐기 또는 실패"));
-	void RecordDiscardedSlabFrames(const FStreamRuntime& Runtime);
+	void RecordRunFailure(const FString& RunId, const FString& SensorId, EVirtualSensorStreamKind Kind, int64 FrameId,const FString& Reason=TEXT("파생 처리·직렬화·전송 결과 폐기 또는 실패"));
+	void RecordDiscardedRunFrames(const FStreamRuntime& Runtime);
 	bool EnsureHighThroughputTransport(FString& OutError);
 	bool TrySubmitHighThroughput(const FPreparedMessage& Message, const FStreamRuntime& Runtime, FString& OutError);
 	void MergeHighThroughputTelemetry();
@@ -277,7 +281,7 @@ private:
 	TMap<FString, FStreamRuntime> StreamRuntimes;
 	TMap<FString, FReceiptWait> WaitingReceipts;
 	TMap<FString, FString> RequestToStreamKey;
-	TMap<FString,TSet<FString>> SlabRunFailures;
+	FDeviceRunDeliveryLedger RunFailures;
 	TArray<FVirtualSensorTransportLogEntry> RecentLogEntries;
 	int32 RoundRobinCursor = 0;
 	int32 ConsecutiveReceiptTimeouts = 0;
