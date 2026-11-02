@@ -72,6 +72,7 @@ try {
     if ($Level -eq 'release') { $env:MA0T10_ACCEPTANCE_RES_X = '1920'; $env:MA0T10_ACCEPTANCE_RES_Y = '1080' }
     Invoke-Step 'diff-check' { & git -C $root diff --check; if ($LASTEXITCODE -ne 0) { throw 'Worktree whitespace check failed' }; & git -C $root diff --cached --check; if ($LASTEXITCODE -ne 0) { throw 'Index whitespace check failed' } }
     Invoke-Step 'dtcore-guard' { & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_dtcore_submodule_guard.ps1" -FailOnViolation -Json; if ($LASTEXITCODE -ne 0) { throw 'DTCore guard failed' } }
+    Invoke-Step 'device-plugin-guard' { & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_device_plugin_submodule_guard.ps1" -FailOnViolation -Json; if ($LASTEXITCODE -ne 0) { throw 'DTDevice guard failed' } }
     Invoke-Step 'layer-gate' { & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_architecture_layers.ps1" -Json; if ($LASTEXITCODE -ne 0) { throw 'Layer gate failed' } }
     Invoke-Step 'protected-paths' {
         $staged = @(Get-GitLines -Arguments (@('diff', '--cached', '--name-only', '--') + $protectedPaths))
