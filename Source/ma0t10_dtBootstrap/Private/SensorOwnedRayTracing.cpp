@@ -12,6 +12,8 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "ShaderCore.h"
 #include "Misc/Paths.h"
+#include "Interfaces/IPluginManager.h"
+#include "HAL/FileManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "RHICommandList.h"
@@ -657,9 +659,20 @@ TSharedPtr<ISensorRtScan,ESPMode::ThreadSafe> SensorOwnedRayTracing::Submit(FSen
     {FScopeLock Lock(&SubmissionMutex);Submissions.Add(Scan);}
     return Scan;
 }
+FString SensorOwnedRayTracing::ShaderSourceDirectory()
+{
+    // DEVICE-PLUGIN-01: once the shader lives in the DTDevice plugin its folder wins; until then the
+    // project folder. The virtual path stays /MA0T10 so shader keys and DXIL do not change with the move.
+    if(const TSharedPtr<IPlugin> Plugin=IPluginManager::Get().FindPlugin(TEXT("DTDevice")))
+    {
+        const FString Dir=FPaths::Combine(Plugin->GetBaseDir(),TEXT("Shaders"));
+        if(IFileManager::Get().FileExists(*FPaths::Combine(Dir,TEXT("Private/SensorOwnedRayTracing.usf"))))return Dir;
+    }
+    return FPaths::Combine(FPaths::ProjectDir(),TEXT("Shaders"));
+}
 void SensorOwnedRayTracing::RegisterShaders()
 {
-    AddShaderSourceDirectoryMapping(TEXT("/MA0T10"),FPaths::Combine(FPaths::ProjectDir(),TEXT("Shaders")));
+    AddShaderSourceDirectoryMapping(TEXT("/MA0T10"),ShaderSourceDirectory());
     SubmitFrameHandle=FCoreDelegates::OnEndFrame.AddStatic(&FlushSubmissions);
     EndFrameHandle=FCoreDelegates::OnEndFrameRT.AddLambda([]()
     {

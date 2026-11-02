@@ -74,6 +74,8 @@ namespace SensorOwnedRayTracing
     MA0T10_DTBOOTSTRAP_API void RecycleRayArray(TArray<FSensorRtRay>&& Rays);
     /** One request per owning session. Bounded globally; nullptr means not admitted. */
     MA0T10_DTBOOTSTRAP_API TSharedPtr<ISensorRtScan, ESPMode::ThreadSafe> Submit(FSensorRtRequest&& Request);
+    /** Folder mapped to /MA0T10: DTDevice plugin Shaders when it carries the source, else the project Shaders. */
+    MA0T10_DTBOOTSTRAP_API FString ShaderSourceDirectory();
     void RegisterShaders();
     void Shutdown();
 }
