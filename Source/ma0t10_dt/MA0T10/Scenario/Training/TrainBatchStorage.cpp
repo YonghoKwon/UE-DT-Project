@@ -135,7 +135,7 @@ TSharedPtr<FVirtualDatasetFramePlan,ESPMode::ThreadSafe> FTrainBatchStorage::Pre
 {
     auto* J=Find(JobId);if(!J||!J->Items.IsValidIndex(Index)||J->Items[Index].State!=ETrainBatchItemState::Waiting){Error=TEXT("생성할 대기 항목이 없습니다");return nullptr;}
     auto& I=J->Items[Index];FString Raw;FSlabScenarioDataPtr D;
-    uint64 RemainingFrames=0;for(const auto& Item:J->Items)if(Item.State==ETrainBatchItemState::Waiting)RemainingFrames+=FMath::CeilToInt(Item.Spec.Duration*20);
+    uint64 RemainingFrames=0;for(const auto& Item:J->Items)if(Item.State==ETrainBatchItemState::Waiting){int32 N=0;if(!TrainBatchCodec::SampleCount(Item.Spec.Duration,N,Error))return nullptr;RemainingFrames+=N;}
     if(EstimatedFrameBytes<=0||uint64(EstimatedFrameBytes)>MAX_uint64/FMath::Max<uint64>(1,RemainingFrames)||!HasDiskSpace(RemainingFrames*uint64(EstimatedFrameBytes),Error))return nullptr;
     auto P=MakeShared<FVirtualDatasetFramePlan,ESPMode::ThreadSafe>();
     if(!ReadUtf8(InputPath(*J,Index),TrainBatchContract::ScenarioBytes,Raw)||!TrainBatchCodec::ValidateScenario(I.Spec,Raw,D,Error)||!TrainBatchCodec::Plan(*D,I.Spec.Duration,Track,Dimension,Position,*P,Error))return nullptr;
@@ -147,7 +147,7 @@ TSharedPtr<FVirtualDatasetFramePlan,ESPMode::ThreadSafe> FTrainBatchStorage::Pre
 }
 bool FTrainBatchStorage::Verify(FTrainBatchJobView& Job,int32 Index,const std::atomic<bool>& Cancel,FString& Error)
 {
-    auto& I=Job.Items[Index];const FString Root=I.RunDirectory;const int32 Frames=FMath::CeilToInt(I.Spec.Duration*TrainBatchContract::SampleHz);
+    auto& I=Job.Items[Index];const FString Root=I.RunDirectory;int32 Frames=0;if(!TrainBatchCodec::SampleCount(I.Spec.Duration,Frames,Error))return false;
     FString Text;TSharedPtr<FJsonObject> O;double Done=0;
     FString Schema;
     if(!ReadUtf8(Root/TEXT("dataset.json"),2*1024*1024,Text)||!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text),O)||!O->TryGetStringField(TEXT("schema_version"),Schema)||Schema!=TEXT("ma0t10.dataset.v1")||!O->TryGetNumberField(TEXT("completed_scenes"),Done)||Done!=Frames){Error=TEXT("dataset 완료 수/schema 불일치");return false;}
@@ -191,8 +191,9 @@ namespace
 {
 bool ConfirmedFiles(const FString& Root,const FString& JobId,const FTrainBatchItemView& Item,FString& Error)
 {
+    int32 ExpectedFrames=0;if(!TrainBatchCodec::SampleCount(Item.Spec.Duration,ExpectedFrames,Error))return false;
     const auto Marker=TrainBatchProcess::Read(Root/TEXT("complete.json"));FString Id,Scenario,Run,Expected,Text;double Frames=0;
-    if(!Marker||!Marker->TryGetStringField(TEXT("job_id"),Id)||Id!=JobId||!Marker->TryGetStringField(TEXT("scenario_id"),Scenario)||Scenario!=Item.Spec.Id||!Marker->TryGetStringField(TEXT("run_uuid"),Run)||Run!=Item.RunId||!Marker->TryGetNumberField(TEXT("frames"),Frames)||Frames!=FMath::CeilToInt(Item.Spec.Duration*20)||!Marker->TryGetStringField(TEXT("checksums_sha256"),Expected)||!FTrainBatchStorage::ReadUtf8(Root/TEXT("checksums.sha256"),16*1024*1024,Text))
+    if(!Marker||!Marker->TryGetStringField(TEXT("job_id"),Id)||Id!=JobId||!Marker->TryGetStringField(TEXT("scenario_id"),Scenario)||Scenario!=Item.Spec.Id||!Marker->TryGetStringField(TEXT("run_uuid"),Run)||Run!=Item.RunId||!Marker->TryGetNumberField(TEXT("frames"),Frames)||Frames!=ExpectedFrames||!Marker->TryGetStringField(TEXT("checksums_sha256"),Expected)||!FTrainBatchStorage::ReadUtf8(Root/TEXT("checksums.sha256"),16*1024*1024,Text))
     {Error=TEXT("완료 marker ID/프레임/체크섬 목록 오류");return false;}
     FTCHARToUTF8 U(*Text);FString Actual;if(!TrainBatchCodec::Sha256(U.Get(),U.Length(),Actual)||Actual!=Expected){Error=TEXT("체크섬 목록 손상");return false;}
     TArray<FString> Lines;Text.ParseIntoArrayLines(Lines);if(Lines.IsEmpty()||Lines.Num()>100000)return false;TSet<FString> Seen;
@@ -238,7 +239,7 @@ bool FTrainBatchStorage::Restore(const FString& JobId,FString& Error)
         {
             O->TryGetStringField(TEXT("run_uuid"),I.RunId);if(!TrainBatchCodec::CanonicalGuid(I.RunId))return false;
             I.RunDirectory=TrainBatchCodec::RunDirectory(JobId,I.Spec.Id,I.RunId);
-            if(ConfirmedFiles(I.RunDirectory,JobId,I,Error)){I.State=ETrainBatchItemState::Completed;I.CompletedFrames=FMath::CeilToInt(I.Spec.Duration*20);I.Message=TEXT("완료 결과 복원됨");}
+            if(ConfirmedFiles(I.RunDirectory,JobId,I,Error)){I.State=ETrainBatchItemState::Completed;if(!TrainBatchCodec::SampleCount(I.Spec.Duration,I.CompletedFrames,Error))return false;I.Message=TEXT("완료 결과 복원됨");}
             else {Error.Reset();I.RunId.Reset();I.RunDirectory.Reset();}
         }
         else if(Status==TEXT("failed")){I.State=ETrainBatchItemState::Failed;O->TryGetStringField(TEXT("message"),I.Message);}
@@ -270,5 +271,5 @@ bool FTrainBatchStorage::Adopt(const FString& JobId,int32 Index,const FString& A
         {Error=TEXT("워커 결과 이동 실패 · 같은 볼륨의 Saved root가 필요합니다");return false;}
     }
     if(!ConfirmedFiles(Destination,JobId,I,Error))return false;
-    I.RunDirectory=Destination;I.State=ETrainBatchItemState::Completed;I.CompletedFrames=FMath::CeilToInt(I.Spec.Duration*20);I.Message=TEXT("워커 결과 검증 완료");return Snapshot(*J,TEXT("worker_result_adopted"),Error);
+    I.RunDirectory=Destination;I.State=ETrainBatchItemState::Completed;if(!TrainBatchCodec::SampleCount(I.Spec.Duration,I.CompletedFrames,Error))return false;I.Message=TEXT("워커 결과 검증 완료");return Snapshot(*J,TEXT("worker_result_adopted"),Error);
 }

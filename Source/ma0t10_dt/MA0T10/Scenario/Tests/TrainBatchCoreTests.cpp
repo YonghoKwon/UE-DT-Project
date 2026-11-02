@@ -150,4 +150,23 @@ bool FTrainBatchVerifiedResultTest::RunTest(const FString&)
     FString Checksums;TestTrue(TEXT("checksum list saved"),FFileHelper::LoadFileToString(Checksums,*(P->Root/TEXT("checksums.sha256"))));TArray<FString> Lines;Checksums.ParseIntoArrayLines(Lines);TestEqual(TEXT("dataset plus 3 files per sample"),Lines.Num(),10);
     TestFalse(TEXT("no self-referential completion hash"),Checksums.Contains(TEXT("complete.json")));TestTrue(TEXT("complete marker last"),IFileManager::Get().FileExists(*(P->Root/TEXT("complete.json"))));return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTrainBatchSampleBoundaryTest,"MA0T10.TrainBatch.SampleCountBoundary",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FTrainBatchSampleBoundaryTest::RunTest(const FString&)
+{
+    FFixture F;FSlabScenarioDataPtr Original;FString Error;FSlabScenarioCodec::Parse(F.Raw,Original,Error,false);if(!Original)return false;
+    for(const double Duration:{.05,.1,.15,.35,1.,300.})
+    {
+        const int32 Expected=int32(Duration*20+.5);int32 Count=0;
+        TestTrue(TEXT("boundary count accepted"),TrainBatchCodec::SampleCount(Duration,Count,Error));TestEqual(TEXT("no extra endpoint sample"),Count,Expected);
+        FSlabScenarioData Data=*Original;Data.DurationSec=Duration;FVirtualDatasetFramePlan Plan;
+        TestTrue(TEXT("plan accepts boundary"),TrainBatchCodec::Plan(Data,Duration,FTransform::Identity,ESlabInputUnit::Millimeters,ESlabInputUnit::Centimeters,Plan,Error));TestEqual(TEXT("planner shares count"),Plan.Frames.Num(),Expected);
+        for(const auto& Frame:Plan.Frames)if(!TestTrue(TEXT("every sample strictly before D"),Frame.ElapsedSec<Duration))break;
+    }
+    int32 Count=0;TestTrue(TEXT("representation noise accepted"),TrainBatchCodec::SampleCount(.15+1.e-15,Count,Error));TestEqual(TEXT("noise is not a fourth frame"),Count,3);
+    TestTrue(TEXT("genuine fractional sample retained"),TrainBatchCodec::SampleCount(.05+1.e-7,Count,Error));TestEqual(TEXT("fractional duration has second sample"),Count,2);
+    TestTrue(TEXT("positive sub-interval retains t0"),TrainBatchCodec::SampleCount(1.e-12,Count,Error));TestEqual(TEXT("one t0"),Count,1);
+    Error.Reset();TestFalse(TEXT("frame cap rejected"),TrainBatchCodec::SampleCount(600,Count,Error));TestFalse(TEXT("cap has reason"),Error.IsEmpty());
+    FSlabScenarioData Data=*Original;Data.DurationSec=600;FVirtualDatasetFramePlan Plan;Error.Reset();TestFalse(TEXT("Plan cap rejected"),TrainBatchCodec::Plan(Data,600,FTransform::Identity,ESlabInputUnit::Millimeters,ESlabInputUnit::Centimeters,Plan,Error));TestTrue(TEXT("Plan cap reason names frame limit"),Error.Contains(TEXT("frame limit")));
+    return true;
+}
 #endif

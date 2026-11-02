@@ -39,6 +39,14 @@ bool TrainBatchCodec::Sha256(const void* Bytes,uint32 Size,FString& Out)
     Out=TrainBatchArchive::Sha256Bytes(Bytes,Size);
     return Out.Len()==64;
 }
+bool TrainBatchCodec::SampleCount(double Duration,int32& Out,FString& Error)
+{
+    Out=0;Error.Reset();
+    if(!FMath::IsFinite(Duration)||Duration<=0){Error=TEXT("sampled_timeline duration must be finite and positive");return false;}
+    const double Samples=Duration*TrainBatchContract::SampleHz;
+    if(!FMath::IsFinite(Samples)||Samples-1.e-9>TrainBatchContract::MaxFrames){Error=TEXT("sampled_timeline exceeds the per-scenario frame limit");return false;}
+    Out=FMath::Max(1,int32(FMath::CeilToDouble(Samples-1.e-9)));return true;
+}
 FString TrainBatchCodec::JobsRoot(){return LocalCapturePath::Full(FPaths::ProjectSavedDir()/TEXT("TrainBatch/Jobs"));}
 FString TrainBatchCodec::JobDirectory(const FString& JobId){return JobsRoot()/JobId;}
 FString TrainBatchCodec::RunDirectory(const FString& JobId,const FString& Id,const FString& RunId)
@@ -93,7 +101,7 @@ bool TrainBatchCodec::Parse(const FString& Json,FTrainBatchMessage& Out,FString&
         if(!V||!V->TryGetObject(Item)||!(*Item)->TryGetStringField(TEXT("scenario_id"),Spec.Id)||!SafeId(Spec.Id)||Ids.Contains(Spec.Id.ToLower())||!(*Item)->TryGetStringField(TEXT("input_sha256"),Spec.InputSha256)||!Hash(Spec.InputSha256)||!Integer(*Item,TEXT("input_bytes"),1,ScenarioBytes,Spec.InputBytes)||!Number(*Item,TEXT("duration_sec"),Spec.Duration)||Spec.Duration<=0||Spec.Duration>MaxDuration)return Reject(TEXT("시나리오 descriptor/중복/길이/용량 오류"));
         if(!Keys(*Item,{TEXT("scenario_id"),TEXT("input_sha256"),TEXT("input_bytes"),TEXT("duration_sec"),TEXT("input_file")}))return Reject(TEXT("시나리오 descriptor의 미지원 필드"));
         if((*Item)->HasField(TEXT("input_file"))&&!(*Item)->TryGetStringField(TEXT("input_file"),Spec.InputFile))return Reject(TEXT("input_file 형식 오류"));
-        const int64 N=FMath::CeilToInt(Spec.Duration*SampleHz);Frames+=N;Bytes+=Spec.InputBytes;Seconds+=Spec.Duration;
+        int32 N=0;if(!SampleCount(Spec.Duration,N,Error))return false;Frames+=N;Bytes+=Spec.InputBytes;Seconds+=Spec.Duration;
         if(N>MaxFrames||Frames>MaxJobFrames||Bytes>JobInputBytes||Seconds>MaxTotalDuration)return Reject(TEXT("Job 프레임/입력/총 길이 상한 초과"));
         Ids.Add(Spec.Id.ToLower());J.Scenarios.Add(MoveTemp(Spec));
     }
@@ -112,10 +120,10 @@ bool TrainBatchCodec::ValidateScenario(const FTrainBatchScenarioSpec& Spec,const
 }
 bool TrainBatchCodec::Plan(const FSlabScenarioData& Data,double Duration,const FTransform& Track,ESlabInputUnit Dimension,ESlabInputUnit Position,FVirtualDatasetFramePlan& Out,FString& Error)
 {
+    int32 Count=0;if(!SampleCount(Duration,Count,Error))return false;
     if(!FMath::IsFinite(Duration)||Duration<=0||Duration>TrainBatchContract::MaxDuration||!DurationMatches(Data,Duration)||Track.ContainsNaN())
     {Error=TEXT("시간축 길이/원본/배치 오류");return false;}
     const auto& First=Data.Rows[0];const FVector Size(FSlabScenarioCodec::ToCm(First.Length,Dimension),FSlabScenarioCodec::ToCm(First.Width,Dimension),FSlabScenarioCodec::ToCm(First.Thickness,Dimension));
-    const int32 Count=FMath::CeilToInt(Duration*TrainBatchContract::SampleHz);if(Count>TrainBatchContract::MaxFrames)return false;
     Out.Frames.Reset(Count);
     for(int32 K=0;K<Count;++K)
     {
