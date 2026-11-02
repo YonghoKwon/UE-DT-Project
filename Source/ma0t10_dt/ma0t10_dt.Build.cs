@@ -41,7 +41,7 @@ public class ma0t10_dt : ModuleRules
             "NiagaraCore"
         });
 
-        PrivateDependencyModuleNames.AddRange(new string[] { "ma0t10_dtBootstrap" });
+        PrivateDependencyModuleNames.AddRange(new string[] { "DeviceNative" });
         // TRAIN-BATCH-01: result archives (ZIP via engine libzip, tar.gz via zlib) and SHA-256.
         PrivateDependencyModuleNames.AddRange(new string[] { "zlib", "libzip", "OpenSSL" });
 

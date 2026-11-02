@@ -1,4 +1,3 @@
-#include "SensorOwnedRayTracing.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Modules/ModuleManager.h"
 
@@ -7,12 +6,13 @@ namespace
 	constexpr double Mlx80WebSocketServiceIntervalSeconds = 0.001;
 }
 
+// Native ray tracing and its shader mapping now live in the DTDevice plugin (DeviceNative).
+// This host module keeps only the project's own early WebSockets policy.
 class FMa0t10DtBootstrapModule final : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override
 	{
-		SensorOwnedRayTracing::RegisterShaders();
 		// UE 5.3's libwebsockets manager reads this value when the WebSockets
 		// module starts. PostConfigInit runs before DTCore/STOMP can load that
 		// module, so a 1 MiB binary PCD is serviced across enough writable
@@ -26,7 +26,6 @@ public:
 				GEngineIni);
 		}
 	}
-	virtual void ShutdownModule() override { SensorOwnedRayTracing::Shutdown(); }
 };
 
 IMPLEMENT_MODULE(FMa0t10DtBootstrapModule, ma0t10_dtBootstrap);

@@ -1,8 +1,8 @@
 param([string]$Dxc='C:/Program Files (x86)/Windows Kits/10/bin/10.0.22621.0/x64/dxc.exe',[switch]$Check,[switch]$CheckSourceOnly)
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
-$source=Join-Path $root 'Shaders/Private/SensorOwnedRayTracing.usf'
-$target=Join-Path $root 'Source/ma0t10_dtBootstrap/Private/SensorNativeRayQueryDxil.h'
+$source=Join-Path $root 'Plugins/DTDevice/Shaders/Private/SensorOwnedRayTracing.usf'
+$target=Join-Path $root 'Plugins/DTDevice/Source/DeviceNative/Private/SensorNativeRayQueryDxil.h'
 $canonical=[IO.File]::ReadAllText($source).Replace("`r`n","`n")
 $sha=[Security.Cryptography.SHA256]::Create()
 try{$hash=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($canonical)))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
