@@ -1,4 +1,5 @@
 #include "VirtualLidarScanComponent.h"
+#include "DevicePointCloudAnalysis.h"
 #include "SensorUploadDiagnostics.h"
 #include "IndustrialLidarProfiles.h"
 #include "SensorOwnedRayTracing.h"
@@ -39,8 +40,8 @@
 namespace
 {
 
-float NormalizeSignedAngleDegrees(float Angle) { while (Angle > 180.0f) Angle -= 360.0f; while (Angle < -180.0f) Angle += 360.0f; return Angle; }
-float NormalizeAxisAngleDegrees(float Angle) { Angle = NormalizeSignedAngleDegrees(Angle); if (Angle > 90.0f) Angle -= 180.0f; if (Angle < -90.0f) Angle += 180.0f; return Angle; }
+
+
 }
 
 
@@ -444,75 +445,11 @@ FVirtualLidarProfilePreset UVirtualLidarScanComponent::ResolveProfilePreset(
 
 FVirtualLidarSlabAnalysisResult UVirtualLidarScanComponent::AnalyzeSlabPoints(const TArray<FVirtualLidarPoint>& Points) const
 {
+    const auto Provider=DevicePointCloudAnalysis::Snapshot();
+    if(Provider)return Provider->Analyze(Points,SlabSemanticLabel,ReferenceSlabYawDegrees,MinSlabPointsForAnalysis);
     FVirtualLidarSlabAnalysisResult Result;
-    Result.ReferenceYawDegrees = ReferenceSlabYawDegrees;
-
-    TArray<FVector> SlabPoints;
-    for (const FVirtualLidarPoint& Point : Points)
-    {
-        if (Point.bHit && Point.SemanticLabel == SlabSemanticLabel)
-        {
-            if (SlabPoints.IsEmpty()) SlabPoints.Reserve(Points.Num());
-            SlabPoints.Add(Point.WorldLocation);
-        }
-    }
-
-    Result.SlabHitPointCount = SlabPoints.Num();
-    if (SlabPoints.Num() < FMath::Max(3, MinSlabPointsForAnalysis))
-    {
-        Result.StatusMessage = FString::Printf(TEXT("insufficient slab points: %d/%d"), SlabPoints.Num(), FMath::Max(3, MinSlabPointsForAnalysis));
-        return Result;
-    }
-
-    FVector Sum = FVector::ZeroVector;
-    Result.BoundsMin = FVector(FLT_MAX);
-    Result.BoundsMax = FVector(-FLT_MAX);
-    for (const FVector& Point : SlabPoints)
-    {
-        Sum += Point;
-        Result.BoundsMin.X = FMath::Min(Result.BoundsMin.X, Point.X);
-        Result.BoundsMin.Y = FMath::Min(Result.BoundsMin.Y, Point.Y);
-        Result.BoundsMin.Z = FMath::Min(Result.BoundsMin.Z, Point.Z);
-        Result.BoundsMax.X = FMath::Max(Result.BoundsMax.X, Point.X);
-        Result.BoundsMax.Y = FMath::Max(Result.BoundsMax.Y, Point.Y);
-        Result.BoundsMax.Z = FMath::Max(Result.BoundsMax.Z, Point.Z);
-    }
-
-    Result.Center = Sum / static_cast<float>(SlabPoints.Num());
-
-    double XX = 0.0;
-    double XY = 0.0;
-    double YY = 0.0;
-    for (const FVector& Point : SlabPoints)
-    {
-        const double DX = static_cast<double>(Point.X - Result.Center.X);
-        const double DY = static_cast<double>(Point.Y - Result.Center.Y);
-        XX += DX * DX;
-        XY += DX * DY;
-        YY += DY * DY;
-    }
-
-    const double Count = static_cast<double>(SlabPoints.Num());
-    XX /= Count;
-    XY /= Count;
-    YY /= Count;
-
-    const double Trace = XX + YY;
-    const double Delta = FMath::Sqrt(FMath::Max(0.0, ((XX - YY) * (XX - YY) * 0.25) + (XY * XY)));
-    const double LambdaMajor = Trace * 0.5 + Delta;
-    const double LambdaMinor = Trace * 0.5 - Delta;
-
-    FVector2D Axis(1.0f, 0.0f);
-    if (FMath::Abs(XY) > KINDA_SMALL_NUMBER || FMath::Abs(LambdaMajor - XX) > KINDA_SMALL_NUMBER)
-    {
-        Axis = FVector2D(static_cast<float>(XY), static_cast<float>(LambdaMajor - XX)).GetSafeNormal();
-    }
-
-    Result.EstimatedYawDegrees = NormalizeAxisAngleDegrees(FMath::RadiansToDegrees(FMath::Atan2(Axis.Y, Axis.X)));
-    Result.AngleDeviationDegrees = NormalizeAxisAngleDegrees(Result.EstimatedYawDegrees - ReferenceSlabYawDegrees);
-    Result.Confidence = static_cast<float>(FMath::Clamp((LambdaMajor - LambdaMinor) / FMath::Max(1.0, LambdaMajor), 0.0, 1.0));
-    Result.bValid = true;
-    Result.StatusMessage = TEXT("ok");
+    Result.ReferenceYawDegrees=ReferenceSlabYawDegrees;
+    Result.StatusMessage=TEXT("point analysis provider is unavailable");
     return Result;
 }
 
