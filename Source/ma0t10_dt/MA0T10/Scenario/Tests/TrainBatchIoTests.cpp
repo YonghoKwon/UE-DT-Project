@@ -3,6 +3,8 @@
 #include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchArchive.h"
 #include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchSftp.h"
 #include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchDelivery.h"
+#include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchCodec.h"
+#include "Misc/Guid.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -165,6 +167,25 @@ bool FTrainBatchDeliveryTest::RunTest(const FString&)
     TestEqual(TEXT("mismatched archive refused"),D->Status().Phase,ETrainDeliveryPhase::Failed);
     FTrainDeliveryRequest Bad=R;Bad.bUpload=true;Bad.Settings.Sftp.Host=TEXT("-x");
     TestFalse(TEXT("upload with invalid settings refused before work starts"),D->Start(Bad,Error));
+
+    // View packaging: only confirmed runs, and partial jobs only when explicitly chosen.
+    FTrainBatchJobView View;View.Spec.Id=TEXT("io-test-")+FGuid::NewGuid().ToString(EGuidFormats::Digits).Left(12).ToLower();
+    const FString JobDir=TrainBatchCodec::JobDirectory(View.Spec.Id);
+    FFileHelper::SaveStringToFile(TEXT("{}"),*(JobDir/TEXT("input/job.json")));
+    FTrainBatchItemView Done;Done.Spec.Id=TEXT("case-001");Done.State=ETrainBatchItemState::Completed;Done.RunDirectory=JobDir/TEXT("scenarios/case-001/run_a");
+    FFileHelper::SaveStringToFile(TEXT("{}"),*(Done.RunDirectory/TEXT("complete.json")));FFileHelper::SaveStringToFile(TEXT("pcd"),*(Done.RunDirectory/TEXT("scene_00000/lidar.pcd")));
+    FFileHelper::SaveStringToFile(TEXT("stale"),*(JobDir/TEXT("scenarios/case-001/run_old/scene_00000/lidar.pcd")));
+    FTrainBatchItemView Lost;Lost.Spec.Id=TEXT("case-002");Lost.State=ETrainBatchItemState::Failed;
+    View.Items={Done,Lost};
+    TArray<FTrainArchiveEntry> JobEntries;TArray<FString> Excluded;
+    TestFalse(TEXT("failed scenario blocks default send"),TrainBatchDelivery::BuildJobEntries(View,false,JobEntries,Excluded,Error));
+    TestTrue(TEXT("success-only package when chosen"),TrainBatchDelivery::BuildJobEntries(View,true,JobEntries,Excluded,Error));
+    TestEqual(TEXT("excluded ids reported"),Excluded,TArray<FString>{TEXT("case-002")});
+    TArray<FString> Names;for(const auto& E:JobEntries)Names.Add(E.EntryName);
+    TestEqual(TEXT("input + confirmed run only"),Names,TArray<FString>{View.Spec.Id+TEXT("/input/job.json"),View.Spec.Id+TEXT("/scenarios/case-001/complete.json"),View.Spec.Id+TEXT("/scenarios/case-001/scene_00000/lidar.pcd")});
+    View.Items[0].RunDirectory=JobDir/TEXT("scenarios/case-001/run_old");
+    TestFalse(TEXT("run without complete.json refused"),TrainBatchDelivery::BuildJobEntries(View,true,JobEntries,Excluded,Error));
+    IFileManager::Get().DeleteDirectory(*JobDir,false,true);
     return true;
 }
 

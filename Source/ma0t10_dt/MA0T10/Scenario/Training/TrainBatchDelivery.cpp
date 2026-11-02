@@ -1,4 +1,5 @@
 #include "TrainBatchDelivery.h"
+#include "TrainBatchCodec.h"
 #include "Async/Async.h"
 #include "Dom/JsonObject.h"
 #include "HAL/FileManager.h"
@@ -38,6 +39,34 @@ bool TrainBatchDelivery::IsSafeJobId(const FString& JobId){return JobId.Len()<=6
 FString TrainBatchDelivery::RemoteArchiveName(const FString& JobId,const FString& Sha256,ETrainArchiveFormat Format)
 {
     return JobId+TEXT("-")+Sha256.Left(12)+TEXT(".")+TrainBatchArchive::Extension(Format);
+}
+
+FString TrainBatchDelivery::OutputDirectory(const FString& JobId,bool bPartial)
+{
+    return FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("TrainBatch/Deliveries")/(bPartial?JobId+TEXT("-partial"):JobId));
+}
+
+bool TrainBatchDelivery::BuildJobEntries(const FTrainBatchJobView& Job,bool bAllowPartial,TArray<FTrainArchiveEntry>& Out,TArray<FString>& Excluded,FString& Error)
+{
+    Out.Reset();Excluded.Reset();
+    const FString Id=Job.Spec.Id;
+    if(!IsSafeJobId(Id)){Error=TEXT("invalid job id");return false;}
+    if(!Job.IsReady()){Error=TEXT("job input is still being received");return false;}
+    for(const auto& I:Job.Items)if(I.State!=ETrainBatchItemState::Completed)Excluded.Add(I.Spec.Id);
+    if(!Excluded.IsEmpty()&&!bAllowPartial){Error=FString::Printf(TEXT("%d scenario(s) not completed; retry them or choose success-only sending"),Excluded.Num());return false;}
+    if(Excluded.Num()==Job.Items.Num()){Error=TEXT("no completed scenario to send");return false;}
+    if(!TrainBatchArchive::CollectEntries(TrainBatchCodec::JobDirectory(Id)/TEXT("input"),Id+TEXT("/input/"),Out,Error))return false;
+    for(const auto& I:Job.Items)
+    {
+        if(I.State!=ETrainBatchItemState::Completed)continue;
+        // Only the confirmed run (complete.json written by storage) is packaged; earlier attempts stay local.
+        if(I.RunDirectory.IsEmpty()||!IFileManager::Get().FileExists(*(I.RunDirectory/TEXT("complete.json")))){Error=TEXT("completed scenario has no confirmed run: ")+I.Spec.Id;return false;}
+        TArray<FTrainArchiveEntry> Run;
+        if(!TrainBatchArchive::CollectEntries(I.RunDirectory,Id+TEXT("/scenarios/")+I.Spec.Id+TEXT("/"),Run,Error))return false;
+        Out.Append(MoveTemp(Run));
+    }
+    Out.Sort([](const FTrainArchiveEntry& A,const FTrainArchiveEntry& B){return A.EntryName.Compare(B.EntryName,ESearchCase::CaseSensitive)<0;});
+    return true;
 }
 
 bool TrainBatchDelivery::LoadSettings(FTrainDeliverySettings& Out,FString& Error)
@@ -117,8 +146,8 @@ void FTrainBatchDelivery::Run(FTrainDeliveryRequest R)
     if(!bReuse)
     {
         Set(ETrainDeliveryPhase::Collecting);
-        TArray<FTrainArchiveEntry> Entries;
-        if(!TrainBatchArchive::CollectEntries(R.StagingRoot,R.JobId+TEXT("/"),Entries,Error)){Fail(Error);return;}
+        TArray<FTrainArchiveEntry> Entries=R.Entries;
+        if(Entries.IsEmpty()&&!TrainBatchArchive::CollectEntries(R.StagingRoot,R.JobId+TEXT("/"),Entries,Error)){Fail(Error);return;}
         if(Entries.IsEmpty()){Fail(TEXT("no confirmed result files to package"));return;}
         Set(ETrainDeliveryPhase::Hashing);
         IFileManager::Get().Delete(*Checksums,false,true);

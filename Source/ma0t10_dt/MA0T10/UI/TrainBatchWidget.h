@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "UI/DxWidget.h"
 #include "Styling/SlateBrush.h"
+#include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchDelivery.h"
 #include "TrainBatchWidget.generated.h"
 
 class SEditableTextBox;
@@ -29,6 +30,13 @@ protected:
 private:
     void Refresh();
     void ApplyTargets();
+    /** Archive format, SFTP server and the explicit send button. */
+    TSharedRef<SWidget> BuildDeliverySection();
+    FTrainDeliverySettings ReadDeliveryFields() const;
+    void SaveDelivery();
+    void StartDelivery(bool bUpload);
+    void FetchFingerprint();
+    FText DeliveryStatusText() const;
     TSharedRef<ITableRow> GenerateRow(TSharedPtr<FTrainBatchListRow> Row,const TSharedRef<STableViewBase>& Owner);
     TSharedPtr<SEditableTextBox> ManifestPath,Preset,SlabName,LidarId,CameraId;
     TSharedPtr<SListView<TSharedPtr<FTrainBatchListRow>>> List;
@@ -40,4 +48,12 @@ private:
     FSlateBrush PreviewBrush;
     double NextRefresh=0;
     int64 SeenRevision=-1;
+    TSharedPtr<SEditableTextBox> Host,Port,User,RemoteDir,KeyPath,Level;
+    ETrainArchiveFormat Format=ETrainArchiveFormat::Zip;
+    bool bSendSuccessOnly=false;
+    TSharedPtr<FTrainBatchDelivery,ESPMode::ThreadSafe> Delivery;
+    /** Host key fetched for confirmation; trusted only after the user presses "키 등록". */
+    FString PendingFingerprint,PendingKnownHosts;
+    bool bFetchingFingerprint=false;
+    FText DeliveryFeedback;
 };
