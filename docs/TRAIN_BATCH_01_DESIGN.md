@@ -351,3 +351,12 @@ DTCore에는 새 기능이 필요하지 않은 방향이다. TC DataTable 등록
 사용자 지시에 따라 r41c의 Development/Shipping build·stage·기본 꺼짐·패키지 M=1, native M=2 생성→ZIP/tar.gz 독립 검증, 표준 release(482 Success/44 semantic Skip/0 Fail, 검증 코드35ec727)를 재실행하지 않고 재사용한다. 해당 생성·압축·워커·UI callback 등 runtime18파일은35ec727과 동일함을 대조했다. 후속 SFTP 인용 수정은 사용자 서버 업로드 미수행 범위이며 이전3종 빌드·단위 증거와 구분한다.
 
 `MA0T10.TrainBatch.PartialUiDelivery`는 합성 Job view로 실제 위젯의 StartDelivery(false)를 호출한다. 기본 부분 실패 거절과 명시적 성공분 ZIP/tar.gz를 확인하고, Python 표준 도구로 전체 SHA256·정확한 excluded_scenarios.txt·실패/이전 attempt 결과 미포함을 검증했다. 새 private 접근은 Editor 자동화 friend만이며 shipping/runtime 동작을 바꾸지 않는다. 화면을 열거나 센서·서버를 실행한 수용 검증은 아니다. 이 시험은 최초 성공분 압축이며 상태 변경 후 재압축은 별도 범위다. 실제 Linux SFTP와 직접 UI는 미수행으로 유지한다. 증거: `Saved/Reports/TRAIN-BATCH-01/r41d/RESULT.md`.
+
+
+### r42 실행·저장 경계 수정
+
+프레임 수는 단일 SampleCount 함수로 계산한다.20Hz의 [0,D)이며 scaled sample 수에서1e-9까지의 표현 오차만 허용하고, 실제 부분 간격은 올림·양수 극소 길이도 t0 한 프레임을 유지한다.0.05/0.1/0.15/0.35/1/300초는 각각1/2/3/7/20/6000프레임이다. Parse/Plan/Prepare/Verify/Restore/Adopt가 이 함수를 사용하며 프레임 상한 실패에는 사유를 기록한다.
+
+Storage는 소유 경로의 고유 GUID 임시 파일을 atomic rename으로 확정한다. 크래시의 이전 `.pending`은 새 쓰기를 막지 않으며, 이미 확정된 immutable 파일은 동일 UTF-8 bytes일 때만 재접수하고 다른 내용은 덮지 않는다. 완료 marker 재시도도 같은 원칙이다. Adopt는 별도 candidate로 검증하고 snapshot 확정 실패까지 기존 lease 항목을 되돌린다. 검증된 파일이 목적지로 이미 이동한 경우에도 재시도 시 다시 검증한다.
+
+PCD는 한 번 읽은 동일 buffer를 Decode와 SHA256에 사용한다. Restore는 크기/mtime만으로 checksum을 생략하지 않는다. 같은 크기·같은 mtime의 손상도 다시 해시하여 완료 상태로 인정하지 않는 회귀를 유지한다. 실제 native 실패/복구/해제 규칙은 [native 안전 문서](LIDAR_NATIVE_LIFETIME_26h.md#r42-학습-워커의-native-실패-분류)를 따른다. Delivery·위젯·IoTests의 병렬 수정은 이 변경에 포함하지 않는다.
