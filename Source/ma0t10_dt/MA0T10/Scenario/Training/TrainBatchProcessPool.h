@@ -23,11 +23,14 @@ public:
     const FString& Error() const{return Failure;}
     ~FTrainBatchProcessPool();
 private:
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+    friend class FTrainBatchPoolExitEvidenceTest;
+#endif
     struct FSlot
     {
         FProcHandle Process;uint32 Pid=0;uint64 Stamp=0,Sequence=0;
         int32 Task=INDEX_NONE;FString Ipc,Lease;uint64 Epoch=0;
-        bool Reported=false,NativeSeen=false;double Launched=0;
+        bool Reported=false,CoordinatorTerminated=false,CancelRequested=false,NativeFault=false;double Launched=0;
     };
     FTrainBatchJobSpec Job;
     TSharedPtr<FJsonObject> Preset;
@@ -41,6 +44,7 @@ private:
     TArray<FString> NativeFailureLeases;
     bool Acquire(FString& Error);
     bool Save();
+    bool SaveSafety();
     bool Launch(int32 Slot);
     void Control(FSlot& Slot,bool Pause,bool Cancel);
 };

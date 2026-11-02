@@ -95,7 +95,7 @@ void UTrainBatchWorkerSubsystem::Pump()
     {
         S.NextHeartbeat=Now+2;TrainBatchProcess::FGpuBudget G;if(TrainBatchProcess::QueryGpuBudget(G))S.PeakGpu=FMath::Max(S.PeakGpu,G.Usage);
         auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("lease"),S.Lease);O->SetNumberField(TEXT("epoch"),double(S.Epoch));O->SetNumberField(TEXT("sequence"),double(++S.Sequence));O->SetStringField(TEXT("phase"),S.Phase);O->SetNumberField(TEXT("pid"),FPlatformProcess::GetCurrentProcessId());O->SetNumberField(TEXT("peak_gpu_bytes"),double(S.PeakGpu));
-        O->SetNumberField(TEXT("native_status"),int32(SensorNativeSafety::GetStatus()));O->SetBoolField(TEXT("native"),SensorOwnedRayTracing::UsesNativeBackend());
+        const auto Safety=SensorNativeSafety::GetSnapshot();O->SetNumberField(TEXT("native_status"),int32(Safety.Status));O->SetBoolField(TEXT("native_fault"),Safety.Faulted);O->SetNumberField(TEXT("native_failures"),Safety.Failures);O->SetBoolField(TEXT("native"),SensorOwnedRayTracing::UsesNativeBackend());
         O->SetNumberField(TEXT("completed_frames"),GetWorld()->GetSubsystem<UVirtualDatasetSubsystem>()->CompletedScenes());TrainBatchProcess::Write(S.IpcRoot,S.IpcRoot/TEXT("heartbeat.json"),O);
     }
     if(S.OrphanAt||Paused){GetWorld()->GetSubsystem<UVirtualDatasetSubsystem>()->YieldPlannedCapture();return;}
@@ -184,7 +184,7 @@ void UTrainBatchWorkerSubsystem::Finish(const FString& Phase,const FString& Erro
     if(!State||State->Ending)return;auto& S=*State;S.Ending=true;S.Cancel->store(true);
     if(auto* D=GetWorld()->GetSubsystem<UVirtualDatasetSubsystem>())D->Stop();GetWorld()->GetTimerManager().ClearTimer(Timer);
     TrainBatchProcess::FGpuBudget G;if(TrainBatchProcess::QueryGpuBudget(G))S.PeakGpu=FMath::Max(S.PeakGpu,G.Usage);
-    const auto Stats=SensorOwnedRayTracing::GetSubmissionStats();auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("lease"),S.Lease);O->SetNumberField(TEXT("epoch"),double(S.Epoch));O->SetStringField(TEXT("phase"),Phase);O->SetStringField(TEXT("error"),Error);O->SetStringField(TEXT("run_uuid"),S.RunId);O->SetNumberField(TEXT("peak_gpu_bytes"),double(S.PeakGpu));O->SetNumberField(TEXT("native_status"),int32(SensorNativeSafety::GetStatus()));O->SetNumberField(TEXT("native_dispatches"),double(Stats.NativeDispatches));O->SetNumberField(TEXT("native_fallbacks"),double(Stats.NativeFallbacks));O->SetStringField(TEXT("gpu_identity"),G.Identity);O->SetNumberField(TEXT("wall_seconds"),FPlatformTime::Seconds()-S.Started);
+    const auto Stats=SensorOwnedRayTracing::GetSubmissionStats();auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("lease"),S.Lease);O->SetNumberField(TEXT("epoch"),double(S.Epoch));O->SetStringField(TEXT("phase"),Phase);O->SetStringField(TEXT("error"),Error);O->SetStringField(TEXT("run_uuid"),S.RunId);O->SetNumberField(TEXT("peak_gpu_bytes"),double(S.PeakGpu));const auto Safety=SensorNativeSafety::GetSnapshot();O->SetNumberField(TEXT("native_status"),int32(Safety.Status));O->SetBoolField(TEXT("native_fault"),Safety.Faulted);O->SetNumberField(TEXT("native_failures"),Safety.Failures);O->SetNumberField(TEXT("native_dispatches"),double(Stats.NativeDispatches));O->SetNumberField(TEXT("native_fallbacks"),double(Stats.NativeFallbacks));O->SetStringField(TEXT("gpu_identity"),G.Identity);O->SetNumberField(TEXT("wall_seconds"),FPlatformTime::Seconds()-S.Started);
     TrainBatchProcess::Write(S.IpcRoot,S.IpcRoot/TEXT("result.json"),O);FPlatformMisc::RequestExitWithStatus(false,Phase==TEXT("failed")?1:0);
 }
 void UTrainBatchWorkerSubsystem::Deinitialize()
