@@ -47,6 +47,8 @@ public class ma0t10_dt : ModuleRules
         {
             PublicSystemLibraries.Add("bcrypt.lib");
         }
+        // TRAIN-BATCH-01: result archives (ZIP via engine libzip, tar.gz via zlib) and SHA-256.
+        PrivateDependencyModuleNames.AddRange(new string[] { "zlib", "libzip", "OpenSSL" });
 
         // PKG-01: ship the deployment transport settings as a loose file next to every
         // package (<package>/ma0t10_dt/Config/SensorTransport.ini), outside the pak.
