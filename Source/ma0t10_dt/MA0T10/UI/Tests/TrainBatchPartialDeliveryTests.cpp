@@ -42,7 +42,7 @@ bool FTrainBatchPartialUiDeliveryTest::RunTest(const FString&)
     Widget->StartDelivery(false);
     TestFalse(TEXT("partial job refused by the actual default UI action"),Widget->Delivery.IsValid());
     TestFalse(TEXT("default refusal explains itself"),Widget->DeliveryFeedback.IsEmpty());
-    TestFalse(TEXT("default refusal created no archive"),IFileManager::Get().DirectoryExists(*TrainBatchDelivery::OutputDirectory(Job.Spec.Id,true)));
+    TestFalse(TEXT("default refusal created no archive"),IFileManager::Get().DirectoryExists(*TrainBatchDelivery::OutputDirectory(Job.Spec.Id)));
 
     Widget->bSendSuccessOnly=true;
     TArray<TSharedPtr<FJsonValue>> Archives;
@@ -52,10 +52,10 @@ bool FTrainBatchPartialUiDeliveryTest::RunTest(const FString&)
         if(!TestTrue(TEXT("explicit success-only UI action starts delivery"),Widget->Delivery.IsValid()))return false;
         Widget->Delivery->Wait();const auto Status=Widget->Delivery->Status();
         if(!TestTrue(*(TEXT("package-only completion: ")+Status.Error),Status.Phase==ETrainDeliveryPhase::Done))return false;
-        const FString Output=FPaths::GetPath(Status.ArchivePath),Excluded=Output/(Job.Spec.Id+TEXT(".excluded.txt"));
+        const FString Excluded=Status.ExcludedPath;
         FString Text;TestTrue(TEXT("UI exclusion source exists"),FFileHelper::LoadFileToString(Text,*Excluded));
         TestEqual(TEXT("UI exclusion lists only failed scenario"),Text,FString(TEXT("failed-002\n")));
-        auto A=MakeShared<FJsonObject>();A->SetStringField(TEXT("archive"),Status.ArchivePath);A->SetStringField(TEXT("checksums"),Output/(Job.Spec.Id+TEXT(".checksums.sha256")));A->SetStringField(TEXT("sha256"),Status.ArchiveSha256);Archives.Add(MakeShared<FJsonValueObject>(A));
+        auto A=MakeShared<FJsonObject>();A->SetStringField(TEXT("archive"),Status.ArchivePath);A->SetStringField(TEXT("checksums"),Status.ChecksumsPath);A->SetStringField(TEXT("sha256"),Status.ArchiveSha256);Archives.Add(MakeShared<FJsonValueObject>(A));
     }
     Widget->Delivery.Reset();Views.Reset();TestTrue(TEXT("fixture deactivated"),Service->SetEnabled(false,Error));
     auto Report=MakeShared<FJsonObject>();Report->SetStringField(TEXT("job_id"),Job.Spec.Id);Report->SetBoolField(TEXT("default_refused"),true);Report->SetBoolField(TEXT("upload"),false);Report->SetArrayField(TEXT("archives"),Archives);

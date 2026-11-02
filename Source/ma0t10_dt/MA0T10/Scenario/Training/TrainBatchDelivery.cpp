@@ -41,9 +41,14 @@ FString TrainBatchDelivery::RemoteArchiveName(const FString& JobId,const FString
     return JobId+TEXT("-")+Sha256.Left(12)+TEXT(".")+TrainBatchArchive::Extension(Format);
 }
 
-FString TrainBatchDelivery::OutputDirectory(const FString& JobId,bool bPartial)
+FString TrainBatchDelivery::OutputDirectory(const FString& JobId)
 {
-    return FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("TrainBatch/Deliveries")/(bPartial?JobId+TEXT("-partial"):JobId));
+    return FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("TrainBatch/Deliveries")/JobId);
+}
+
+TArray<FString> TrainBatchDelivery::IncompleteScenarios(const FTrainBatchJobView& Job)
+{
+    TArray<FString> Ids;for(const auto& I:Job.Items)if(I.State!=ETrainBatchItemState::Completed)Ids.Add(I.Spec.Id);return Ids;
 }
 
 bool TrainBatchDelivery::BuildJobEntries(const FTrainBatchJobView& Job,bool bAllowPartial,TArray<FTrainArchiveEntry>& Out,TArray<FString>& Excluded,FString& Error)
@@ -128,10 +133,30 @@ void FTrainBatchDelivery::Run(FTrainDeliveryRequest R)
     const TFunction<bool()> Cancelled=[this](){return bCancel.load();};
     const FTrainDeliverySettings& S=R.Settings;
     const FString Ext=TrainBatchArchive::Extension(S.Format);
-    const FString Archive=R.OutputDir/(R.JobId+TEXT(".")+Ext),Artifact=R.OutputDir/(R.JobId+TEXT(".artifact.json"));
-    const FString Sidecar=Archive+TEXT(".sha256"),Checksums=R.OutputDir/(R.JobId+TEXT(".checksums.sha256"));
     IFileManager::Get().MakeDirectory(*R.OutputDir,true);
     FString Error,Sha;int64 Bytes=0;bool bReuse=false;
+    Set(ETrainDeliveryPhase::Collecting);
+    TArray<FTrainArchiveEntry> Entries=R.Entries;TArray<FString> Excluded;FString ExcludedPath;
+    if(R.Job.IsSet()){if(!TrainBatchDelivery::BuildJobEntries(*R.Job,R.bAllowPartial,Entries,Excluded,Error)){Fail(Error);return;}}
+    else if(Entries.IsEmpty()&&!TrainBatchArchive::CollectEntries(R.StagingRoot,R.JobId+TEXT("/"),Entries,Error)){Fail(Error);return;}
+    if(Entries.IsEmpty()){Fail(TEXT("no confirmed result files to package"));return;}
+    if(!Excluded.IsEmpty())
+    {
+        // A success-only package states what it leaves out, inside the archive itself. Named by content, so
+        // a later selection with a different exclusion list never picks up this one.
+        const FString List=FString::Join(Excluded,TEXT("\n"))+TEXT("\n");const FTCHARToUTF8 U(*List);
+        ExcludedPath=R.OutputDir/(R.JobId+TEXT(".excluded-")+TrainBatchArchive::Sha256Bytes(U.Get(),U.Length()).Left(12)+TEXT(".txt"));
+        if(!IFileManager::Get().FileExists(*ExcludedPath)&&!SaveAtomically(ExcludedPath,List)){Fail(TEXT("cannot write excluded list"));return;}
+        FTrainArchiveEntry Note;Note.SourcePath=ExcludedPath;Note.EntryName=R.JobId+TEXT("/excluded_scenarios.txt");Note.Size=IFileManager::Get().FileSize(*ExcludedPath);Entries.Add(Note);
+    }
+    // Selection identity: entry names, source files (run folders carry the run id) and sizes. Archives
+    // are reused only for the same selection, so a later success-only send never ships an older subset.
+    FString Identity;for(const auto& E:Entries)Identity+=E.EntryName+TEXT("\t")+E.SourcePath+TEXT("\t")+LexToString(E.Size)+TEXT("\n");
+    const FTCHARToUTF8 IdentityUtf8(*Identity);const FString Selection=TrainBatchArchive::Sha256Bytes(IdentityUtf8.Get(),IdentityUtf8.Length());
+    const FString Base=R.OutputDir/(R.JobId+TEXT("-")+Selection.Left(12));
+    const FString Archive=Base+TEXT(".")+Ext,Artifact=Base+TEXT(".artifact.json");
+    const FString Sidecar=Archive+TEXT(".sha256"),Checksums=Base+TEXT(".checksums.sha256");
+    {FScopeLock Lock(&Mutex);State.Excluded=Excluded;State.ExcludedPath=ExcludedPath;State.ChecksumsPath=Checksums;}
     {
         FString OldSha,OldFormat;int64 OldBytes=0;
         if(IFileManager::Get().FileExists(*Archive))
@@ -145,10 +170,6 @@ void FTrainBatchDelivery::Run(FTrainDeliveryRequest R)
     }
     if(!bReuse)
     {
-        Set(ETrainDeliveryPhase::Collecting);
-        TArray<FTrainArchiveEntry> Entries=R.Entries;
-        if(Entries.IsEmpty()&&!TrainBatchArchive::CollectEntries(R.StagingRoot,R.JobId+TEXT("/"),Entries,Error)){Fail(Error);return;}
-        if(Entries.IsEmpty()){Fail(TEXT("no confirmed result files to package"));return;}
         Set(ETrainDeliveryPhase::Hashing);
         IFileManager::Get().Delete(*Checksums,false,true);
         if(!TrainBatchArchive::WriteChecksums(Entries,Checksums,Error,Cancelled)){Fail(Error);return;}
@@ -166,6 +187,7 @@ void FTrainBatchDelivery::Run(FTrainDeliveryRequest R)
         J->SetStringField(TEXT("format"),Ext);J->SetNumberField(TEXT("level"),S.Level);J->SetStringField(TEXT("sha256"),Sha);
         J->SetNumberField(TEXT("bytes"),double(Bytes));J->SetNumberField(TEXT("entries"),Entries.Num());
         J->SetStringField(TEXT("remote_name"),TrainBatchDelivery::RemoteArchiveName(R.JobId,Sha,S.Format));
+        J->SetStringField(TEXT("selection_sha256"),Selection);J->SetNumberField(TEXT("excluded_scenarios"),Excluded.Num());
         J->SetStringField(TEXT("created_utc"),FDateTime::UtcNow().ToIso8601());
         if(!SaveAtomically(Artifact,EncodeJson(J))){Fail(TEXT("cannot write artifact.json"));return;}
     }
