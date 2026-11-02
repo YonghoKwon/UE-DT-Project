@@ -70,7 +70,8 @@ TSharedRef<SWidget> UTrainBatchWidget::RebuildWidget()
         +SHorizontalBox::Slot().AutoWidth()[Button(TEXT("보기 중지"),[Service](){if(auto* S=Service())S->StopPreview();})]]
       +SVerticalBox::Slot().FillHeight(1)
        [SAssignNew(List,SListView<TSharedPtr<FTrainBatchListRow>>).ListItemsSource(&Rows).ItemHeight(30)
-        .OnGenerateRow(this,&UTrainBatchWidget::GenerateRow)
+        .OnGenerateRow_Lambda([Weak=TWeakObjectPtr<UTrainBatchWidget>(this)](TSharedPtr<FTrainBatchListRow> Row,const TSharedRef<STableViewBase>& Owner)->TSharedRef<ITableRow>
+        {if(auto* Self=Weak.Get())return Self->GenerateRow(Row,Owner);return SNew(STableRow<TSharedPtr<FTrainBatchListRow>>,Owner);})
         .OnSelectionChanged_Lambda([this,Service](TSharedPtr<FTrainBatchListRow> Row,ESelectInfo::Type){if(Row)if(auto* S=Service()){FString E;if(!S->SelectPreview(SelectedJob,Row->Index,E))Feedback=FText::FromString(E);}})]
       +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Font(Font).Text_Lambda([this](){return ViewText;}).AutoWrapText(true)]
       +SVerticalBox::Slot().AutoHeight()[SNew(SBox).HeightOverride(180)[SNew(SScaleBox)[SNew(SImage).Image(&PreviewBrush)]]]
