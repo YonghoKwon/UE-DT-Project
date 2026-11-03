@@ -22,7 +22,7 @@
 #include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualCameraStreamReceiverTC.h"
 #include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualLidarStreamReceiverTC.h"
 #include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualPointCloudStreamReceiverTC.h"
-#include "ma0t10_dt/ma0t10_dt.h"
+#include "ma0t10_dt/MA0T10/Core/DeviceSensorLog.h"
 #include "WebSocket/TransactionCodeMessage.h"
 
 void AVirtualSensorExternalSourceHostActor::InitializeTopicReceiverRuntime()
@@ -529,7 +529,7 @@ void AVirtualSensorExternalSourceHostActor::CompleteSubscription(EVirtualSensorT
 		Runtime->RetryAttempt = 0;
 		Runtime->Status.State = EVirtualSensorTopicReceiverState::Active;
 		Runtime->Status.LastMessage = TEXT("DTCore STOMP Topic 구독 완료");
-		UE_LOG(LogMA0T10, Display, TEXT("[SensorTopicReceiver] subscribed topic=%s subscription=%s"), *Runtime->Status.Topic, *Runtime->SubscriptionId);
+		UE_LOG(LogDTDevice, Display, TEXT("[SensorTopicReceiver] subscribed topic=%s subscription=%s"), *Runtime->Status.Topic, *Runtime->SubscriptionId);
 	}
 	else
 	{

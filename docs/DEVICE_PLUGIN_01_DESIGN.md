@@ -816,7 +816,7 @@ UE-DT-Device-Plugin/
   Config/DefaultDTDevice.ini     # 비밀 없는 plugin 자산 설정만
   Docs/{Compatibility,Migration,Validation}.md
   Scripts/                      # 독립 static checks/test host 안내
-  # LICENSE 파일 없음: UE-DT-Project와 동일, 저작권 보유 (2026-11-03 사용자 결정)
+  LICENSE                       # Copyright (c) 2026 YonghoKwon; all rights reserved
   .gitignore / .gitattributes
 ```
 
@@ -824,7 +824,7 @@ UE-DT-Device-Plugin/
 - plugin 저장소의 독립 commit과 host의 검증된 gitlink pin은 두 단계다. 배포 project는 tag가 아닌 **정확한 commit SHA**를 고정한다. tag 제안은 `v0.1.0-ue5.3`(초기 이관), 안정 이후 SemVer. wire/API/저장 변경은 major/명시 migration이며 구조 이관에서 올리지 않는다.
 - `Docs/Compatibility.md`에 UE5.3, DTCore **bc60f05 exact SHA**, host 기준 SHA, 테스트 adapter/driver/native safety policy, asset 요구/Plugin content 여부를 적는다. plugin descriptor의 의존 Enabled만으로 DTCore 버전이 고정된다고 보지 않는다. DTCore update는 별도 승인·양쪽 검증이다.
 - **장치 plugin pin guard 필요**: `validate_device_plugin_submodule_guard.ps1`에서 path/expected SHA/initialized/clean/staged gitlink/dirty·untracked source를 검사하는 기존 DTCore guard와 같은 fail-closed 정책을 제안한다. parent merge-check가 두 guard를 검사하게 한다. 단독 plugin 개발 repo의 소스 수정 자체를 dirty로 막는 검사는 소비 host 모드와 구분한다.
-- public repo에는 새 이관 파일만 넣고 프로젝트 전체 과거 이력을 복제하지 않는다. 자격증명·실설정·개인 SaveGame·Saved/Reports·패키지·dump·엔진 코드/Engine ThirdParty를 넣지 않는다. 라이선스는 UE-DT-Project와 동일하게 LICENSE 파일 없이 저작권을 보유한다(2026-11-03 사용자 결정). 에셋 원저작/엔진 재배포 조건 확인은 유지한다.
+- public repo에는 새 이관 파일만 넣고 프로젝트 전체 과거 이력을 복제하지 않는다. 자격증명·실설정·개인 SaveGame·Saved/Reports·패키지·dump·엔진 코드/Engine ThirdParty를 넣지 않는다. 라이선스는 저장소의 LICENSE(`Copyright (c) 2026 YonghoKwon`, 모든 권리 보유)를 따른다. r47에서 DTDevice origin/main 30af5a2의 LICENSE를 확인했으며, r46의 "LICENSE 없음" 결정은 이후 LICENSE 추가 사실로 대체한다. 에셋 원저작/엔진 재배포 조건 확인은 유지한다.
 
 ## 9. 단계별 구현·검증·추정
 
@@ -867,7 +867,7 @@ UE-DT-Device-Plugin/
 | 에셋 mount | Niagara/material 내부 참조·cooked soft path 미확인 | 2026-11-03 확정: 현 project asset 유지 + 명시 soft path; 실제 이동은 후속 별도 단계 |
 | UI 사용 선택 | 기존 host façade 링크는 worker binary에 포함될 수 있음 | DeviceUI 모듈 None/명시 로드안, UI-free 최소 host 지원 범위 |
 | native/조기 초기화 | RT/global shader key·WebSockets 시작 시점 달라지면 품질/Hz 영향 | host 전역1ms 정책 보존, plugin에 숨겨 복제하지 않는 안 |
-| 의존/배포 | UE private/DX12 ABI와 DTCore pin, public repo asset/IP | 초기 UE5.3/Win64/D3D12 한정; LICENSE 없음/저작권 보유 확정, 저작 표시 유지 |
+| 의존/배포 | UE private/DX12 ABI와 DTCore pin, public repo asset/IP | 초기 UE5.3/Win64/D3D12 한정; LICENSE 추가/저작권 보유 확정, 저작 표시 유지 |
 | 외부 소비자 | 프로젝트 없어도 기본 센서/패널/TC 사용이 가능한지 | 별도 최소 DTCore host 검증을 출시 gate에 포함할지 |
 | 장시간/일정 | 9시간 이상의 native 메모리 + 15~27작업일 | 세 맵3h는 최종 단계에 한 번만 수행(2026-11-03 확정); 중간 단계는 미수행 |
 
