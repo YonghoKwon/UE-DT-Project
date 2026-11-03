@@ -26,6 +26,7 @@ param(
 # ScheduledLidar adds candidate per-device Hz ratios; legacy59FPS is informational.
 # FPS decrease, engine p95 increase and game thread increase are judged separately.
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'prepare_naming_perf_archive.ps1')
 . "$PSScriptRoot/PerfRelativeGate.ps1"
 if ($Workload -eq 'Perf01' -and $MeasurementSeconds -gt 60) { throw 'PERF01 measurement remains limited to30..60 seconds' }
 if ($Workload -ne 'Perf01' -and ($CameraGroundTruth -or $LidarProfile -ne 'MLX80Native')) { throw 'Camera/profile conditions require Perf01 workload' }
@@ -72,6 +73,7 @@ function Prepare-DevicePerfArchive([string]$Target, [string]$Revision, [string]$
         if ($header -eq 'Device/Tests/Sensor/FinalAcceptanceTestSession.h') { continue }
         if ($header -notmatch '^Device/(Camera|Contracts|Core|Sensor)/' -or $header.Contains('..')) { throw "Unsupported legacy perf include: $header" }
         $oldInclude = 'ma0t10_dt/MA0T10/' + $header.Substring('Device/'.Length)
+        $oldInclude = Resolve-NamingLegacyInclude -Target $Target -Include $oldInclude
         $oldPath = Join-Path $Target ('Source/' + $oldInclude)
         if (-not (Test-Path -LiteralPath $oldPath -PathType Leaf)) { throw "Baseline public header missing: $oldInclude" }
         $forwarder = Join-Path $includeRoot $header
@@ -149,7 +151,7 @@ $displays = switch ($Display) { 'Visible' { @($false) } 'Offscreen' { @($true) }
 $manifest = [ordered]@{
     SchemaVersion = 1; Gate = 'QA-02 perf ABAB'; StartedUtc = $started.ToString('o')
     Baseline = [ordered]@{ Ref = $Baseline; Commit = $refs.A }; Candidate = [ordered]@{ Ref = $Candidate; Commit = $refs.B }
-    DTCore = $dtcore; DevicePreparation = [ordered]@{}; Instrument = [ordered]@{ Path = $instrument; Sha256 = (Get-Sha256 $instrumentSource) }
+    DTCore = $dtcore; DevicePreparation = [ordered]@{}; NamingPreparation = [ordered]@{}; Instrument = [ordered]@{ Path = $instrument; Sha256 = (Get-Sha256 $instrumentSource) }
     SessionInstrument = [ordered]@{ Path = $sessionInstrument; Sha256 = (Get-Sha256 (Join-Path $root $sessionInstrument)) }
     Workload = $Workload; ScheduledBackend = $ScheduledBackend; ScheduledPcdLoopbackPort = $ScheduledPcdLoopbackPort; ScheduledDivisor = $ScheduledDivisor
     CameraGroundTruth = [bool]$CameraGroundTruth; LidarProfile = $LidarProfile; RequireGpu = [bool]$RequireGpu
@@ -186,6 +188,7 @@ try {
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent (Join-Path $target $sessionInstrument)) | Out-Null
         Copy-Item -LiteralPath (Join-Path $root $sessionInstrument) -Destination (Join-Path $target $sessionInstrument) -Force
         if ((Get-Sha256 (Join-Path $target $instrument)) -ne $manifest.Instrument.Sha256 -or (Get-Sha256 (Join-Path $target $sessionInstrument)) -ne $manifest.SessionInstrument.Sha256) { throw "Instrument overlay hash mismatch for $label" }
+        $manifest.NamingPreparation[$label] = Prepare-NamingPerfArchive -Target $target -InstrumentPath (Join-Path $target $instrument)
         $manifest[$label + 'MapSha256'] = Get-Sha256 (Join-Path $target $map)
     }
     # Same fixture workload on both sides, or the gate compares different scenes.

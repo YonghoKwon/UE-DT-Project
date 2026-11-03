@@ -46,7 +46,7 @@ $cameraDoc = Join-Path $ProjectRoot "docs\camera_payload_schema.md"
 $remainingWorkDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $contractReportScript = Join-Path $ProjectRoot "Scripts\export_payload_contract_report.ps1"
 $payloadContractValidator = Join-Path $ProjectRoot "Scripts\validate_payload_contract.ps1"
-$lidarCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarScanComponent.cpp"
+$lidarCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarScanComp.cpp"
 $lidarFixture = Join-Path $ProjectRoot "Samples\payload_fixtures\virtual_lidar_v1_sample.json"
 
 $requiredFiles = @($lidarDoc, $cameraDoc, $remainingWorkDoc, $contractReportScript, $payloadContractValidator, $lidarCpp, $lidarFixture)

@@ -46,6 +46,10 @@
 #include "EngineUtils.h"
 #if PLATFORM_WINDOWS
 #include "Windows/WindowsHWrapper.h"
+// NAMING-01: 소유 perf 사본에서만 이전 식별자를 연결한다. 측정 본문은 동일하다.
+#if __has_include("NamingPerfAliases.h")
+#include "NamingPerfAliases.h"
+#endif
 #endif
 
 // This exact test-only file can be overlaid on fda25e0. Only header locations vary.
@@ -331,3 +335,10 @@ bool FPerf01ReportCommitTest::RunTest(const FString&)
     return true;
 }
 #endif
+
+#undef UVirtualImuComp
+#undef SharedTransportComp
+#undef SharedRecorderComp
+#undef StreamPublisherComp
+#undef ScanComp
+#undef CaptureComp

@@ -1,6 +1,7 @@
 param([string]$Baseline = 'origin/master', [string]$ReportRoot = '')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'prepare_naming_perf_archive.ps1')
 if (-not $ReportRoot) { $ReportRoot = Join-Path $root ('Saved/Reports/perf-device-preparation/' + (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')) }
 $ReportRoot = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ReportRoot)
 if (Test-Path -LiteralPath $ReportRoot) { throw 'Use a fresh report directory' }
@@ -22,7 +23,15 @@ $headers = @([regex]::Matches([IO.File]::ReadAllText($instrumentSource), '#inclu
 $legacySessionPath = 'Source/ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h'
 $paths = @('Source/ma0t10_dtEditor/ma0t10_dtEditor.Build.cs', $legacySessionPath)
 foreach ($header in $headers) {
-    if ($header -ne 'Device/Tests/Sensor/FinalAcceptanceTestSession.h') { $paths += 'Source/ma0t10_dt/MA0T10/' + $header.Substring('Device/'.Length) }
+    if ($header -ne 'Device/Tests/Sensor/FinalAcceptanceTestSession.h') {
+        $plan=Get-Content (Join-Path $root 'Tools/NamingPlan/compatibility.json') -Raw -Encoding UTF8|ConvertFrom-Json
+        $leaf=[IO.Path]::GetFileName($header)
+        foreach($pair in $plan.names.PSObject.Properties){$leaf=$leaf.Replace($pair.Value.Substring(1)+'.h',$pair.Name.Substring(1)+'.h')}
+        $sourcePaths=@((Get-Git @('ls-tree','-r','--name-only',$baselineSha,'--','Source/ma0t10_dt')) -split '\r?\n')
+        $match=@($sourcePaths|Where-Object { $_.EndsWith('/'+$leaf) })
+        if($match.Count -ne 1){throw "Missing/ambiguous baseline header $leaf"}
+        $paths+=$match[0]
+    }
 }
 $legacy = Join-Path $owned 'legacy'
 $zip = Join-Path $owned 'legacy-source.zip'

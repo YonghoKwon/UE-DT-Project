@@ -41,8 +41,8 @@ function New-Check {
 }
 
 $ProjectRoot = Resolve-ProjectRoot
-$transportHeader = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\VirtualSensorTransportComponent.h"
-$transportSource = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualSensorTransportComponent.cpp"
+$transportHeader = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\VirtualSensorTransportComp.h"
+$transportSource = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualSensorTransportComp.cpp"
 $transportDoc = Join-Path $ProjectRoot "docs\server_transport_contract.md"
 $remainingWorkDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $editorSmokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"

@@ -301,10 +301,10 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $csvPreviewPerformanceEvidence = Get-CsvPreviewPerformanceEvidence -ProjectRoot $ProjectRoot -LocalProjectRoot $LocalProjectRoot -LogPath $LogPath
 
-$lidarHeader = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\VirtualLidarScanComponent.h"
-$lidarCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarScanComponent.cpp"
+$lidarHeader = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\VirtualLidarScanComp.h"
+$lidarCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarScanComp.cpp"
 $managerCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorCoordinator.cpp"
-$monitorCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.cpp"
+$monitorCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\DxWidgetVirtualSensorMonitorPanel.cpp"
 $replayTests = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Tests\Sensor\LidarReplayAutomationTests.cpp"
 $managerTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\SensorManagerAutomationTests.cpp"
 $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
@@ -329,7 +329,7 @@ $previewCapsDeclared = (Test-ContainsText -Path $lidarHeader -Pattern "PreviewPo
     (Test-ContainsText -Path $lidarCpp -Pattern "Preview is uncapped")
 $pointCloudOnlyClampDeclared = (Test-ContainsText -Path $managerCpp -Pattern "FMath::Min(LidarComp->MaxPreviewPoints, 3000)") -and
     (Test-ContainsText -Path $managerCpp -Pattern "FMath::Max(2, LidarComp->PreviewPointStride)")
-$visualizationCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarVisualizationComponent.cpp"
+$visualizationCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarVisualizationComp.cpp"
 $niagaraAsset = Join-Path $ProjectRoot "Content\MA0T10\Sensor\VFX\NS_VirtualLidarPointCloud.uasset"
 $batchedInstanceUploadDeclared = Test-ContainsText -Path $lidarCpp -Pattern "BatchUpdateInstancesTransforms"
 $previewBackendSelectionDeclared = (Test-ContainsText -Path $visualizationCpp -Pattern "NiagaraPointCloudSystem") -and
