@@ -146,7 +146,7 @@ private:
 		Report=MakeShared<FJsonObject>(); Report->SetStringField(TEXT("scope"),TEXT("transient preview world; Camera and GPU sensor exclusion; not throughput or manual mouse evidence"));
 		Scene=MakeUnique<FPreviewScene>(FPreviewScene::ConstructionValues().SetCreateDefaultLighting(true));
 		UWorld* World=Scene->GetWorld();
-		for(const TCHAR* Path:{TEXT("/Game/MA0T10/Sensor/Materials/M_LidarSemanticId.M_LidarSemanticId"),TEXT("/Game/MA0T10/Slab/Materials/M_SlabAnalysisOverlay.M_SlabAnalysisOverlay"),TEXT("/Game/MA0T10/Slab/Materials/M_SlabSurfacePlain.M_SlabSurfacePlain")})
+		for(const TCHAR* Path:{TEXT("/DTDevice/Sensor/Materials/M_LidarSemanticId.M_LidarSemanticId"),TEXT("/Game/MA0T10/Slab/Materials/M_SlabAnalysisOverlay.M_SlabAnalysisOverlay"),TEXT("/Game/MA0T10/Slab/Materials/M_SlabSurfacePlain.M_SlabSurfacePlain")})
 		{ auto* Material=LoadObject<UMaterial>(nullptr,Path); if(!Material){Test->AddError(FString(TEXT("Required owned material missing: "))+Path);return false;} Material->CacheShaders(EMaterialShaderPrecompileMode::Default); }
 		auto* Floor=World->SpawnActor<AStaticMeshActor>(); Floor->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);
 		Floor->GetStaticMeshComponent()->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));

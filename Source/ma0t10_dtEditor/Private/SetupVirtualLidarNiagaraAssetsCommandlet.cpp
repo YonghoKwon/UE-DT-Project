@@ -23,7 +23,7 @@
 
 namespace
 {
-constexpr TCHAR AssetFolder[] = TEXT("/Game/MA0T10/Sensor/VFX");
+constexpr TCHAR AssetFolder[] = TEXT("/DTDevice/Sensor/VFX");
 
 bool SaveAsset(UObject* Asset)
 {
@@ -200,7 +200,7 @@ int32 USetupVirtualLidarNiagaraAssetsCommandlet::Main(const FString& Params)
 {
     IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools")).Get();
 
-    UMaterial* Material = LoadObject<UMaterial>(nullptr, TEXT("/Game/MA0T10/Sensor/VFX/M_VirtualLidarPointSprite.M_VirtualLidarPointSprite"));
+    UMaterial* Material = LoadObject<UMaterial>(nullptr, TEXT("/DTDevice/Sensor/VFX/M_VirtualLidarPointSprite.M_VirtualLidarPointSprite"));
     if (!Material)
     {
         UMaterialFactoryNew* MaterialFactory = NewObject<UMaterialFactoryNew>();
@@ -235,7 +235,7 @@ int32 USetupVirtualLidarNiagaraAssetsCommandlet::Main(const FString& Params)
         return 1;
     }
 
-    UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, TEXT("/Game/MA0T10/Sensor/VFX/NS_VirtualLidarPointCloud.NS_VirtualLidarPointCloud"));
+    UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, TEXT("/DTDevice/Sensor/VFX/NS_VirtualLidarPointCloud.NS_VirtualLidarPointCloud"));
     if (!System)
     {
         UNiagaraEmitter* TemplateEmitter = LoadObject<UNiagaraEmitter>(nullptr, TEXT("/Niagara/DefaultAssets/Templates/Emitters/SimpleSpriteBurst.SimpleSpriteBurst"));
@@ -244,7 +244,7 @@ int32 USetupVirtualLidarNiagaraAssetsCommandlet::Main(const FString& Params)
             UE_LOG(LogTemp, Error, TEXT("SimpleSpriteBurst Niagara template was not found"));
             return 2;
         }
-        UPackage* Package = CreatePackage(TEXT("/Game/MA0T10/Sensor/VFX/NS_VirtualLidarPointCloud"));
+        UPackage* Package = CreatePackage(TEXT("/DTDevice/Sensor/VFX/NS_VirtualLidarPointCloud"));
         System = NewObject<UNiagaraSystem>(Package, TEXT("NS_VirtualLidarPointCloud"), RF_Public | RF_Standalone | RF_Transactional);
         UNiagaraSystemFactoryNew::InitializeSystem(System, true);
         System->AddEmitterHandle(*TemplateEmitter, TEXT("VirtualLidarGpuPoints"), TemplateEmitter->GetExposedVersion().VersionGuid);

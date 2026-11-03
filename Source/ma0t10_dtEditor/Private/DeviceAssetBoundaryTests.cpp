@@ -10,8 +10,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeviceExplicitAssetPaths,"MA0T10.DeviceBoundar
 bool FDeviceExplicitAssetPaths::RunTest(const FString&)
 {
     auto* Settings=GetMutableDefault<UDeviceSensorAssetSettings>();
-    TestEqual(TEXT("semantic material path unchanged"),Settings->LidarSemanticMaterial.ToSoftObjectPath().ToString(),FString(TEXT("/Game/MA0T10/Sensor/Materials/M_LidarSemanticId.M_LidarSemanticId")));
-    TestEqual(TEXT("preview path unchanged"),Settings->LidarPointCloudSystem.ToSoftObjectPath().ToString(),FString(TEXT("/Game/MA0T10/Sensor/VFX/NS_VirtualLidarPointCloud.NS_VirtualLidarPointCloud")));
+    TestEqual(TEXT("semantic material plugin path"),Settings->LidarSemanticMaterial.ToSoftObjectPath().ToString(),FString(TEXT("/DTDevice/Sensor/Materials/M_LidarSemanticId.M_LidarSemanticId")));
+    TestEqual(TEXT("preview plugin path"),Settings->LidarPointCloudSystem.ToSoftObjectPath().ToString(),FString(TEXT("/DTDevice/Sensor/VFX/NS_VirtualLidarPointCloud.NS_VirtualLidarPointCloud")));
     const auto Previous=Settings->LidarPointCloudSystem;
     ON_SCOPE_EXIT {Settings->LidarPointCloudSystem=Previous;};
     Settings->LidarPointCloudSystem=TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(TEXT("/Game/DeviceBoundary/ExplicitHostPath.ExplicitHostPath")));
