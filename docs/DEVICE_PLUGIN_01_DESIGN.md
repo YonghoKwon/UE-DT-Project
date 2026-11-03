@@ -865,7 +865,7 @@ UE-DT-Device-Plugin/
 
 #### 9.1.1 4단계 — 독립 TestHost
 
-`UE-DT-Device-Plugin/TestHost/`는 UE-DT-Project 없이 **DTCore + DTDevice만** 사용하는 최소 프로젝트다. 현재 pin `cf09a7c`에는 launcher·DTCore 소스 설정·batch CRLF 정리가 포함되며 plugin `Source/`·`Shaders/` 변경은 없다. 호스트 façade나 과제 에셋의 자동 이관을 뜻하지 않는다.
+`UE-DT-Device-Plugin/TestHost/`는 UE-DT-Project 없이 **DTCore + DTDevice만** 사용하는 최소 프로젝트다. 현재 pin `5e9b870`(cf09a7c + wire golden fixture 경로 수정)에는 launcher·DTCore 소스 설정·batch CRLF 정리가 포함되며 plugin `Source/`·`Shaders/` 변경은 없다. 호스트 façade나 과제 에셋의 자동 이관을 뜻하지 않는다.
 
 - `TestHost/Open_TestHost.bat`은 `Scripts/setup_testhost.ps1`로 DTCore 준비·DTDevice junction 연결·Editor 빌드를 수행한 뒤 `DTDeviceTestHost.uproject`를 연다. 기본 UE5.3 경로는 launcher의 `UE_ENGINE_ROOT`로 바꿀 수 있다. 문서/설정 단계에서는 이 파일을 실행하지 않는다.
 - **DTCore Source/Ref 선택 우선순위:** ① launcher 인자 `<source> [ref]`(setup의 `-DTCoreSource`/`-DTCoreRef`) → ② `TestHost/TestHost.local.ini`의 `[DTCore] Source=`, `Ref=` → ③ 환경 변수 `DTCORE_SOURCE`/`DTCORE_REF` → ④ 공개 UE-DT-Core-Plugin URL와 검증 SHA `bc60f05e2d1e64f4ffe1410cf3239fe24cb4d4c9`. Source와 Ref는 각각 비어 있는 값만 다음 우선순위로 보완한다.

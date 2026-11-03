@@ -6,6 +6,11 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-11-03 DEVICE-PLUGIN-01 리뷰 수정 — redirect 1-hop·fixture 경로
+
+- CoreRedirects는 한 번만 적용된다(`FCoreRedirects::RedirectNameAndValues`는 원래 이름에 맞는 항목만 모음). 이전 이름(`VirtualSensorAct`, `LidarCsvReplaySourceComp` 등) 17개 class redirect가 이동 후 존재하지 않는 `/Script/ma0t10_dt.<신규 이름>`을 가리키던 것을 `/Script/DeviceRuntime.<신규 이름>`으로 직접 연결했다. PropertyRedirects는 package 변경이 불가해 기존 값을 유지했다. TestMap은 이미 신규 class 이름으로 저장되어 있어 변경 전후 모두 로드 경고 0건.
+- DTDevice `5e9b870`: `MA0T10.Architecture.WireGolden` fixture 경로를 `ProjectDir()/Plugins/DTDevice` 고정에서 `IPluginManager` base dir로 변경. TestHost 빌드·해당 테스트 Success. pin을 `5e9b870`으로 갱신.
+
 ## 2026-11-03 DEVICE-PLUGIN-01 r49 — 통합 검증 전 pin·문서 정리
 
 - 기준 host `5dc4518`, DTCore `bc60f05` 유지. DTDevice main을 `cf09a7ce8f563f066789505575559bac5fe53cc4`로 fast-forward하고 `Scripts/device_plugin_pin.txt`를 명시 갱신했다. TestHost launcher·DTCore 소스 지정·CRLF 정리이며 plugin `Source/`·`Shaders/` 변화0을 확인했다.

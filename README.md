@@ -276,7 +276,7 @@ UXR-17 미리보기 카드는 새 Camera의 첫 영상까지 **영상 준비 중
 
 - Engine: **UE 5.3** / Editor target: `ma0t10_dtEditor Win64 Development`.
 - 프로젝트 모듈: `ma0t10_dt`, `ma0t10_dtEditor`, WebSockets 조기 정책용 `ma0t10_dtBootstrap`. 공통 장치는 DTDevice의 `DeviceRuntime`·`DeviceNative`·`DeviceUI`가 제공한다.
-- **DTCore와 DTDevice는 모두 필수 submodule**이다. `Plugins/DTCore`는 검증된 `bc60f05`, `Plugins/DTDevice`는 `Scripts/device_plugin_pin.txt`의 정확한 SHA(현재 `cf09a7c`)로 고정한다. `--remote`로 임의 최신 버전으로 바꾸지 않는다. DTCore 변경은 [사전 승인 절차](AGENTS.md#2-보호승인-규칙)를 따른다.
+- **DTCore와 DTDevice는 모두 필수 submodule**이다. `Plugins/DTCore`는 검증된 `bc60f05`, `Plugins/DTDevice`는 `Scripts/device_plugin_pin.txt`의 정확한 SHA(현재 `5e9b870`)로 고정한다. `--remote`로 임의 최신 버전으로 바꾸지 않는다. DTCore 변경은 [사전 승인 절차](AGENTS.md#2-보호승인-규칙)를 따른다.
 - 기존 worktree의 DTCore·Game.ini·운영맵·PixelStreaming 변경은 보존한다.
 
 새 clone은 두 플러그인을 함께 받는다:
