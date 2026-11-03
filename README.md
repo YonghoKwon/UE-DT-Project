@@ -811,6 +811,8 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
 
+DEVICE-PLUGIN-01 1단계(r46, 2026-11-03)는 같은 모듈 안에서 Coordinator 실행 base/기존 façade, host 분석·semantic/identity 정책, 중립 run ledger, UDxWidget 공통 UI base/body·weak bridge, 순수 수신 codec·명시 soft asset path를 준비했다. 공개 반영 선언(Coordinator56/UI344)·wire/SaveGame·WBP/asset·DTCore pin과 기본 정책을 보존했고 plugin/모듈/서브모듈 생성·파일/에셋 이동은 하지 않았다. Editor/Development/Shipping·quick/layer0/guard·smoke36·원래 wire/byte oracle을 확인했다. release1회 자동화492Success/45Skip/0Fail·16단계Success이나 생성된 빈 Game.ini의 종료 보호 해시 불일치로 raw release FAIL을 보존한다(원래 부재 복원). 직접 game UI 주요 전환/모드 선택을 확인했으며 DPI/PIE/drag 전체 수용·성능 ABAB/장시간 메모리는 별도다. [설계·구현 경계](docs/DEVICE_PLUGIN_01_DESIGN.md#10-r46--1단계-경계-준비-구현-2026-11-03), 최종 증거 `Saved/Reports/DEVICE-PLUGIN-01/stage1-r46/RESULT.md`.
+
 TRAIN-BATCH-01(2026-11-02 r41c)는 L0 중립 Job/경로 계약, L2 입력·20Hz sampled timeline·독립 게임 워커/lease·디스크 재개, L3 DTCore 학습 위젯을 추가한다. 기본 꺼짐·PCD/wire·DTCore pin 불변이며 L1은 학습/UI 타입을 참조하지 않는다. native M=2 생성→ZIP/tar.gz는 위젯과 같은 Delivery 경로 및 독립 Python 검증을 통과했다. Development/Shipping 패키지에서 기본 꺼짐과 M=1 생성(저장 맵의 GPU Depth Projection preset)을 검증했고, Shipping 워커는 쿠킹된 할당 맵으로 명시적으로 이동한다. M=4 요청은12GB 예산상 실제2로 제한됐으며 현장 Linux SFTP·직접 UI 수용은 별도다. [설계·검증 범위](docs/TRAIN_BATCH_01_DESIGN.md#13-r41c-공통-해시패키지-검증); 최종 gate·최초 실패·미수행은 `Saved/Reports/TRAIN-BATCH-01/r41c/RESULT.md`를 따른다.
 
 HATCH06-REGRESSION-34는 Editor 테스트의 바닥 카메라 fixture만 기존 자유 카메라 상태에 연결한다. Runtime·획득·렌더·저장·DTCore 변경 없이 layer/allowlist **0→0**을 유지한다. 첫 충돌·회색49/49 기준을 보존하고 카메라 유지·49개 화면 광선 검사도 추가했다. [원인 이분 탐색·검증·제한](Saved/Reports/HATCH06-REGRESSION-34/RESULT.md).

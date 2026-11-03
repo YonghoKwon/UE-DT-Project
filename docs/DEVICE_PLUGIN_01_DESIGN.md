@@ -816,7 +816,7 @@ UE-DT-Device-Plugin/
   Config/DefaultDTDevice.ini     # 비밀 없는 plugin 자산 설정만
   Docs/{Compatibility,Migration,Validation}.md
   Scripts/                      # 독립 static checks/test host 안내
-  LICENSE                       # 사용자 결정 필요
+  # LICENSE 파일 없음: UE-DT-Project와 동일, 저작권 보유 (2026-11-03 사용자 결정)
   .gitignore / .gitattributes
 ```
 
@@ -824,7 +824,7 @@ UE-DT-Device-Plugin/
 - plugin 저장소의 독립 commit과 host의 검증된 gitlink pin은 두 단계다. 배포 project는 tag가 아닌 **정확한 commit SHA**를 고정한다. tag 제안은 `v0.1.0-ue5.3`(초기 이관), 안정 이후 SemVer. wire/API/저장 변경은 major/명시 migration이며 구조 이관에서 올리지 않는다.
 - `Docs/Compatibility.md`에 UE5.3, DTCore **bc60f05 exact SHA**, host 기준 SHA, 테스트 adapter/driver/native safety policy, asset 요구/Plugin content 여부를 적는다. plugin descriptor의 의존 Enabled만으로 DTCore 버전이 고정된다고 보지 않는다. DTCore update는 별도 승인·양쪽 검증이다.
 - **장치 plugin pin guard 필요**: `validate_device_plugin_submodule_guard.ps1`에서 path/expected SHA/initialized/clean/staged gitlink/dirty·untracked source를 검사하는 기존 DTCore guard와 같은 fail-closed 정책을 제안한다. parent merge-check가 두 guard를 검사하게 한다. 단독 plugin 개발 repo의 소스 수정 자체를 dirty로 막는 검사는 소비 host 모드와 구분한다.
-- public repo에는 새 이관 파일만 넣고 프로젝트 전체 과거 이력을 복제하지 않는다. 자격증명·실설정·개인 SaveGame·Saved/Reports·패키지·dump·엔진 코드/Engine ThirdParty를 넣지 않는다. 에셋 원저작/엔진 재배포 조건·라이선스 선택은 최초 공개 전 확인한다.
+- public repo에는 새 이관 파일만 넣고 프로젝트 전체 과거 이력을 복제하지 않는다. 자격증명·실설정·개인 SaveGame·Saved/Reports·패키지·dump·엔진 코드/Engine ThirdParty를 넣지 않는다. 라이선스는 UE-DT-Project와 동일하게 LICENSE 파일 없이 저작권을 보유한다(2026-11-03 사용자 결정). 에셋 원저작/엔진 재배포 조건 확인은 유지한다.
 
 ## 9. 단계별 구현·검증·추정
 
@@ -853,7 +853,7 @@ UE-DT-Device-Plugin/
 | UI/저장 | 읽기 전용 WBP 메모리 compile, SaveGame v1~v6/Workspace v1/Appearance v1와 배치 layout. 실제 마우스 설정/보기/캡처·숨김/resize/Esc/선택/PIE 종료·DPI/폰트. SensorTestMap 저장0 |
 | headless/학습 | DeviceRuntime만 쓰는 DTCore 최소 host; 기존 TrainBatch default-off tick/thread/subscription0, packaged M1/M2·고유 UserDir·native safety 집계/취소/lease·resume/Delivery ZIP/TGZ 회귀. 실제 Linux SFTP는 기존 현장 수용과 분리 |
 | 성능 | `Scripts/verify.ps1 -Level perf -BaseCommit 14afb6b -PerfRayTracing ProjectDefault`. 표준 RT-on QA-02 ABAB 교차 중앙값 **2%** 기준 그대로, 1920×1080·동일맵/프로필/센서/UI/송신/10초+30초. 기존 waiver는 동일 적용 범위 근거가 있을 때만 인용, 새 이관의 회귀를 자동 면제하지 않음 |
-| 메모리 | **세 장면(해치/Slab native/원료 하역) 각3h 재확인 권장, 최종 gate에 포함 제안**. 모듈/asset/초기화/LLM singleton/native 수명 경계가 달라져 단순 rename으로 간주하기 어려움. 30분 warm-up 제외 후 종료까지 OS Commit OLS ≤8MiB/h, 20Hz/fallback0. old gate·tail-third·10~30분 증가·plateau 함께 보고. 기존 #26 90초5쌍을 다시 요구하거나 승인된 구간 정의를 바꾸지 않음 |
+| 메모리 | **세 장면(해치/Slab native/원료 하역) 각3h를 최종 단계에 한 번만 수행(2026-11-03 사용자 승인)**. 모듈/asset/초기화/LLM singleton/native 수명 경계가 달라져 단순 rename으로 간주하기 어려움. 30분 warm-up 제외 후 종료까지 OS Commit OLS ≤8MiB/h, 20Hz/fallback0. old gate·tail-third·10~30분 증가·plateau 함께 보고. 기존 #26 90초5쌍을 다시 요구하거나 승인된 구간 정의를 바꾸지 않음 |
 | Shipping | 기본 시작 맵 smoke와 명시 HatchStartup smoke 구분. native20Hz/fallback0·설정 NonUFS·plugin shader/library 포함. CVar 강제 완화/NullRHI 통과 대체 금지 |
 
 장시간 실행·성능은 한 번에 하나, detached supervisor로 실행하고 영상 디코딩·외부 Unreal/빌드 중첩은 기존 규칙대로 무효/재시도한다. 진행 polling은15분 이상 간격, 개인 SaveGame/Editor/UI 설정은 사전 backup→원본 집합/hash 복원. 알려진 빈 Game.ini 자동 생성도 기준 부재로 복원하고 raw gate 실패를 지우지 않는다. 결과는 `Saved/Reports/DEVICE-PLUGIN-01/<단계>/`에 남기고 원시 대용량은 요약/inventory 후 승인된 정리 규칙을 따른다.
@@ -862,13 +862,27 @@ UE-DT-Device-Plugin/
 
 | 항목 | 위험/대응 | 구현 전 결정 필요 |
 |---|---|---|
-| 기존 API를 가진 host façade | inherited property/function owner·BP parent migration은 CoreRedirect만으로 증명 불가 | 기존 UI/Coordinator UCLASS를 host에 남기는 1차안 승인 여부 |
-| legacy Slab 이름 DTO | 무리한 제거는 SaveGame/wire/BP 계약 파괴 | plugin에는 동결 값 계약만 남기고 정책은 host로 빼는 절충안 승인 여부 |
-| 에셋 mount | Niagara/material 내부 참조·cooked soft path 미확인 | 우선 host path 설정 후 별도 공통3종 이동 vs 최초부터 asset 이동 |
+| 기존 API를 가진 host façade | inherited property/function owner·BP parent migration은 CoreRedirect만으로 증명 불가 | 2026-11-03 승인: 기존 UI/Coordinator UCLASS는 host façade 유지 |
+| legacy Slab 이름 DTO | 무리한 제거는 SaveGame/wire/BP 계약 파괴 | 2026-11-03 승인: 동결 Slab 값 계약 유지, 정책은 host |
+| 에셋 mount | Niagara/material 내부 참조·cooked soft path 미확인 | 2026-11-03 확정: 현 project asset 유지 + 명시 soft path; 실제 이동은 후속 별도 단계 |
 | UI 사용 선택 | 기존 host façade 링크는 worker binary에 포함될 수 있음 | DeviceUI 모듈 None/명시 로드안, UI-free 최소 host 지원 범위 |
 | native/조기 초기화 | RT/global shader key·WebSockets 시작 시점 달라지면 품질/Hz 영향 | host 전역1ms 정책 보존, plugin에 숨겨 복제하지 않는 안 |
-| 의존/배포 | UE private/DX12 ABI와 DTCore pin, public repo asset/IP | 초기 UE5.3/Win64/D3D12 한정·라이선스·저작 표시 |
+| 의존/배포 | UE private/DX12 ABI와 DTCore pin, public repo asset/IP | 초기 UE5.3/Win64/D3D12 한정; LICENSE 없음/저작권 보유 확정, 저작 표시 유지 |
 | 외부 소비자 | 프로젝트 없어도 기본 센서/패널/TC 사용이 가능한지 | 별도 최소 DTCore host 검증을 출시 gate에 포함할지 |
-| 장시간/일정 | 9시간 이상의 native 메모리 + 15~27작업일 | 세 맵3h 재확인 권장안과 단계별 구현 착수 승인 |
+| 장시간/일정 | 9시간 이상의 native 메모리 + 15~27작업일 | 세 맵3h는 최종 단계에 한 번만 수행(2026-11-03 확정); 중간 단계는 미수행 |
 
 **현재 미수행:** 실제 module/redirect 적용·소스/에셋 이동·독립 repo/submodule 연결·빌드·RHI/UI/패키지/메모리 실행 전부. 이 문서의 추정/제안은 현재 제품 완료 또는 현장 수용 증거가 아니다. 0단계는 이 문서와 static 검증 결과만 커밋하며 push하지 않는다.
+
+## 10. r46 — 1단계 경계 준비 구현 (2026-11-03)
+
+현재 `ma0t10_dt` 모듈 안에서만 경계를 만들었다. 플러그인/모듈/서브모듈 생성과 실제 파일·에셋 이동은 하지 않았다. 이 절은 0단계 제안과 구분하는 실제 구현 요약이다.
+
+- `ADeviceSensorCoordinator`가 실행 목록·선택·timer·weak monitor owner와 인스턴스별 점군 보기 snapshot을 소유한다. 기존 `AVirtualSensorCoordinator`는 공개 반영 선언56개와 default subobject 이름을 그대로 가진 façade다. 모니터의 기존 GC 소유 계약은 façade에 남고 base는 `IVirtualSensorMonitorView`로만 호출한다.
+- `DevicePointCloudAnalysis`는 순수 기하와 thread-safe immutable provider snapshot, `ProjectDeviceAnalysisPolicy`는 Slab 선택·기준 yaw·최소 점 수/판정 문구를 소유한다. 기존 Slab DTO·BP 필드·JSON은 유지한다. semantic ID2~7/940nm 가정 값/Coil alias·저장 key migration은 host가 등록하며 Runtime은 일반 조회 hook을 쓴다.
+- `FDeviceRunDeliveryLedger`는 기존32개 run 상한과 output/sensor/frame 중복 제거를 유지한다. Publisher는 중립 run API를 제공하고 Scenario adapter가 업무 조회를 소유한다. 기존 native Slab API는 호환 wrapper다. 큐와 receipt의 의미·정책은 바뀌지 않는다.
+- `UDeviceSensorPanelBase`가 공통 panel/font 실행 상태를 소유한다. `IDevicePanelHostBridge`는 weak host의 위치/보기 서비스 경계이며 새 Widget 관리자가 아니다. Settings/Monitor/Capture/Placement body는 구체 host 클래스를 include하지 않는 generic View 계약으로 추출했다. callback은 weak UObject를 확인한 뒤 실행한다. 기존 Widget UCLASS·공개 반영 선언344개·WBP·SaveGame/v6 슬롯은 유지한다.
+- 일반 수신 데이터/순수 codec은 L0/L1에 있고 DTCore TC와 raw receiver가 공유한다. primary-game-module 로그 header 의존을 제거했다. `UDeviceSensorAssetSettings`는 현재 `/Game/MA0T10/...` 재질/Niagara 경로를 명시 soft path로 제공하며 기존 per-actor 값은 덮지 않는다. asset은 그대로다.
+
+새 base/body/registry의 로드로 추가 Tick/thread/네트워크 구독을 시작하지 않는다. 기존 측정·PCD·스케줄러와 TRAIN-BATCH 기본 꺼짐은 유지한다. Bootstrap·native safety·셰이더·DTCore는 수정하지 않았다.
+
+경계별 Editor/관련 자동화·wire golden을 검증한 뒤 커밋했다. 마지막 통합 Editor/Development/Shipping·smoke·quick·release1회·직접 UI 수행/실패/미수행의 최종 판정은 `Saved/Reports/DEVICE-PLUGIN-01/stage1-r46/RESULT.md`와 `result.json`을 따른다. 중간 단계의 성능 ABAB·장시간 메모리는 실행하지 않으며 native3h×3장면은 최종 단계에 한 번만 한다.

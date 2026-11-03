@@ -961,3 +961,15 @@ Editor/Development빌드·Python40·순수7·관련RHI13Success/1Fail/0skip(반�
 Base c9e6e40 / branch feat/lidar-gpu-acq-rewrite-26g / Runtime826c58f. Native committed TLAS/BLAS prototype repeatedly failed device-removal safety despite byte oracle success, graphics-queue and upload-boundary trials. It is diagnostic-only. Supported SingleFrame metadata + persistent RHI storage fallback passed full bytes/points, pose/revision/unequal-count/mixed-cancel and fifty-dig/scheduled tests, then completed packaged60 min actual19.998640+ Hz. Tail20 RSS/Commit/RHIMisc +12.579751/+11.812793/+9.768926 MiB/h failed8/8/2; UObject tail0. Final50 min storage/packet/view creations0, scene/SBT updates146331. No leak/allocator/driver root-cause certainty is claimed.
 
 Two-hourx2, original five pairs8MiB, RTonABAB2%, Shipping/full release/night were NOT_RUN after blocking preflight. No previousSHApass substituted. Personal253/protected310 preserved; owned package/raw-crash8.25GB removed with file-only hash-checked cleanup. No engine/DTCore/default-quality/threshold change or push/merge. [RESULT](../Saved/Reports/LIDAR-GPU-REWRITE-26g/RESULT.md) · [design](LIDAR_GPU_ACQUISITION_26g.md).
+
+## 2026-11-03 — DEVICE-PLUGIN-01 1단계 경계 준비 (r46)
+
+- 기준 a0a062d(설계) /master14afb6b /DTCore bc60f05, wt_plugin feat/device-plugin. Code 검증 SHA cf23c4f.
+- 현재 모듈의 Runtime Coordinator base·legacy façade, Slab 분석/provider·순수 수학, host semantic/identity, 중립 run ledger/Scenario adapter, 공통 UDxWidget panel/font base·weak bridge/view bodies, plain receive codecs·soft asset settings를 분리. plugin/module/submodule/실제 파일·asset 이동 없음. Bootstrap/native/DTCore 변경 없음.
+- source 계약: Coordinator 공개56/UI344 반영 선언 동일. 기존 enum/SaveGame/wire/BP 핀과 default subobject 이름 유지. Layer allowlist0→0, 새 Runtime→상위 include0.
+- 최종 Editor/Development/Shipping 모두 exit0. quick/layer/DTCore guard PASS, smoke36Success. release1회16단계Success, aggregate492Success/45semanticSkip/0Fail. ArchitectureWire14·batch/multi-scene byte/point oracle·CPU default bytes·PCD upload oracle·TRAIN-BATCH DefaultOff Success. PSO timeout cadence20.004891Hz(기준19.8) Success.
+- **Raw release FAIL 유지:** 종료 보호 검사 `Protected worktree hashes changed`. 기준에 없던 알려진132-byte 빈 Config/Game.ini 자동 생성(SHA2566d21be54…de8d1). 원본 증거/판정을 보존하고 원래 부재를 복원, release 재실행0/기준·CVar 완화0. merge-check 차단을 자동 통과로 바꾸지 않음.
+- 실제 Computer Use: 별도 UserDir의 Editor-game/D3D12/SensorTestMap, screenshot1920×1080/UI100%. 배치·센서 기본/고급·데이터·파일 저장·현재 프레임 모드 확인, asset/파일 저장·전송 버튼 미실행,8입력/캡처7장/AltF4 exit0. preview header drag는 viewport look만 바뀌어 drag 수용으로 세지 않음. OS DPI/글꼴·해상도 행렬·ban/recovery실제문구·PIE 전체 마우스 미수행.
+- 초기 컴파일 참조/새 fixture World 초기화·Context·abstract UObject ensure는 수정 뒤 재검증, 최초 실패 로그는 보존. 제품 native fault로 귀속하지 않음. 개인 설정 원본0개 집합·hash 복원(생성35개 backup), Game.ini 부재 복원. SensorTransport/맵/DTCore hash 불변; Samples build-generated untracked 항목 보존.
+- 성능 ABAB·장시간 메모리 미수행(사용자 지시). native3h×3맵은 최종 단계에1회. push/PR/merge 없음.
+- 증거: `Saved/Reports/DEVICE-PLUGIN-01/stage1-r46/{RESULT.md,result.json,merge-check.json,summary.json,restoration.json,manual/}`.
