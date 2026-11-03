@@ -236,12 +236,12 @@ bool FSensorV2InteractionBudgetTest::RunTest(const FString& Parameters)
 bool FSensorV2ExternalSourceHostTest::RunTest(const FString& Parameters)
 {
 	AVirtualSensorExternalSourceHostActor* Host = NewObject<AVirtualSensorExternalSourceHostActor>();
-	TestNotNull(TEXT("CSV replay source"), Host->LidarCsvReplay.Get());
-	TestNotNull(TEXT("JSONL replay source"), Host->LidarJsonLinesReplay.Get());
-	TestNotNull(TEXT("buffered LiDAR JSON source"), Host->LidarBufferedJson.Get());
-	TestNotNull(TEXT("HTTP LiDAR source"), Host->LidarHttpJson.Get());
-	TestNotNull(TEXT("UDP LiDAR source"), Host->LidarUdpJson.Get());
-	TestNotNull(TEXT("buffered camera JSON source"), Host->CameraBufferedJson.Get());
+	TestNotNull(TEXT("CSV replay source"), Host->LidarCsvReplayComp.Get());
+	TestNotNull(TEXT("JSONL replay source"), Host->LidarJsonLinesReplayComp.Get());
+	TestNotNull(TEXT("buffered LiDAR JSON source"), Host->LidarBufferedJsonComp.Get());
+	TestNotNull(TEXT("HTTP LiDAR source"), Host->LidarHttpJsonComp.Get());
+	TestNotNull(TEXT("UDP LiDAR source"), Host->LidarUdpJsonComp.Get());
+	TestNotNull(TEXT("buffered camera JSON source"), Host->CameraBufferedJsonComp.Get());
 	TInlineComponentArray<URealSensorSourceComp*> Sources;
 	Host->GetComponents(Sources);
 	for (const URealSensorSourceComp* Source : Sources)

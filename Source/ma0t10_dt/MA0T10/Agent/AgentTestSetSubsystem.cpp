@@ -99,8 +99,8 @@ struct FTestSetStoppedWork
 {
     FString SensorId;
     TWeakObjectPtr<AVirtualSensorActorBase> Sensor;
-    TWeakObjectPtr<UVirtualSensorStreamPublisherComp> Publisher;
-    TWeakObjectPtr<UVirtualSensorRecorderComp> Recorder;
+    TWeakObjectPtr<UVirtualSensorStreamPublisherComp> PublisherComp;
+    TWeakObjectPtr<UVirtualSensorRecorderComp> RecorderComp;
     TArray<TPair<FString,uint64>> Periodic;
     uint64 RunRevision=0;
     bool Running=false,PublisherHeld=false,RecorderHeld=false;
@@ -380,9 +380,9 @@ void UAgentTestSetSubsystem::SuspendBusyWork()
         if(W.Running)A->StopSensor();W.RunRevision=A->GetRunControlRevision();
         if(A->OutputComp)
         {
-            W.Publisher=A->OutputComp->StreamPublisherComp;W.Recorder=A->OutputComp->RecorderComp;
-            if(W.Publisher.IsValid()&&!W.Publisher->IsLocalCaptureSuspended(A->GetSensorId())){W.Publisher->SetLocalCaptureSuspended(A->GetSensorId(),true);W.PublisherHeld=true;}
-            if(W.Recorder.IsValid()&&W.Recorder->IsRecordingSensor(A->GetSensorId())){W.Recorder->SetLocalCaptureSuspended(A->GetSensorId(),true);W.RecorderHeld=true;}
+            W.PublisherComp=A->OutputComp->StreamPublisherComp;W.RecorderComp=A->OutputComp->RecorderComp;
+            if(W.PublisherComp.IsValid()&&!W.PublisherComp->IsLocalCaptureSuspended(A->GetSensorId())){W.PublisherComp->SetLocalCaptureSuspended(A->GetSensorId(),true);W.PublisherHeld=true;}
+            if(W.RecorderComp.IsValid()&&W.RecorderComp->IsRecordingSensor(A->GetSensorId())){W.RecorderComp->SetLocalCaptureSuspended(A->GetSensorId(),true);W.RecorderHeld=true;}
         }
         if(auto* P=GetWorld()->GetSubsystem<UVirtualSensorPeriodicFileSaveSubsystem>())for(const auto& V:P->GetRecentPeriodicSessions())if(V.SensorId==A->GetSensorId()&&V.bActive)
             if(const uint64 Token=P->SuspendForLocalCapture(V.SessionId))W.Periodic.Add({V.SessionId,Token});
@@ -397,8 +397,8 @@ void UAgentTestSetSubsystem::RestoreStoppedWork(bool Resume)
     if(!State)return;auto Work=MoveTemp(State->Stopped);State->Stopped.Reset();
     for(auto& W:Work)
     {
-        if(W.PublisherHeld&&W.Publisher.IsValid())W.Publisher->SetLocalCaptureSuspended(W.SensorId,false);
-        if(W.RecorderHeld&&W.Recorder.IsValid())W.Recorder->SetLocalCaptureSuspended(W.SensorId,false);
+        if(W.PublisherHeld&&W.PublisherComp.IsValid())W.PublisherComp->SetLocalCaptureSuspended(W.SensorId,false);
+        if(W.RecorderHeld&&W.RecorderComp.IsValid())W.RecorderComp->SetLocalCaptureSuspended(W.SensorId,false);
         auto* A=W.Sensor.Get();
         if(Resume&&A&&A->GetSensorId()==W.SensorId&&W.Running&&A->GetRunControlRevision()==W.RunRevision&&!A->IsSensorRunning())A->StartSensor();
         if(Resume&&A&&A->GetSensorId()==W.SensorId)if(auto* P=GetWorld()->GetSubsystem<UVirtualSensorPeriodicFileSaveSubsystem>())for(const auto& V:W.Periodic)P->ResumeAfterLocalCapture(V.Key,V.Value);

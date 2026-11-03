@@ -109,7 +109,7 @@ public:
 			Test->TestEqual(TEXT("late retry binds progress to explicit actor"),Host->ProgressWidget->GetBoundSlabActor(),Slab.Get());
 			auto* OriginalChart=Host->ChartsWidget.Get(); Host->ShowSimulationPanels();
 			Test->TestEqual(TEXT("repeat show reuses the same widget"),Host->ChartsWidget.Get(),OriginalChart);
-			Test->TestEqual(TEXT("exactly two panels hosted"),Host->PanelHost->GetHostedPanelCount(),2);
+			Test->TestEqual(TEXT("exactly two panels hosted"),Host->PanelHostComp->GetHostedPanelCount(),2);
 			Workspace->SetPanelOpen(ESensorToolPanelRole::SlabCharts,true); Workspace->SetPanelOpen(ESensorToolPanelRole::SlabProgress,true);
 			ScenarioId=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower); Json=FSlabScenarioCodec::MakeSyntheticJson(ScenarioId);
 			Test->TestTrue(TEXT("600-row production SubmitScenarioJson accepted without rig"),Slab->SubmitScenarioJson(Json));

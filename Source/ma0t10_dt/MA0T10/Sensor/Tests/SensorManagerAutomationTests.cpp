@@ -218,7 +218,7 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
     LidarComp->RegisterComponent();
     RealSourceComp->RegisterComponent();
     RealSourceComp->SourceId = TEXT("TEST-MANAGER-REAL-SOURCE");
-    RealSourceComp->TargetLidar = LidarComp;
+    RealSourceComp->TargetLidarComp = LidarComp;
     RealSourceComp->CsvFilePath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Samples/slab_replay_sample.csv"));
     RealSourceComp->ReplaySemanticLabel = TEXT("Slab");
     RealSourceComp->bSendTransportByDefault = false;

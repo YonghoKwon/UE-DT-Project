@@ -10,7 +10,7 @@
 #include "Engine/World.h"
 
 ASlabSimulationUiHostActor::ASlabSimulationUiHostActor()
-{ PrimaryActorTick.bCanEverTick = false; PanelHost = CreateDefaultSubobject<UVirtualSensorPanelHostComp>(TEXT("SlabPanelHost")); }
+{ PrimaryActorTick.bCanEverTick = false; PanelHostComp = CreateDefaultSubobject<UVirtualSensorPanelHostComp>(TEXT("SlabPanelHost")); }
 void ASlabSimulationUiHostActor::RegisterSlabUiHost(bool bActive)
 {
 	const TWeakObjectPtr<ASlabSimulationUiHostActor> WeakThis(this);
@@ -65,7 +65,7 @@ void ASlabSimulationUiHostActor::ShowSimulationPanels()
 		{
 			ChartsWidget->SetPanelPersistenceKey(TEXT("SlabCharts")); ChartsWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::LeftCenter, FVector2D(780, 820));
 			ChartsWidget->SetPanelResizable(true); ChartsWidget->ResizeHandleSize = 32; ChartsWidget->SetPanelResizeLimits(FVector2D(720, 720), FVector2D::ZeroVector);
-			PanelHost->RegisterPanel(ChartsWidget, 50);
+			PanelHostComp->RegisterPanel(ChartsWidget, 50);
 		}
 	}
 	if (!ProgressWidget && !Workspace->GetOwnedPanel(ESensorToolPanelRole::SlabProgress))
@@ -78,7 +78,7 @@ void ASlabSimulationUiHostActor::ShowSimulationPanels()
 		{
 			ProgressWidget->SetPanelPersistenceKey(TEXT("SlabProgress")); ProgressWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::LeftCenter, FVector2D(520, 420));
 			ProgressWidget->SetPanelResizable(true); ProgressWidget->ResizeHandleSize = 32; ProgressWidget->SetPanelResizeLimits(FVector2D(360, 280), FVector2D::ZeroVector);
-			PanelHost->RegisterPanel(ProgressWidget, 51);
+			PanelHostComp->RegisterPanel(ProgressWidget, 51);
 		}
 	}
 	BindSlabActor(SlabActor);
@@ -88,7 +88,7 @@ void ASlabSimulationUiHostActor::EndPlay(const EEndPlayReason::Type Reason)
 {
 	SlabUiRegistry::UnregisterHost(this);
 	bEnding=true; if(GetWorld()) GetWorldTimerManager().ClearTimer(InitializationRetry);
-	PanelHost->UnregisterAllPanels();
+	PanelHostComp->UnregisterAllPanels();
 	if (ChartsWidget) ChartsWidget->RemoveFromParent(); if (ProgressWidget) ProgressWidget->RemoveFromParent();
 	ChartsWidget = nullptr; ProgressWidget = nullptr; Super::EndPlay(Reason);
 }

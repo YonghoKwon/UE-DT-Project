@@ -45,7 +45,7 @@ public:
     virtual void Deinitialize() override;
 private:
     TSharedPtr<FVirtualDatasetSession,ESPMode::ThreadSafe> Session;
-    UPROPERTY(Transient) TObjectPtr<UVirtualCameraGroundTruthComp> Truth;
+    UPROPERTY(Transient) TObjectPtr<UVirtualCameraGroundTruthComp> TruthComp;
     FTimerHandle Timer;
     void Pump();
     void PumpPlanned();

@@ -88,7 +88,7 @@ void UDxWidgetVirtualSensorPlacementPanel::RefreshImu()
     bImuRecordingForDisplay=C&&C->IsRecording();bImuPublishingForDisplay=C&&C->IsPublishing();
     if(ImuPlot)ImuPlot->Push(C);
     if(!C||!C->HasSample()){ImuValues=FText::FromString(C?TEXT("IMU 준비 중"):TEXT("IMU 없음 · 선택 장비에 부착하세요"));return;}
-    const auto S=C->GetLatestSample();ImuValues=FText::FromString(FString::Printf(TEXT("비력 m/s²  %.3f  %.3f  %.3f\n각속도 rad/s  %.4f  %.4f  %.4f\n자세 xyzw  %.3f  %.3f  %.3f  %.3f\n표본 %lld · 기록 한도 초과 %lld\n그래프: X 빨강 · Y 초록 · Z 파랑 (±20 m/s², 최근 20초)"),S.SpecificForce.X,S.SpecificForce.Y,S.SpecificForce.Z,S.AngularVelocity.X,S.AngularVelocity.Y,S.AngularVelocity.Z,S.Orientation.X,S.Orientation.Y,S.Orientation.Z,S.Orientation.W,C->SampleCount,C->Recorder?C->Recorder->GetImuOverflowCount(C->GetImuId()):0));
+    const auto S=C->GetLatestSample();ImuValues=FText::FromString(FString::Printf(TEXT("비력 m/s²  %.3f  %.3f  %.3f\n각속도 rad/s  %.4f  %.4f  %.4f\n자세 xyzw  %.3f  %.3f  %.3f  %.3f\n표본 %lld · 기록 한도 초과 %lld\n그래프: X 빨강 · Y 초록 · Z 파랑 (±20 m/s², 최근 20초)"),S.SpecificForce.X,S.SpecificForce.Y,S.SpecificForce.Z,S.AngularVelocity.X,S.AngularVelocity.Y,S.AngularVelocity.Z,S.Orientation.X,S.Orientation.Y,S.Orientation.Z,S.Orientation.W,C->SampleCount,C->RecorderComp?C->RecorderComp->GetImuOverflowCount(C->GetImuId()):0));
 }
 TSharedRef<SWidget> UDxWidgetVirtualSensorPlacementPanel::BuildImuSection()
 {

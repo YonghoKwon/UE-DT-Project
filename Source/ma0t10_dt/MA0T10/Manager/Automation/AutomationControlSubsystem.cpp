@@ -90,7 +90,7 @@ struct FAutomationControlState
     FString PcdSensorId;int32 PcdSensorRevision=0,PcdStreamRevision=0;
     FString ApiMessage=TEXT("외부 제어 API · 꺼짐"),Operation,OperationId,Phase,Error,FileRequest,ScenarioId,RunId;
     TWeakObjectPtr<AVirtualSensorActorBase> Target;
-    TWeakObjectPtr<UVirtualSensorStreamPublisherComp> Publisher;
+    TWeakObjectPtr<UVirtualSensorStreamPublisherComp> PublisherComp;
     FVirtualSensorStreamConfig BeforeStream;
     FVirtualSensorStreamStatus StartStream;
     bool StartedSensor=false,OwnedStream=false,OwnedDataset=false,OwnedReplay=false,Terminal=true,Success=true;
@@ -279,7 +279,7 @@ bool UAutomationControlSubsystem::StartCommand(const TSharedRef<FJsonObject>& C,
         auto Config=S.BeforeStream;Config.SensorId=A->GetSensorId();Config.StreamKind=EVirtualSensorStreamKind::PointCloud;Config.PointCloudFormat=EVirtualPointCloudStreamFormat::PCD;Config.bEnabled=false;
         P->ConfigureStream(Config);P->StartStream(Config.StreamKind,Config.SensorId);
         if(!P->IsStreamEnabled(Config.StreamKind,Config.SensorId)){P->ConfigureStream(S.BeforeStream);Error=TEXT("PCD preflight rejected stream");return false;}
-        S.StartedSensor=!A->IsSensorRunning();A->StartSensor();S.Publisher=P;S.OwnedStream=true;S.PcdSensorId=A->GetSensorId();S.PcdSensorRevision=A->GetConfigurationRevision();
+        S.StartedSensor=!A->IsSensorRunning();A->StartSensor();S.PublisherComp=P;S.OwnedStream=true;S.PcdSensorId=A->GetSensorId();S.PcdSensorRevision=A->GetConfigurationRevision();
         S.Until=Op==TEXT("pcd.run")?FPlatformTime::Seconds()+Num(*C,TEXT("seconds"),30):DBL_MAX;
         S.StartStream=FVirtualSensorStreamStatus();for(const auto& T:P->GetStreamStatuses())if(T.StreamKind==Config.StreamKind&&T.SensorId==Config.SensorId)S.StartStream=T;
         S.PcdStreamRevision=S.StartStream.ConfigRevision;
@@ -308,8 +308,8 @@ void UAutomationControlSubsystem::StopOwnedOperation()
     if(S.OwnedStream)
     {
         bool StillOwned=false;
-        if(S.Publisher.IsValid())for(const auto& V:S.Publisher->GetStreamStatuses())if(V.StreamKind==EVirtualSensorStreamKind::PointCloud&&V.SensorId==S.PcdSensorId)StillOwned=V.ConfigRevision==S.PcdStreamRevision;
-        if(StillOwned){S.Publisher->StopStream(EVirtualSensorStreamKind::PointCloud,S.PcdSensorId);S.Publisher->ConfigureStream(S.BeforeStream);}
+        if(S.PublisherComp.IsValid())for(const auto& V:S.PublisherComp->GetStreamStatuses())if(V.StreamKind==EVirtualSensorStreamKind::PointCloud&&V.SensorId==S.PcdSensorId)StillOwned=V.ConfigRevision==S.PcdStreamRevision;
+        if(StillOwned){S.PublisherComp->StopStream(EVirtualSensorStreamKind::PointCloud,S.PcdSensorId);S.PublisherComp->ConfigureStream(S.BeforeStream);}
         if(StillOwned&&S.StartedSensor&&S.Target.IsValid()&&S.Target->GetConfigurationRevision()==S.PcdSensorRevision&&S.Target->GetSensorId()==S.PcdSensorId)S.Target->StopSensor();
         S.OwnedStream=false;S.StartedSensor=false;
     }
@@ -408,10 +408,10 @@ bool UAutomationControlSubsystem::Poll(float)
         }
         else if(S.Operation.StartsWith(TEXT("pcd.")))
         {
-            if(!S.Target.IsValid()||!S.Publisher.IsValid())CompleteOperation(false,TEXT("PCD target ended"));
+            if(!S.Target.IsValid()||!S.PublisherComp.IsValid())CompleteOperation(false,TEXT("PCD target ended"));
             else
             {
-                FVirtualSensorStreamStatus Status;bool Found=false;for(const auto& V:S.Publisher->GetStreamStatuses())if(V.StreamKind==EVirtualSensorStreamKind::PointCloud&&V.SensorId==S.PcdSensorId){Status=V;Found=true;}
+                FVirtualSensorStreamStatus Status;bool Found=false;for(const auto& V:S.PublisherComp->GetStreamStatuses())if(V.StreamKind==EVirtualSensorStreamKind::PointCloud&&V.SensorId==S.PcdSensorId){Status=V;Found=true;}
                 if(!Found||Status.ConfigRevision!=S.PcdStreamRevision){S.OwnedStream=false;S.StartedSensor=false;CompleteOperation(false,TEXT("PCD route changed outside this operation"));return true;}
                 if(S.Target->GetConfigurationRevision()!=S.PcdSensorRevision||S.Target->GetSensorId()!=S.PcdSensorId){CompleteOperation(false,TEXT("PCD sensor configuration changed outside this operation"));return true;}
                 const int64 Receipts=Status.ReceiptReceivedCount-S.StartStream.ReceiptReceivedCount;
@@ -419,7 +419,7 @@ bool UAutomationControlSubsystem::Poll(float)
                 S.Detail->SetNumberField(TEXT("receipt_count"),Receipts);S.Detail->SetNumberField(TEXT("submitted_count"),Status.SubmittedFrameCount-S.StartStream.SubmittedFrameCount);S.Detail->SetNumberField(TEXT("input_count"),Status.InputFrameCount-S.StartStream.InputFrameCount);S.Detail->SetNumberField(TEXT("error_count"),Failures);S.Detail->SetNumberField(TEXT("outstanding_bytes"),Status.RawOutstandingBytes);S.Detail->SetNumberField(TEXT("overload_count"),Status.OverloadCount-S.StartStream.OverloadCount);
                 if(Now>=S.Until)
                 {
-                    if(S.DrainBegan==0){S.DrainBegan=Now;S.Phase=TEXT("draining");S.Publisher->StopStream(EVirtualSensorStreamKind::PointCloud,S.PcdSensorId);++S.PcdStreamRevision;if(S.StartedSensor)S.Target->StopSensor();}
+                    if(S.DrainBegan==0){S.DrainBegan=Now;S.Phase=TEXT("draining");S.PublisherComp->StopStream(EVirtualSensorStreamKind::PointCloud,S.PcdSensorId);++S.PcdStreamRevision;if(S.StartedSensor)S.Target->StopSensor();}
                     if(Status.RawOutstandingFrameCount==0&&Status.ReceiptQueueDepth==0&&!Status.bProcessing)
                     {const bool Ok=Receipts>0&&Failures==0;CompleteOperation(Ok,Ok?FString():TEXT("PCD completed without receipts or with delivery errors"));}
                 }

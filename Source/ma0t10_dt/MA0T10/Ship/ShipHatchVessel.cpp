@@ -31,7 +31,7 @@ AShipHatchVessel::AShipHatchVessel()
 {
  PrimaryActorTick.bCanEverTick=false;Mesh=CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("VesselGeometry"));SetRootComponent(Mesh);
  Mesh->bUseComplexAsSimpleCollision=true;Mesh->SetCollisionProfileName(TEXT("BlockAll"));Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);Mesh->SetCastShadow(false);Mesh->SetCanEverAffectNavigation(false);
- Optical=CreateDefaultSubobject<UVirtualLidarSurfaceResponseComp>(TEXT("Optical"));Optical->bTwoSided=true;Optical->Reflectivity940Nm=.3;
+ OpticalComp=CreateDefaultSubobject<UVirtualLidarSurfaceResponseComp>(TEXT("Optical"));OpticalComp->bTwoSided=true;OpticalComp->Reflectivity940Nm=.3;
  ScaleMarker=CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("ScaleReference180cm"));ScaleMarker->SetupAttachment(Mesh);ScaleMarker->SetCollisionEnabled(ECollisionEnabled::NoCollision);ScaleMarker->SetHiddenInSceneCapture(true);ScaleMarker->SetCastShadow(false);ScaleMarker->SetCanEverAffectNavigation(false);ScaleMarker->SetVisibility(false);
  Tags.Add(TEXT("HatchOutside"));Tags.Add(TEXT("ShipHatchVessel"));
 }

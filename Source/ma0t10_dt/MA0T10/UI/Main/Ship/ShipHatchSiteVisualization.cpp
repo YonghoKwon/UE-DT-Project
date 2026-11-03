@@ -11,7 +11,7 @@
 void UDxWidgetShipHatchMonitor::RestoreSiteVisualization()
 {
     if(auto* PC=GetOwningPlayer())for(const auto& C:SiteHidden)PC->HiddenPrimitiveComponents.Remove(C);
-    SiteHidden.Reset();if(SiteModel)SiteModel->DestroyComponent();SiteModel=nullptr;SiteShapeKey=0;SiteCabRevision=MAX_uint64;
+    SiteHidden.Reset();if(SiteModelComp)SiteModelComp->DestroyComponent();SiteModelComp=nullptr;SiteShapeKey=0;SiteCabRevision=MAX_uint64;
 }
 void UDxWidgetShipHatchMonitor::SetSiteVisualization(bool Enabled)
 {
@@ -46,10 +46,10 @@ void UDxWidgetShipHatchMonitor::UpdateSiteVisualization()
     auto* S=Simulation.Get();auto* PC=GetOwningPlayer();
     if(!bSiteVisualization||!S||!PC||!Host.IsValid()||!IsVisible()||!(bSplit||ActiveView<2))return;
     uint32 Key=GetTypeHash(S->BoomLength);for(double D:{S->BoomHeight,S->RailSpan,S->CabHeight,S->CabX,S->HoldDepth,S->OperatingDraft})Key=HashCombineFast(Key,GetTypeHash(D));Key=HashCombineFast(Key,GetTypeHash(S->bShowUnloader));
-    if(SiteModel&&SiteShapeKey==Key&&SiteCabRevision==S->CabRevision())return;
+    if(SiteModelComp&&SiteShapeKey==Key&&SiteCabRevision==S->CabRevision())return;
     RestoreSiteVisualization();SiteShapeKey=Key;SiteCabRevision=S->CabRevision();
-    Host->Tags.AddUnique(TEXT("ShipHatchPreviewSensor"));SiteModel=NewObject<UShipHatchOverlayComp>(Host.Get());
-    SiteModel->SetCollisionEnabled(ECollisionEnabled::NoCollision);SiteModel->SetHiddenInSceneCapture(true);SiteModel->SetVisibleInRayTracing(false);SiteModel->SetCastShadow(false);SiteModel->SetCanEverAffectNavigation(false);SiteModel->bCalculateAccurateBounds=true;SiteModel->RegisterComponent();SiteModel->SetComponentTickEnabled(false);SiteModel->SetWorldTransform(FTransform::Identity);
+    Host->Tags.AddUnique(TEXT("ShipHatchPreviewSensor"));SiteModelComp=NewObject<UShipHatchOverlayComp>(Host.Get());
+    SiteModelComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);SiteModelComp->SetHiddenInSceneCapture(true);SiteModelComp->SetVisibleInRayTracing(false);SiteModelComp->SetCastShadow(false);SiteModelComp->SetCanEverAffectNavigation(false);SiteModelComp->bCalculateAccurateBounds=true;SiteModelComp->RegisterComponent();SiteModelComp->SetComponentTickEnabled(false);SiteModelComp->SetWorldTransform(FTransform::Identity);
     if(S->bShowUnloader)S->VisitUnloaderMeshes([&](UProceduralMeshComponent* Source)
     {
         if(!Source)return;
@@ -58,10 +58,10 @@ void UDxWidgetShipHatchMonitor::UpdateSiteVisualization()
         {
             FBatchedMesh Mesh;Mesh.Color=FColor(20,190,65,135);Mesh.DepthPriority=SDPG_World;
             Mesh.MeshVerts.Reserve(Section->ProcVertexBuffer.Num());for(const auto& V:Section->ProcVertexBuffer)Mesh.MeshVerts.Add(Source->GetComponentTransform().TransformPosition(FVector(V.Position)));
-            Mesh.MeshIndices.Reserve(Section->ProcIndexBuffer.Num());for(uint32 Index:Section->ProcIndexBuffer)Mesh.MeshIndices.Add(int32(Index));SiteModel->BatchedMeshes.Add(MoveTemp(Mesh));
+            Mesh.MeshIndices.Reserve(Section->ProcIndexBuffer.Num());for(uint32 Index:Section->ProcIndexBuffer)Mesh.MeshIndices.Add(int32(Index));SiteModelComp->BatchedMeshes.Add(MoveTemp(Mesh));
         }
     });
-    SiteModel->UpdateBounds();SiteModel->MarkRenderStateDirty();
+    SiteModelComp->UpdateBounds();SiteModelComp->MarkRenderStateDirty();
 }
 void UDxWidgetShipHatchMonitor::SetFreeCamera(bool Enabled)
 {

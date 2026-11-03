@@ -105,7 +105,7 @@ public:
         }
         if(Phase==1)
         {
-            Test->TestTrue(TEXT("recording collected samples"),!Imu->Recorder->GetImuSamples(Imu->GetImuId()).IsEmpty());
+            Test->TestTrue(TEXT("recording collected samples"),!Imu->RecorderComp->GetImuSamples(Imu->GetImuId()).IsEmpty());
             Imu->SetPublishing(true);Test->TestTrue(TEXT("IMU transmission selected before confirmation"),Imu->IsPublishing());
             Click(P->TakeWidget(),TEXT("IMU 해제…"),Test);Click(P->TakeWidget(),TEXT("해제 확인"),Test);Csv=Imu->GetDetachCsvRequest();
             Test->TestTrue(TEXT("recording stopped before CSV finalization"),!Imu->IsRecording()&&!Imu->IsPublishing()&&Imu->IsRegistered()&&Imu->IsDetaching());
@@ -124,7 +124,7 @@ public:
             Test->TestTrue(TEXT("recorded CSV exists with samples"),Text.Contains(TEXT("sequence"))&&Text.ParseIntoArrayLines(TextLines)>1);
             Test->TestNull(TEXT("detached IMU removed from actor"),Lidar->FindComponentByClass<UVirtualImuComp>());
             Test->TestFalse(TEXT("AUTO-01 no longer exposes imu object"),ApiHasImu(World,Lidar->GetSensorId()));
-            Test->TestTrue(TEXT("reattachment does not inherit old recorded samples"),Imu.IsValid()?Imu->Recorder->GetImuSamples(Lidar->GetSensorId()+TEXT(".imu")).IsEmpty():true);
+            Test->TestTrue(TEXT("reattachment does not inherit old recorded samples"),Imu.IsValid()?Imu->RecorderComp->GetImuSamples(Lidar->GetSensorId()+TEXT(".imu")).IsEmpty():true);
             Bar->OpenOwnedDestination(ESensorToolDestination::Preview);M->BindVirtualLidar(Lidar->ScanComp);M->ShowLidarView();
             FVirtualSensorEditableState State;FString Error;Lidar->ReadEditableState(State);State.LidarHorizontalSamples=8;State.LidarVerticalChannels=4;Lidar->ApplyEditableState(State,Error);
             M->RefreshLidarPreviewWithoutTransport(true);
@@ -150,7 +150,7 @@ public:
             Test->TestTrue(TEXT("secondary image preserves texture aspect"),FMath::IsNearlyEqual(float(B.X/B.Y),float(M->NativeSecondaryCameraBrush.ImageSize.X/M->NativeSecondaryCameraBrush.ImageSize.Y),.02f));
             Test->TestTrue(TEXT("30 percent split gives smaller primary pane"),A.Y<B.Y);
             P->SelectEquipment(Lidar.Get());P->AttachSelectedImu();auto* Empty=Lidar->FindComponentByClass<UVirtualImuComp>();
-            Test->TestTrue(TEXT("reattached IMU starts without old samples"),Empty&&Empty->Recorder&&Empty->Recorder->GetImuSamples(Empty->GetImuId()).IsEmpty());
+            Test->TestTrue(TEXT("reattached IMU starts without old samples"),Empty&&Empty->RecorderComp&&Empty->RecorderComp->GetImuSamples(Empty->GetImuId()).IsEmpty());
             P->RequestSelectedImuDetach();Test->TestTrue(TEXT("unrecorded IMU detaches on confirmation"),P->ConfirmSelectedImuDetach());
             Test->TestFalse(TEXT("unrecorded detach also removes API object"),ApiHasImu(World,Lidar->GetSensorId()));
             P->AttachSelectedImu();Imu=Lidar->FindComponentByClass<UVirtualImuComp>();Imu->SetRecording(true);
@@ -165,7 +165,7 @@ public:
         if(Phase==5)
         {
             if(Imu->IsDetaching())return false;
-            Test->TestTrue(TEXT("cancelled CSV retains attached IMU and recorded samples"),Imu->IsRegistered()&&!Imu->Recorder->GetImuSamples(Imu->GetImuId()).IsEmpty());
+            Test->TestTrue(TEXT("cancelled CSV retains attached IMU and recorded samples"),Imu->IsRegistered()&&!Imu->RecorderComp->GetImuSamples(Imu->GetImuId()).IsEmpty());
             Test->TestTrue(TEXT("failed finalization retains the API object"),ApiHasImu(World,Lidar->GetSensorId()));
             P->RefreshImu();Test->TestTrue(TEXT("failure explains retention and releases UI request tracking"),P->Status.Contains(TEXT("유지"))&&P->DetachingCsvRequest.IsEmpty());
             P->RequestSelectedImuDetach();Test->TestTrue(TEXT("retained samples can be saved on retry"),P->ConfirmSelectedImuDetach());Csv=Imu->GetDetachCsvRequest();Phase=6;return false;

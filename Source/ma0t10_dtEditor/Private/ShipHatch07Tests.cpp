@@ -28,8 +28,8 @@ struct FHatch07Probe
         auto& S=*M.Simulation;const auto Revision=S.Revision();const auto Hash=S.Surface().Hash();
         const auto F=S.SensorAt(0)->ScanComp->GetLastFrameSnapshot();const uint32 CRC=F&&F->Points?FCrc::MemCrc32(F->Points->GetData(),F->Points->Num()*sizeof(FVirtualLidarPoint)):0;
         T.TestFalse(TEXT("site mode starts off"),M.IsSiteVisualization());
-        M.SetSiteVisualization(true);T.TestNotNull(TEXT("site model uses read-only render overlay"),M.SiteModel.Get());
-        if(M.SiteModel)T.TestTrue(TEXT("site proxy never participates in measurement collision"),M.SiteModel->GetCollisionEnabled()==ECollisionEnabled::NoCollision&&M.SiteModel->BatchedMeshes.Num()>0);
+        M.SetSiteVisualization(true);T.TestNotNull(TEXT("site model uses read-only render overlay"),M.SiteModelComp.Get());
+        if(M.SiteModelComp)T.TestTrue(TEXT("site proxy never participates in measurement collision"),M.SiteModelComp->GetCollisionEnabled()==ECollisionEnabled::NoCollision&&M.SiteModelComp->BatchedMeshes.Num()>0);
         T.TestTrue(TEXT("green mode owns only player-view hides"),M.SiteHidden.Num()>0);
         T.TestEqual(TEXT("site visualization leaves acquisition geometry revision unchanged"),S.Revision(),Revision);T.TestEqual(TEXT("site visualization leaves cargo immutable"),S.Surface().Hash(),Hash);
         T.TestTrue(TEXT("tint never mutates acquired snapshot"),F&&F->Points&&FCrc::MemCrc32(F->Points->GetData(),F->Points->Num()*sizeof(FVirtualLidarPoint))==CRC);
@@ -53,7 +53,7 @@ struct FHatch07Probe
         M.NativeOnMouseButtonUp(Geometry,FPointerEvent(0,Point+FVector2D(30,20),Point,Released,EKeys::RightMouseButton,0,FModifierKeysState()));
         T.TestTrue(TEXT("right drag pans without rotating or excavating"),!M.Host->ViewCamera->GetActorLocation().Equals(BeforePan.GetLocation(),.01)&&M.Host->ViewCamera->GetActorQuat().Equals(BeforePan.GetRotation(),.001)&&S.Surface().Hash()==Hash);
         M.SetCameraPreset(1);T.TestFalse(TEXT("preset leaves free mode"),M.bFreeCamera);M.SetFreeCamera(true);M.OnDigToggle();T.TestTrue(TEXT("dig lock and free movement are exclusive"),!M.bFreeCamera&&M.bDigEnabled);M.OnDigToggle();
-        M.SetSiteVisualization(false);T.TestTrue(TEXT("mode off restores only owned hides"),M.SiteHidden.IsEmpty()&&!M.SiteModel);M.SetSplitView(true);M.SetSiteVisualization(true);M.SetSiteCameraPreset(0);
+        M.SetSiteVisualization(false);T.TestTrue(TEXT("mode off restores only owned hides"),M.SiteHidden.IsEmpty()&&!M.SiteModelComp);M.SetSplitView(true);M.SetSiteVisualization(true);M.SetSiteCameraPreset(0);
     }
     static void Gray(UDxWidgetShipHatchMonitor& M){M.bSiteGray=true;M.LastLayout=FVector2D::ZeroVector;M.Layout();}
     static void Violet(UDxWidgetShipHatchMonitor& M){M.OnSiteHeight();}

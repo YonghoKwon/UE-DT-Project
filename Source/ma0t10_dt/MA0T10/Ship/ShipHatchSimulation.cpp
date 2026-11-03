@@ -67,7 +67,7 @@ AShipHatchPart::AShipHatchPart()
     PrimaryActorTick.bCanEverTick=false;
     Mesh=CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("Geometry"));SetRootComponent(Mesh);
     Mesh->bUseComplexAsSimpleCollision=true;Mesh->SetCollisionProfileName(TEXT("BlockAll"));
-    Optical=CreateDefaultSubobject<UVirtualLidarSurfaceResponseComp>(TEXT("Optical"));Optical->bTwoSided=true;
+    OpticalComp=CreateDefaultSubobject<UVirtualLidarSurfaceResponseComp>(TEXT("Optical"));OpticalComp->bTwoSided=true;
 }
 void AShipHatchPart::SetColor(const FLinearColor& Color)
 {
@@ -319,7 +319,7 @@ void AShipHatchSimulation::UpdateCargoMesh(bool UpdateAppearance)
         if(Base&&(!MID||MID->Parent!=Base)){MID=UMaterialInstanceDynamic::Create(Base,Cargo);Cargo->Mesh->SetMaterial(0,MID);}
         const bool Coal=Current.Settings.Cargo==ShipHatch::ECargo::Coal;
         if(MID){MID->SetVectorParameterValue(TEXT("ColdColor"),Coal?FLinearColor(.033,.031,.029):FLinearColor(.11,.072,.051));MID->SetScalarParameterValue(TEXT("Coal"),Coal?1:0);}
-        Cargo->Optical->Reflectivity940Nm=ShipHatch::Reflectivity(Current.Settings.Cargo);}
+        Cargo->OpticalComp->Reflectivity940Nm=ShipHatch::Reflectivity(Current.Settings.Cargo);}
 }
 uint64 AShipHatchSimulation::DigBufferBytes() const
 {

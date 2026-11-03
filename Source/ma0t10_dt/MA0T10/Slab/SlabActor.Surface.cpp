@@ -72,13 +72,13 @@ bool ASlabActor::ApplySurfacePreset(ESlabSurfacePreset P,bool Link,FString& Reas
     if(Link)
     {
         auto* Response=FindComponentByClass<UVirtualLidarSurfaceResponseComp>();
-        if(!Response){OwnedPresetSurfaceResponse=NewObject<UVirtualLidarSurfaceResponseComp>(this,MakeUniqueObjectName(this,UVirtualLidarSurfaceResponseComp::StaticClass(),TEXT("SlabPresetOpticalResponse")),RF_Transient);OwnedPresetSurfaceResponse->RegisterComponent();Response=OwnedPresetSurfaceResponse;}
+        if(!Response){OwnedPresetSurfaceResponseComp=NewObject<UVirtualLidarSurfaceResponseComp>(this,MakeUniqueObjectName(this,UVirtualLidarSurfaceResponseComp::StaticClass(),TEXT("SlabPresetOpticalResponse")),RF_Transient);OwnedPresetSurfaceResponseComp->RegisterComponent();Response=OwnedPresetSurfaceResponseComp;}
         Response->Reflectivity940Nm=Reflect;Response->bUseGpuReflectivityOverride=true; // Keep gain/detection/two-sided/saturation settings unchanged.
     }
     else if(bSurfaceLidarLinked)
     {
         if(BaselineSurfaceResponse.IsValid()){BaselineSurfaceResponse->Reflectivity940Nm=BaselineReflectivity;BaselineSurfaceResponse->bUseGpuReflectivityOverride=BaselineGpuOpticalOverride;}
-        if(OwnedPresetSurfaceResponse){OwnedPresetSurfaceResponse->DestroyComponent();OwnedPresetSurfaceResponse=nullptr;}
+        if(OwnedPresetSurfaceResponseComp){OwnedPresetSurfaceResponseComp->DestroyComponent();OwnedPresetSurfaceResponseComp=nullptr;}
     }
     if(Link||bSurfaceLidarLinked)for(TActorIterator<AVirtualLidarSensorActor> It(GetWorld());It;++It)if(It->ScanComp)It->ScanComp->InvalidateSurfaceResponseCache(); // One-shot adapter; no measurement or restart.
     SurfacePreset=P;bSurfaceLidarLinked=Link;

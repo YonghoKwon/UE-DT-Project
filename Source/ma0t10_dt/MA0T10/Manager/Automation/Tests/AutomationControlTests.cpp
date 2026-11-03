@@ -46,7 +46,7 @@ public:
         {
             Started=true;
             auto* S=ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);auto Addr=S->CreateInternetAddr();bool Valid;Addr->SetIp(TEXT("127.0.0.1"),Valid);Addr->SetPort(0);
-            auto* Probe=S->CreateSocket(NAME_Stream,TEXT("port-probe"),false);Probe->Bind(*Addr);Probe->GetAddress(*Addr);Port=Addr->GetPort();S->DestroySocket(Probe);
+            auto* PortProbeSocket=S->CreateSocket(NAME_Stream,TEXT("port-probe"),false);PortProbeSocket->Bind(*Addr);PortProbeSocket->GetAddress(*Addr);Port=Addr->GetPort();S->DestroySocket(PortProbeSocket);
             Server=MakeUnique<FAutomationLoopbackServer>();if(!Server->Start(Port,TEXT("test-only-token"))){Test->AddError(TEXT("loopback bind failed"));return true;}
             Future=Async(EAsyncExecution::ThreadPool,[Port=Port](){return Exchange(Port);});Start=FPlatformTime::Seconds();return false;
         }

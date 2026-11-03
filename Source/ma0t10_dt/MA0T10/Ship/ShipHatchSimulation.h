@@ -34,7 +34,7 @@ class MA0T10_DT_API AShipHatchPart : public AInteractableActor
 public:
     AShipHatchPart();
     UPROPERTY(VisibleAnywhere) TObjectPtr<UProceduralMeshComponent> Mesh;
-    UPROPERTY(VisibleAnywhere) TObjectPtr<UVirtualLidarSurfaceResponseComp> Optical;
+    UPROPERTY(VisibleAnywhere) TObjectPtr<UVirtualLidarSurfaceResponseComp> OpticalComp;
     void SetColor(const FLinearColor& Color);
 };
 
@@ -48,7 +48,7 @@ public:
     AShipHatchVessel();
     UPROPERTY(VisibleAnywhere) TObjectPtr<UProceduralMeshComponent> Mesh;
     UPROPERTY(VisibleAnywhere) TObjectPtr<UProceduralMeshComponent> ScaleMarker;
-    UPROPERTY(VisibleAnywhere) TObjectPtr<UVirtualLidarSurfaceResponseComp> Optical;
+    UPROPERTY(VisibleAnywhere) TObjectPtr<UVirtualLidarSurfaceResponseComp> OpticalComp;
 };
 
 /** Explicit map-local opt-in. No subsystem, Tick, shared settings or stored UI preferences. */

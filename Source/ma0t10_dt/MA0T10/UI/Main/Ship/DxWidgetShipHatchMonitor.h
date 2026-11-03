@@ -206,8 +206,8 @@ private:
     UPROPERTY(Transient) TArray<TObjectPtr<UTextBlock>> DirectionBadges;
     bool bGrabAnimation=true;
     bool bSensorColors=false,bCoverageOverlay=false;
-    UPROPERTY(Transient) TObjectPtr<UShipHatchOverlayComp> Overlay;
-    UPROPERTY(Transient) TObjectPtr<UShipHatchOverlayComp> SiteModel;
+    UPROPERTY(Transient) TObjectPtr<UShipHatchOverlayComp> OverlayComp;
+    UPROPERTY(Transient) TObjectPtr<UShipHatchOverlayComp> SiteModelComp;
     UPROPERTY(Transient) TArray<TObjectPtr<UButton>> CameraPresetButtons;
     TArray<TWeakObjectPtr<UPrimitiveComponent>> SiteHidden;
     bool bSiteVisualization=false,bSiteGray=false,bSavedSiteColors=false,bFreeCamera=false;

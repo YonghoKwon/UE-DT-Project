@@ -17,7 +17,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Slab|UI") TObjectPtr<ASlabActor> SlabActor;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Slab|UI") TSubclassOf<UDxWidgetSlabChartsPanel> ChartsWidgetClass;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Slab|UI") TSubclassOf<UDxWidgetSlabProgressPanel> ProgressWidgetClass;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Slab|UI") TObjectPtr<UVirtualSensorPanelHostComp> PanelHost;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Slab|UI") TObjectPtr<UVirtualSensorPanelHostComp> PanelHostComp;
 	UPROPERTY(Transient, BlueprintReadOnly, Category="Slab|UI") TObjectPtr<UDxWidgetSlabChartsPanel> ChartsWidget;
 	UPROPERTY(Transient, BlueprintReadOnly, Category="Slab|UI") TObjectPtr<UDxWidgetSlabProgressPanel> ProgressWidget;
 	UFUNCTION(BlueprintCallable, Category="Slab|UI") void ShowSimulationPanels();

@@ -146,7 +146,7 @@ private:
 	TWeakObjectPtr<UVirtualLidarSurfaceResponseComp> BaselineSurfaceResponse;
 	float BaselineReflectivity=0;
 	bool BaselineGpuOpticalOverride=false;
-	UPROPERTY(Transient) TObjectPtr<UVirtualLidarSurfaceResponseComp> OwnedPresetSurfaceResponse;
+	UPROPERTY(Transient) TObjectPtr<UVirtualLidarSurfaceResponseComp> OwnedPresetSurfaceResponseComp;
 	void RecordSurfaceUsage(const FString& Run);
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 	friend class FSlabInformationCardTest;

@@ -77,10 +77,10 @@ struct FHatch06Probe
  static void CheckDischarge(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M)
  {
   const auto* Sim=M.GetSimulation();auto* Grip=Cast<UProceduralMeshComponent>(Sim->GrabPrimitive());const auto* Section=Grip?Grip->GetProcMeshSection(0):nullptr;
-  T.TestTrue(TEXT("one physical clamshell and bounded mist/stream; no duplicate overlay grab"),Sim->IsGrabVisible()&&Section&&Section->ProcVertexBuffer.Num()>500&&Section->ProcVertexBuffer.Num()<5000&&M.Overlay&&M.Overlay->BatchedMeshes.Num()==4&&M.Overlay->BatchedMeshes[1].MeshVerts.IsEmpty()&&M.Overlay->BatchedMeshes[2].MeshVerts.Num()<=32&&M.Overlay->BatchedMeshes[3].MeshVerts.Num()>0);
+  T.TestTrue(TEXT("one physical clamshell and bounded mist/stream; no duplicate overlay grab"),Sim->IsGrabVisible()&&Section&&Section->ProcVertexBuffer.Num()>500&&Section->ProcVertexBuffer.Num()<5000&&M.OverlayComp&&M.OverlayComp->BatchedMeshes.Num()==4&&M.OverlayComp->BatchedMeshes[1].MeshVerts.IsEmpty()&&M.OverlayComp->BatchedMeshes[2].MeshVerts.Num()<=32&&M.OverlayComp->BatchedMeshes[3].MeshVerts.Num()>0);
   T.TestTrue(TEXT("four3.3m arms stay kinematically linked to shell angle"),Sim->GrabArmLengthErrorMeters<.001);
 
-  T.TestEqual(TEXT("display effect adds no measurement collision"),M.Overlay->GetCollisionEnabled(),ECollisionEnabled::NoCollision);
+  T.TestEqual(TEXT("display effect adds no measurement collision"),M.OverlayComp->GetCollisionEnabled(),ECollisionEnabled::NoCollision);
  }
  static void FullRig(UDxWidgetShipHatchMonitor& M){M.OnFrameUnloader();}
  static void Site(UDxWidgetShipHatchMonitor& M){M.OnSiteOverview();}

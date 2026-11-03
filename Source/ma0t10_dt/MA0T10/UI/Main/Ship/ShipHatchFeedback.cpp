@@ -19,7 +19,7 @@
 
 using HatchStyle=FSensorOwnedPresentationStyle;
 void UDxWidgetShipHatchMonitor::SetHatchPresentationVisible(bool Visible)
-{if(Overlay)Overlay->SetVisibility(Visible);if(SiteModel)SiteModel->SetVisibility(Visible);if(!Visible){bFreeCamera=false;RestoreSiteVisualization();FeedbackUntil=DischargeUntil=0;RestoreFeedbackGrab();bOverlayDirty=true;}}
+{if(OverlayComp)OverlayComp->SetVisibility(Visible);if(SiteModelComp)SiteModelComp->SetVisibility(Visible);if(!Visible){bFreeCamera=false;RestoreSiteVisualization();FeedbackUntil=DischargeUntil=0;RestoreFeedbackGrab();bOverlayDirty=true;}}
 UWidget* UDxWidgetShipHatchMonitor::ComboEntry(FString Value)
 {
     ComboLabels.RemoveAll([](const auto& W)
@@ -100,12 +100,12 @@ void UDxWidgetShipHatchMonitor::UpdateOverlay()
     if(!IsVisible()||!(bSplit||ActiveView<2))return;
     if(!bOverlayDirty&&!Running&&!bHadFeedback)return;bOverlayDirty=false;bHadFeedback=Running;
     const double Now=FPlatformTime::Seconds();if(Now-LastOverlayUpdate<.2){bOverlayDirty=true;return;}LastOverlayUpdate=Now;
-    if(!Overlay)
+    if(!OverlayComp)
     {
         Host->Tags.AddUnique(TEXT("ShipHatchPreviewSensor"));
-        Overlay=NewObject<UShipHatchOverlayComp>(Host.Get());Overlay->SetCollisionEnabled(ECollisionEnabled::NoCollision);Overlay->SetHiddenInSceneCapture(true);Overlay->SetCastShadow(false);Overlay->SetCanEverAffectNavigation(false);Overlay->bCalculateAccurateBounds=true;Overlay->RegisterComponent();Overlay->SetComponentTickEnabled(false);
+        OverlayComp=NewObject<UShipHatchOverlayComp>(Host.Get());OverlayComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);OverlayComp->SetHiddenInSceneCapture(true);OverlayComp->SetCastShadow(false);OverlayComp->SetCanEverAffectNavigation(false);OverlayComp->bCalculateAccurateBounds=true;OverlayComp->RegisterComponent();OverlayComp->SetComponentTickEnabled(false);
     }
-    auto& Lines=Overlay->BatchedLines;Lines.Reset(40);auto& Meshes=Overlay->BatchedMeshes;Meshes.SetNum(4);
+    auto& Lines=OverlayComp->BatchedLines;Lines.Reset(40);auto& Meshes=OverlayComp->BatchedMeshes;Meshes.SetNum(4);
     for(int I=1;I<4;++I){Meshes[I].MeshVerts.Reset();Meshes[I].MeshIndices.Reset();Meshes[I].DepthPriority=SDPG_World;}
     auto& Plane=Meshes[0];Plane.MeshVerts.Reset(4);Plane.MeshIndices.Reset(6);Plane.Color=FColor(242,194,107,28);Plane.DepthPriority=SDPG_World;
     const double Half=(bSectionLength?S->Settings.Length:S->Settings.Width)*.5,Offset=SectionOffset();
@@ -135,7 +135,7 @@ void UDxWidgetShipHatchMonitor::UpdateOverlay()
             for(int I=0;I<8;++I){const double X=(I-3.5)*.85,Y=HopperY+FMath::Sin(I*2.)*.8,H=.6+FMath::Sin(Post*5+I)*.2;Quad(Mist,FVector(X-.25,Y,HopperTop-.5),FVector(X+.25,Y,HopperTop-.5),FVector(X+.4,Y,HopperTop+H),FVector(X-.4,Y,HopperTop+H));}
         }
     }
-    Overlay->UpdateBounds();Overlay->MarkRenderStateDirty();
+    OverlayComp->UpdateBounds();OverlayComp->MarkRenderStateDirty();
 }
 void UDxWidgetShipHatchMonitor::ApplyLighting()
 {

@@ -317,7 +317,7 @@ void UDxWidgetShipHatchMonitor::NativeOnInitialized()
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-void UDxWidgetShipHatchMonitor::NativeDestruct(){RestoreSiteVisualization();if(Overlay)Overlay->DestroyComponent();RestoreFeedbackGrab();RestorePointVisibility();Work.Reset();Super::NativeDestruct();}
+void UDxWidgetShipHatchMonitor::NativeDestruct(){RestoreSiteVisualization();if(OverlayComp)OverlayComp->DestroyComponent();RestoreFeedbackGrab();RestorePointVisibility();Work.Reset();Super::NativeDestruct();}
 void UDxWidgetShipHatchMonitor::RestorePointVisibility()
 {
     if(auto* PC=GetOwningPlayer())for(const auto& Part:StalePointHides)PC->HiddenPrimitiveComponents.RemoveSingle(Part);
