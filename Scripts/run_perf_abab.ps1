@@ -84,7 +84,10 @@ function Prepare-DevicePerfArchive([string]$Target, [string]$Revision, [string]$
     $legacySession = Join-Path $Target 'Source/ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h'
     if (-not (Test-Path -LiteralPath $legacySession -PathType Leaf)) { throw 'Baseline shared fixture header missing' }
     $legacySessionBefore = Get-Sha256 $legacySession
-    [IO.File]::WriteAllText($legacySession, "#pragma once`r`n#include `"Device/Tests/Sensor/FinalAcceptanceTestSession.h`"`r`n", (New-Object Text.UTF8Encoding($false)))
+    # Runtime-module test files also include the old header; they do not inherit
+    # the Editor module's private include path. Use the same canonical file directly.
+    $canonicalSession = (Join-Path $includeRoot 'Device/Tests/Sensor/FinalAcceptanceTestSession.h').Replace('\', '/')
+    [IO.File]::WriteAllText($legacySession, "#pragma once`r`n#include `"$canonicalSession`"`r`n", (New-Object Text.UTF8Encoding($false)))
     $rulesPath = Join-Path $Target 'Source/ma0t10_dtEditor/ma0t10_dtEditor.Build.cs'
     $before = Get-Sha256 $rulesPath
     $rules = [IO.File]::ReadAllText($rulesPath)

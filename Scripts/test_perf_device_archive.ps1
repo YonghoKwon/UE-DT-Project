@@ -35,7 +35,8 @@ if (-not $old.LegacyIncludes -or $old.Headers.Count -ne ($headers.Count - 1)) { 
 if (Test-Path -LiteralPath (Join-Path $legacy 'Plugins/DTDevice/DTDevice.uplugin')) { throw 'Candidate plugin leaked into legacy baseline' }
 foreach ($path in $before.Keys) { if ((Get-Sha256 (Join-Path $legacy $path)) -ne $before[$path]) { throw 'Baseline public header changed' } }
 $forwardedSession = [IO.File]::ReadAllText((Join-Path $legacy $legacySessionPath))
-if (-not $old.LegacySessionForwarded -or $forwardedSession -notmatch '#include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"' -or $forwardedSession.Contains('class FStartFinalAcceptancePIE')) { throw 'Unity baseline still has two shared fixture bodies' }
+$canonicalSession = (Join-Path $legacy $sessionInstrument).Replace('\', '/')
+if (-not $old.LegacySessionForwarded -or -not $forwardedSession.Contains('#include "'+$canonicalSession+'"') -or $forwardedSession.Contains('class FStartFinalAcceptancePIE')) { throw 'Unity baseline still has two shared fixture bodies or requires an Editor-only include path' }
 $newTarget = Join-Path $owned 'modern'
 New-Item -ItemType Directory -Path $newTarget | Out-Null
 $new = Prepare-DevicePerfArchive -Target $newTarget -Revision $currentSha -Label 'Modern'
