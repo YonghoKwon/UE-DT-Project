@@ -2,13 +2,13 @@
 import unreal
 
 panels = [
-    ("WBP_VirtualSensorMonitorPanel", unreal.VirtualSensorMonitorPanelWidget),
-    ("WBP_VirtualSensorSettingsPanel", unreal.VirtualSensorSettingsPanelWidget),
-    ("WBP_VirtualSensorCaptureExportPanel", unreal.VirtualSensorCaptureExportPanelWidget),
-    ("WBP_SlabScenarioReplayPanel", unreal.SlabScenarioReplayPanelWidget),
-    ("WBP_SlabChartsPanel", unreal.SlabChartsPanelWidget),
-    ("WBP_SlabProgressPanel", unreal.SlabProgressPanelWidget),
-    ("WBP_VirtualSensorPlacementPanel", unreal.VirtualSensorPlacementPanelWidget),
+    ("WBP_VirtualSensorMonitorPanel", unreal.DxWidgetVirtualSensorMonitorPanel),
+    ("WBP_VirtualSensorSettingsPanel", unreal.DxWidgetVirtualSensorSettingsPanel),
+    ("WBP_VirtualSensorCaptureExportPanel", unreal.DxWidgetVirtualSensorCaptureExportPanel),
+    ("WBP_SlabScenarioReplayPanel", unreal.DxWidgetSlabScenarioReplayPanel),
+    ("WBP_SlabChartsPanel", unreal.DxWidgetSlabChartsPanel),
+    ("WBP_SlabProgressPanel", unreal.DxWidgetSlabProgressPanel),
+    ("WBP_VirtualSensorPlacementPanel", unreal.DxWidgetVirtualSensorPlacementPanel),
 ]
 for name, native in panels:
     path = "/Game/MA0T10/UI/" + name
