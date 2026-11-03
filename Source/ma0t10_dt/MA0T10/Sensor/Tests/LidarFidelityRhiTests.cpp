@@ -22,7 +22,7 @@ public:
             Started=FPlatformTime::Seconds();
             Scene=MakeUnique<FPreviewScene>(FPreviewScene::ConstructionValues().SetCreateDefaultLighting(false));
             auto* World=Scene->GetWorld();
-            if(auto* Material=LoadObject<UMaterial>(nullptr,TEXT("/Game/MA0T10/Sensor/Materials/M_LidarSemanticId.M_LidarSemanticId")))Material->CacheShaders(EMaterialShaderPrecompileMode::Default);
+            if(auto* Material=LoadObject<UMaterial>(nullptr,TEXT("/DTDevice/Sensor/Materials/M_LidarSemanticId.M_LidarSemanticId")))Material->CacheShaders(EMaterialShaderPrecompileMode::Default);
             Wall=World->SpawnActor<AStaticMeshActor>();Wall->Tags.Add(TEXT("Slab"));
             auto* Mesh=Wall->GetStaticMeshComponent();Mesh->SetMobility(EComponentMobility::Movable);
             Mesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));

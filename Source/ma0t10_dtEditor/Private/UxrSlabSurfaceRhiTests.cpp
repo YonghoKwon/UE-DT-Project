@@ -103,7 +103,7 @@ private:
     bool Create()
     {
         World=FAutomationEditorCommonUtils::CreateNewMap();
-        if(auto* Material=LoadObject<UMaterial>(nullptr,TEXT("/Game/MA0T10/Sensor/Materials/M_LidarSemanticId.M_LidarSemanticId")))Material->CacheShaders(EMaterialShaderPrecompileMode::Default);
+        if(auto* Material=LoadObject<UMaterial>(nullptr,TEXT("/DTDevice/Sensor/Materials/M_LidarSemanticId.M_LidarSemanticId")))Material->CacheShaders(EMaterialShaderPrecompileMode::Default);
         Light=World->SpawnActor<ADirectionalLight>();Light->SetActorRotation(FRotator(-60,30,0));
         auto* FloorActor=World->SpawnActor<AStaticMeshActor>();Floor=FloorActor;FloorActor->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);FloorActor->GetStaticMeshComponent()->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));FloorActor->SetActorLocation(FVector(0,0,-5));FloorActor->SetActorScale3D(FVector(20,20,.1));
         Slab=World->SpawnActor<ASlabActor>();Slab->InitialDimensions=FVector(1000,200,25);Slab->SetDimensionUnit(ESlabInputUnit::Centimeters);Slab->SetActorLocation(FVector(0,0,12.5));Slab->SetDiagnosticHelpersVisible(false);

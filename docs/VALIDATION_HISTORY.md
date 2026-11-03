@@ -1014,3 +1014,13 @@ Two-hourx2, original five pairs8MiB, RTonABAB2%, Shipping/full release/night wer
 - 초기 컴파일 참조/새 fixture World 초기화·Context·abstract UObject ensure는 수정 뒤 재검증, 최초 실패 로그는 보존. 제품 native fault로 귀속하지 않음. 개인 설정 원본0개 집합·hash 복원(생성35개 backup), Game.ini 부재 복원. SensorTransport/맵/DTCore hash 불변; Samples build-generated untracked 항목 보존.
 - 성능 ABAB·장시간 메모리 미수행(사용자 지시). native3h×3맵은 최종 단계에1회. push/PR/merge 없음.
 - 증거: `Saved/Reports/DEVICE-PLUGIN-01/stage1-r46/{RESULT.md,result.json,merge-check.json,summary.json,restoration.json,manual/}`.
+
+## 2026-11-04 — ASSET-MOVE-02 (r51)
+
+- 기준 host `e8ef7221`(PR #99), DTCore `bc60f05`; 별도 worktree `wt_asset02`, branch `feat/asset-move-02`. 센서 3종 SHA256 유지 이동, host 및 plugin package redirects, 명시 cook 디렉터리 `/DTDevice/Sensor`. 기존 map/asset 저장 없음.
+- DTDevice `5749f15`(에셋/경로), `8d80677`(DTCore 모니터·생성형 데모·가이드), `d897603`(미리보기 serialized payload 불변), `a624895`(TestHost Editor 전용 캡처). Native/Runtime/UI/Content는 release 이후 동일하다.
+- host Editor build PASS. 첫 release는 새 worktree의 코일 fixture 6개/Train worker 환경 누락으로 7 Fail(원문 유지). 기존 fixture 6개 동일 해시 복사 + `MA0T10_TRAIN_WORKERS=1` 후 재실행은 **489 Success/45 Skip/0 Fail**, 17단계 PASS. 기준·테스트/CVar 완화 없음.
+- TestHost D3D12 기본 19건:18 Success/1 opt-in Skip. 누락된 SocketFaults는 로컬 loopback healthy 8초에서 별도 1 Success(서버/시스템 설정 변경 없음). DemoMonitorRhi는 hit>0·Slab hit>0, 생성·선택·상태·캡처·미리보기/서버 payload 불변 확인.
+- 빈 C++ `GuideHost`를 Saved 아래 준비·빌드·데모 생성·동일 스모크 PASS. TestHost/GuideHost offscreen 캡처 2개 저장(1280×720 Editor window). 직접 마우스는 Windows 방화벽 확인 창 때문에 미수행; 보안 창 미조작, 소유 Editor만 종료. 스크린 메시지는 캡처 때만 DisableAllScreenMessages, 로그 보존.
+- Development package UAT PASS, source3종 cooked inventory 확인(IoStore). 패키지 native 센서3대 fallback0, 약19.990~20.023Hz, 각 visible preview12000, PCD3894프레임 semantic/record 검증·receipt3894. 화면에서 점군 표시 확인(보안 창 겹침 캡처).
+- 성능·장시간 메모리 재측정 없음(사용자 범위). DTCore/보호 파일 고정, Game.ini 알려진 빈 생성물만 보고서로 보관. `Samples/PixelStreaming` 생성 untracked 항목 보존/미stage. 상세 `Saved/Reports/ASSET-MOVE-02/RESULT.md`, `result.json`, `merge-check.json`.
