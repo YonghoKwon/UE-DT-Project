@@ -2,14 +2,14 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
+#include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraGroundTruth.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Camera/VirtualCameraSensorActor.h"
+#include "Device/Camera/VirtualCameraGroundTruth.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "EngineUtils.h"
 #include "Engine/TextureRenderTarget2D.h"
@@ -21,7 +21,7 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SToolTip.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorSemanticLabels.h"
+#include "Device/Sensor/VirtualSensorSemanticLabels.h"
 
 // Opt-in real-RHI audit. Existing map is opened in memory; all additional Actors
 // are transient session fixtures. No file output, transport or asset saves.

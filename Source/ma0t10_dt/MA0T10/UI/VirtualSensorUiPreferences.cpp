@@ -1,10 +1,10 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
+#include "Device/Core/VirtualSensorHitchDiagnostics.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 
 #include "Kismet/GameplayStatics.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
 
 const FString UVirtualSensorUiPreferencesSaveGame::SlotName = VirtualSensorDefaults::UiSlotV6;
 const FString UVirtualSensorUiPreferencesSaveGame::Version5SlotName = VirtualSensorDefaults::UiSlotV5;

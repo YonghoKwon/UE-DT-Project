@@ -2,7 +2,7 @@
 #include "CoreMinimal.h"
 #include "ActorComponent/MechDriverCompBase.h"
 #include "SlabScenarioTypes.h"
-#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorMotionProvider.h"
+#include "Device/Contracts/VirtualSensorMotionProvider.h"
 #include "SlabMotionComponent.generated.h"
 
 DECLARE_DELEGATE_FourParams(FSlabPoseAppliedCallback,const FSlabScenarioRow&,int32,double,bool);

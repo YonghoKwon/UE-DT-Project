@@ -39,16 +39,16 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $requiredFiles = @(
-    [PSCustomObject]@{ Label = "LiDAR component header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarScanComponent.h" },
-    [PSCustomObject]@{ Label = "LiDAR component implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarScanComponent.cpp" },
-    [PSCustomObject]@{ Label = "LiDAR visualization implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarVisualizationComponent.cpp" },
+    [PSCustomObject]@{ Label = "LiDAR component header"; Path = "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\VirtualLidarScanComponent.h" },
+    [PSCustomObject]@{ Label = "LiDAR component implementation"; Path = "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarScanComponent.cpp" },
+    [PSCustomObject]@{ Label = "LiDAR visualization implementation"; Path = "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarVisualizationComponent.cpp" },
     [PSCustomObject]@{ Label = "LiDAR Niagara system"; Path = "Content\MA0T10\Sensor\VFX\NS_VirtualLidarPointCloud.uasset" },
-    [PSCustomObject]@{ Label = "CSV point cloud preview actor header"; Path = "Source\ma0t10_dt\MA0T10\Sensor\CsvPointCloudPreviewActor.h" },
+    [PSCustomObject]@{ Label = "CSV point cloud preview actor header"; Path = "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\CsvPointCloudPreviewActor.h" },
     [PSCustomObject]@{ Label = "Sensor manager implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorCoordinator.cpp" },
     [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.cpp" },
-    [PSCustomObject]@{ Label = "Replay automation tests"; Path = "Source\ma0t10_dt\MA0T10\Sensor\Tests\LidarReplayAutomationTests.cpp" },
+    [PSCustomObject]@{ Label = "Replay automation tests"; Path = "Plugins\DTDevice\Source\DeviceRuntime\Private\Tests\Sensor\LidarReplayAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "Sensor manager automation tests"; Path = "Source\ma0t10_dt\MA0T10\Sensor\Tests\SensorManagerAutomationTests.cpp" },
-    [PSCustomObject]@{ Label = "CSV point cloud preview automation tests"; Path = "Source\ma0t10_dt\MA0T10\Sensor\Tests\CsvPointCloudPreviewAutomationTests.cpp" },
+    [PSCustomObject]@{ Label = "CSV point cloud preview automation tests"; Path = "Plugins\DTDevice\Source\DeviceRuntime\Private\Tests\Sensor\CsvPointCloudPreviewAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "Monitor automation tests"; Path = "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "LiDAR payload schema"; Path = "docs\lidar_payload_schema.md" },
     [PSCustomObject]@{ Label = "Editor smoke test document"; Path = "docs\editor_smoke_test.md" },
@@ -59,16 +59,16 @@ foreach ($file in $requiredFiles) {
     Assert-FileExists -Path (Join-Path $ProjectRoot $file.Path) -Label $file.Label
 }
 
-$lidarHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarScanComponent.h"
-$lidarCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarScanComponent.cpp"
-$visualizationCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualLidarVisualizationComponent.cpp"
-$csvPreviewHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\CsvPointCloudPreviewActor.h"
-$csvPreviewCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\CsvPointCloudPreviewActor.cpp"
+$lidarHeader = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\VirtualLidarScanComponent.h"
+$lidarCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarScanComponent.cpp"
+$visualizationCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarVisualizationComponent.cpp"
+$csvPreviewHeader = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\CsvPointCloudPreviewActor.h"
+$csvPreviewCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\CsvPointCloudPreviewActor.cpp"
 $managerCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorCoordinator.cpp"
 $monitorCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.cpp"
-$replayTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\LidarReplayAutomationTests.cpp"
+$replayTests = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Tests\Sensor\LidarReplayAutomationTests.cpp"
 $managerTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\SensorManagerAutomationTests.cpp"
-$csvPreviewTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\CsvPointCloudPreviewAutomationTests.cpp"
+$csvPreviewTests = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Tests\Sensor\CsvPointCloudPreviewAutomationTests.cpp"
 $monitorTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp"
 $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
 $smokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"

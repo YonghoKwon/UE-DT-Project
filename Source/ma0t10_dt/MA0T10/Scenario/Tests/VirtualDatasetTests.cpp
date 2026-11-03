@@ -4,10 +4,10 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Camera/VirtualCameraSensorActor.h"
+#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/DirectionalLight.h"
@@ -27,7 +27,7 @@
 #include "HAL/MemoryMisc.h"
 #include "UObject/UObjectArray.h"
 #include "Engine/StaticMesh.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
+#include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDatasetRandomTest,"MA0T10.Dataset.SeedRangesAndAdmission",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FDatasetRandomTest::RunTest(const FString&)

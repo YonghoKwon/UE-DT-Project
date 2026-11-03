@@ -1,7 +1,7 @@
 #include "TrainBatchProcessPool.h"
 #include "TrainBatchCodec.h"
 #include "TrainBatchWorkerSafety.h"
-#include "ma0t10_dt/MA0T10/Contracts/LocalCapturePath.h"
+#include "Device/Contracts/LocalCapturePath.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 #include "HAL/FileManager.h"

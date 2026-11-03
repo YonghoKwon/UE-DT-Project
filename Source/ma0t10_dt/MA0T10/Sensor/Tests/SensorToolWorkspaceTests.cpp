@@ -14,8 +14,8 @@
 #include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
 #include "GameFramework/PlayerController.h"
 

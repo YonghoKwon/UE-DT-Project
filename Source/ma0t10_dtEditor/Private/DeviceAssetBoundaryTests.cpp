@@ -3,8 +3,8 @@
 #include "Misc/ScopeExit.h"
 #include "UObject/UnrealType.h"
 #include "NiagaraSystem.h"
-#include "ma0t10_dt/MA0T10/Core/DeviceSensorAssetSettings.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Core/DeviceSensorAssetSettings.h"
+#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeviceExplicitAssetPaths,"MA0T10.DeviceBoundary.ExplicitAssetPaths",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FDeviceExplicitAssetPaths::RunTest(const FString&)

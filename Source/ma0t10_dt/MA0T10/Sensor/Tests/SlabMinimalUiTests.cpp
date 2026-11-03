@@ -5,7 +5,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Widgets/SWidget.h"
 namespace { int32 ComboCount(const TSharedRef<SWidget>& W){int32 N=W->GetTypeAsString().StartsWith(TEXT("SComboBox"))?1:0;auto* C=W->GetChildren();for(int32 I=0;C&&I<C->Num();++I)N+=ComboCount(C->GetChildAt(I));return N;} }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabMinimalUiTest,"MA0T10.SensorUi.MinimalMonitorAndScenarioDefault",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

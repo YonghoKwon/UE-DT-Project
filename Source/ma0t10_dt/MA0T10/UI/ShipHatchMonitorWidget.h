@@ -2,7 +2,7 @@
 #include "CoreMinimal.h"
 #include "UI/DxWidget.h"
 #include "Components/VerticalBox.h"
-#include "StableHeaderReservation.h"
+#include "DeviceUI/StableHeaderReservation.h"
 #include "ShipHatchMonitorWidget.generated.h"
 class AShipHatchSimulation;
 class AShipHatchMonitorHost;

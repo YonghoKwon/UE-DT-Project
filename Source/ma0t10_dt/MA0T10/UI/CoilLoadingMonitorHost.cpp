@@ -4,8 +4,8 @@
 #include "CoilLoadingPlanProjection.h"
 #include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
 #include "VirtualSensorUiHostActor.h"
 #include "VirtualSensorToolWorkspaceSubsystem.h"
 #include "Core/DxWidgetSubsystem.h"
@@ -18,7 +18,7 @@
 #include "SceneViewExtension.h"
 #include "SceneView.h"
 #include "EngineUtils.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
 
 class FCoilLoadingViewExtension final:public FWorldSceneViewExtension
 {

@@ -1,7 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "ma0t10_dt/MA0T10/UI/CoilLoadingPresentation.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualPcdOptionsPresentation.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualPcdBandwidthPresentation.h"
+#include "DeviceUI/VirtualPcdOptionsPresentation.h"
+#include "DeviceUI/VirtualPcdBandwidthPresentation.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolUiText.h"
 #include "Misc/AutomationTest.h"
 

@@ -1,5 +1,5 @@
 #include "ProjectDeviceAnalysisPolicy.h"
-#include "ma0t10_dt/MA0T10/Sensor/DevicePointCloudAnalysis.h"
+#include "Device/Sensor/DevicePointCloudAnalysis.h"
 namespace
 {
 class FProjectDeviceAnalysisPolicy final : public IDevicePointCloudAnalysisProvider

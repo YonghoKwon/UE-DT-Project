@@ -12,7 +12,7 @@ import io
 import wire
 
 ROOT = Path(__file__).resolve().parents[2]
-GOLDEN = ROOT / 'Source/ma0t10_dt/MA0T10/Sensor/Tests/Fixtures/ArchitectureWire'
+GOLDEN = ROOT / 'Plugins/DTDevice/Source/DeviceRuntime/Private/Tests/Sensor/Fixtures/ArchitectureWire'
 
 
 def headers(name):

@@ -35,7 +35,7 @@ if ($ScheduledPcdLoopbackPort -gt 0 -and $ScheduledPcdLoopbackPort -lt 1024) { t
 $pairList = @($Pairs -split ',' | ForEach-Object { [int]$_ } | Sort-Object -Unique)
 $root = Split-Path -Parent $PSScriptRoot
 $instrument = if ($Workload -eq 'ScheduledLidar') { 'Source/ma0t10_dtEditor/Private/GpuLidarScheduledTests.cpp' } else { 'Source/ma0t10_dtEditor/Private/Perf01AcquisitionTests.cpp' }
-$sessionInstrument = 'Source/ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h'
+$sessionInstrument = 'Plugins/DTDevice/Source/DeviceRuntime/Public/Device/Tests/Sensor/FinalAcceptanceTestSession.h'
 $mapName = if ($Workload -eq 'ScheduledLidar') { 'ShipHatchTestMap' } else { 'SlabScenarioValidationMap' }
 $map = "Content/MA0T10/Maps/Tests/$mapName.umap"
 $editor = "$EngineRoot/Engine/Binaries/Win64/UnrealEditor-Cmd.exe"

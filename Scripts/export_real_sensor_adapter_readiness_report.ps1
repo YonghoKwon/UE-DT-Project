@@ -123,7 +123,7 @@ $brokerSmokeReportScript = Join-Path $scriptRoot "export_websocket_broker_smoke_
 
 $planDoc = Join-Path $ProjectRoot "docs\real_sensor_adapter_plan.md"
 $smokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
-$testsCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\RealSensorSourceAutomationTests.cpp"
+$testsCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Tests\Sensor\RealSensorSourceAutomationTests.cpp"
 
 foreach ($file in @($planDoc, $smokeDoc, $testsCpp)) {
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {

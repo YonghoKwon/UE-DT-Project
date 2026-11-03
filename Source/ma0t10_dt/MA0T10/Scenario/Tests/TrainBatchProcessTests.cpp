@@ -4,7 +4,7 @@
 #include "Misc/AutomationTest.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/FileManager.h"
-#include "ma0t10_dt/MA0T10/Contracts/LocalCapturePath.h"
+#include "Device/Contracts/LocalCapturePath.h"
 #include "Json.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTrainLeaseTest,"MA0T10.TrainBatch.ProcessLease",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

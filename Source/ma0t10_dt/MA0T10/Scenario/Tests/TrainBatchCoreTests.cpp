@@ -1,9 +1,9 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchStorage.h"
-#include "ma0t10_dt/MA0T10/Contracts/LocalCapturePath.h"
+#include "Device/Contracts/LocalCapturePath.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabMotionComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualPcdCodec.h"
+#include "Device/Sensor/VirtualPcdCodec.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "HAL/FileManager.h"

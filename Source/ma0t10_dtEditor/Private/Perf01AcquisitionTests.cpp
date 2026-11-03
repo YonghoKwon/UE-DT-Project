@@ -2,30 +2,30 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
+#include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #if __has_include("ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h")
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
+#include "Device/Sensor/VirtualSensorEditableTypes.h"
 #else
 #include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
 #endif
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraSensorActor.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualSensorRecorderComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComponent.h"
 #if __has_include("ma0t10_dt/MA0T10/Camera/VirtualCameraGroundTruth.h")
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraGroundTruth.h"
+#include "Device/Camera/VirtualCameraGroundTruth.h"
 #define CAM_GT_PERF_AVAILABLE 1
 #else
 #define CAM_GT_PERF_AVAILABLE 0
 #endif
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
 #if __has_include("ma0t10_dt/MA0T10/Sensor/VirtualImuComponent.h")
-#include "ma0t10_dt/MA0T10/Sensor/VirtualImuComponent.h"
+#include "Device/Sensor/VirtualImuComponent.h"
 #define IMU_PERF_AVAILABLE 1
 #else
 #define IMU_PERF_AVAILABLE 0

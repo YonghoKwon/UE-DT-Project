@@ -9,9 +9,9 @@
 #include "PhysicsEngine/BodySetup.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSurfaceResponseComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
+#include "Device/Sensor/VirtualLidarSurfaceResponseComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualSensorEditableTypes.h"
 #include "Components/TextRenderComponent.h"
 
 ACoilLoadingBody::ACoilLoadingBody()

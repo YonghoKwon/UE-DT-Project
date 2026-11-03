@@ -3,10 +3,10 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "HAL/PlatformProcess.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPointCloudOverloadSocketTest, "MA0T10.SensorStream.PointCloudAutoResume.SocketRecovery",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

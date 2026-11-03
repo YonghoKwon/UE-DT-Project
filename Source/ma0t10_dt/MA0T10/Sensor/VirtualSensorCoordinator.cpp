@@ -1,7 +1,7 @@
 #include "VirtualSensorCoordinator.h"
-#include "VirtualSensorTransportComponent.h"
-#include "VirtualSensorRecorderComponent.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualSensorRecorderComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
 
 AVirtualSensorCoordinator::AVirtualSensorCoordinator()
 {

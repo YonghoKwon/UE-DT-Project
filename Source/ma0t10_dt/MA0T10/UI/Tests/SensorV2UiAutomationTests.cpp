@@ -4,7 +4,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelHostComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "Device/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(

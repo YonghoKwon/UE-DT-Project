@@ -7,7 +7,7 @@
 #include "Engine/Engine.h"
 #include "EngineUtils.h"
 #include "TimerManager.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
+#include "Device/Core/VirtualSensorLayoutSubsystem.h"
 #include "GameFramework/PlayerController.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"

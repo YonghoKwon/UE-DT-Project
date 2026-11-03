@@ -3,13 +3,13 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Async/Async.h"
-#include "ma0t10_dt/MA0T10/Sensor/DeviceSensorStreamCodec.h"
+#include "Device/Sensor/DeviceSensorStreamCodec.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeviceStatelessReceiverBoundary,"MA0T10.DeviceBoundary.StatelessReceiverBoundary",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FDeviceStatelessReceiverBoundary::RunTest(const FString&)
 {
     FString Json;
-    const FString Path=FPaths::ProjectDir()/TEXT("Source/ma0t10_dt/MA0T10/Sensor/Tests/Fixtures/ArchitectureWire/with-context.lidar.json");
+    const FString Path=FPaths::ProjectDir()/TEXT("Plugins/DTDevice/Source/DeviceRuntime/Private/Tests/Sensor/Fixtures/ArchitectureWire/with-context.lidar.json");
     if(!TestTrue(TEXT("committed golden fixture loaded"),FFileHelper::LoadFileToString(Json,*Path)))return false;
     auto Work=Async(EAsyncExecution::ThreadPool,[Json](){return DeviceSensorStreamCodec::ParseLidarJson(Json);});
     const auto Data=StaticCastSharedPtr<FVirtualLidarStreamReceiverData>(Work.Get());

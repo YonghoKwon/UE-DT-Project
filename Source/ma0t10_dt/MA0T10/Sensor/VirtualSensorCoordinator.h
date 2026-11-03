@@ -1,9 +1,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "DeviceSensorCoordinator.h"
-#include "VirtualSensorDeviceProfileTypes.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
+#include "Device/Sensor/DeviceSensorCoordinator.h"
+#include "Device/Sensor/VirtualSensorDeviceProfileTypes.h"
+#include "Device/Sensor/VirtualSensorRuntimeTypes.h"
 #include "VirtualSensorCoordinator.generated.h"
 
 class UActorComponent;

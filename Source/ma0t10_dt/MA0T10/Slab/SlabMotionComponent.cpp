@@ -1,5 +1,5 @@
 #include "SlabMotionComponent.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorHitchDiagnostics.h"
+#include "Device/Core/VirtualSensorHitchDiagnostics.h"
 #include "SlabScenarioCodec.h"
 #include "GameFramework/Actor.h"
 USlabMotionComponent::USlabMotionComponent()

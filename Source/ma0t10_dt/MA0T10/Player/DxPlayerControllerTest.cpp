@@ -5,7 +5,7 @@
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "EnhancedInputComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorPlacementInputOwner.h"
+#include "Device/Sensor/VirtualSensorPlacementInputOwner.h"
 #include "ma0t10_dt/MA0T10/Player/DxPlayerTest.h"
 
 void ADxPlayerControllerTest::SetupInputComponent()

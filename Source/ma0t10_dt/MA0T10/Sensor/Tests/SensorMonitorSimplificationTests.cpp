@@ -4,10 +4,10 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Core/VirtualSensorSchedulerSubsystem.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorMonitorRateStateTest,"MA0T10.ResourceLifecycle.MonitorCurrentRateState",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorMonitorRateStateTest::RunTest(const FString&)

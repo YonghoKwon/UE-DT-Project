@@ -15,12 +15,12 @@
 #include "Async/Async.h"
 #include "EngineUtils.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarStaticCollisionQuery.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveSubsystem.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarStaticCollisionQuery.h"
+#include "Device/Sensor/VirtualSensorEditableTypes.h"
+#include "Device/Core/VirtualSensorFileSaveSubsystem.h"
 
 using namespace CoilLoading;
 namespace

@@ -1,12 +1,12 @@
 #pragma once
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
+#include "Device/Core/VirtualSensorLayoutSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorExternalSourceHostActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Camera/VirtualCameraSensorActor.h"
+#include "Device/Sensor/VirtualSensorExternalSourceHostActor.h"
+#include "Device/Sensor/VirtualSensorTransportComponent.h"
 #include "EngineUtils.h"
 
 inline bool IsPcdDemandAcceptanceFixture()

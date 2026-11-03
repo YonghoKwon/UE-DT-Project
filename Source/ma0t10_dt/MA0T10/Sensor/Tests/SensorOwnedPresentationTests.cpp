@@ -3,7 +3,7 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "SensorWorkspaceForeignFixture.h"
 #include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiStyle.h"
+#include "DeviceUI/VirtualSensorUiStyle.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "Widgets/Text/STextBlock.h"
 

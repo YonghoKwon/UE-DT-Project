@@ -1,5 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "DeviceUI/DeviceSensorUiText.h"
 
 /** Owned workspace vocabulary. Does not replace Designer or legacy toolbar text. */
 namespace SensorToolUiText
@@ -25,7 +26,6 @@ namespace SensorToolUiText
     inline FText WideWidth() { return LOCTEXT("WideWidth", "넓게"); }
     inline FText WidthHint() { return LOCTEXT("WidthHint", "사이드바 폭을 기본 / 넓게 전환합니다."); }
     inline FText ResizeHint() { return LOCTEXT("ResizeHint", "모서리를 드래그해 창 크기를 조절합니다."); }
-    inline FText Preview() { return LOCTEXT("Preview", "미리보기"); }
     inline FText Scenario() { return LOCTEXT("Scenario", "시나리오"); }
     inline FText ScenarioProgress() { return LOCTEXT("ScenarioProgress", "시나리오 · 진행"); }
     inline FText ArchiveList() { return LOCTEXT("ArchiveList", "보관 목록"); }
@@ -98,7 +98,6 @@ namespace SensorToolUiText
         if(Reason.Contains(TEXT("PCD 전송 1/1")))return TEXT("PCD 전송 간격 확인 필요");
         return PreflightReason(Reason);
     }
-    inline FText Advanced() { return LOCTEXT("Advanced", "고급"); }
     inline FText Ready() { return LOCTEXT("Ready", "준비됨"); }
     inline FString OutputSummary(bool Pcd,bool Camera,bool Lidar)
     {
@@ -135,11 +134,8 @@ namespace SensorToolUiText
     inline FText SensorSettings() { return LOCTEXT("SensorSettings", "센서 상세 설정"); }
     inline FText FileSave() { return LOCTEXT("FileSave", "파일 저장"); }
     inline FText FileSaveAndDataset() { return LOCTEXT("FileSaveAndDataset", "파일 저장 · 데이터셋"); }
-    inline FText OptionState(const FText& Label,bool Enabled)
-    { return FText::Format(Enabled?LOCTEXT("OptionOn","{0} · 켜짐"):LOCTEXT("OptionOff","{0} · 꺼짐"),Label); }
     inline FText Dataset() { return LOCTEXT("Dataset","데이터셋 생성"); }
     inline FText DatasetRanges() { return LOCTEXT("DatasetRanges","랜덤화 조건 · 켜기 / 최솟값 / 최댓값"); }
-    inline FText FileSaveWaiting() { return LOCTEXT("FileSaveWaiting", "파일을 저장하면 처리 결과가 표시됩니다."); }
     inline FText ServerSettings() { return LOCTEXT("ServerSettings", "서버 연결 설정"); }
     inline FText Diagnostics() { return LOCTEXT("Diagnostics", "진단"); }
     inline FText Compatibility() { return LOCTEXT("Compatibility", "고급·호환"); }

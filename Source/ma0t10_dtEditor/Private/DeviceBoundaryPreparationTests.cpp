@@ -4,10 +4,10 @@
 #include "Engine/Engine.h"
 #include "UObject/GarbageCollection.h"
 #include "UObject/UnrealType.h"
-#include "ma0t10_dt/MA0T10/Sensor/DeviceSensorCoordinator.h"
+#include "Device/Sensor/DeviceSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeviceCoordinatorFacadeContract,
@@ -31,7 +31,7 @@ bool FDeviceCoordinatorFacadeContract::RunTest(const FString&)
     TestTrue(TEXT("legacy widget pin type preserved"),Pin&&Pin->PropertyClass==UVirtualSensorMonitorPanelWidget::StaticClass());
     TestEqual(TEXT("view enum RealWorld"),static_cast<uint8>(EVirtualSensorViewMode::RealWorld),uint8(0));
     TestEqual(TEXT("view enum PointCloudOnly"),static_cast<uint8>(EVirtualSensorViewMode::PointCloudOnly),uint8(3));
-    TestEqual(TEXT("legacy summary path"),FVirtualSensorSummary::StaticStruct()->GetPathName(),FString(TEXT("/Script/ma0t10_dt.VirtualSensorSummary")));
+    TestEqual(TEXT("legacy summary path"),FVirtualSensorSummary::StaticStruct()->GetPathName(),FString(TEXT("/Script/DeviceRuntime.VirtualSensorSummary")));
     return true;
 }
 

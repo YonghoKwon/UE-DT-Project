@@ -1,7 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
-#include "ma0t10_dt/MA0T10/Core/DeviceRunDeliveryLedger.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/DeviceRunDeliveryLedger.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Scenario/ProjectRunDeliveryAdapter.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeviceRunLedgerBoundary,"MA0T10.DeviceBoundary.RunLedgerBoundary",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

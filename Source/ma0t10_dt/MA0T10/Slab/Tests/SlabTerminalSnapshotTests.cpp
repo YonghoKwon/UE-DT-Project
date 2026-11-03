@@ -2,10 +2,10 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
+#include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "HAL/PlatformProcess.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabTerminalSnapshotTest,"MA0T10.SlabReliability.TerminalSnapshotBeforeCleanup",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

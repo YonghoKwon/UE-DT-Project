@@ -3,7 +3,7 @@
 #include "ma0t10_dt/MA0T10/UI/CoilLoadingPresentation.h"
 #include "ma0t10_dt/MA0T10/UI/ShipHatchLabelPresentation.h"
 #include "ma0t10_dt/MA0T10/UI/ShipHatchMetricPresentation.h"
-#include "ma0t10_dt/MA0T10/UI/SensorOwnedPresentationStyle.h"
+#include "DeviceUI/SensorOwnedPresentationStyle.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"

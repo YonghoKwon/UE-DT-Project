@@ -5,7 +5,7 @@
 #include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolUiText.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
+#include "Device/Core/VirtualSensorOutputPreflight.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Text/STextBlock.h"

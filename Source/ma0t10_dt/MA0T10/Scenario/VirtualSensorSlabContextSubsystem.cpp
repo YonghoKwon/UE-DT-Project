@@ -1,15 +1,15 @@
 #include "VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Scenario/ProjectRunDeliveryAdapter.h"
 #include "EngineUtils.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "SlabRunResultsSubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
+#include "Device/Core/VirtualSensorOutputPreflight.h"
 #include "JsonObjectConverter.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "Device/Sensor/VirtualSensorEditableTypes.h"
+#include "Device/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComponent.h"
 
 namespace
 {

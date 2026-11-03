@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "DeviceIdentityPolicy.h"
+#include "Device/Contracts/DeviceIdentityPolicy.h"
 
 /** Exact legacy role alias. Device profiles and unrelated user IDs are preserved. */
 namespace VirtualSensorIdentity

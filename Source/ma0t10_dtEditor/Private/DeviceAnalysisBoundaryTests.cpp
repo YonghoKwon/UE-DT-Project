@@ -1,7 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Async/Async.h"
-#include "ma0t10_dt/MA0T10/Sensor/DevicePointCloudAnalysis.h"
+#include "Device/Sensor/DevicePointCloudAnalysis.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeviceAnalysisGeometryOracle,"MA0T10.DeviceBoundary.AnalysisGeometryOracle",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FDeviceAnalysisGeometryOracle::RunTest(const FString&)

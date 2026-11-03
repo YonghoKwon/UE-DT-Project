@@ -1,7 +1,7 @@
 #include "VirtualSensorToolWorkspaceSubsystem.h"
 #include "VirtualSensorPanelWidgetBase.h"
 #include "SensorToolToolbarWidget.h"
-#include "SensorOwnedPresentationStyle.h"
+#include "DeviceUI/SensorOwnedPresentationStyle.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Engine/World.h"

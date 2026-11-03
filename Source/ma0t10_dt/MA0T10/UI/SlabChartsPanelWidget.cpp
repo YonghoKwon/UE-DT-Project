@@ -1,6 +1,6 @@
 #include "SlabChartsPanelWidget.h"
-#include "SensorToolWidgetDecl.h"
-#include "SensorOwnedPresentationStyle.h"
+#include "DeviceUI/SensorToolWidgetDecl.h"
+#include "DeviceUI/SensorOwnedPresentationStyle.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "Blueprint/WidgetTree.h"
 #include "Widgets/Layout/SBorder.h"

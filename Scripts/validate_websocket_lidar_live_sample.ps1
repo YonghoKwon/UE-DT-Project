@@ -38,8 +38,8 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $samplePath = Join-Path $ProjectRoot "Samples\websocket\lidar_json_live_frame_sample.json"
-$handlerCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\WebSocket\TC\LidarJsonLiveFrameTC.cpp"
-$handlerHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\WebSocket\TC\LidarJsonLiveFrameTC.h"
+$handlerCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Transport\LidarJsonLiveFrameTC.cpp"
+$handlerHeader = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Transport\LidarJsonLiveFrameTC.h"
 $defaultGameIni = Join-Path $ProjectRoot "Config\DefaultGame.ini"
 $planDoc = Join-Path $ProjectRoot "docs\real_sensor_adapter_plan.md"
 $smokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"

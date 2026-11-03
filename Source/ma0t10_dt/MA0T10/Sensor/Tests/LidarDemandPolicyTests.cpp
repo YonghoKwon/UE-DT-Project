@@ -1,18 +1,18 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveSubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Core/VirtualSensorFileSaveSubsystem.h"
+#include "Device/Core/VirtualSensorLayoutSubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Camera/PlayerCameraManager.h"
 #include "JsonObjectConverter.h"
 #include "Misc/FileHelper.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
+#include "Device/Sensor/VirtualSensorRecorderComponent.h"
 
 namespace {
 struct FDemandProof {int32 Acquired=0,Derived=0,Manual=0,Cancelled=0;int64 ManualFrame=-1;bool Coherent=false;FString ExportPath;};

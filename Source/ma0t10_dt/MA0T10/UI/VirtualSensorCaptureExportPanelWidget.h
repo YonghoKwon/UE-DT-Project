@@ -4,8 +4,8 @@
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSlabFrameContext.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorFileSaveTypes.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
+#include "Device/Core/VirtualSensorFileSaveTypes.h"
+#include "Device/Core/VirtualSensorOutputPreflight.h"
 #include "ma0t10_dt/MA0T10/Scenario/SlabRunDeliveryTypes.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetTypes.h"
 #include "VirtualSensorCaptureExportPanelWidget.generated.h"
@@ -24,14 +24,7 @@ class UVirtualSensorFileSaveSubsystem;
 class UVirtualLidarScanComponent;
 struct FVirtualSensorTransportProfile;
 
-UENUM(BlueprintType)
-enum class EVirtualSensorCaptureExportTab : uint8
-{
-	LiveStream UMETA(DisplayName = "실시간 전송"),
-	Capture UMETA(DisplayName = "캡처"),
-	Export UMETA(DisplayName = "내보내기"),
-	ConnectionLog UMETA(DisplayName = "연결 및 로그")
-};
+
 
 /** Presentation only; never serialized or exposed as a Blueprint replacement enum. */
 enum class ESensorOwnedDataTab : uint8 { Transfer, Results, FileSave, ServerConnection, Diagnostics };

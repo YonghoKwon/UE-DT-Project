@@ -1,7 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "VirtualSensorPanelWidgetBase.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementTypes.h"
+#include "Device/Core/VirtualSensorPlacementTypes.h"
 #include "VirtualSensorPlacementPanelWidget.generated.h"
 class UVirtualSensorSettingsPanelWidget;
 class AVirtualSensorActorBase;

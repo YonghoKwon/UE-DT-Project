@@ -1,6 +1,6 @@
 #include "VirtualSensorSlabContextSubsystem.h"
 #include "SlabRunResultsSubsystem.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
+#include "Device/Sensor/VirtualSensorRuntimeTypes.h"
 
 namespace
 {

@@ -1,6 +1,6 @@
 #include "ShipHatchMonitorWidget.h"
 #include "ShipHatchViewTransform.h"
-#include "SensorOwnedPresentationStyle.h"
+#include "DeviceUI/SensorOwnedPresentationStyle.h"
 #include "ma0t10_dt/MA0T10/Scenario/ShipHatchModel.h"
 #include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
 #include "Widgets/SLeafWidget.h"

@@ -3,8 +3,8 @@
 #include "CoreMinimal.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "GameFramework/SaveGame.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRuntimeTypes.h"
+#include "Device/Sensor/VirtualLidarSensorTypes.h"
+#include "Device/Sensor/VirtualSensorRuntimeTypes.h"
 #include "VirtualSensorUiPreferences.generated.h"
 
 USTRUCT(BlueprintType)

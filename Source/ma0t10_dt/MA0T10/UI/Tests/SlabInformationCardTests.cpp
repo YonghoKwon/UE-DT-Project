@@ -5,12 +5,12 @@
 #include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSurfaceResponseComponent.h"
+#include "Device/Sensor/VirtualLidarSurfaceResponseComponent.h"
 #include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
 #include "Json.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabUiRegistry.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabInformationCardTest,"MA0T10.UXR08.InformationUsesSourceRowAndMissingValues",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabInformationCardTest::RunTest(const FString&)

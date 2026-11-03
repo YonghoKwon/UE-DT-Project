@@ -1,6 +1,6 @@
 #include "ProjectDeviceSemanticPolicy.h"
-#include "ma0t10_dt/MA0T10/Sensor/DeviceSemanticPolicy.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/DeviceSemanticPolicy.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 namespace
 {

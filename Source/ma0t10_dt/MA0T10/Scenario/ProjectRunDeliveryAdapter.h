@@ -1,5 +1,5 @@
 #pragma once
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
 /** Scenario UI/drain policy remains in the host; runtime only exposes neutral run accounting. */
 namespace ProjectRunDeliveryAdapter
 {
