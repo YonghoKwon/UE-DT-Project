@@ -4,17 +4,17 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorRecorderComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementSubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualSensorRecorderComponent.h"
+#include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
+#include "Device/Core/VirtualSensorLayoutSubsystem.h"
+#include "Device/Core/VirtualSensorPlacementSubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/WebSocket/TC/VirtualPointCloudStreamReceiverTC.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualPcdCodec.h"
+#include "Device/Transport/VirtualPointCloudStreamReceiverTC.h"
+#include "Device/Sensor/VirtualPcdCodec.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/FileHelper.h"
@@ -92,10 +92,10 @@ public:
         {
             auto* Layout=C.World()->GetSubsystem<UVirtualSensorLayoutSubsystem>();
             auto* Coordinator=Layout?Layout->Coordinator():nullptr;
-            if(!Coordinator||!Coordinator->StreamPublisherComponent)return false;
+            if(!Coordinator||!Coordinator->GetDeviceCoordinatorConfig().StreamPublisherComponent)return false;
             auto* Sensor=It->Lidar.Get();
             Test->TestEqual(TEXT("new scene displays canonical role ID"),Sensor->GetSensorId(),FString(VirtualSensorIdentity::CoilQuay));
-            auto* Publisher=Coordinator->StreamPublisherComponent.Get();
+            auto* Publisher=Coordinator->GetDeviceCoordinatorConfig().StreamPublisherComponent;
             auto Stream=Publisher->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud,Sensor->GetSensorId());
             Stream.bEnabled=false;Stream.SensorId=VirtualSensorIdentity::LegacyCoilQuay;Publisher->ConfigureStream(Stream);Sensor->StopSensor();
             Test->TestEqual(TEXT("old output configuration resolves to same stream"),Publisher->GetEffectiveStreamConfig(Stream.StreamKind,VirtualSensorIdentity::CoilQuay).SensorId,FString(VirtualSensorIdentity::CoilQuay));

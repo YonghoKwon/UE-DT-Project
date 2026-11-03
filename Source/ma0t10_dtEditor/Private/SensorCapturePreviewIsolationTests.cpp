@@ -4,7 +4,7 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "Engine/Engine.h"
 #include "EngineUtils.h"
-#include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
+#include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Components/StaticMeshComponent.h"
@@ -15,11 +15,11 @@
 #include "DrawDebugHelpers.h"
 #include "RenderingThread.h"
 #include "RHIGlobals.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
+#include "Device/Camera/VirtualCameraSensorActor.h"
+#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
 
 class FDepthPreviewIsolationCheck : public IAutomationLatentCommand
 {

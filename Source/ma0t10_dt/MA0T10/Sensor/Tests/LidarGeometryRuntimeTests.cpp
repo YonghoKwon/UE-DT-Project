@@ -15,11 +15,11 @@
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 #include "Components/StaticMeshComponent.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
 #include "LidarGeometryValidationRig.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
 #include <atomic>
 
 struct FGeometryPixelEvidence { TArray<FColor> Pixels; std::atomic<bool> Ready{false}; };

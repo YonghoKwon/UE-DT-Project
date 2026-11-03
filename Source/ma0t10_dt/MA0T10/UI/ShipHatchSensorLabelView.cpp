@@ -1,6 +1,6 @@
 #include "ShipHatchMonitorWidget.h"
 #include "ShipHatchLabelPresentation.h"
-#include "SensorOwnedPresentationStyle.h"
+#include "DeviceUI/SensorOwnedPresentationStyle.h"
 #include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
 #include "Widgets/SLeafWidget.h"
 #include "Rendering/DrawElements.h"
@@ -12,7 +12,7 @@
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
 #include "GameFramework/PlayerController.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
 
 namespace
 {

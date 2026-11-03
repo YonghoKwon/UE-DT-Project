@@ -2,15 +2,15 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/SensorPlacementInteraction.h"
 #include "ma0t10_dt/MA0T10/Player/DxPlayerControllerTest.h"
 #include "Components/StaticMeshComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
+#include "Device/Core/VirtualSensorLayoutSubsystem.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUxrSensorActivationTest,"MA0T10.UXR02.DtCoreSensorActivation",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FUxrSensorActivationTest::RunTest(const FString&)

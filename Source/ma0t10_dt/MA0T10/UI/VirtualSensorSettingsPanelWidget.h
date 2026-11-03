@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementTypes.h"
+#include "Device/Core/VirtualSensorPlacementTypes.h"
 #include "VirtualSensorSettingsPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;
@@ -16,6 +16,7 @@ UCLASS(BlueprintType)
 class MA0T10_DT_API UVirtualSensorSettingsPanelWidget : public UVirtualSensorPanelWidgetBase
 {
     GENERATED_BODY()
+    friend struct FDeviceSensorSettingsBody;
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FInspectionBehaviorCommand;
 #endif
@@ -122,6 +123,11 @@ protected:
     virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+    FText GetDeviceSettingTooltip(FName Key) const;
+    bool OpenDevicePlacementPanel();
+    void OpenDeviceMonitorPanel();
+    void ToggleDeviceSelectedMeasuring();
+    TSharedRef<SWidget> BuildDeviceSettingsExtension() { return BuildOwnedAutomationControls(); }
     void ApplyOwnedProfileSelection(EVirtualCameraDeviceProfile CameraProfile, EVirtualLidarDeviceProfile LidarProfile);
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FUXR10NavigationTest;

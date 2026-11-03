@@ -5,9 +5,9 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Camera/VirtualCameraSensorActor.h"
+#include "Device/Core/VirtualSensorLayoutSubsystem.h"
 #include "Misc/Paths.h"
 
 class FUxr15LayoutRoundTrip final:public IAutomationLatentCommand

@@ -1,5 +1,5 @@
 #include "AgentTestSetWidget.h"
-#include "SensorOwnedPresentationStyle.h"
+#include "DeviceUI/SensorOwnedPresentationStyle.h"
 #include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
 #include "Core/DxWidgetSubsystem.h"
 #include "Engine/GameInstance.h"

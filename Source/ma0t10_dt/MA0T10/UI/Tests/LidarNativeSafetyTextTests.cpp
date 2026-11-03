@@ -1,4 +1,4 @@
-#include "ma0t10_dt/MA0T10/UI/LidarNativeSafetyText.h"
+#include "DeviceUI/LidarNativeSafetyText.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 

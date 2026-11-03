@@ -5,10 +5,10 @@
 #include "Components/StaticMeshComponent.h"
 #include "Materials/Material.h"
 #include "RHIGlobals.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSurfaceResponseComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
+#include "Device/Sensor/VirtualLidarSurfaceResponseComponent.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabMotionComponent.h"
 
 class FLidarFidelityRhiCommand : public IAutomationLatentCommand

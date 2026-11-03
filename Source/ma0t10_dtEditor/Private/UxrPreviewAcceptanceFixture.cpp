@@ -2,11 +2,11 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
+#include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "Device/Sensor/VirtualSensorActorBase.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 

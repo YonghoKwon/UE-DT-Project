@@ -1,6 +1,7 @@
 #include "VirtualSensorMonitorPanelWidget.h"
+#include "DeviceUI/DeviceSensorMonitorBody.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
-#include "SensorToolWidgetDecl.h"
+#include "DeviceUI/SensorToolWidgetDecl.h"
 #include "SensorToolUiText.h"
 #include "VirtualSensorPlacementPanelWidget.h"
 #include "Widgets/SOverlay.h"
@@ -28,7 +29,7 @@
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarHeight.h"
+#include "Device/Sensor/VirtualLidarHeight.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
@@ -38,18 +39,18 @@
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/RealSensorSourceComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Sensor/RealSensorSourceComponent.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarSensorTypes.h"
+#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorSchedulerSubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiStyle.h"
+#include "DeviceUI/VirtualSensorUiStyle.h"
 
 #define LOCTEXT_NAMESPACE "VirtualSensorMonitorPanelWidget"
 
@@ -111,53 +112,13 @@ FString UVirtualSensorMonitorPanelWidget::GetSelectedSensorIdText() const
 }
 
 FString UVirtualSensorMonitorPanelWidget::GetFrameSummaryText() const
-{
-    if (bShowingLidar && LidarComp)
-    {
-        const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
-        return FString::Printf(TEXT("Frame: %lld | Scan: %.3fs"), Status.FrameId, LidarComp->ScanInterval);
-    }
-    if (!bShowingLidar && CameraComp)
-    {
-        const FVirtualSensorRuntimeStatus& Status = CameraComp->GetRuntimeStatus();
-        return FString::Printf(TEXT("Frame: %lld | Interval: %.3fs"), Status.FrameId, CameraComp->CaptureInterval);
-    }
-    return TEXT("Frame: unavailable");
-}
+{ return FDeviceSensorMonitorBody::GetFrameSummaryText(*this); }
 
 FString UVirtualSensorMonitorPanelWidget::GetMeasurementSummaryText() const
-{
-    if (bShowingLidar && LidarComp)
-    {
-        const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
-        return FString::Printf(TEXT("Rays: %d | Points/Hits: %d/%d"),
-            LidarComp->HorizontalSamples * LidarComp->VerticalChannels,
-            Status.TotalPointCount,
-            Status.HitPointCount);
-    }
-    if (!bShowingLidar && CameraComp)
-    {
-        return FString::Printf(TEXT("Resolution: %dx%d"), CameraComp->CaptureResolution.X, CameraComp->CaptureResolution.Y);
-    }
-    return TEXT("Measurements: unavailable");
-}
+{ return FDeviceSensorMonitorBody::GetMeasurementSummaryText(*this); }
 
 FString UVirtualSensorMonitorPanelWidget::GetPreviewPolicySummaryText() const
-{
-    const UVirtualLidarScanComponent* TargetLidar = GetTargetLidarForPreview();
-    if (!TargetLidar)
-    {
-        return TEXT("Preview: unavailable");
-    }
-
-    const FVirtualSensorRuntimeStatus& Status = TargetLidar->GetRuntimeStatus();
-    return FString::Printf(TEXT("Preview: %s Points=%d Stride=%d Max=%d HitOnly=%s"),
-        TargetLidar->IsPointCloudPreviewEnabled() ? TEXT("On") : TEXT("Off"),
-        Status.PreviewPointCount,
-        TargetLidar->PreviewPointStride,
-        TargetLidar->MaxPreviewPoints,
-        TargetLidar->bPointCloudPreviewHitOnly ? TEXT("true") : TEXT("false"));
-}
+{ return FDeviceSensorMonitorBody::GetPreviewPolicySummaryText(*this); }
 
 FString UVirtualSensorMonitorPanelWidget::GetSlabAnalysisSummaryText() const
 {
@@ -177,84 +138,19 @@ FString UVirtualSensorMonitorPanelWidget::GetSlabAnalysisSummaryText() const
 }
 
 FString UVirtualSensorMonitorPanelWidget::GetTransportWarningText() const
-{
-    if (const auto* Rate = GetSelectedRateDiagnostic())
-    {
-        if (Rate->State == EVirtualSensorRateState::Starved)
-            return TEXT("상태/경고: 측정 정체 · 마지막 측정 이후 새 프레임이 없습니다.");
-        if (Rate->State == EVirtualSensorRateState::Failed)
-            return TEXT("상태/경고: 측정 오류 · 상세 진단을 확인하세요.");
-    }
-    if (bShowingLidar && LidarComp)
-    {
-        const FString& Warning = LidarComp->GetRuntimeStatus().PerformanceWarning;
-        return FString::Printf(TEXT("상태/경고: %s"), Warning.IsEmpty() ? TEXT("없음") : *Warning);
-    }
-    if (!bShowingLidar && CameraComp)
-    {
-        const FString& Message = CameraComp->GetRuntimeStatus().LastMessage;
-        return FString::Printf(TEXT("상태/경고: %s"), Message.IsEmpty() ? TEXT("없음") : *Message);
-    }
-    return TEXT("상태/경고: 센서 연결 없음");
-}
+{ return FDeviceSensorMonitorBody::GetTransportWarningText(*this); }
 
 FString UVirtualSensorMonitorPanelWidget::GetTransportStatusSummaryText() const
-{
-    const UVirtualSensorTransportComponent* TransportComp = SensorManager
-        ? SensorManager->SharedTransportComponent.Get()
-        : (bShowingLidar && LidarComp
-            ? LidarComp->TransportComponent.Get()
-            : (!bShowingLidar && CameraComp ? CameraComp->TransportComponent.Get() : nullptr));
-    FString SchedulerText;
-    if (GetWorld()) if (const UVirtualSensorSchedulerSubsystem* Scheduler = GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>()) SchedulerText = TEXT("\n성능: ") + Scheduler->GetTelemetrySummaryText();
-    if (!TransportComp) return TEXT("Transport: unavailable") + SchedulerText;
-
-    const FVirtualSensorTransportResult& Result = TransportComp->LastResult;
-    return FString::Printf(TEXT("Transport: Mode=%s InFlight=%d/%d BackpressureRejected=%d Retries=%d Failed=%d RetryExhausted=%d LastRetries=%d LastSubmitted=%s LastAccepted=%s LastCode=%d%s"),
-        *TransportModeToText(TransportComp->TransportMode),
-        TransportComp->InFlightHttpRequestCount,
-        FMath::Max(1, TransportComp->MaxInFlightHttpRequests),
-        TransportComp->BackpressureRejectedRequestCount,
-        TransportComp->TotalHttpRetryAttemptCount,
-        TransportComp->FailedHttpRequestCount,
-        TransportComp->RetryExhaustedRequestCount,
-        Result.RetryAttemptCount,
-        Result.bSubmitted ? TEXT("true") : TEXT("false"),
-        Result.bAccepted ? TEXT("true") : TEXT("false"),
-        Result.HttpStatusCode,
-        *SchedulerText);
-}
+{ return FDeviceSensorMonitorBody::GetTransportStatusSummaryText(*this); }
 
 FString UVirtualSensorMonitorPanelWidget::GetViewModeSummaryText() const
-{
-    if (bShowingLidar)
-    {
-        return FString::Printf(TEXT("LiDAR View: %s"), *GetLidarViewModeDisplayText());
-    }
-    return TEXT("Camera View: Render Target");
-}
+{ return FDeviceSensorMonitorBody::GetViewModeSummaryText(*this); }
 
 FString UVirtualSensorMonitorPanelWidget::GetAcceptanceGateSummaryText() const
-{
-    const UVirtualLidarScanComponent* TargetLidar = GetTargetLidarForPreview();
-    const bool bTrueLazValidated = TargetLidar && TargetLidar->WasLastLazTrueCompressionValidated();
-    const bool bHasServerPayload = bShowingLidar
-        ? (TargetLidar && !TargetLidar->GetLastJsonPayload().IsEmpty())
-        : (CameraComp && !CameraComp->GetLastJsonPayload().IsEmpty());
-
-    return FString::Printf(TEXT("Acceptance Gates: WBP=ManualPIEPending Server=%s LAZ=%s RealSensor=DeploymentEvidencePending"),
-        bHasServerPayload ? TEXT("PayloadCached") : TEXT("PayloadPending"),
-        bTrueLazValidated ? TEXT("TrueValidated") : TEXT("TrueCompressionPending"));
-}
+{ return FDeviceSensorMonitorBody::GetAcceptanceGateSummaryText(*this); }
 
 FString UVirtualSensorMonitorPanelWidget::GetRealSensorDeploymentSummaryText() const
-{
-    if (RealSensorSourceComponent)
-    {
-        return RealSensorSourceComponent->GetDeploymentReadinessSummaryText();
-    }
-    return TEXT("Real Sensor Deployment: source not bound; live adapter evidence pending");
-}
+{ return FDeviceSensorMonitorBody::GetRealSensorDeploymentSummaryText(*this); }
 void UVirtualSensorMonitorPanelWidget::UpdateOwnedAcquisitionRateWarning()
 {
     auto* Actor = GetOwnedMonitoredActor();
@@ -356,29 +252,7 @@ FText UVirtualSensorMonitorPanelWidget::BuildPointCloudOnlyButtonText() const
 }
 
 FString UVirtualSensorMonitorPanelWidget::GetPointCloudRendererStatusText() const
-{
-    const UVirtualLidarVisualizationComponent* Visualization = GetLidarVisualizationComponent();
-    if (!Visualization) return TEXT("3D 포인트 렌더러: 사용할 수 없음");
-    const FVirtualLidarRendererTelemetry& Render = Visualization->GetRendererTelemetry();
-    const TCHAR* StateText = TEXT("꺼짐");
-    switch (Render.State)
-    {
-    case ELidarPointCloudRendererState::Starting: StateText = TEXT("시작 중"); break;
-    case ELidarPointCloudRendererState::NiagaraActive: StateText = TEXT("Niagara 활성"); break;
-    case ELidarPointCloudRendererState::CpuFallback: StateText = TEXT("CPU fallback"); break;
-    case ELidarPointCloudRendererState::Error: StateText = TEXT("오류"); break;
-    case ELidarPointCloudRendererState::Disabled:
-    default: break;
-    }
-    return FString::Printf(
-        TEXT("3D 포인트 렌더러: %s | 측정=%d 검출=%d 업로드=%d 표시=%d | %s"),
-        StateText,
-        Render.MeasuredPointCount,
-        Render.HitPointCount,
-        Render.UploadedPointCount,
-        Render.VisiblePointCount,
-        Render.Message.IsEmpty() ? TEXT("상태 메시지 없음") : *Render.Message);
-}
+{ return FDeviceSensorMonitorBody::GetPointCloudRendererStatusText(*this); }
 
 FString UVirtualSensorMonitorPanelWidget::BuildCompactStatusText() const
 {
@@ -538,21 +412,5 @@ FString UVirtualSensorMonitorPanelWidget::GetLidarViewModeDescription() const
 }
 
 FString UVirtualSensorMonitorPanelWidget::BuildSemanticLegendText() const
-{
-    if (!LidarComp) return TEXT("의미 분류 규칙 없음");
-    FString Text = TEXT("분류: ");
-    const int32 Count = FMath::Min(6, LidarComp->SemanticClassRules.Num());
-    for (int32 Index = 0; Index < Count; ++Index)
-    {
-        if (Index > 0) Text += TEXT(" · ");
-        const FVirtualLidarSemanticClassRule& Rule = LidarComp->SemanticClassRules[Index];
-        Text += Rule.Label.IsNone() ? TEXT("이름 없음") : Rule.Label.ToString();
-    }
-    if (LidarComp->SemanticClassRules.Num() > Count)
-    {
-        Text += FString::Printf(TEXT(" · 외 %d개"), LidarComp->SemanticClassRules.Num() - Count);
-    }
-    if (Count == 0) Text += FString::Printf(TEXT("미분류=%s"), *LidarComp->DefaultSemanticLabel.ToString());
-    return Text;
-}
+{ return FDeviceSensorMonitorBody::BuildSemanticLegendText(*this); }
 #undef LOCTEXT_NAMESPACE

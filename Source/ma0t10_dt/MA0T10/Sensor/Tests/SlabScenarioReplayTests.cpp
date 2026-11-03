@@ -7,8 +7,8 @@
 #include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabReplayCatalogTest,"MA0T10.ScenarioReplay.Catalog",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabReplayCatalogTest::RunTest(const FString&)

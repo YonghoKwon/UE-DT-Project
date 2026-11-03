@@ -10,13 +10,13 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $requiredSource = @(
-    "Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h",
-    "Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorOutputComponent.h",
+    "Plugins/DTDevice/Source/DeviceRuntime/Public/Device/Sensor/VirtualSensorActorBase.h",
+    "Plugins/DTDevice/Source/DeviceRuntime/Public/Device/Sensor/VirtualSensorOutputComponent.h",
     "Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h",
-    "Source/ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h",
-    "Source/ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h",
-    "Source/ma0t10_dt/MA0T10/Camera/VirtualCameraPayloadCodec.h",
-    "Source/ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h",
+    "Plugins/DTDevice/Source/DeviceRuntime/Public/Device/Core/VirtualSensorSchedulerSubsystem.h",
+    "Plugins/DTDevice/Source/DeviceRuntime/Public/Device/Camera/VirtualCameraSensorActor.h",
+    "Plugins/DTDevice/Source/DeviceRuntime/Public/Device/Camera/VirtualCameraPayloadCodec.h",
+    "Plugins/DTDevice/Source/DeviceRuntime/Public/Device/Sensor/VirtualLidarSensorActor.h",
     "Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorStressSceneActor.h",
     "Source/ma0t10_dt/MA0T10/UI/VirtualSensorPanelHostComponent.h",
     "Source/ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"

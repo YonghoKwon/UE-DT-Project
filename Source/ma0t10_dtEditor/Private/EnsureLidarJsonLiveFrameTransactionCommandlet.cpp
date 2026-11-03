@@ -5,7 +5,7 @@
 #include "Misc/PackageName.h"
 #include "UObject/SavePackage.h"
 #include "WebSocket/TransactionCodeStruct.h"
-#include "ma0t10_dt/MA0T10/WebSocket/TC/LidarJsonLiveFrameTC.h"
+#include "Device/Transport/LidarJsonLiveFrameTC.h"
 
 UEnsureLidarJsonLiveFrameTransactionCommandlet::UEnsureLidarJsonLiveFrameTransactionCommandlet()
 {

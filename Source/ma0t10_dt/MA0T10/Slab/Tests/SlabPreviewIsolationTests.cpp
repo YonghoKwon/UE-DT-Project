@@ -1,8 +1,8 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabPreviewIsolationTest,"MA0T10.SlabReliability.PreviewHasNoPhysicsOrNavigation",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabPreviewIsolationTest::RunTest(const FString&)

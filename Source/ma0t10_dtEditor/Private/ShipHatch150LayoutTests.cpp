@@ -2,7 +2,7 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
+#include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
 #include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
 #include "ma0t10_dt/MA0T10/UI/ShipHatchViewTransform.h"

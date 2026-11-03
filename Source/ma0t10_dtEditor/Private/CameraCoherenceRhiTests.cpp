@@ -17,11 +17,11 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "CameraFrameMarker.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraSensorActor.h"
+#include "Device/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
-#include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
+#include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 namespace

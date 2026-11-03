@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "UI/DxWidget.h"
+#include "DeviceUI/DeviceSensorPanelBase.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
@@ -12,7 +12,7 @@
 class UVirtualSensorPanelHostComponent;
 
 UCLASS(Abstract, BlueprintType)
-class MA0T10_DT_API UVirtualSensorPanelWidgetBase : public UDxWidget
+class MA0T10_DT_API UVirtualSensorPanelWidgetBase : public UDeviceSensorPanelBase
 {
     GENERATED_BODY()
 
@@ -25,7 +25,7 @@ public:
 	void SetToolWorkspace(UVirtualSensorToolWorkspaceSubsystem* Owner,ESensorToolPanelRole Role);
 	UVirtualSensorToolWorkspaceSubsystem* GetToolWorkspace() const { return ToolWorkspace.Get(); }
 	ESensorToolPanelRole GetToolRole() const { return ToolRole; }
-	bool IsWorkspaceOwned() const { return ToolWorkspace.IsValid(); }
+	bool IsWorkspaceOwned() const { return IsDeviceHostOwned(); }
 	FVirtualSensorPanelUiState CaptureWorkspaceLayout() const;
 	void ApplyWorkspaceLayout(const FVirtualSensorPanelUiState& State);
 	FVector2D GetPanelLayoutViewport() const { return ResolveLogicalViewportSize(); }
@@ -126,6 +126,9 @@ public:
     void RefreshHostedPanelLayout();
 
 protected:
+    virtual bool HasDeviceAppearanceOwner() const override {return SensorAppearanceOwner.IsValid()||ToolWorkspace.IsValid();}
+    virtual void DeviceFontLayoutChanged() override;
+    virtual void DeviceFontScaleChanged(float Scale) override {OnSensorUiFontScaleChanged(Scale);}
 	virtual FReply NativeOnPreviewMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
@@ -155,19 +158,11 @@ public:
     float ResizeHandleSize = 18.0f;
 
 private:
-    bool bWorkspaceDocked=false;
-    bool bPendingOwnedFontRefresh=false;
-    bool bFloatingDraggable=true,bFloatingResizable=false,bFloatingClamp=true;
 	TWeakObjectPtr<UVirtualSensorToolWorkspaceSubsystem> ToolWorkspace;
 	ESensorToolPanelRole ToolRole=ESensorToolPanelRole::Monitor;
-	bool bSensorPanelConstructed = false;
-	TArray<TFunction<void(float)>> SensorFontSetters;
-	TArray<TFunction<bool()>> SensorFontLifetimes;
 	void AddFontRegistration(TFunction<void(float)> Setter,TFunction<bool()> IsAlive);
 	void PruneFontRegistrations();
 	TWeakObjectPtr<class AVirtualSensorUiHostActor> SensorAppearanceOwner;
-	float SensorToolFontScale = 1.0f;
-	TSet<TWeakObjectPtr<UWidget>> RegisteredSensorUmg;
     void ApplyInitialPanelLayout(FVector2D ViewportSize);
     void ResetPanelPositionInternal(bool bPersist);
     void RestorePanelUiState();
@@ -184,29 +179,10 @@ private:
     bool CanResizeEdges() const;
     bool BeginEdgeResize(const FGeometry& Geometry, const FPointerEvent& Event);
     void UpdateEdgeResize(const FPointerEvent& Event);
-    uint8 ResizeEdges=0;
-    FVector2D ResizeStartScreen=FVector2D::ZeroVector,ResizeStartPosition=FVector2D::ZeroVector,ResizeStartSize=FVector2D::ZeroVector;
-    float ResizeStartScale=1.f;
     bool FinishPanelPointerGesture();
     FReply CapturePanelPointer(const FPointerEvent& Event);
-    bool bOwnedPointerFocus=false,bPreviousFocusable=false;
-    int32 PanelPointerUser=0;
 
-    EVirtualSensorPanelPlacement DefaultPlacement = EVirtualSensorPanelPlacement::RightCenter;
-    FVector2D RequestedPanelSize = FVector2D(820.0f, 430.0f);
-    FVector2D DefaultResolvedPanelSize = FVector2D(820.0f, 430.0f);
-    FVector2D DesiredPanelSize = FVector2D(820.0f, 430.0f);
-    FVector2D MinimumPanelSize = FVector2D(160.0f, 80.0f);
-    FVector2D MaximumPanelSize = FVector2D::ZeroVector;
-    FVector2D CurrentViewportPosition = FVector2D::ZeroVector;
     FName PanelPersistenceKey = NAME_None;
-    float ViewportMargin = 18.0f;
-    float CollapsedPanelHeight = 48.0f;
-    bool bDraggingPanel = false;
-    bool bResizingPanel = false;
-    bool bPanelCollapsed = false;
-    bool bInitialLayoutPending = false;
-    bool bPanelLayoutConfigured = false;
 
     UPROPERTY(Transient)
     TObjectPtr<UVirtualSensorPanelHostComponent> PanelHostComponent;

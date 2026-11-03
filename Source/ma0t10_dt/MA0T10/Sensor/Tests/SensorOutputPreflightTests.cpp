@@ -1,13 +1,13 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorLayoutSubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorOutputPreflight.h"
+#include "Device/Core/VirtualSensorLayoutSubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualSensorActorBase.h"
+#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorOutputPreflightTest,"MA0T10.SensorLayout.OutputPreflight",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorOutputPreflightTest::RunTest(const FString&)
 {

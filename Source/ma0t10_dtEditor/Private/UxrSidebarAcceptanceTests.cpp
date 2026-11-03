@@ -2,7 +2,7 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Tests/AutomationCommon.h"
-#include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
+#include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
@@ -18,8 +18,8 @@
 #include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
 #include "EngineUtils.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
-#include "ma0t10_dt/MA0T10/UI/SensorOwnedPresentationStyle.h"
+#include "Device/Sensor/VirtualSensorActorBase.h"
+#include "DeviceUI/SensorOwnedPresentationStyle.h"
 #include "ma0t10_dt/MA0T10/UI/Tests/SensorPresentationTestHelpers.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarOwnershipTest,"MA0T10.UXR09.SidebarOwnershipAndFloatingCompatibility",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

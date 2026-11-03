@@ -1,6 +1,6 @@
 #include "TrainBatchCodec.h"
 #include "TrainBatchArchive.h"
-#include "ma0t10_dt/MA0T10/Contracts/LocalCapturePath.h"
+#include "Device/Contracts/LocalCapturePath.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabMotionComponent.h"
 #include "HAL/PlatformMisc.h"

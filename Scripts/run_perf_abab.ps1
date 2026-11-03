@@ -35,7 +35,7 @@ if ($ScheduledPcdLoopbackPort -gt 0 -and $ScheduledPcdLoopbackPort -lt 1024) { t
 $pairList = @($Pairs -split ',' | ForEach-Object { [int]$_ } | Sort-Object -Unique)
 $root = Split-Path -Parent $PSScriptRoot
 $instrument = if ($Workload -eq 'ScheduledLidar') { 'Source/ma0t10_dtEditor/Private/GpuLidarScheduledTests.cpp' } else { 'Source/ma0t10_dtEditor/Private/Perf01AcquisitionTests.cpp' }
-$sessionInstrument = 'Source/ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h'
+$sessionInstrument = 'Plugins/DTDevice/Source/DeviceRuntime/Public/Device/Tests/Sensor/FinalAcceptanceTestSession.h'
 $mapName = if ($Workload -eq 'ScheduledLidar') { 'ShipHatchTestMap' } else { 'SlabScenarioValidationMap' }
 $map = "Content/MA0T10/Maps/Tests/$mapName.umap"
 $editor = "$EngineRoot/Engine/Binaries/Win64/UnrealEditor-Cmd.exe"
@@ -47,6 +47,56 @@ function Get-Git([string[]]$Arguments, [string]$Repo = $root) {
     return ($out -join "`n").Trim()
 }
 function Get-Sha256([string]$Path) { return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
+
+function Prepare-DevicePerfArchive([string]$Target, [string]$Revision, [string]$Label) {
+    $entry = Get-Git @('ls-tree', $Revision, '--', 'Plugins/DTDevice')
+    if ($entry) {
+        if ($entry -notmatch '^160000 commit ([0-9a-f]{40})\s+Plugins/DTDevice$') { throw "Invalid DTDevice gitlink for $Label" }
+        $deviceCommit = $Matches[1]
+        $deviceZip = Join-Path $owned "$Label-DTDevice.zip"
+        & git.exe -C (Join-Path $root 'Plugins/DTDevice') archive --format=zip "--output=$deviceZip" $deviceCommit
+        if ($LASTEXITCODE -ne 0) { throw "DTDevice archive $Label failed ($deviceCommit)" }
+        Expand-Archive -LiteralPath $deviceZip -DestinationPath (Join-Path $Target 'Plugins/DTDevice')
+        if (-not (Test-Path -LiteralPath (Join-Path $Target 'Plugins/DTDevice/DTDevice.uplugin'))) { throw "DTDevice descriptor missing for $Label" }
+        return [ordered]@{ DTDevice = $deviceCommit; LegacyIncludes = $false }
+    }
+
+    # Older revisions own these same public types in ma0t10_dt. Forward includes
+    # only inside the owned archive; never add the candidate runtime to baseline.
+    $includeRoot = Join-Path $Target 'Plugins/DTDevice/Source/DeviceRuntime/Public'
+    New-Item -ItemType Directory -Force -Path $includeRoot | Out-Null
+    $headers = @([regex]::Matches([IO.File]::ReadAllText($instrumentSource), '#include\s+"(Device/[^"\r\n]+)"') |
+        ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+    $mappings = @()
+    foreach ($header in $headers) {
+        if ($header -eq 'Device/Tests/Sensor/FinalAcceptanceTestSession.h') { continue }
+        if ($header -notmatch '^Device/(Camera|Contracts|Core|Sensor)/' -or $header.Contains('..')) { throw "Unsupported legacy perf include: $header" }
+        $oldInclude = 'ma0t10_dt/MA0T10/' + $header.Substring('Device/'.Length)
+        $oldPath = Join-Path $Target ('Source/' + $oldInclude)
+        if (-not (Test-Path -LiteralPath $oldPath -PathType Leaf)) { throw "Baseline public header missing: $oldInclude" }
+        $forwarder = Join-Path $includeRoot $header
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $forwarder) | Out-Null
+        [IO.File]::WriteAllText($forwarder, "#pragma once`r`n#include `"$oldInclude`"`r`n", (New-Object Text.UTF8Encoding($false)))
+        $mappings += [ordered]@{ Include = $header; BaselineHeader = $oldInclude; BaselineSha256 = (Get-Sha256 $oldPath) }
+    }
+    # Unity builds also include this fixture from other legacy test files. Route
+    # that old include to the one byte-identical common fixture, not a second body.
+    $legacySession = Join-Path $Target 'Source/ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h'
+    if (-not (Test-Path -LiteralPath $legacySession -PathType Leaf)) { throw 'Baseline shared fixture header missing' }
+    $legacySessionBefore = Get-Sha256 $legacySession
+    # Runtime-module test files also include the old header; they do not inherit
+    # the Editor module's private include path. Use the same canonical file directly.
+    $canonicalSession = (Join-Path $includeRoot 'Device/Tests/Sensor/FinalAcceptanceTestSession.h').Replace('\', '/')
+    [IO.File]::WriteAllText($legacySession, "#pragma once`r`n#include `"$canonicalSession`"`r`n", (New-Object Text.UTF8Encoding($false)))
+    $rulesPath = Join-Path $Target 'Source/ma0t10_dtEditor/ma0t10_dtEditor.Build.cs'
+    $before = Get-Sha256 $rulesPath
+    $rules = [IO.File]::ReadAllText($rulesPath)
+    $anchor = 'PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;'
+    if (([regex]::Matches($rules, [regex]::Escape($anchor))).Count -ne 1) { throw 'Cannot locate baseline Editor include-path insertion' }
+    $extra = 'PrivateIncludePaths.Add(System.IO.Path.Combine(ModuleDirectory, "..", "..", "Plugins", "DTDevice", "Source", "DeviceRuntime", "Public"));'
+    [IO.File]::WriteAllText($rulesPath, $rules.Replace($anchor, "$anchor`r`n        $extra"), (New-Object Text.UTF8Encoding($false)))
+    return [ordered]@{ DTDevice = ''; LegacyIncludes = $true; IncludeRoot = $includeRoot; Headers = $mappings; LegacySessionBefore = $legacySessionBefore; LegacySessionForwarded = $true; EditorRulesBefore = $before; EditorRulesAfter = (Get-Sha256 $rulesPath) }
+}
 
 function Get-Verdict([string]$RunFolder, [double]$Threshold) {
     $rows = @(Get-ChildItem -LiteralPath $RunFolder -Filter '*.json' -File | ForEach-Object {
@@ -99,7 +149,7 @@ $displays = switch ($Display) { 'Visible' { @($false) } 'Offscreen' { @($true) }
 $manifest = [ordered]@{
     SchemaVersion = 1; Gate = 'QA-02 perf ABAB'; StartedUtc = $started.ToString('o')
     Baseline = [ordered]@{ Ref = $Baseline; Commit = $refs.A }; Candidate = [ordered]@{ Ref = $Candidate; Commit = $refs.B }
-    DTCore = $dtcore; Instrument = [ordered]@{ Path = $instrument; Sha256 = (Get-Sha256 $instrumentSource) }
+    DTCore = $dtcore; DevicePreparation = [ordered]@{}; Instrument = [ordered]@{ Path = $instrument; Sha256 = (Get-Sha256 $instrumentSource) }
     SessionInstrument = [ordered]@{ Path = $sessionInstrument; Sha256 = (Get-Sha256 (Join-Path $root $sessionInstrument)) }
     Workload = $Workload; ScheduledBackend = $ScheduledBackend; ScheduledPcdLoopbackPort = $ScheduledPcdLoopbackPort; ScheduledDivisor = $ScheduledDivisor
     CameraGroundTruth = [bool]$CameraGroundTruth; LidarProfile = $LidarProfile; RequireGpu = [bool]$RequireGpu
@@ -131,7 +181,9 @@ try {
         $pluginZip = Join-Path $owned "$label-DTCore.zip"
         & git.exe -C (Join-Path $root 'Plugins/DTCore') archive --format=zip "--output=$pluginZip" $dtcore; if ($LASTEXITCODE -ne 0) { throw "DTCore archive $label failed" }
         Expand-Archive -LiteralPath $pluginZip -DestinationPath (Join-Path $target 'Plugins/DTCore')
+        $manifest.DevicePreparation[$label] = Prepare-DevicePerfArchive -Target $target -Revision $refs[$label] -Label $label
         Copy-Item -LiteralPath $instrumentSource -Destination (Join-Path $target $instrument) -Force
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent (Join-Path $target $sessionInstrument)) | Out-Null
         Copy-Item -LiteralPath (Join-Path $root $sessionInstrument) -Destination (Join-Path $target $sessionInstrument) -Force
         if ((Get-Sha256 (Join-Path $target $instrument)) -ne $manifest.Instrument.Sha256 -or (Get-Sha256 (Join-Path $target $sessionInstrument)) -ne $manifest.SessionInstrument.Sha256) { throw "Instrument overlay hash mismatch for $label" }
         $manifest[$label + 'MapSha256'] = Get-Sha256 (Join-Path $target $map)

@@ -1,7 +1,8 @@
 #include "VirtualSensorMonitorPanelWidget.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorTextureReadback.h"
+#include "DeviceUI/DeviceSensorMonitorBody.h"
+#include "Device/Core/VirtualSensorTextureReadback.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
-#include "SensorToolWidgetDecl.h"
+#include "DeviceUI/SensorToolWidgetDecl.h"
 #include "SensorToolUiText.h"
 #include "VirtualSensorPlacementPanelWidget.h"
 #include "Widgets/SOverlay.h"
@@ -29,7 +30,7 @@
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarHeight.h"
+#include "Device/Sensor/VirtualLidarHeight.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
@@ -39,18 +40,18 @@
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/RealSensorSourceComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Sensor/RealSensorSourceComponent.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarSensorTypes.h"
+#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorSchedulerSubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorSchedulerSubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiStyle.h"
+#include "DeviceUI/VirtualSensorUiStyle.h"
 
 #define LOCTEXT_NAMESPACE "VirtualSensorMonitorPanelWidget"
 
@@ -95,9 +96,9 @@ FVirtualSensorMonitorDisplayData UVirtualSensorMonitorPanelWidget::GetMonitorDis
 }
 
 bool UVirtualSensorMonitorPanelWidget::SupportsRangeOverlays(ELidarMonitorProjectionMode P)
-{ return P==ELidarMonitorProjectionMode::RangeImage||P==ELidarMonitorProjectionMode::Split; }
+{ return FDeviceSensorMonitorBody::SupportsRangeOverlays(P); }
 bool UVirtualSensorMonitorPanelWidget::SupportsAdaptiveDistance(ELidarColorMode C)
-{ return C==ELidarColorMode::DistanceTurbo||C==ELidarColorMode::DistanceViridis||C==ELidarColorMode::DistanceGray; }
+{ return FDeviceSensorMonitorBody::SupportsAdaptiveDistance(C); }
 EVirtualSensorMonitorPresentation UVirtualSensorMonitorPanelWidget::GetMonitorPresentation() const
 {
     if(SensorManager&&SensorManager->IsPointCloudOnlyModeEnabled())return EVirtualSensorMonitorPresentation::PointCloudOnly;

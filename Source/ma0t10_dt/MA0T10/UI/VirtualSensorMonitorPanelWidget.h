@@ -3,10 +3,10 @@
 #include "CoreMinimal.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorTypes.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorMonitorView.h"
+#include "Device/Sensor/VirtualLidarSensorTypes.h"
+#include "Device/Sensor/VirtualSensorMonitorView.h"
 #include "Styling/SlateBrush.h"
-#include "SensorAcquisitionRateWarning.h"
+#include "DeviceUI/SensorAcquisitionRateWarning.h"
 #include "VirtualSensorMonitorPanelWidget.generated.h"
 
 class AVirtualSensorCoordinator;
@@ -46,6 +46,7 @@ USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualSensorMonitorDisplayData
 {
     GENERATED_BODY()
+    friend struct FDeviceSensorMonitorBody;
 
     UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorMonitor|Display")
     bool bShowingLidar = false;
@@ -97,6 +98,7 @@ UCLASS()
 class MA0T10_DT_API UVirtualSensorMonitorPanelWidget : public UVirtualSensorPanelWidgetBase, public IVirtualSensorMonitorView
 {
     GENERATED_BODY()
+    friend struct FDeviceSensorMonitorBody;
 
 public:
     virtual void BindMonitorCamera(UVirtualCameraCaptureComponent* Camera) override { BindVirtualCamera(Camera); }

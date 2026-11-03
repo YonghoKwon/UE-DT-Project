@@ -5,7 +5,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiStyle.h"
+#include "DeviceUI/VirtualSensorUiStyle.h"
 #include "Widgets/Input/SButton.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorOwnedUiLayoutTest,"MA0T10.SensorUi.LayoutAndLegacyTabs",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

@@ -2,7 +2,7 @@
 #include "ma0t10_dt/MA0T10/UI/CoilLoadingPresentation.h"
 #include "ma0t10_dt/MA0T10/UI/ShipHatchMetricPresentation.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolUiText.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorOutputPreflight.h"
+#include "Device/Core/VirtualSensorOutputPreflight.h"
 #include "Misc/AutomationTest.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUxrP1AvailableArea,"MA0T10.UXRP1.CoilToolsAvailableArea",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

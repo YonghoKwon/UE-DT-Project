@@ -11,17 +11,17 @@
 #include "RHI.h"
 #include "RenderingThread.h"
 #include <atomic>
-#include "ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h"
+#include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "Device/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Player/DxPlayerControllerTest.h"
 #include "ma0t10_dt/MA0T10/Player/DxPlayerTest.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementSubsystem.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Core/VirtualSensorPlacementSubsystem.h"
+#include "Device/Camera/VirtualCameraSensorActor.h"
+#include "Device/Camera/VirtualCameraCaptureComponent.h"
 
 namespace
 {

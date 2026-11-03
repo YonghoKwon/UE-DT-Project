@@ -1,9 +1,9 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchStorage.h"
-#include "ma0t10_dt/MA0T10/Contracts/LocalCapturePath.h"
+#include "Device/Contracts/LocalCapturePath.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabMotionComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualPcdCodec.h"
+#include "Device/Sensor/VirtualPcdCodec.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "HAL/FileManager.h"
@@ -11,7 +11,7 @@
 
 namespace
 {
-FString Json(const TSharedRef<FJsonObject>& O){FString S;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&S));return S;}
+FString TrainBatchCoreTestJson(const TSharedRef<FJsonObject>& O){FString S;FJsonSerializer::Serialize(O,TJsonWriterFactory<>::Create(&S));return S;}
 struct FFixture
 {
     FString Id=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower),Raw,Hash;
@@ -28,18 +28,18 @@ struct FFixture
             R->SetNumberField(TEXT("left_skew_angle"),0);R->SetNumberField(TEXT("right_skew_angle"),0);R->SetNumberField(TEXT("center_x"),K*10);R->SetNumberField(TEXT("elapsed_sec"),K*.1);
             Rows.Add(MakeShared<FJsonValueObject>(R));
         }
-        O->SetArrayField(TEXT("DATA_MAP"),Rows);Raw=Json(O);FTCHARToUTF8 U(*Raw);TrainBatchCodec::Sha256(U.Get(),U.Length(),Hash);
+        O->SetArrayField(TEXT("DATA_MAP"),Rows);Raw=TrainBatchCoreTestJson(O);FTCHARToUTF8 U(*Raw);TrainBatchCodec::Sha256(U.Get(),U.Length(),Hash);
         Manifest->SetStringField(TEXT("schema"),TrainBatchContract::Schema);Manifest->SetStringField(TEXT("MESSAGE_ID"),TrainBatchContract::MessageId);Manifest->SetStringField(TEXT("kind"),TEXT("job"));Manifest->SetStringField(TEXT("job_id"),Id);
         Manifest->SetStringField(TEXT("preset_id"),TEXT("slab-train-v1"));Manifest->SetStringField(TEXT("dimension_unit"),TEXT("mm"));Manifest->SetStringField(TEXT("position_unit"),TEXT("cm"));Manifest->SetNumberField(TEXT("scenario_count"),1);Manifest->SetNumberField(TEXT("worker_limit"),4);
         auto E=MakeShared<FJsonObject>();E->SetStringField(TEXT("mode"),TEXT("sampled_timeline"));E->SetNumberField(TEXT("sample_hz"),20);Manifest->SetObjectField(TEXT("execution"),E);
         auto S=MakeShared<FJsonObject>();S->SetStringField(TEXT("scenario_id"),TEXT("case-001"));S->SetNumberField(TEXT("duration_sec"),.15);S->SetStringField(TEXT("input_sha256"),Hash);S->SetNumberField(TEXT("input_bytes"),U.Length());S->SetStringField(TEXT("input_file"),TEXT("input.json"));
         Manifest->SetArrayField(TEXT("scenarios"),{MakeShared<FJsonValueObject>(S)});
     }
-    FTrainBatchMessage Job() const {FTrainBatchMessage M;FString E;TrainBatchCodec::Parse(Json(Manifest),M,E);return M;}
+    FTrainBatchMessage Job() const {FTrainBatchMessage M;FString E;TrainBatchCodec::Parse(TrainBatchCoreTestJson(Manifest),M,E);return M;}
     FTrainBatchMessage Item() const
     {
         auto O=MakeShared<FJsonObject>();O->SetStringField(TEXT("schema"),TrainBatchContract::Schema);O->SetStringField(TEXT("MESSAGE_ID"),TrainBatchContract::MessageId);O->SetStringField(TEXT("kind"),TEXT("scenario"));O->SetStringField(TEXT("job_id"),Id);O->SetStringField(TEXT("scenario_id"),TEXT("case-001"));O->SetStringField(TEXT("input_sha256"),Hash);O->SetStringField(TEXT("scenario_json"),Raw);
-        FTrainBatchMessage M;FString E;TrainBatchCodec::Parse(Json(O),M,E);return M;
+        FTrainBatchMessage M;FString E;TrainBatchCodec::Parse(TrainBatchCoreTestJson(O),M,E);return M;
     }
     ~FFixture()
     {
@@ -55,14 +55,14 @@ bool FTrainBatchContractTest::RunTest(const FString&)
     TestTrue(TEXT("empty hash"),TrainBatchCodec::Sha256(nullptr,0,H));TestEqual(TEXT("empty known vector"),H,FString(TEXT("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")));
     TestFalse(TEXT("nonempty null hash input rejected"),TrainBatchCodec::Sha256(nullptr,1,H));
     TestTrue(TEXT("failed hash clears output"),H.IsEmpty());
-    FFixture F;FTrainBatchMessage M;TestTrue(TEXT("job accepted"),TrainBatchCodec::Parse(Json(F.Manifest),M,E));TestEqual(TEXT("worker request retained; 1A runs one"),M.Job.WorkerLimit,4);
+    FFixture F;FTrainBatchMessage M;TestTrue(TEXT("job accepted"),TrainBatchCodec::Parse(TrainBatchCoreTestJson(F.Manifest),M,E));TestEqual(TEXT("worker request retained; 1A runs one"),M.Job.WorkerLimit,4);
     TestFalse(TEXT("ordinary scenario not swallowed"),TrainBatchCodec::Parse(F.Raw,M,E));
-    F.Manifest->SetStringField(TEXT("archive_format"),TEXT("tar.zst"));TestFalse(TEXT("deferred codec rejected"),TrainBatchCodec::Parse(Json(F.Manifest),M,E));
-    F.Manifest->SetStringField(TEXT("archive_format"),TEXT("tar.gz"));TestTrue(TEXT("tar.gz selection"),TrainBatchCodec::Parse(Json(F.Manifest),M,E));
-    F.Manifest->SetNumberField(TEXT("scenario_count"),1001);TestFalse(TEXT("K upper bound"),TrainBatchCodec::Parse(Json(F.Manifest),M,E));F.Manifest->SetNumberField(TEXT("scenario_count"),1);
-    F.Manifest->GetObjectField(TEXT("execution"))->SetNumberField(TEXT("sample_hz"),19);TestFalse(TEXT("no rate degradation"),TrainBatchCodec::Parse(Json(F.Manifest),M,E));
+    F.Manifest->SetStringField(TEXT("archive_format"),TEXT("tar.zst"));TestFalse(TEXT("deferred codec rejected"),TrainBatchCodec::Parse(TrainBatchCoreTestJson(F.Manifest),M,E));
+    F.Manifest->SetStringField(TEXT("archive_format"),TEXT("tar.gz"));TestTrue(TEXT("tar.gz selection"),TrainBatchCodec::Parse(TrainBatchCoreTestJson(F.Manifest),M,E));
+    F.Manifest->SetNumberField(TEXT("scenario_count"),1001);TestFalse(TEXT("K upper bound"),TrainBatchCodec::Parse(TrainBatchCoreTestJson(F.Manifest),M,E));F.Manifest->SetNumberField(TEXT("scenario_count"),1);
+    F.Manifest->GetObjectField(TEXT("execution"))->SetNumberField(TEXT("sample_hz"),19);TestFalse(TEXT("no rate degradation"),TrainBatchCodec::Parse(TrainBatchCoreTestJson(F.Manifest),M,E));
     F.Manifest->GetObjectField(TEXT("execution"))->SetNumberField(TEXT("sample_hz"),20);
-    auto Capture=MakeShared<FJsonObject>();Capture->SetBoolField(TEXT("include_imu"),true);F.Manifest->SetObjectField(TEXT("capture"),Capture);TestFalse(TEXT("unknown option is not silently ignored"),TrainBatchCodec::Parse(Json(F.Manifest),M,E));
+    auto Capture=MakeShared<FJsonObject>();Capture->SetBoolField(TEXT("include_imu"),true);F.Manifest->SetObjectField(TEXT("capture"),Capture);TestFalse(TEXT("unknown option is not silently ignored"),TrainBatchCodec::Parse(TrainBatchCoreTestJson(F.Manifest),M,E));
     for(const auto* Bad:{TEXT("../x"),TEXT("a/b"),TEXT("A B"),TEXT("CON"),TEXT("LPT1"),TEXT("a\nput evil")})TestFalse(TEXT("safe local ID"),TrainBatchCodec::SafeId(Bad));
     return true;
 }
@@ -122,9 +122,9 @@ bool FTrainBatchImportTest::RunTest(const FString&)
     auto Cleanup=[&](){if(LocalCapturePath::SafeDescendant(LocalCapturePath::Full(FPaths::ProjectSavedDir()/TEXT("TrainBatchImportTests")),Base))IFileManager::Get().DeleteDirectory(*Base,false,true);};
     FFileHelper::SaveStringToFile(F.Raw,*(Base/TEXT("input.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     const auto Descriptor=F.Manifest->GetArrayField(TEXT("scenarios"))[0]->AsObject();Descriptor->SetStringField(TEXT("input_file"),TEXT("../outside.json"));
-    FFileHelper::SaveStringToFile(Json(F.Manifest),*(Base/TEXT("job.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    FFileHelper::SaveStringToFile(TrainBatchCoreTestJson(F.Manifest),*(Base/TEXT("job.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     TestFalse(TEXT("traversal rejected before Job admission"),Store.Import(Base/TEXT("job.json"),Cancel,E));TestTrue(TEXT("no partial catalog admission for unsafe path"),Store.Jobs.IsEmpty());
-    Descriptor->SetStringField(TEXT("input_file"),TEXT("input.json"));FFileHelper::SaveStringToFile(Json(F.Manifest),*(Base/TEXT("job.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    Descriptor->SetStringField(TEXT("input_file"),TEXT("input.json"));FFileHelper::SaveStringToFile(TrainBatchCoreTestJson(F.Manifest),*(Base/TEXT("job.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     TestTrue(TEXT("local manifest and raw original imported"),Store.Import(Base/TEXT("job.json"),Cancel,E));if(!Store.Jobs.IsEmpty())TestTrue(TEXT("ready after durable import"),Store.Jobs[0].IsReady());
     Cleanup();return true;
 }
@@ -134,7 +134,7 @@ bool FTrainBatchVerifiedResultTest::RunTest(const FString&)
     FFixture F;FTrainBatchStorage Store;FString E;std::atomic<bool> Cancel(false);
     if(!Store.Receive(F.Job(),E)||!Store.Receive(F.Item(),E)){AddError(E);return false;}
     auto P=Store.Prepare(F.Id,0,FTransform::Identity,ESlabInputUnit::Millimeters,ESlabInputUnit::Centimeters,1,1024,E);if(!P){AddError(E);return false;}
-    auto WriteJson=[&](const FString& Path,const TSharedRef<FJsonObject>& O){return FFileHelper::SaveStringToFile(Json(O),*Path,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);};
+    auto WriteJson=[&](const FString& Path,const TSharedRef<FJsonObject>& O){return FFileHelper::SaveStringToFile(TrainBatchCoreTestJson(O),*Path,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);};
     IFileManager::Get().MakeDirectory(*P->Root,true);auto Dataset=MakeShared<FJsonObject>();Dataset->SetStringField(TEXT("schema_version"),TEXT("ma0t10.dataset.v1"));Dataset->SetNumberField(TEXT("completed_scenes"),3);
     if(!WriteJson(P->Root/TEXT("dataset.json"),Dataset))return false;
     FVirtualLidarPoint Point;Point.bHit=true;Point.SensorLocalPositionMeters=FVector(1,0,0);TArray<const FVirtualLidarPoint*> Points={&Point};TArray<uint8> Pcd,Labels;Labels.SetNumZeroed(5);
@@ -173,7 +173,7 @@ namespace
 {
 bool WriteRecoveryDataset(const FVirtualDatasetFramePlan& P)
 {
-    auto Write=[&](const FString& Path,const TSharedRef<FJsonObject>& O){IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path),true);return FFileHelper::SaveStringToFile(Json(O),*Path,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);};
+    auto Write=[&](const FString& Path,const TSharedRef<FJsonObject>& O){IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path),true);return FFileHelper::SaveStringToFile(TrainBatchCoreTestJson(O),*Path,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);};
     auto D=MakeShared<FJsonObject>();D->SetStringField(TEXT("schema_version"),TEXT("ma0t10.dataset.v1"));D->SetNumberField(TEXT("completed_scenes"),P.Frames.Num());if(!Write(P.Root/TEXT("dataset.json"),D))return false;
     FVirtualLidarPoint Point;Point.bHit=true;Point.SensorLocalPositionMeters=FVector(1,0,0);TArray<const FVirtualLidarPoint*> Points={&Point};TArray<uint8> Pcd,Labels;Labels.SetNumZeroed(5);
     if(!FVirtualPcdCodec::Encode(Points,TEXT("{}"),FVirtualPcdSendOptions(),Pcd))return false;

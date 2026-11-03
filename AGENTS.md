@@ -28,7 +28,7 @@
 - 명시적 요청 없이 **DTCore 소스 및 parent gitlink**, `Config/Game.ini`, 운영맵의 사용자 변경, `Samples/PixelStreaming`을 수정하거나 stage하지 않는다.
 - **PixelStreaming은 필요한 기능이다(사용자 결정 2026-10-12).** `ma0t10_dt.Build.cs`의 PixelStreaming 모듈 의존, `.uproject` 플러그인 활성화, `Samples/PixelStreaming`을 C++ 사용처가 없다는 이유로 제거·비활성화하지 않는다.
 - 커밋 전 `Scripts/validate_dtcore_submodule_guard.ps1`로 gitlink가 고정값(`bc60f05`)인지, DTCore staged/worktree 변경이 없는지 확인한다(ARCH-01에서 기대값을 현재 고정값으로 맞춘다).
-- DTCore는 여러 소비 프로젝트가 사용하는 별도 저장소다. 명시적으로 승인된 동기화 안정화 작업에서는 plugin/parent를 각각 검증·커밋하고 검증한 gitlink만 고정한다. 그 외 작업은 프로젝트 측 adapter를 우선하며 공통 변경이 필수이면 근거·대안을 먼저 제시한다. 자동 submodule update/reset은 하지 않는다.
+- DTCore는 여러 소비 프로젝트가 사용하는 별도 저장소이며 **정말 필요한 경우에만 수정한다(2026-11-03 사용자 결정)**. 먼저 프로젝트/DTDevice에서 해결할 수 없는 근거와 최소 수정안을 사용자에게 보고한 뒤 멈춘다. 사용자 승인 전에는 DTCore 소스 수정·저장소 커밋·push·PR 머지·pin 변경을 하지 않는다. 승인 후에는 별도 PR로 진행하고 **DTCore 단독·UE-DT-Project·DTDevice TestHost**를 검증한 뒤 pin과 guard 기준을 명시적으로 갱신한다. 자동 submodule update/reset은 하지 않는다.
 - `SensorTestManaged` 없는 Actor/Mesh는 이동·삭제하지 않는다. 명시적으로 배치된 `ASlabActor`의 소유 Mesh 생성은 가능하지만 임의 맵에 Slab·조명·카메라를 자동 배치하는 권한은 아니다.
 - `Binaries`, `Intermediate`, `Saved`, `.vs`, 캐시·패키징 결과·실험 PNG/JSON/log는 커밋하지 않는다.
 - destructive reset/checkout, 재귀 삭제, 서비스 재시작, Broker 설정 변경을 통상 구현 단계로 추정하지 않는다. 필요하면 구체적으로 확인한다.
@@ -50,7 +50,7 @@
 ### DTCore 기반 구현 (2026-10-12 사용자 강조)
 
 - 기능은 **DTCore가 제공하는 기반 위에** 만든다. 새 패널/화면은 `UDxWidget` 계열과 `UDxWidgetSubsystem`(열기·닫기·BringToFront·입력 차단 등록)을 사용하고, 3D 객체는 `AInteractableActor`/`AFacilityBase`, 데이터 반영은 `UDataSyncCompBase`, 상태 표시는 `UStatusVisualizerCompBase`, 업무 전문은 `UDxWebSocketSubsystem`+TC, API는 `UDxApiSubsystem`, 조회·검색은 `UDxDataSubsystem`/`UDxObjectSubsystem`/`UDxSearchSubsystem`을 먼저 검토한다. 같은 역할의 병렬 메커니즘(별도 위젯 관리자·별도 구독 루프 등)을 새로 만들지 않는다.
-- DTCore로 해결되지 않으면 프로젝트 쪽 adapter로 감싸고 근거를 보고하며, IMPROVEMENTS의 **"DTCore 변경 후보"** 표에 한 줄로 기록한다(후속 DTCore 수정 단계의 입력, ROADMAP "개편 이후 예정 단계"). DTCore 소스·gitlink 수정은 여전히 금지이며, 공통 변경이 꼭 필요하면 재현 근거와 최소 변경안을 별도로 제안한다(§2).
+- DTCore로 해결되지 않으면 프로젝트/DTDevice 쪽 adapter를 먼저 검토하고 근거를 보고하며, IMPROVEMENTS의 **"DTCore 변경 후보"** 표에 한 줄로 기록한다(후속 DTCore 수정 단계의 입력, ROADMAP "개편 이후 예정 단계"). 그 경로로 해결할 수 없어 DTCore 공통 변경이 정말 필요하면 재현 근거와 최소 수정안을 사용자에게 보고한 뒤 멈추고, §2의 사전 승인·별도 PR·세 소비 범위 검증·pin/guard 갱신 절차를 따른다.
 - 기존 프로젝트 고유 구조(Workspace 소유 패널, Raw TCP STOMP worker 등)가 DTCore와 겹치는 지점은 이유를 문서화된 범위 안에서 유지하고, 새 기능에서 확장하지 않는다.
 
 ### 성능을 기능과 함께 설계 (2026-10-12 사용자 강조)

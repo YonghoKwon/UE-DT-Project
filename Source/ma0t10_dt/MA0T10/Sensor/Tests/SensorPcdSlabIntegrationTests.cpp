@@ -3,12 +3,12 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorCaptureRendering.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraSensorActor.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Core/VirtualSensorCaptureRendering.h"
+#include "Device/Camera/VirtualCameraSensorActor.h"
+#include "Device/Camera/VirtualCameraCaptureComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorWssFallbackTest, "MA0T10.SensorStream.WssCompatibilityRouting", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FSensorWssFallbackTest::RunTest(const FString& Parameters)

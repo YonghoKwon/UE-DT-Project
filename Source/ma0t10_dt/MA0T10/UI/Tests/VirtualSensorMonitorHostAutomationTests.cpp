@@ -4,12 +4,12 @@
 #include "Misc/FileHelper.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/LidarCsvReplaySourceComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Sensor/LidarCsvReplaySourceComponent.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiStyle.h"
+#include "DeviceUI/VirtualSensorUiStyle.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorHostFallbackTest, "MA0T10.SensorMonitor.HostNativeFallback", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorCameraStatusTextTest, "MA0T10.SensorMonitor.CameraStatusTextContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

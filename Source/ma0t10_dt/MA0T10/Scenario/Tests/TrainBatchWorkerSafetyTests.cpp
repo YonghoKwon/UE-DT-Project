@@ -2,7 +2,7 @@
 #include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchWorkerSafety.h"
 #include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchProcessPool.h"
 #include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchProcessProtocol.h"
-#include "ma0t10_dt/MA0T10/Contracts/LocalCapturePath.h"
+#include "Device/Contracts/LocalCapturePath.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
 #include "Misc/FileHelper.h"

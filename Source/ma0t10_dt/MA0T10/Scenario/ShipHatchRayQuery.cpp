@@ -1,6 +1,6 @@
 #include "ShipHatchSimulation.h"
 #include "MA0T10MemoryTags.h"
-#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorRayQuery.h"
+#include "Device/Contracts/VirtualSensorRayQuery.h"
 #include "ProceduralMeshComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"

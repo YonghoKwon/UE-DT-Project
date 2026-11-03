@@ -7,7 +7,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 
 AVirtualSlabSensorTestDriver::AVirtualSlabSensorTestDriver()

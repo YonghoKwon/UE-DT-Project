@@ -6,6 +6,47 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-11-03 DEVICE-PLUGIN-01 리뷰 수정 — redirect 1-hop·fixture 경로
+
+- CoreRedirects는 한 번만 적용된다(`FCoreRedirects::RedirectNameAndValues`는 원래 이름에 맞는 항목만 모음). 이전 이름(`VirtualSensorAct`, `LidarCsvReplaySourceComp` 등) 17개 class redirect가 이동 후 존재하지 않는 `/Script/ma0t10_dt.<신규 이름>`을 가리키던 것을 `/Script/DeviceRuntime.<신규 이름>`으로 직접 연결했다. PropertyRedirects는 package 변경이 불가해 기존 값을 유지했다. TestMap은 이미 신규 class 이름으로 저장되어 있어 변경 전후 모두 로드 경고 0건.
+- DTDevice `5e9b870`: `MA0T10.Architecture.WireGolden` fixture 경로를 `ProjectDir()/Plugins/DTDevice` 고정에서 `IPluginManager` base dir로 변경. TestHost 빌드·해당 테스트 Success. pin을 `5e9b870`으로 갱신.
+
+## 2026-11-04 DEVICE-PLUGIN-01 r50 이어서 — perf 준비 호환 보완·2% PASS
+
+- 사용자 승인 범위에서 archive/임시 include 경로만 보완했다(bfcd22ac·0d0f0cb7·c07767c6). revision별 DTDevice gitlink archive, 이동 전 baseline의10개 공용 include forwarder/Editor include 경로, unity/runtime 테스트가 공유하는 한 canonical fixture 연결이다. Runtime/Config/pin 변화0, 측정 instrument·shared fixture·PerfRelativeGate 및 전체 build/run/verdict 구간 동일성을 기록했다.
+- 최초 경로 준비 실패와 중간 unity/runtime include 빌드 실패는 보존한다. 실제 ABAB는12회 완료(3blocks,6A/6B)한1cohort다. baseline b522a4b3 대비 candidate c07767c6의 FPS46.826813→46.769765(감소0.121828%), engine p9529.535651→29.553000ms(증가0.058738%), GT7.172062→7.163318ms(증가-0.121915%)로 모두 원래2% gate PASS.1920×1080 Visible,D3D12,ProjectDefault RT,1Camera+1LiDAR MLX80Native,10초+60초다. waiver/측정 이상치 재시도/판정 완화는 없다. GPU 시간 null과 절대 FPS는 상대 gate와 구분했다.
+- hatch는 사용자 확인대로 기존 r37 준비 geometry 편집 후3대 지속 조건이며 연속 디깅 구현은 하지 않았다. 이미 통과한 release498/45/0과 native3h×3장면(+4.56596/+6.65843/+1.94083MiB/h)을 재실행하지 않았다. 제품 소스·설정·의존성이 동일해 이전 메모리/출력 증거를 유지한다.
+- 준비 fixture legacy/current archive·header 불변·single shared body·missing-header fail-closed PASS, quick PASS, 양쪽 guard PASS. 개인 설정6개/보호 hash는 새 실행에서도 미변경, 임시 perf checkouts 자동 정리, 새 trace/dump0이다. Host push/PR는 없다. 원문·이전 실패·scope proof와 최종 merge-check는 `Saved/Reports/DEVICE-PLUGIN-01/final-r50/`에 남겼다.
+
+## 2026-11-03 DEVICE-PLUGIN-01 r50 — 최종 통합 검증, perf 준비 차단
+
+- 기준085ca5e2, DTCorebc60f05/DTDevice5e9b870. 제품 코드·기대값·맵·기본 정책 변경 없이 양쪽 guard/Editor build와 release1회498 Success/45 Skip/0 Fail·17단계 Success를 확인했다.
+- Development native3시간×3장면은 post30 OS Commit OLS≤8MiB/h 기준으로 모두 PASS: hatch+4.56596(r37+5.14), raw-quay+6.65843(+2.69), slab-native+1.94083(+2.36). Native fallback0, 각 약19.998/19.998/19.999Hz. 센서수3/3/1, 실제 시도3·재시도0이다. hatch는 r37과 같은 준비17Dig 후 지속 조건으로, 연속3시간 디깅은 아니다.
+- 마지막1/3 Commit는+0.22393/+2.84732/+1.15349, old10~30은+7.68453/+8.43925/+13.49453MiB/h로 병기한다. Warm-up10~30 증가량은+2.72266/+2.76563/+4.00391MiB. 세 실행은 진단상 plateau tendency이며 해당 분류가 새 gate를 대체하지 않는다. WS 급감 각1회는 Commit 판정과 분리했다.
+- perf는 원본 verify -Level perf -BaseCommit b522a4b3(origin/master) -PerfRayTracing ProjectDefault에서 baseline의 이동된 Device session 경로 부재로 준비 단계 실패했다. ABAB 데이터0으로2% 성능 회귀/통과를 판단하지 않았다. 하네스 archive·임시 include 호환 수정 승인이 응답되지 않아 source/측정 코드는 바꾸지 않았다. 따라서 전체 통합 완료/머지 가능으로 표시하지 않는다.
+- r37 runner 복사 시 남은 이전 worktree guard로 생긴 준비 오류는 게임0회·측정 전 오류로 보존/제외했다. 현재 경로 guard·PowerShell parser·stage/source descriptor/template hash를 확인한 새 scope에서 실제 측정을 수행했다. UAT build/cook/stage/archive는105.71초·ExitCode0로1회 성공했고 후처리/staging 보완에 따른 재빌드는 없었다.
+- 비치명 엔진 ensure10개(SwapChain4 초기화9, ini ECVF_Cheat1)는 context/stack/hash 보존 후 dump만 삭제했다. 보호 hash와 개인6개 원본 집합을 복원했고 생성32개는 가역 이동했다. 초기132B Game.ini·기존 Samples 상태·DTCore를 보존했다. Host push/PR·맵 저장·기대값 완화는 없다. frozen package는 reviewer 정리 목록으로 유지한다.
+- 증거: `Saved/Reports/DEVICE-PLUGIN-01/final-r50/RESULT.md`·`result.json`·`merge-check.json`, `memory-summary.json`, `release-summary.json`, `perf-summary.json`. 새 문서 커밋은 측정 종료 후에만 만들며 코드 검증 SHA와 구분한다.
+
+## 2026-11-03 DEVICE-PLUGIN-01 r49 — 통합 검증 전 pin·문서 정리
+
+- 기준 host `5dc4518`, DTCore `bc60f05` 유지. DTDevice main을 `cf09a7ce8f563f066789505575559bac5fe53cc4`로 fast-forward하고 `Scripts/device_plugin_pin.txt`를 명시 갱신했다. TestHost launcher·DTCore 소스 지정·CRLF 정리이며 plugin `Source/`·`Shaders/` 변화0을 확인했다.
+- AGENTS의 DTCore 정책을 사용자 결정으로 교체했다. 프로젝트/DTDevice로 해결 불가한 근거·최소 수정안을 보고하고 멈추며 승인 전 DTCore 수정/커밋/push/PR 머지/pin 변경을 하지 않는다. 승인 후 별도 PR·DTCore 단독/UE-DT-Project/DTDevice TestHost 검증과 pin/guard 명시 갱신이 필요하다. 다른 보호 규칙은 유지했다.
+- 세 저장소의 `Copyright (c) 2026 YonghoKwon`, 모든 권리 보유 LICENSE 추가 사실(2026-11-03 사용자 확인)을 설계/README에 반영했다. DTCore 기존 pin은 자동 변경하지 않았다. 별도 소스·LICENSE 파일 추가는 하지 않았다.
+- 설계4단계에 `TestHost/`·`Open_TestHost.bat`·10개 기본 필터가 선택하는 자동화17개·DTCore Source/Ref 우선순위(인자→개인 ini→환경 변수→공개 저장소/검증 SHA)를 반영했다. 로컬 DTCore는 링크만 하며 Ref checkout이 없다는 점과 host 자산 의존 회귀를 분리했다.
+- README는 recursive clone/기존 clone의 명시 init·두 guard 사용법과 현재 plugin 모듈/pin을 안내한다. r48 release498 Success/45 Skip/0 Fail·17단계 Success는 기존 증거로 병기하며 새 수행으로 세지 않는다.
+- 이번 작업은 문서/설정·static 대조뿐이며 Unreal/Editor/패키지/빌드/GPU/화면/측정은 실행하지 않았다. 개인 설정은 미조작, 보호 hash·DTCore gitlink/worktree·기존 Samples 상태는 보존한다. DTDevice RequireConnected/DTCore guard, 새 링크/경로와 diff 검증 결과는 `Saved/Reports/DEVICE-PLUGIN-01/prepare-r49/RESULT.md`·`result.json`·`merge-check.json`을 따른다. host push는 없다.
+
+## 2026-11-03 DEVICE-PLUGIN-01 r47 — Runtime·공통 UI 이관
+
+- 기준 host `4442658`·DTCore `bc60f05`. DTDevice `main`의 LICENSE 추가 `30af5a2` 위에서 순수 이관 `bdc1336`을 커밋/push했고 host `778f09a4`와 짝으로 pin/include/API/Build.cs/redirect를 반영했다. 준비 `c6fd76f9`, 경계 도구 `310ecd8b`, 호환 테스트 `05e077d9`는 별도 커밋이다. host는 push하지 않았다.
+- 공통248개 파일을 Runtime/UI로 옮기고 기존 업무 UI/Coordinator UCLASS·WBP·SaveGame·Slab/해치/코일/학습/Workspace는 host에 남겼다. 반영 선언151/151(export·공백 제외) 동일, exact Class/Struct/Enum redirect151개+delegate signature2개, Engine config section remap을 확인했다. 에셋/맵 이동·저장은 없다. plugin→host include/UHT 역참조0, Runtime→UI0, layer allowlist0→0이다.
+- Editor/Development/Shipping 최종 빌드 PASS. 전역 `-DisableUnity`는 설치형 UnrealEditorNU artifact 부재로 실패했으나 엔진을 바꾸지 않고 소유6개 모듈만 임시 non-unity로 빌드해 개별365 compile/unity0 PASS 후 Build.cs를 byte-for-byte 복원했다. 최초 실패 로그는 유지한다.
+- 관련 자동화 raw42 Success는 실제41 Success/선택 SftpLive1 Skip이다. native alias151개 canonical 타입·SensorTestMap/DataTable read-only load/hash·ArchitectureWire14·TrainBatch를 포함한다. native/byte/point6 Success, 합성1센서1000 edits/native dispatch1000·fresh-engine 전체 바이트 oracle, PSO timeout recovery19.998628Hz를 확인했다. stock smoke36 Success, quick11단계 Success, DTCore/DTDevice Connected guard PASS다. 생산 맵 누적 fallback·직접 UI·Shipping 패키지 기동은 별도 수용 범위다.
+- release는 정확히1회 실행했으나527.43초의 `environment invalid: external Unreal/build` 신호로 supervisor가 자기 실행 트리를 종료했다. 감지 당시 PID 미기록으로 외부 원인은 확정하지 않는다. `Saved/Reports/verify/20261103T014325036Z`에는 완료 manifest가 없으며 feature14 Success·full 진행 로그135 Success/0 Fail 기록만 남았다. 후속 단계는 미도달이며 완료 PASS로 바꾸지 않았다. 이전 r46 결과492/45는 이관 후 증거로 재사용하지 않았다. release 추가 실행은 하지 않았다.
+- offscreen 초기화의 비치명 엔진 SwapChain4 ensure8개(FD3D12Viewport::Resize/Init)는 자동화 exit0/Success와 분리해 stack/context를 보존했고 dump만 inventory/hash 후 삭제했다. 초기 외부 NullRHI Editor로 차단된 별도 시도는 자연 종료 후 재개했으며 타 작업 프로세스를 종료하지 않았다.
+- Config/Game.ini 원래 부재, SensorTransport/SensorTestMap hash와 개인 설정5개/파일 집합이 초기 snapshot과 일치한다. 기존 untracked Samples/PixelStreaming은 보존했다. DTCore/보호 문서/main repo/엔진/드라이버/시스템 설정 변경·host push/PR/merge·perf ABAB/장시간 메모리는 없다. release 미완료를 merge-check 차단으로 유지하며 완료 재검증 여부는 Claude가 결정한다. 증거: `Saved/Reports/DEVICE-PLUGIN-01/stage2-r47/{RESULT.md,result.json,merge-check.json}`.
+
 ## 2026-11-02 SITE-GUIDE-26-FINAL-R39 — 최종 현장 메모리·LiDAR 가이드
 
 - 기준 `master 23d143b`(PR #95), DTCore `bc60f05`. 새 `docs/site-guide-26-final` 브랜치를 이 기준에서 만들고, 옛 `0da8379`의 문서 변경인 가이드 한 파일만 가져왔다. 옛 #26 코드 커밋을 cherry-pick하지 않았으며 기존 브랜치를 보존했다.
@@ -961,3 +1002,15 @@ Editor/Development빌드·Python40·순수7·관련RHI13Success/1Fail/0skip(반�
 Base c9e6e40 / branch feat/lidar-gpu-acq-rewrite-26g / Runtime826c58f. Native committed TLAS/BLAS prototype repeatedly failed device-removal safety despite byte oracle success, graphics-queue and upload-boundary trials. It is diagnostic-only. Supported SingleFrame metadata + persistent RHI storage fallback passed full bytes/points, pose/revision/unequal-count/mixed-cancel and fifty-dig/scheduled tests, then completed packaged60 min actual19.998640+ Hz. Tail20 RSS/Commit/RHIMisc +12.579751/+11.812793/+9.768926 MiB/h failed8/8/2; UObject tail0. Final50 min storage/packet/view creations0, scene/SBT updates146331. No leak/allocator/driver root-cause certainty is claimed.
 
 Two-hourx2, original five pairs8MiB, RTonABAB2%, Shipping/full release/night were NOT_RUN after blocking preflight. No previousSHApass substituted. Personal253/protected310 preserved; owned package/raw-crash8.25GB removed with file-only hash-checked cleanup. No engine/DTCore/default-quality/threshold change or push/merge. [RESULT](../Saved/Reports/LIDAR-GPU-REWRITE-26g/RESULT.md) · [design](LIDAR_GPU_ACQUISITION_26g.md).
+
+## 2026-11-03 — DEVICE-PLUGIN-01 1단계 경계 준비 (r46)
+
+- 기준 a0a062d(설계) /master14afb6b /DTCore bc60f05, wt_plugin feat/device-plugin. Code 검증 SHA cf23c4f.
+- 현재 모듈의 Runtime Coordinator base·legacy façade, Slab 분석/provider·순수 수학, host semantic/identity, 중립 run ledger/Scenario adapter, 공통 UDxWidget panel/font base·weak bridge/view bodies, plain receive codecs·soft asset settings를 분리. plugin/module/submodule/실제 파일·asset 이동 없음. Bootstrap/native/DTCore 변경 없음.
+- source 계약: Coordinator 공개56/UI344 반영 선언 동일. 기존 enum/SaveGame/wire/BP 핀과 default subobject 이름 유지. Layer allowlist0→0, 새 Runtime→상위 include0.
+- 최종 Editor/Development/Shipping 모두 exit0. quick/layer/DTCore guard PASS, smoke36Success. release1회16단계Success, aggregate492Success/45semanticSkip/0Fail. ArchitectureWire14·batch/multi-scene byte/point oracle·CPU default bytes·PCD upload oracle·TRAIN-BATCH DefaultOff Success. PSO timeout cadence20.004891Hz(기준19.8) Success.
+- **Raw release FAIL 유지:** 종료 보호 검사 `Protected worktree hashes changed`. 기준에 없던 알려진132-byte 빈 Config/Game.ini 자동 생성(SHA2566d21be54…de8d1). 원본 증거/판정을 보존하고 원래 부재를 복원, release 재실행0/기준·CVar 완화0. merge-check 차단을 자동 통과로 바꾸지 않음.
+- 실제 Computer Use: 별도 UserDir의 Editor-game/D3D12/SensorTestMap, screenshot1920×1080/UI100%. 배치·센서 기본/고급·데이터·파일 저장·현재 프레임 모드 확인, asset/파일 저장·전송 버튼 미실행,8입력/캡처7장/AltF4 exit0. preview header drag는 viewport look만 바뀌어 drag 수용으로 세지 않음. OS DPI/글꼴·해상도 행렬·ban/recovery실제문구·PIE 전체 마우스 미수행.
+- 초기 컴파일 참조/새 fixture World 초기화·Context·abstract UObject ensure는 수정 뒤 재검증, 최초 실패 로그는 보존. 제품 native fault로 귀속하지 않음. 개인 설정 원본0개 집합·hash 복원(생성35개 backup), Game.ini 부재 복원. SensorTransport/맵/DTCore hash 불변; Samples build-generated untracked 항목 보존.
+- 성능 ABAB·장시간 메모리 미수행(사용자 지시). native3h×3맵은 최종 단계에1회. push/PR/merge 없음.
+- 증거: `Saved/Reports/DEVICE-PLUGIN-01/stage1-r46/{RESULT.md,result.json,merge-check.json,summary.json,restoration.json,manual/}`.

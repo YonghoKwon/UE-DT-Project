@@ -27,8 +27,8 @@
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
-#include "SensorOwnedPresentationStyle.h"
+#include "Device/Sensor/VirtualSensorActorBase.h"
+#include "DeviceUI/SensorOwnedPresentationStyle.h"
 #include "SensorToolUiText.h"
 
 const FString UVirtualSensorToolWorkspaceSubsystem::SlotName=VirtualSensorDefaults::WorkspaceSlot;

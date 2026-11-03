@@ -22,7 +22,7 @@ import wire
 from test_wire import headers as golden_headers
 
 ROOT = Path(__file__).resolve().parents[2]
-GOLDEN = ROOT / 'Source/ma0t10_dt/MA0T10/Sensor/Tests/Fixtures/ArchitectureWire'
+GOLDEN = ROOT / 'Plugins/DTDevice/Source/DeviceRuntime/Private/Tests/Sensor/Fixtures/ArchitectureWire'
 
 
 class RosGolden(unittest.TestCase):

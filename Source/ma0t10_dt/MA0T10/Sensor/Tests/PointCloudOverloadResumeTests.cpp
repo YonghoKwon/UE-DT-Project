@@ -1,7 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/SensorToolUiText.h"
 
 // Drive the production transition with a deterministic transport readiness input.
@@ -59,7 +59,7 @@ bool FPointCloudOverloadResumeTest::RunTest(const FString& Case)
     {
         FVirtualSensorFrameEnvelope F; F.SensorId = C.SensorId; F.FrameId = 11;
         F.SlabContext.RunId = TEXT("discard-run");
-        R.PendingFrameQueue.Add(F); R.LastInputSlabContext = F.SlabContext; R.LastInputSensorId = F.SensorId;
+        R.PendingFrameQueue.Add(F); R.LastInputContext = F.SlabContext; R.LastInputSensorId = F.SensorId;
         R.Status.LastInputFrameId = 12; R.SerializationRunId = F.SlabContext.RunId;
         R.SerializationSensorId = F.SensorId; R.SerializationFrameId = 10; R.bSerializationInFlight = true;
     }

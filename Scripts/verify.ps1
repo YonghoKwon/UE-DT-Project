@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet('quick', 'feature', 'release', 'perf')][string]$Level = 'quick',
     [string[]]$Tests = @('MA0T10.SensorReceiver'),
     [string]$EngineRoot = 'C:/Program Files/Epic Games/UE_5.3',
@@ -57,6 +57,7 @@ function Read-Tests {
     }
 }
 $before = Protected-Hashes
+$knownGameIniTemplateRemoved = $false
 $saveRoot = Join-Path $root 'Saved/SaveGames'
 $saveBackup = Join-Path $report 'personal-save-backup'
 $originalSaves = @()
@@ -72,6 +73,7 @@ try {
     if ($Level -eq 'release') { $env:MA0T10_ACCEPTANCE_RES_X = '1920'; $env:MA0T10_ACCEPTANCE_RES_Y = '1080' }
     Invoke-Step 'diff-check' { & git -C $root diff --check; if ($LASTEXITCODE -ne 0) { throw 'Worktree whitespace check failed' }; & git -C $root diff --cached --check; if ($LASTEXITCODE -ne 0) { throw 'Index whitespace check failed' } }
     Invoke-Step 'dtcore-guard' { & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_dtcore_submodule_guard.ps1" -FailOnViolation -Json; if ($LASTEXITCODE -ne 0) { throw 'DTCore guard failed' } }
+    Invoke-Step 'device-plugin-guard' { & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_device_plugin_submodule_guard.ps1" -FailOnViolation -Json; if ($LASTEXITCODE -ne 0) { throw 'DTDevice guard failed' } }
     Invoke-Step 'layer-gate' { & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_architecture_layers.ps1" -Json; if ($LASTEXITCODE -ne 0) { throw 'Layer gate failed' } }
     Invoke-Step 'protected-paths' {
         $staged = @(Get-GitLines -Arguments (@('diff', '--cached', '--name-only', '--') + $protectedPaths))
@@ -153,6 +155,13 @@ finally {
                 if ((Get-FileHash -LiteralPath $_.FullName).Hash -ne (Get-FileHash -LiteralPath $destination).Hash) { throw 'SaveGame restore mismatch' }
             }
         }
+        # DTCore writes this exact empty Game.ini template on first initialization when none exists.
+        # Remove only that known template (absent before, byte-identical now); any other Game.ini still fails.
+        $gameIni = Join-Path $root 'Config/Game.ini'
+        $knownGameIniTemplateRemoved = $false
+        if (-not $before.ContainsKey($gameIni) -and (Test-Path -LiteralPath $gameIni) -and (Get-FileHash -LiteralPath $gameIni -Algorithm SHA256).Hash -eq '6D21BE54BB1BA57B954B667CF26BCF2DC5F4C22CDCE33F45E206A88CB5CDE8D1') {
+            Remove-Item -LiteralPath $gameIni -Force; $knownGameIniTemplateRemoved = $true
+        }
         $after = Protected-Hashes
         if ($before.Count -ne $after.Count -or @($before.Keys | Where-Object { $after[$_] -ne $before[$_] }).Count) { throw 'Protected worktree hashes changed' }
     } catch { if (-not $failure) { $failure = $_.Exception.Message } }
@@ -164,7 +173,7 @@ finally {
         Worktree = @(Get-GitLines -Arguments @('status', '--porcelain=v1')); SourceHashes = $sourceFingerprint; TestsRequested = $Tests
         Environment = @{ PowerShell = $PSVersionTable.PSVersion.ToString(); OS = [Environment]::OSVersion.ToString(); EngineRoot = $EngineRoot; Engine = (Get-Content "$EngineRoot/Engine/Build/Build.version" -Raw | ConvertFrom-Json); Rhi = $(if ($Level -eq 'quick') { 'None' } else { 'D3D12' }); RenderOffscreen = $(if ($Level -eq 'perf') { $PerfDisplay } else { $Level -ne 'quick' }); OptIn = @($envNames | ForEach-Object { @{ Name = $_; Set = (-not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($_))) } }) }
         Steps = @($steps.ToArray()); Tests = @($testResults.ToArray()); ExecutedSuccessNames = @($testResults | Where-Object State -eq Success | ForEach-Object Name); FailedNames = @($testResults | Where-Object { $_.State -notin @('Success','Skip') } | ForEach-Object Name); SkipNames = @($testResults | Where-Object State -eq Skip | ForEach-Object Name)
-        ProtectedHashCount = $before.Count; PersonalSavesRestored = $originalSaves.Count; Failure = $failure; Valid = (-not $failure)
+        ProtectedHashCount = $before.Count; KnownGameIniTemplateRemoved = $knownGameIniTemplateRemoved; PersonalSavesRestored = $originalSaves.Count; Failure = $failure; Valid = (-not $failure)
     }
     $manifest | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $report 'manifest.json') -Encoding UTF8
     Write-Host "Manifest: $report/manifest.json"

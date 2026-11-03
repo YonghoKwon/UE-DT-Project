@@ -1,7 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "VirtualSensorPanelWidgetBase.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementTypes.h"
+#include "Device/Core/VirtualSensorPlacementTypes.h"
 #include "VirtualSensorPlacementPanelWidget.generated.h"
 class UVirtualSensorSettingsPanelWidget;
 class AVirtualSensorActorBase;
@@ -13,6 +13,7 @@ UCLASS(BlueprintType)
 class MA0T10_DT_API UVirtualSensorPlacementPanelWidget : public UVirtualSensorPanelWidgetBase
 {
     GENERATED_BODY()
+    friend struct FDeviceSensorPlacementBody;
 public:
     /** Navigation only: open the existing IMU owner without attaching or changing it. */
     bool OpenOwnedImuSettings();
@@ -76,7 +77,7 @@ private:
     bool bSelectedMeasuring=false;
     FText CachedMeasureCaption,CachedManipulationCaption;
     FString PreviousStatus;
-    mutable TWeakObjectPtr<class AVirtualSensorCoordinator> CachedCoordinator;
+    mutable TWeakObjectPtr<class ADeviceSensorCoordinator> CachedCoordinator;
     mutable double NextCoordinatorLookup=0;
     bool bCanMove=false,bCanDelete=false;
     TSharedPtr<SComboBox<TSharedPtr<FString>>> LayoutCombo;

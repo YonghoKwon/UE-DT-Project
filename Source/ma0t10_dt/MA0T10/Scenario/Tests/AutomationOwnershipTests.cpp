@@ -3,10 +3,10 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "ma0t10_dt/MA0T10/Scenario/Automation/AutomationControlSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualSensorEditableTypes.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "UObject/StrongObjectPtr.h"
 
 class FAutomationOwnershipCommand final:public IAutomationLatentCommand

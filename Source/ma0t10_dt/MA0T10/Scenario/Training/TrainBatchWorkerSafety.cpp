@@ -1,6 +1,6 @@
 #include "TrainBatchWorkerSafety.h"
 #include "TrainBatchProcessProtocol.h"
-#include "ma0t10_dt/MA0T10/Contracts/LocalCapturePath.h"
+#include "Device/Contracts/LocalCapturePath.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 

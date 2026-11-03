@@ -27,15 +27,15 @@
 #include "ProfilingDebugging/MiscTrace.h"
 #include "UObject/UObjectArray.h"
 #include "UnrealClient.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
 #include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorEditableTypes.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorHighThroughputTransportSubsystem.h"
-#include "ma0t10_dt/MA0T10/Contracts/VirtualSensorRayQuery.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualSensorEditableTypes.h"
+#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
+#include "Device/Contracts/VirtualSensorRayQuery.h"
 
 namespace
 {

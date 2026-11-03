@@ -41,12 +41,12 @@ function New-Check {
 }
 
 $ProjectRoot = Resolve-ProjectRoot
-$transportHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorTransportComponent.h"
-$transportSource = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorTransportComponent.cpp"
+$transportHeader = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\VirtualSensorTransportComponent.h"
+$transportSource = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualSensorTransportComponent.cpp"
 $transportDoc = Join-Path $ProjectRoot "docs\server_transport_contract.md"
 $remainingWorkDoc = Join-Path $ProjectRoot "docs\remaining_work.md"
 $editorSmokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
-$transportTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\VirtualSensorDataTransportAutomationTests.cpp"
+$transportTests = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Tests\Sensor\VirtualSensorDataTransportAutomationTests.cpp"
 $payloadContractReportScript = Join-Path $ProjectRoot "Scripts\export_payload_contract_report.ps1"
 $judgingServerAcceptanceTemplateScript = Join-Path $ProjectRoot "Scripts\export_judging_server_acceptance_template.ps1"
 $judgingServerAcceptancePackageScript = Join-Path $ProjectRoot "Scripts\export_judging_server_acceptance_package.ps1"

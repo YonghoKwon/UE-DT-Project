@@ -1,4 +1,4 @@
-#include "ma0t10_dt/MA0T10/UI/StableHeaderReservation.h"
+#include "DeviceUI/StableHeaderReservation.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchHeaderStableTest,"HATCH26.HeaderStableReservation",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

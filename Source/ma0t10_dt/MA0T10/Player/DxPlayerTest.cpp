@@ -5,8 +5,8 @@
 #include "UI/DxWidget.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "ma0t10_dt/MA0T10/Player/DxPlayerControllerTest.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorPlacementInputOwner.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorPlacementMotion.h"
+#include "Device/Sensor/VirtualSensorPlacementInputOwner.h"
+#include "Device/Core/VirtualSensorPlacementMotion.h"
 
 
 ADxPlayerTest::ADxPlayerTest()
@@ -19,7 +19,7 @@ ADxPlayerTest::ADxPlayerTest()
 void ADxPlayerTest::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 }
 
 void ADxPlayerTest::Tick(float DeltaTime)

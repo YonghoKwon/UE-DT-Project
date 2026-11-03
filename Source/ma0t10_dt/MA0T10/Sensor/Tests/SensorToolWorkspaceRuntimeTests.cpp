@@ -12,7 +12,7 @@
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
 #include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorActorBase.h"
+#include "Device/Sensor/VirtualSensorActorBase.h"
 namespace {
 class FWorkspaceRuntimeCheck : public IAutomationLatentCommand
 {

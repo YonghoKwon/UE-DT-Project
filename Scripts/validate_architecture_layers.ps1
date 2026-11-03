@@ -12,6 +12,7 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
     $ProjectRoot = Split-Path -Parent $PSScriptRoot
 }
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+$includeDeviceModules = [string]::IsNullOrWhiteSpace($SourceRoot)
 if ([string]::IsNullOrWhiteSpace($SourceRoot)) {
     $SourceRoot = Join-Path $ProjectRoot "Source/ma0t10_dt/MA0T10"
 }
@@ -24,6 +25,10 @@ if ([string]::IsNullOrWhiteSpace($AllowlistPath)) {
 # The normal gate always uses the production MA0T10 tree and checked-in allowlist.
 function Get-Layer([string]$Path) {
     switch -Regex ($Path) {
+        '^DeviceNative/' { return -1 }
+        '^DeviceRuntime/Contracts/' { return 0 }
+        '^DeviceRuntime/(Sensor|Camera|Core|Transport)/' { return 1 }
+        '^DeviceUI/' { return 3 }
         '^Contracts/' { return 0 }
         '^(Sensor|Camera|Core)/' { return 1 }
         '^(Scenario|Slab|WebSocket|Crane|Manager|Player|Api|InteractableActor)/' { return 2 }
@@ -37,11 +42,31 @@ $files = @(Get-ChildItem -LiteralPath $SourceRoot -Recurse -File |
     Where-Object { $_.Extension -in @('.h', '.cpp') -and
         $_.FullName.Substring($SourceRoot.Length + 1) -notmatch '(^|[\\/])Tests([\\/]|$)' } |
     Sort-Object FullName)
+$logicalByAbsolute = @{}
+$absoluteByLogical = @{}
+foreach ($file in $files) {
+    $logicalByAbsolute[$file.FullName] = $file.FullName.Substring($SourceRoot.Length + 1).Replace('\', '/')
+}
+if ($includeDeviceModules) {
+    $deviceSource = Join-Path $ProjectRoot 'Plugins/DTDevice/Source'
+    if (Test-Path -LiteralPath $deviceSource -PathType Container) {
+        $deviceFiles = @(Get-ChildItem -LiteralPath $deviceSource -Recurse -File | Where-Object {
+            $_.Extension -in @('.h', '.cpp', '.inl') -and $_.FullName -notmatch '[\\/]Tests[\\/]'
+        })
+        foreach ($file in $deviceFiles) {
+            $relative = $file.FullName.Substring($deviceSource.Length + 1).Replace('\', '/')
+            $relative = $relative -replace '/Public/Device/', '/' -replace '/Public/DeviceUI/', '/' -replace '/Public/', '/' -replace '/Private/', '/'
+            $logicalByAbsolute[$file.FullName] = $relative
+        }
+        $files = @($files) + @($deviceFiles)
+    }
+}
 $byPath = [Collections.Generic.Dictionary[string,string]]::new([StringComparer]::OrdinalIgnoreCase)
 $byName = @{}
 foreach ($file in $files) {
-    $relative = $file.FullName.Substring($SourceRoot.Length + 1).Replace('\', '/')
+    $relative = $logicalByAbsolute[$file.FullName]
     $byPath.Add($relative, $relative)
+    $absoluteByLogical[$relative] = $file.FullName
     if (-not $byName.ContainsKey($file.Name)) {
         $byName[$file.Name] = [Collections.Generic.List[string]]::new()
     }
@@ -50,8 +75,23 @@ foreach ($file in $files) {
 
 function Resolve-Include([string]$Source, [string]$Include) {
     $includePath = $Include.Replace('\', '/')
+    if ($includePath -match '^Device/(.+)$') {
+        $candidate = 'DeviceRuntime/' + $Matches[1]
+        if ($byPath.ContainsKey($candidate)) { return $byPath[$candidate] }
+        if ($candidate -notmatch '(^|/)Tests/') { $errors.Add("Unresolved device runtime include: $Source -> $Include") }
+        return $null
+    }
+    if ($includePath -match '^DeviceUI/(.+)$') {
+        $candidate = 'DeviceUI/' + $Matches[1]
+        if ($byPath.ContainsKey($candidate)) { return $byPath[$candidate] }
+        $errors.Add("Unresolved device UI include: $Source -> $Include")
+        return $null
+    }
     $prefix = [regex]::Match($includePath, '^(?:Source/)?(?:ma0t10_dt/)?MA0T10/(.+)$')
     if ($prefix.Success) {
+        if ($Source -match '^Device(Native|Runtime|UI)/') {
+            $errors.Add("Plugin-to-host include is forbidden: $Source -> $Include")
+        }
         $candidate = $prefix.Groups[1].Value
         if ($byPath.ContainsKey($candidate)) { return $byPath[$candidate] }
         # Tests are deliberately outside the architectural include graph.
@@ -62,8 +102,9 @@ function Resolve-Include([string]$Source, [string]$Include) {
     }
 
     # Quoted local includes, ../ paths, root-relative paths, and unique basenames.
-    $sourceDirectory = Split-Path -Parent (Join-Path $SourceRoot $Source)
+    $sourceDirectory = Split-Path -Parent $absoluteByLogical[$Source]
     $absolute = [IO.Path]::GetFullPath((Join-Path $sourceDirectory $includePath))
+    if ($logicalByAbsolute.ContainsKey($absolute)) { return $logicalByAbsolute[$absolute] }
     if ($absolute.StartsWith($SourceRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
         $candidate = $absolute.Substring($SourceRoot.Length + 1).Replace('\', '/')
         if ($byPath.ContainsKey($candidate)) { return $byPath[$candidate] }
@@ -81,7 +122,7 @@ $violations = [Collections.Generic.Dictionary[string,object]]::new([StringCompar
 $mappedFiles = 0
 $includeCount = 0
 foreach ($file in $files) {
-    $source = $file.FullName.Substring($SourceRoot.Length + 1).Replace('\', '/')
+    $source = $logicalByAbsolute[$file.FullName]
     $sourceLayer = Get-Layer $source
     if ($null -eq $sourceLayer) { continue }
     $mappedFiles++

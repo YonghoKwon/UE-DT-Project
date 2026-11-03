@@ -1,5 +1,5 @@
 #include "VirtualDatasetTypes.h"
-#include "ma0t10_dt/MA0T10/Contracts/LocalCapturePath.h"
+#include "Device/Contracts/LocalCapturePath.h"
 #include "Training/TrainBatchCodec.h"
 
 bool IsValidDatasetPlanRoot(const FVirtualDatasetFramePlan& Plan)

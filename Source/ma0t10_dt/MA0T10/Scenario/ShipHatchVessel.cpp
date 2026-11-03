@@ -2,7 +2,7 @@
 #include "SensorUploadDiagnostics.h"
 #include "ProceduralMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSurfaceResponseComponent.h"
+#include "Device/Sensor/VirtualLidarSurfaceResponseComponent.h"
 #include "Engine/World.h"
 
 namespace

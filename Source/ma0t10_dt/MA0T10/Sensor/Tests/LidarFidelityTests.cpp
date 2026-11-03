@@ -5,13 +5,13 @@
 #include "Components/StaticMeshComponent.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarFidelity.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSurfaceResponseComponent.h"
+#include "Device/Sensor/VirtualLidarFidelity.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarSurfaceResponseComponent.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabMotionComponent.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorStreamPublisherComponent.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorAcquisitionBackend.h"
+#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorAcquisitionBackend.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarFidelityTimingTest,"MA0T10.LidarFidelity.TimingAndMotionTheory",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLidarFidelityTimingTest::RunTest(const FString&)

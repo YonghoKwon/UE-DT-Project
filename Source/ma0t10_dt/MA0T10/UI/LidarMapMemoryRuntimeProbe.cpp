@@ -20,9 +20,9 @@
 #include "UnrealClient.h"
 #include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
 #include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
 
 namespace
 {

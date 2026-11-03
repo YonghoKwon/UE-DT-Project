@@ -2,9 +2,9 @@
 #include "ArchitectureMonitorProbe.h"
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Camera/VirtualCameraCaptureComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/LidarJsonLiveSourceComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/LidarJsonLiveSourceComponent.h"
 #include "UObject/UnrealType.h"
 #include "GameFramework/PlayerController.h"
 

@@ -1,11 +1,11 @@
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
 
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Components/LineBatchComponent.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarSensorActor.h"
+#include "Device/Sensor/VirtualLidarScanComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarPreviewIdentityTransformTest,
     "MA0T10.LidarFidelity.PreviewIdentityTransform", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

@@ -12,6 +12,7 @@ public class ma0t10_dt : ModuleRules
         {
             "Core",
             "CoreUObject",
+            "DeveloperSettings",
             "Engine",
             "ApplicationCore",
             "InputCore",
@@ -26,6 +27,8 @@ public class ma0t10_dt : ModuleRules
             "PixelStreamingInput",
             "PixelStreamingBlueprint",
             "DTCore",
+            "DeviceRuntime",
+            "DeviceUI",
             "RenderCore",
             "RHI",
             "ImageWrapper",
@@ -41,13 +44,14 @@ public class ma0t10_dt : ModuleRules
             "NiagaraCore"
         });
 
-        PrivateDependencyModuleNames.AddRange(new string[] { "ma0t10_dtBootstrap" });
+        PrivateDependencyModuleNames.AddRange(new string[] { "DeviceNative" });
         // TRAIN-BATCH-01: result archives (ZIP via engine libzip, tar.gz via zlib) and SHA-256.
         PrivateDependencyModuleNames.AddRange(new string[] { "zlib", "libzip", "OpenSSL" });
 
         // PKG-01: ship the deployment transport settings as a loose file next to every
         // package (<package>/ma0t10_dt/Config/SensorTransport.ini), outside the pak.
         RuntimeDependencies.Add("$(ProjectDir)/Config/SensorTransport.ini", StagedFileType.NonUFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Config/ConfigRedirects.ini", StagedFileType.NonUFS);
         // TESTSET-03: the default demo template is available without Editor-only fixtures.
         RuntimeDependencies.Add("$(ProjectDir)/Config/AgentTestSetScenario.json", StagedFileType.NonUFS);
 

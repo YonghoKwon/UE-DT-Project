@@ -103,8 +103,8 @@ else {
 }
 
 $defaultGameIni = Join-Path $ProjectRoot "Config\DefaultGame.ini"
-$handlerHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\WebSocket\TC\LidarJsonLiveFrameTC.h"
-$handlerCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\WebSocket\TC\LidarJsonLiveFrameTC.cpp"
+$handlerHeader = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Transport\LidarJsonLiveFrameTC.h"
+$handlerCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Transport\LidarJsonLiveFrameTC.cpp"
 $samplePath = Join-Path $ProjectRoot "Samples\websocket\lidar_json_live_frame_sample.json"
 $sampleValidator = Join-Path $ProjectRoot "Scripts\validate_websocket_lidar_live_sample.ps1"
 $planDoc = Join-Path $ProjectRoot "docs\real_sensor_adapter_plan.md"
