@@ -11,6 +11,16 @@
 - CoreRedirects는 한 번만 적용된다(`FCoreRedirects::RedirectNameAndValues`는 원래 이름에 맞는 항목만 모음). 이전 이름(`VirtualSensorAct`, `LidarCsvReplaySourceComp` 등) 17개 class redirect가 이동 후 존재하지 않는 `/Script/ma0t10_dt.<신규 이름>`을 가리키던 것을 `/Script/DeviceRuntime.<신규 이름>`으로 직접 연결했다. PropertyRedirects는 package 변경이 불가해 기존 값을 유지했다. TestMap은 이미 신규 class 이름으로 저장되어 있어 변경 전후 모두 로드 경고 0건.
 - DTDevice `5e9b870`: `MA0T10.Architecture.WireGolden` fixture 경로를 `ProjectDir()/Plugins/DTDevice` 고정에서 `IPluginManager` base dir로 변경. TestHost 빌드·해당 테스트 Success. pin을 `5e9b870`으로 갱신.
 
+## 2026-11-03 DEVICE-PLUGIN-01 r50 — 최종 통합 검증, perf 준비 차단
+
+- 기준085ca5e2, DTCorebc60f05/DTDevice5e9b870. 제품 코드·기대값·맵·기본 정책 변경 없이 양쪽 guard/Editor build와 release1회498 Success/45 Skip/0 Fail·17단계 Success를 확인했다.
+- Development native3시간×3장면은 post30 OS Commit OLS≤8MiB/h 기준으로 모두 PASS: hatch+4.56596(r37+5.14), raw-quay+6.65843(+2.69), slab-native+1.94083(+2.36). Native fallback0, 각 약19.998/19.998/19.999Hz. 센서수3/3/1, 실제 시도3·재시도0이다. hatch는 r37과 같은 준비17Dig 후 지속 조건으로, 연속3시간 디깅은 아니다.
+- 마지막1/3 Commit는+0.22393/+2.84732/+1.15349, old10~30은+7.68453/+8.43925/+13.49453MiB/h로 병기한다. Warm-up10~30 증가량은+2.72266/+2.76563/+4.00391MiB. 세 실행은 진단상 plateau tendency이며 해당 분류가 새 gate를 대체하지 않는다. WS 급감 각1회는 Commit 판정과 분리했다.
+- perf는 원본 verify -Level perf -BaseCommit b522a4b3(origin/master) -PerfRayTracing ProjectDefault에서 baseline의 이동된 Device session 경로 부재로 준비 단계 실패했다. ABAB 데이터0으로2% 성능 회귀/통과를 판단하지 않았다. 하네스 archive·임시 include 호환 수정 승인이 응답되지 않아 source/측정 코드는 바꾸지 않았다. 따라서 전체 통합 완료/머지 가능으로 표시하지 않는다.
+- r37 runner 복사 시 남은 이전 worktree guard로 생긴 준비 오류는 게임0회·측정 전 오류로 보존/제외했다. 현재 경로 guard·PowerShell parser·stage/source descriptor/template hash를 확인한 새 scope에서 실제 측정을 수행했다. UAT build/cook/stage/archive는105.71초·ExitCode0로1회 성공했고 후처리/staging 보완에 따른 재빌드는 없었다.
+- 비치명 엔진 ensure10개(SwapChain4 초기화9, ini ECVF_Cheat1)는 context/stack/hash 보존 후 dump만 삭제했다. 보호 hash와 개인6개 원본 집합을 복원했고 생성32개는 가역 이동했다. 초기132B Game.ini·기존 Samples 상태·DTCore를 보존했다. Host push/PR·맵 저장·기대값 완화는 없다. frozen package는 reviewer 정리 목록으로 유지한다.
+- 증거: `Saved/Reports/DEVICE-PLUGIN-01/final-r50/RESULT.md`·`result.json`·`merge-check.json`, `memory-summary.json`, `release-summary.json`, `perf-summary.json`. 새 문서 커밋은 측정 종료 후에만 만들며 코드 검증 SHA와 구분한다.
+
 ## 2026-11-03 DEVICE-PLUGIN-01 r49 — 통합 검증 전 pin·문서 정리
 
 - 기준 host `5dc4518`, DTCore `bc60f05` 유지. DTDevice main을 `cf09a7ce8f563f066789505575559bac5fe53cc4`로 fast-forward하고 `Scripts/device_plugin_pin.txt`를 명시 갱신했다. TestHost launcher·DTCore 소스 지정·CRLF 정리이며 plugin `Source/`·`Shaders/` 변화0을 확인했다.
