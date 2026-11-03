@@ -41,6 +41,7 @@
 ### 아키텍처 레이어 (A단계부터 적용)
 
 - 레이어 정의와 현재 위반 목록의 원본은 [README §10](README.md#10-아키텍처-뼈대)이다. `Source/ma0t10_dt/MA0T10/` 기준 **L0 `Contracts/` → L1 `Sensor/` `Camera/` `Core/` → L2 `Scenario/` `Slab/` `WebSocket/TC/`·기존 업무 폴더 → L3 `UI/`**, 의존은 위 레이어가 아래 레이어만 include하는 방향으로만 허용한다.
+- NAMING-01 이후 업무 경로 `Ship/`, `Coil/`, `Slab/Scenario/`, `Training/`, `Dataset/`, `Agent/`, `Common/`, `Manager/Automation/`은 기존 Scenario의 L2 역할을 유지한다. `Sensor/Tool/`·`Diagnostics/`와 `UI/Main/{Sensor,Ship,Coil,Slab}/`은 이동 전 UI의 L3 응용 역할이다. 폴더 이동으로 허용 의존이나 allowlist를 늘리지 않는다.
 - 새 코드는 처음부터 이 방향을 지킨다. 센서 Runtime(L1)에 UI 타입·Slab 타입·업무 TC를 새로 참조시키지 않는다. 필요하면 L0 계약/interface/delegate를 추가하고 위 레이어가 구현·구독한다.
 - 센서 편집 상태 타입은 기존 L1 enum에 의존하므로 `Sensor/VirtualSensorEditableTypes.h`(L1)에 둔다. `Contracts/`(L0)에는 리터럴 기본값과 L1 타입에 의존하지 않는 중립 계약만 둔다. ARCH-06의 중립 acquisition context는 계속 L0 대상이며 이 경계를 지킨다.
 - `Scripts/validate_architecture_layers.ps1`(ARCH-01)이 생긴 뒤에는 C++ 변경 커밋마다 실행한다. allowlist는 **줄어들기만** 한다. 파일 이동으로 바뀐 경로는 같은 커밋에서 갱신할 수 있으나 항목 수를 늘리지 않는다. 예외가 꼭 필요하면 근거를 보고하고 사용자 승인을 받는다.

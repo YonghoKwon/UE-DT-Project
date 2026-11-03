@@ -1,4 +1,4 @@
-# NAMING-01 구조·이름 통일 규칙 (초안)
+# NAMING-01 구조·이름 통일 규칙
 
 상태: **확정(2026-11-04 사용자 결정 반영).** 적용 시점은 DEVICE-PLUGIN-01 PR 머지(6단계)와 에셋 이동(7단계) 이후입니다.
 8-1(폴더·이름)을 먼저 하고, 코드 스타일(탭·중괄호)은 8-2로 따로 단계적으로 진행합니다.
@@ -99,3 +99,7 @@ DTCore와 UE 기본 규칙을 따릅니다. 대부분 이미 맞아 있으므로
 - 각 테스트 맵 로드 시 `LogCoreRedirects`·`LogLinker` 경고 0건
 - 성능 ABAB 2%
 - 마지막으로 메모리 측정 (범위는 그때 사용자와 결정)
+
+## 7. 8-1 반영 결과 (2026-11-04)
+
+확정 명단28 Comp +18 Dx 타입, reflected 컴포넌트 참조45개와 직접 redirect를 반영했다. 실제 명단 소유 분포는 Comp 플러그인22/과제6이다. 명단의 `UVirtualCameraCaptureComponent` 누락은 범위에 임의 추가하지 않았다(그 Actor의 CaptureComponent 멤버는 CaptureComp로 통일). 공유 테스트 선언 헤더는 컨테이너 이름을 유지한다. inventory는 이전 이름→최종 이름 근거로 보존한다. 기존 serialized subobject 이름·SaveGame·wire·테스트 ID·로그 문구·enum67개 본문은 유지했다. 나머지 코드 스타일 일괄 정리는 8-2 범위로 남긴다.

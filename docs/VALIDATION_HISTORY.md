@@ -1024,3 +1024,11 @@ Two-hourx2, original five pairs8MiB, RTonABAB2%, Shipping/full release/night wer
 - 빈 C++ `GuideHost`를 Saved 아래 준비·빌드·데모 생성·동일 스모크 PASS. TestHost/GuideHost offscreen 캡처 2개 저장(1280×720 Editor window). 직접 마우스는 Windows 방화벽 확인 창 때문에 미수행; 보안 창 미조작, 소유 Editor만 종료. 스크린 메시지는 캡처 때만 DisableAllScreenMessages, 로그 보존.
 - Development package UAT PASS, source3종 cooked inventory 확인(IoStore). 패키지 native 센서3대 fallback0, 약19.990~20.023Hz, 각 visible preview12000, PCD3894프레임 semantic/record 검증·receipt3894. 화면에서 점군 표시 확인(보안 창 겹침 캡처).
 - 성능·장시간 메모리 재측정 없음(사용자 범위). DTCore/보호 파일 고정, Game.ini 알려진 빈 생성물만 보고서로 보관. `Samples/PixelStreaming` 생성 untracked 항목 보존/미stage. 상세 `Saved/Reports/ASSET-MOVE-02/RESULT.md`, `result.json`, `merge-check.json`.
+
+## 2026-11-04 — NAMING-01 8-1 / r52
+
+- 기준 master7aefff54 + 확정 규칙94af4bc2, DTCorebc60f05. Comp28(플러그인22/과제6)+Dx18, host196/plugin49 경로 변경. inventory206항목 중 기존위치21 유지. 동일 package PropertyRedirects45 + 기존/신규 class redirect 최종1-hop, 소유 에셋/map resave0.
+- Editor/Development 및 TestHost Editor/Development 빌드 PASS. 관련23개/45속성·46타입 호환, TestHost 기본19개(18Success/1 opt-inSkip), Python4개 PASS. 기존 runtime 문자열458파일 및 enum67본문 불변. 컴포넌트가 아닌 scalar Publisher 성능 지표와 로그/테스트 이름 보존.
+- release C++490Success/45Skip/0Fail. 최초 WBP 단계는 이전 Python class API 기대값으로 실패; runtime 소스 변화 없이 최종 API로 갱신 후 동일7개 parent 검사·메모리 compile/save0 PASS. 남은 rendered vocabulary PASS. 원래 실패 manifest와 완료 집계 release-completed.json을 함께 보존. 기존530개 테스트 경로 누락0, Naming01 호환1개 추가.
+- QA-02 RT ProjectDefault ABAB3blocks(12runs, A/B각6), visible1920×1080, Camera1+LiDAR1, MLX80Native, warm10s+measure60s: FPS46.6494→46.7106(악화−0.13124%), enginep95 29.5505→29.5403ms(−0.03436%), GT7.22648→7.20009ms(−0.36525%),2% PASS. 기준7aefff54/후보68eea66b. Naming alias는 소유 기준본 헤더·계측 전처리 연결만 제공하고 원래 runtime source와 공통 instrument bytes/판정식 유지. 영상·외부 Unreal/build 중첩 없음.
+- host 테스트 맵10개 읽기전용 load/hash PASS, LogLinker/LogCoreRedirects Warning/Error0. DTCore/에셋/개인설정 보호, Samples/PixelStreaming 생성untracked 보존, 장시간 메모리 미수행(사용자 범위). 상세 Saved/Reports/NAMING-01/RESULT.md/result.json/merge-check.json.

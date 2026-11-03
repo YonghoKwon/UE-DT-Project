@@ -1449,3 +1449,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level pe
 ### ASSET-MOVE-02 (r51, 2026-11-04)
 
 공통 센서 재질 2개와 Niagara 1개는 `/DTDevice/Sensor/`로 이동했다(원본 바이트 동일, 기존 맵/에셋 resave 없음). 옛 경로는 PackageRedirects로 연결한다. 별도 과제는 플러그인의 [시작 가이드](Plugins/DTDevice/Docs/GettingStarted.md)와 `TestHost/Content/Maps/DTDeviceDemo.umap`을 사용한다. `DeviceSensorMonitorHostActor`는 DTCore에 등록되는 기본 센서 모니터를 명시적으로 연다. 미리보기 조절은 서버 payload를 바꾸지 않는다. release 489 Success/45 Skip/0 Fail, TestHost 19개 경로(기본 18 Success/1 opt-in Skip + loopback 보충 1 Success), 빈 C++ 소비 프로젝트 및 Development 패키지 스모크를 확인했다. 직접 클릭 검증은 Windows Security 창으로 미수행이며 오프스크린 캡처와 구분한다. 상세는 `Saved/Reports/ASSET-MOVE-02/RESULT.md`. 성능·장시간 메모리는 이번 범위에서 실행하지 않았다.
+
+### NAMING-01 8-1 (r52, 2026-11-04)
+
+확정 명단의 Component28개와 Dx 위젯18개를 새 이름으로 통일하고, 컴포넌트 참조 속성45개에 같은 package PropertyRedirects를 제공했다. 기존 class redirect도 최종 이름으로 직접 연결한다. 폴더 명단206개 중 이미 제자리에 있던21개를 유지하고 나머지를 분류했다(타입 파일명 변경을 합친 host 경로 변경196개, DTDevice49개). `Scenario/` 업무는 `Ship`, `Coil`, `Slab/Scenario`, `Training`, `Dataset`, `Agent`, `Manager/Automation`, `Common`으로 나뉜다. UI는 Common/Freeview/Topview/Main 하위로 정리했다. `Sensor/Tool`·`Diagnostics`와 새 UI/Main 하위 패널은 이동 전과 같은 L3 응용 역할이며 센서 Runtime L1이 아니다. allowlist0 유지.
+
+기존 테스트530개 경로 누락0, Naming01 호환 검증1개 추가. release C++490 Success/45 Skip/0 Fail, WBP7 메모리 compile/save0, TestHost 및 테스트 맵10개 load/hash PASS. RT-on ABAB2% PASS(FPS−0.131%, p95−0.034%, GT−0.365% 악화율). 맵/에셋 저장 없음, 장시간 메모리는 범위 제외. 상세 `Saved/Reports/NAMING-01/RESULT.md`.

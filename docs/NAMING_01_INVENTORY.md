@@ -331,3 +331,7 @@ python -X utf8 -I Tools/NamingPlan/movemap.py <host>
   - 8-1 시작 전에 `GetClass()->GetName()`/`GetPathName()`을 쓰는 직렬화 코드를 다시 검사합니다.
 - 테스트 이름 `MA0T10.*`는 그대로 둡니다. 측정·검증 스크립트가 이 이름으로 필터링합니다.
 - `UShipHatchOverlay`, `UVirtualCameraGroundTruth`는 `ULineBatchComponent`/`UActorComponent`를 상속하지만 이름에 접미사가 없습니다. 규칙대로 `…Comp`를 붙이는 것을 제안합니다.
+
+## 7. 실행 결과 (r52, 2026-11-04)
+
+이 표는 이동 전 경로/이름을 고정한 계획 근거로 유지한다. 실제206개 항목에는 위치 유지21개가 포함된다. 타입 파일명까지 합쳐 host196개, DTDevice49개 경로를 git mv했다. 46개 reflected 타입과45개 컴포넌트 속성의 직접 alias를 확인했다. 테스트530개 경로 누락0, 호환 테스트1개 추가. 세부/검증은 `Saved/Reports/NAMING-01/RESULT.md`.
