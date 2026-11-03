@@ -6,6 +6,16 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-11-03 DEVICE-PLUGIN-01 r47 — Runtime·공통 UI 이관
+
+- 기준 host `4442658`·DTCore `bc60f05`. DTDevice `main`의 LICENSE 추가 `30af5a2` 위에서 순수 이관 `bdc1336`을 커밋/push했고 host `778f09a4`와 짝으로 pin/include/API/Build.cs/redirect를 반영했다. 준비 `c6fd76f9`, 경계 도구 `310ecd8b`, 호환 테스트 `05e077d9`는 별도 커밋이다. host는 push하지 않았다.
+- 공통248개 파일을 Runtime/UI로 옮기고 기존 업무 UI/Coordinator UCLASS·WBP·SaveGame·Slab/해치/코일/학습/Workspace는 host에 남겼다. 반영 선언151/151(export·공백 제외) 동일, exact Class/Struct/Enum redirect151개+delegate signature2개, Engine config section remap을 확인했다. 에셋/맵 이동·저장은 없다. plugin→host include/UHT 역참조0, Runtime→UI0, layer allowlist0→0이다.
+- Editor/Development/Shipping 최종 빌드 PASS. 전역 `-DisableUnity`는 설치형 UnrealEditorNU artifact 부재로 실패했으나 엔진을 바꾸지 않고 소유6개 모듈만 임시 non-unity로 빌드해 개별365 compile/unity0 PASS 후 Build.cs를 byte-for-byte 복원했다. 최초 실패 로그는 유지한다.
+- 관련 자동화 raw42 Success는 실제41 Success/선택 SftpLive1 Skip이다. native alias151개 canonical 타입·SensorTestMap/DataTable read-only load/hash·ArchitectureWire14·TrainBatch를 포함한다. native/byte/point6 Success, 합성1센서1000 edits/native dispatch1000·fresh-engine 전체 바이트 oracle, PSO timeout recovery19.998628Hz를 확인했다. stock smoke36 Success, quick11단계 Success, DTCore/DTDevice Connected guard PASS다. 생산 맵 누적 fallback·직접 UI·Shipping 패키지 기동은 별도 수용 범위다.
+- release는 정확히1회 실행했으나527.43초의 `environment invalid: external Unreal/build` 신호로 supervisor가 자기 실행 트리를 종료했다. 감지 당시 PID 미기록으로 외부 원인은 확정하지 않는다. `Saved/Reports/verify/20261103T014325036Z`에는 완료 manifest가 없으며 feature14 Success·full 진행 로그135 Success/0 Fail 기록만 남았다. 후속 단계는 미도달이며 완료 PASS로 바꾸지 않았다. 이전 r46 결과492/45는 이관 후 증거로 재사용하지 않았다. release 추가 실행은 하지 않았다.
+- offscreen 초기화의 비치명 엔진 SwapChain4 ensure8개(FD3D12Viewport::Resize/Init)는 자동화 exit0/Success와 분리해 stack/context를 보존했고 dump만 inventory/hash 후 삭제했다. 초기 외부 NullRHI Editor로 차단된 별도 시도는 자연 종료 후 재개했으며 타 작업 프로세스를 종료하지 않았다.
+- Config/Game.ini 원래 부재, SensorTransport/SensorTestMap hash와 개인 설정5개/파일 집합이 초기 snapshot과 일치한다. 기존 untracked Samples/PixelStreaming은 보존했다. DTCore/보호 문서/main repo/엔진/드라이버/시스템 설정 변경·host push/PR/merge·perf ABAB/장시간 메모리는 없다. release 미완료를 merge-check 차단으로 유지하며 완료 재검증 여부는 Claude가 결정한다. 증거: `Saved/Reports/DEVICE-PLUGIN-01/stage2-r47/{RESULT.md,result.json,merge-check.json}`.
+
 ## 2026-11-02 SITE-GUIDE-26-FINAL-R39 — 최종 현장 메모리·LiDAR 가이드
 
 - 기준 `master 23d143b`(PR #95), DTCore `bc60f05`. 새 `docs/site-guide-26-final` 브랜치를 이 기준에서 만들고, 옛 `0da8379`의 문서 변경인 가이드 한 파일만 가져왔다. 옛 #26 코드 커밋을 cherry-pick하지 않았으며 기존 브랜치를 보존했다.

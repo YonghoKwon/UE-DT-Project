@@ -886,3 +886,20 @@ UE-DT-Device-Plugin/
 새 base/body/registry의 로드로 추가 Tick/thread/네트워크 구독을 시작하지 않는다. 기존 측정·PCD·스케줄러와 TRAIN-BATCH 기본 꺼짐은 유지한다. Bootstrap·native safety·셰이더·DTCore는 수정하지 않았다.
 
 경계별 Editor/관련 자동화·wire golden을 검증한 뒤 커밋했다. 마지막 통합 Editor/Development/Shipping·smoke·quick·release1회·직접 UI 수행/실패/미수행의 최종 판정은 `Saved/Reports/DEVICE-PLUGIN-01/stage1-r46/RESULT.md`와 `result.json`을 따른다. 중간 단계의 성능 ABAB·장시간 메모리는 실행하지 않으며 native3h×3장면은 최종 단계에 한 번만 한다.
+
+## 11. r47 — Runtime·공통 UI 실제 이관 (2026-11-03)
+
+1단계 경계 준비 위에서 DTDevice `main`의 LICENSE 추가 커밋30af5a2를 반영한 뒤, 공통248개 파일을 DeviceRuntime/DeviceUI로 옮겼다. 실제 목적 경로는 `Plugins/DTDevice/Source/DeviceRuntime/{Public/Device,Private}/...`와 `DeviceUI/{Public/DeviceUI,Private}/...`다. DeviceNative는 앞 단계의 구현·셰이더/안전 상태 계약을 그대로 사용한다. 자산은 이동하지 않았다.
+
+- 순수 이동 짝: plugin `bdc1336`(origin/main push) + host `778f09a4`(로컬 pin), 준비 host `c6fd76f`. API/include/Build.cs·일반 codec 등록 수명만 새 모듈 소유로 옮기고 알고리즘·wire·기본값을 바꾸지 않았다. private unity 충돌 이름은 module-unique하게 바꿨다.
+- Runtime은 공통 Contracts/Camera/Core/Sensor와 일반 수신 TC·공통 테스트를 소유한다. 프로젝트의 Coordinator/UI UCLASS·Workspace·Slab/해치/코일/학습·SaveGame·WBP·과제 테스트는 host에 남았다. 공통 테스트 header2개는 integration 테스트에서 쓸 수 있도록 `Public/Device/Tests/Sensor/`에 두고 개발 자동화 guard를 유지한다.
+- 공통 UI body의 불필요한 toolbar/host identity include는 제거했다. `EVirtualSensorCaptureExportTab`은 DeviceUI 중립 계약에 있고, 기존 Widget 클래스와 공개 핀/값은 유지한다. `SensorToolUiText`의 공통4함수와 Runtime 기본 리터럴만 plugin으로 옮기고 나머지 Workspace/슬롯/시나리오 문구·값은 host shim에 남겼다.
+- `Config/DefaultEngine.ini`에는 Runtime147/UI4의 exact Class/Struct/Enum redirect151개와 dynamic delegate signature FunctionRedirect2개를 추가했다. 전체 `/Script/ma0t10_dt` package redirect는 쓰지 않는다. 새 canonical class owner는 `/Script/DeviceRuntime` 또는 `/Script/DeviceUI`이며 old native import는 type-specific CoreRedirects/linker를 통해 해석한다. raw `StaticLoadObject`에 예전 native 문자열을 그대로 넘기는 경로를 general asset redirect와 혼동하지 않는다.
+- `UDeviceSensorAssetSettings`의 이전 Engine config section은 `Config/ConfigRedirects.ini`의 SectionNameRemap으로 유지한다. 이 파일은 host에서 NonUFS stage하며 SensorTransport.ini의 기존 위치/빈 템플릿/우선순위는 바꾸지 않는다.
+- plugin→project include/반영 타입 역참조0, Runtime→UI0. 기존 layer guard가 host+3개 device 모듈을 함께 검사하도록 확대했고 allowlist는0을 유지한다. opt-in inventory도 실제 옮긴 source를 포함해 같은 문서/환경변수 기준을 검사한다. 검증 도구와 추가 호환 테스트는 순수 이동 뒤 별도 host 커밋이다.
+
+Editor unity 및 소유 모듈 non-unity(개별365 compile/unity0), Development/Shipping 빌드와 관련 자동화(raw42 Success 중 실제41 Success/선택 SftpLive1 Skip)에서 151개 native alias·기존 map/DataTable 읽기 전용 load/hash·TrainBatch·wire golden을 확인했다. 전역 `-DisableUnity`의 설치형 엔진 `UnrealEditorNU` 실패 시도는 제품 실패로 세지 않고, 소유 Build.cs에만 임시 `bUseUnity=false`를 적용해 검증한 뒤 byte-for-byte 복원했다.
+
+실행 중이던 외부 NullRHI Editor 때문에 첫 RHI 시작은 차단됐다가 외부 프로세스가 자연 종료된 뒤 재개했다. 다른 작업 프로세스를 종료하지 않았다. Source/API 선언 body151개는 export/공백을 제외하고 원문과 동일하다. 최종 smoke/quick/release1회·skip·한계·개인 설정 복원·pin/guard의 최종 결과는 `Saved/Reports/DEVICE-PLUGIN-01/stage2-r47/RESULT.md`와 `result.json`을 따른다. 호스트 저장소 push·성능 ABAB·장시간 메모리는 하지 않는다.
+
+최종 smoke36 Success·native/byte oracle6 Success, 합성1000회 native dispatch·전체 바이트 비교 및 PSO19.998628Hz를 확인했다. quick11단계·layer allowlist0·DTCore/DTDevice Connected guard도 통과했다. release는 정확히1회 실행했으나 supervisor의 외부 Unreal/build 감시 신호로 중단되어 stock manifest/완료 판정이 없다. 당시 PID가 없어 외부 원인은 확정하지 않으며 feature14 Success와 full 진행 로그135 Success/0 Fail 기록을 부분 증거로만 남긴다. 후속 WBP/rendered UI 단계는 미도달이고 release 재실행은 하지 않았다. offscreen 엔진 startup SwapChain4 ensure8개는 비치명 자동화 성공과 구분해 stack을 보존했다. 개인 설정5개·보호 hash/파일 집합은 원본과 일치한다. host 최종 검증 코드 커밋은 `05e077d9`, layer/inventory 확장 검증은 `310ecd8b`다. 병합 전 완료 release 재검증 여부는 Claude 독립 검토 대상으로 남긴다.
