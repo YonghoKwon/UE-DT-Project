@@ -2,3 +2,7 @@
 	path = Plugins/DTCore
 	url = https://github.com/YonghoKwon/UE-DT-Core-Plugin.git
 	branch = main
+[submodule "Plugins/DTDevice"]
+	path = Plugins/DTDevice
+	url = https://github.com/YonghoKwon/UE-DT-Device-Plugin.git
+	branch = main
