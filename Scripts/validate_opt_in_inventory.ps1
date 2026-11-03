@@ -1,7 +1,11 @@
 param([string]$ProjectRoot = '', [switch]$Json)
 $ErrorActionPreference = 'Stop'
 if (-not $ProjectRoot) { $ProjectRoot = Split-Path -Parent $PSScriptRoot }
-$sourceNames = @([IO.Directory]::EnumerateFiles((Join-Path $ProjectRoot 'Source'), '*', [IO.SearchOption]::AllDirectories) |
+$sourceRoots = @((Join-Path $ProjectRoot 'Source'))
+$deviceSource = Join-Path $ProjectRoot 'Plugins/DTDevice/Source'
+if (Test-Path -LiteralPath $deviceSource -PathType Container) { $sourceRoots += $deviceSource }
+$sourceFiles = @($sourceRoots | ForEach-Object { [IO.Directory]::EnumerateFiles($_, '*', [IO.SearchOption]::AllDirectories) })
+$sourceNames = @($sourceFiles |
     Where-Object { [IO.Path]::GetExtension($_) -in @('.cpp', '.h') } | ForEach-Object {
         [regex]::Matches([IO.File]::ReadAllText($_), 'GetEnvironmentVariable\s*\(\s*TEXT\(\s*"(MA0T10_[A-Z0-9_]+)"') |
             ForEach-Object { $_.Groups[1].Value }
@@ -13,6 +17,6 @@ $documented = @([regex]::Matches($table.Groups[1].Value, '(?m)^\| `(MA0T10_[A-Z0
     ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
 $missing = @($sourceNames | Where-Object { $_ -notin $documented })
 $stale = @($documented | Where-Object { $_ -notin $sourceNames })
-$report = [PSCustomObject]@{ Valid = ($missing.Count -eq 0 -and $stale.Count -eq 0); SourceCount = $sourceNames.Count; DocumentedCount = $documented.Count; Missing = $missing; Stale = $stale; Names = $sourceNames }
+$report = [PSCustomObject]@{ Valid = ($missing.Count -eq 0 -and $stale.Count -eq 0); SourceRoots = $sourceRoots; SourceCount = $sourceNames.Count; DocumentedCount = $documented.Count; Missing = $missing; Stale = $stale; Names = $sourceNames }
 if ($Json) { $report | ConvertTo-Json -Depth 4 } else { Write-Host "Opt-in inventory: valid=$($report.Valid) source=$($sourceNames.Count) documented=$($documented.Count)" }
 if (-not $report.Valid) { throw "Environment inventory mismatch: missing=$($missing -join ',') stale=$($stale -join ',')" }
