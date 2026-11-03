@@ -1445,3 +1445,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level pe
 - 센서: [테스트맵](docs/sensor_test_map_setup.ko.md), [높이·좌표](docs/lidar_height_semantic_coordinates.ko.md), [태그 없는 형상](docs/lidar_geometry_validation.ko.md), [V2 migration](docs/sensor_v2_migration.ko.md)
 - Slab/UI: [시뮬레이션 상세](docs/slab_simulation.ko.md), [재생 상세](docs/slab_scenario_replay.ko.md), [센서 연동](docs/sensor_slab_integration.ko.md), [Workspace 상세](docs/sensor_tool_workspace.ko.md)
 - 이력/범위: [PR16 병합 기록](docs/sensor_pr16_merge_notes.ko.md), [Editor smoke 이력](docs/editor_smoke_test.md), [실장비 adapter 제안](docs/real_sensor_adapter_plan.md), [PixelStreaming 참고](docs/pixel_streaming_setup.md)
+
+### ASSET-MOVE-02 (r51, 2026-11-04)
+
+공통 센서 재질 2개와 Niagara 1개는 `/DTDevice/Sensor/`로 이동했다(원본 바이트 동일, 기존 맵/에셋 resave 없음). 옛 경로는 PackageRedirects로 연결한다. 별도 과제는 플러그인의 [시작 가이드](Plugins/DTDevice/Docs/GettingStarted.md)와 `TestHost/Content/Maps/DTDeviceDemo.umap`을 사용한다. `DeviceSensorMonitorHostActor`는 DTCore에 등록되는 기본 센서 모니터를 명시적으로 연다. 미리보기 조절은 서버 payload를 바꾸지 않는다. release 489 Success/45 Skip/0 Fail, TestHost 19개 경로(기본 18 Success/1 opt-in Skip + loopback 보충 1 Success), 빈 C++ 소비 프로젝트 및 Development 패키지 스모크를 확인했다. 직접 클릭 검증은 Windows Security 창으로 미수행이며 오프스크린 캡처와 구분한다. 상세는 `Saved/Reports/ASSET-MOVE-02/RESULT.md`. 성능·장시간 메모리는 이번 범위에서 실행하지 않았다.
