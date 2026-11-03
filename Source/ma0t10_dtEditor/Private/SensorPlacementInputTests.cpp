@@ -12,10 +12,10 @@
 #include "RenderingThread.h"
 #include <atomic>
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tool/VirtualSensorTransformGizmoActor.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Player/DxPlayerControllerTest.h"
 #include "ma0t10_dt/MA0T10/Player/DxPlayerTest.h"
@@ -39,7 +39,7 @@ public:
         UWorld* W=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)W=C.World();
         if(!FinalAcceptanceViewportReady(W)||FPlatformTime::Seconds()-Started<3)return false;
         auto* Workspace=W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Manager=Workspace->GetCoordinator();
-        auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings));
+        auto* Settings=Cast<UDxWidgetVirtualSensorSettingsPanel>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings));
         auto* PC=W->GetFirstPlayerController();auto* View=W->GetGameInstance()->GetGameViewportClient();auto V=View->GetGameViewportWidget();
         if(!Manager||!Settings||!PC||!V.IsValid())
         {if(FPlatformTime::Seconds()-LastDiagnostic>2){LastDiagnostic=FPlatformTime::Seconds();Test->AddInfo(FString::Printf(TEXT("placement prerequisites manager=%d settings=%d pc=%s pawn=%s viewport=%d"),Manager!=nullptr,Settings!=nullptr,*GetNameSafe(W->GetFirstPlayerController()?W->GetFirstPlayerController()->GetClass():nullptr),*GetNameSafe(W->GetFirstPlayerController()&&W->GetFirstPlayerController()->GetPawn()?W->GetFirstPlayerController()->GetPawn()->GetClass():nullptr),V.IsValid()));}return false;}
@@ -129,14 +129,14 @@ public:
     {
         if(FPlatformTime::Seconds()-Started>20){Test->AddError(TEXT("Restored preview fixture timeout"));return true;}
         UWorld* W=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)W=C.World();if(!FinalAcceptanceViewportReady(W))return false;
-        auto* Workspace=W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Manager=Workspace->GetCoordinator();auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings));
+        auto* Workspace=W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Manager=Workspace->GetCoordinator();auto* Settings=Cast<UDxWidgetVirtualSensorSettingsPanel>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings));
         auto* Placement=W->GetSubsystem<UVirtualSensorPlacementSubsystem>();if(!Manager||!Settings)return false;
         if(!Waiting)
         {
             Manager->SetViewMode(Kind==0?EVirtualSensorViewMode::Camera:EVirtualSensorViewMode::Lidar);Workspace->SynchronizeOwnedSelection();
             Settings->SetSelectedSimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Sensor=Manager->GetSelectedSensorActor();if(!Sensor.IsValid())return false;
             if(auto* C=Cast<AVirtualCameraSensorActor>(Sensor.Get()))
-            {FVirtualSensorEditableState State;C->ReadEditableState(State);State.CameraCaptureMode=EVirtualCameraCaptureMode::PreviewOnly;FString Reason;Test->TestTrue(TEXT("camera preview-only setup succeeds"),C->ApplyEditableState(State,Reason));OriginalJpeg=C->CaptureComponent->GetLastJpegSnapshot();}
+            {FVirtualSensorEditableState State;C->ReadEditableState(State);State.CameraCaptureMode=EVirtualCameraCaptureMode::PreviewOnly;FString Reason;Test->TestTrue(TEXT("camera preview-only setup succeeds"),C->ApplyEditableState(State,Reason));OriginalJpeg=C->CaptureComp->GetLastJpegSnapshot();}
             Sensor->StartSensor();Settings->SetSensorManipulationEnabled(true);
             auto Pose=Sensor->GetActorTransform();Pose.AddToTranslation(FVector(30,0,0));Test->TestTrue(TEXT("actual interaction pose applies"),Sensor->UpdateInteractiveTransform(Pose));
             Settings->SetSensorManipulationEnabled(false);ExitAt=FPlatformTime::Seconds();Waiting=true;return false;
@@ -146,7 +146,7 @@ public:
         {if(FPlatformTime::Seconds()-ExitAt<=1.5)return false;Test->AddError(FString::Printf(TEXT("kind=%d original-spec coherent preview did not finish within 1.5s: %s"),Kind,*Status.Message));return true;}
         Test->AddInfo(FString::Printf(TEXT("kind=%s restored_pose_preview_ms=%.3f frame=%lld"),Kind==0?TEXT("Camera"):TEXT("LiDAR"),(FPlatformTime::Seconds()-ExitAt)*1000,Status.CompletedFrameId));
         Test->TestTrue(TEXT("restored coherent preview within 1.5 seconds"),FPlatformTime::Seconds()-ExitAt<=1.5);
-        if(auto* C=Cast<AVirtualCameraSensorActor>(Sensor.Get()))Test->TestTrue(TEXT("preview proof does not generate JPEG"),C->CaptureComponent->GetLastJpegSnapshot()==OriginalJpeg);
+        if(auto* C=Cast<AVirtualCameraSensorActor>(Sensor.Get()))Test->TestTrue(TEXT("preview proof does not generate JPEG"),C->CaptureComp->GetLastJpegSnapshot()==OriginalJpeg);
         Waiting=false;Sensor.Reset();if(++Kind>=2)return true;return false;
     }
 };
@@ -165,7 +165,7 @@ public:
     {
         if(FPlatformTime::Seconds()-Started>20){Test->AddError(TEXT("Placement render latency fixture timeout"));return true;}
         UWorld* W=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)W=C.World();if(!W)return false;
-        auto* Workspace=W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Manager=Workspace->GetCoordinator();auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings));
+        auto* Workspace=W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Manager=Workspace->GetCoordinator();auto* Settings=Cast<UDxWidgetVirtualSensorSettingsPanel>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings));
         if(!Manager||!Settings)return false;auto V=W->GetGameInstance()->GetGameViewportClient()->GetGameViewportWidget();if(!V.IsValid())return false;auto& App=FSlateApplication::Get();
         if(!Gizmo.IsValid())
         {

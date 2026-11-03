@@ -1,11 +1,11 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "Device/Core/VirtualSensorCaptureRendering.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Device/Camera/VirtualCameraCaptureComponent.h"
@@ -17,19 +17,19 @@ bool FSensorWssFallbackTest::RunTest(const FString& Parameters)
 	auto* Manager = World->SpawnActor<AVirtualSensorCoordinator>();
 	auto* Camera = World->SpawnActor<AVirtualCameraSensorActor>();
 	Manager->RegisterSensorActor(Camera);
-	auto* Publisher = Manager->StreamPublisherComponent.Get();
-	auto* Transport = Manager->SharedTransportComponent.Get();
+	auto* Publisher = Manager->StreamPublisherComp.Get();
+	auto* Transport = Manager->SharedTransportComp.Get();
 	Publisher->SetTransportComponent(Transport);
 	Transport->TransportMode = EVirtualSensorTransportMode::StompWebSocket;
 	Transport->TransportProfile.BrokerUrl = TEXT("ws://127.0.0.1:61616");
 	Publisher->StartStream(EVirtualSensorStreamKind::CameraImage, Camera->GetSensorId());
 	TestTrue(TEXT("plain local STOMP supports raw backend"), Publisher->CanUseHighThroughputTransport());
-	TestTrue(TEXT("raw path may omit compatibility JSON"), Camera->CaptureComponent->HasHighThroughputStreamOutputDemand());
+	TestTrue(TEXT("raw path may omit compatibility JSON"), Camera->CaptureComp->HasHighThroughputStreamOutputDemand());
 	Transport->TransportProfile.BrokerUrl = TEXT("wss://example.invalid:61616/stomp");
 	Publisher->PumpPublisherOnce(FPlatformTime::Seconds()); // no queued body: does not connect
 	TestFalse(TEXT("WSS never enters raw TCP submit"), Publisher->CanUseHighThroughputTransport());
-	TestFalse(TEXT("WSS camera disables binary-only demand"), Camera->CaptureComponent->HasHighThroughputStreamOutputDemand());
-	TestTrue(TEXT("WSS camera keeps output demand for compatibility JSON"), Camera->CaptureComponent->HasRuntimeStreamOutputDemand());
+	TestFalse(TEXT("WSS camera disables binary-only demand"), Camera->CaptureComp->HasHighThroughputStreamOutputDemand());
+	TestTrue(TEXT("WSS camera keeps output demand for compatibility JSON"), Camera->CaptureComp->HasRuntimeStreamOutputDemand());
 	TestEqual(TEXT("secure URL is never rewritten to plaintext"), Transport->TransportProfile.BrokerUrl, FString(TEXT("wss://example.invalid:61616/stomp")));
 	Publisher->StopAllStreams(FString());
 	Camera->Destroy(); Manager->Destroy();
@@ -57,12 +57,12 @@ bool FStompAuthContractTest::RunTest(const FString& Parameters)
 {
 	TMap<FName,FString> Headers; FString Error;
 	TestTrue(TEXT("empty password is a broker decision, never an engine assertion"),
-		UVirtualSensorTransportComponent::BuildStompConnectHeaders(TEXT("user"),TEXT(""),TEXT(""),Headers,Error));
+		UVirtualSensorTransportComp::BuildStompConnectHeaders(TEXT("user"),TEXT(""),TEXT(""),Headers,Error));
 	TestTrue(TEXT("login and passcode keys travel together"),Headers.Contains(TEXT("login")) && Headers.Contains(TEXT("passcode")));
 	TestFalse(TEXT("mixed upgrade and CONNECT auth rejected before engine call"),
-		UVirtualSensorTransportComponent::BuildStompConnectHeaders(TEXT("user"),TEXT("secret"),TEXT("token"),Headers,Error));
+		UVirtualSensorTransportComp::BuildStompConnectHeaders(TEXT("user"),TEXT("secret"),TEXT("token"),Headers,Error));
 	TestTrue(TEXT("token-only auth has no CONNECT login"),
-		UVirtualSensorTransportComponent::BuildStompConnectHeaders(TEXT(""),TEXT(""),TEXT("token"),Headers,Error) && Headers.IsEmpty());
+		UVirtualSensorTransportComp::BuildStompConnectHeaders(TEXT(""),TEXT(""),TEXT("token"),Headers,Error) && Headers.IsEmpty());
 	return true;
 }
 
@@ -87,13 +87,13 @@ bool FPcdNativeLimitTest::RunTest(const FString& Parameters)
 		FString Ext, Error;
 		TArray<uint8> Body;
 		int32 EncodedCount = -1;
-		TestTrue(TEXT("Native PCD serializes"), UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(Frame, Config, Ext, Body, EncodedCount, Error));
+		TestTrue(TEXT("Native PCD serializes"), UVirtualSensorStreamPublisherComp::SerializePointCloudForTesting(Frame, Config, Ext, Body, EncodedCount, Error));
 		TestEqual(TEXT("all points retained"), EncodedCount, Count);
 		TestTrue(TEXT("binary record size with bounded header"), Body.Num() >= Count * 33 && Body.Num() < Count * 33 + 1024);
 		TestTrue(TEXT("Native worst case fits default 8MiB body limit"), Body.Num() < 8 * 1024 * 1024);
 		if (Count > 0)
 		{
-			auto* Transport = NewObject<UVirtualSensorTransportComponent>();
+			auto* Transport = NewObject<UVirtualSensorTransportComp>();
 			Transport->TransportProfile.MaxMessageBytes = 1024;
 			FVirtualPointCloudBinaryMetadata Metadata;
 			Metadata.ByteCount = Body.Num();
@@ -107,7 +107,7 @@ bool FPcdNativeLimitTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPcdLiveEntryTest, "MA0T10.SensorStream.LivePcdEntryPoints", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FPcdLiveEntryTest::RunTest(const FString& Parameters)
 {
-	auto* Publisher = NewObject<UVirtualSensorStreamPublisherComponent>();
+	auto* Publisher = NewObject<UVirtualSensorStreamPublisherComp>();
 	Publisher->StartStream(EVirtualSensorStreamKind::PointCloud, TEXT("DIRECT-BP"));
 	auto Config = Publisher->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud, TEXT("DIRECT-BP"));
 	TestEqual(TEXT("direct Blueprint start uses PCD"), Config.PointCloudFormat, EVirtualPointCloudStreamFormat::PCD);
@@ -148,7 +148,7 @@ bool FSlabLifecycleTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("world adapter exists"),Slab);
 	if (!Slab) return false;
 	TestTrue(TEXT("log-only transport cannot claim a Topic session"),Slab->BeginSlabSensorSession(FString(),{}).IsEmpty());
-	Manager->SharedTransportComponent->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+	Manager->SharedTransportComp->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
 	const FString Run=Slab->BeginSlabSensorSession(FString(),{});
 	TestFalse(TEXT("begin creates UUID"),Run.IsEmpty());
 	TestFalse(TEXT("ready state does not admit sensor frames"),Slab->CaptureContext(Sensor->GetSensorId(),9001).bEligible);
@@ -184,8 +184,8 @@ bool FSlabSessionFailureTest::RunTest(const FString& Parameters)
 	auto* Manager = World->SpawnActor<AVirtualSensorCoordinator>();
 	auto* Sensor = World->SpawnActor<AVirtualLidarSensorActor>();
 	Manager->RegisterSensorActor(Sensor);
-	auto* Transport = Manager->SharedTransportComponent.Get();
-	auto* Publisher = Manager->StreamPublisherComponent.Get();
+	auto* Transport = Manager->SharedTransportComp.Get();
+	auto* Publisher = Manager->StreamPublisherComp.Get();
 	Publisher->SetTransportComponent(Transport);
 	Transport->TransportMode = EVirtualSensorTransportMode::StompWebSocket;
 	Transport->TransportProfile.MaxMessageBytes = 1024;

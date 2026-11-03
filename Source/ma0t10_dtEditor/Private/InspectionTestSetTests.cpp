@@ -2,18 +2,18 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Agent/AgentTestSetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Dataset/VirtualDatasetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabScenarioReplaySubsystem.h"
 #include "Device/Core/VirtualSensorPeriodicFileSaveSubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualSensorOutputComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualSensorOutputComp.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/AgentTestSetWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetAgentTestSet.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/GameInstance.h"
@@ -26,7 +26,7 @@
 #include "Misc/SecureHash.h"
 #include "RHIGlobals.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
-#include "Device/Sensor/VirtualSensorRecorderComponent.h"
+#include "Device/Sensor/VirtualSensorRecorderComp.h"
 #include "UnrealClient.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "HAL/FileManager.h"
@@ -34,7 +34,7 @@
 #include "Components/PanelWidget.h"
 #include "Components/CanvasPanelSlot.h"
 #include "DeviceUI/SensorOwnedPresentationStyle.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
 namespace
 {
 class FInspectionTestSetRun final:public IAutomationLatentCommand
@@ -57,9 +57,9 @@ public:
             for(TActorIterator<ASlabActor> It(World);It;++It){It->StopSimulation();if(!Slab)Slab=*It;}
             for(TActorIterator<AVirtualSensorActorBase> It(World);It;++It)It->StopSensor();
             for(TActorIterator<AVirtualLidarSensorActor> It(World);It;++It)if(It->GetSensorId()==TEXT("SLAB-LIDAR-001")){Lidar=*It;break;}
-            if(!Slab||!Lidar||!Lidar->OutputComponent||!Lidar->OutputComponent->StreamPublisherComponent){Test->AddError(TEXT("inspection map Slab/LiDAR/publisher unavailable"));return Finish();}
+            if(!Slab||!Lidar||!Lidar->OutputComp||!Lidar->OutputComp->StreamPublisherComp){Test->AddError(TEXT("inspection map Slab/LiDAR/publisher unavailable"));return Finish();}
             if(ManualBusy)for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(false);
-            Service=World->GetSubsystem<UAgentTestSetSubsystem>();Periodic=World->GetSubsystem<UVirtualSensorPeriodicFileSaveSubsystem>();Publisher=Lidar->OutputComponent->StreamPublisherComponent;
+            Service=World->GetSubsystem<UAgentTestSetSubsystem>();Periodic=World->GetSubsystem<UVirtualSensorPeriodicFileSaveSubsystem>();Publisher=Lidar->OutputComp->StreamPublisherComp;
             FString Json,Fixture;TArray<TSharedPtr<FJsonValue>> Values;
             if(Large&&FParse::Value(FCommandLine::Get(),TEXT("TestSetInspectionFixture="),Fixture))
             {
@@ -127,7 +127,7 @@ public:
                 Widget->CloseWidget();Test->TestTrue(TEXT("DTCore close can reopen the same owned test set instance"),Workspace->OpenTestSet()&&Workspace->GetTestSetWidget()==Widget&&Workspace->GetOwnedPanel(ESensorToolPanelRole::TestSet)==Widget&&Widget->GetToolWorkspace()==Workspace);
                 Workspace->SetPanelOpen(ESensorToolPanelRole::TestSet,false);Test->TestTrue(TEXT("header hide and reopen retain instance and generation"),Workspace->OpenTestSet()&&Workspace->GetTestSetWidget()==Widget&&Service->IsComplete());
             }
-            SourceFrame=Lidar->ScanComponent->GetRuntimeStatus().FrameId;Submitted=0;for(const auto& Stream:Publisher->GetStreamStatuses())Submitted+=Stream.SubmittedFrameCount;
+            SourceFrame=Lidar->ScanComp->GetRuntimeStatus().FrameId;Submitted=0;for(const auto& Stream:Publisher->GetStreamStatuses())Submitted+=Stream.SubmittedFrameCount;
             Preview=0;SeenFrame=INDEX_NONE;Test->TestTrue(TEXT("saved PCD select"),Service->SelectPreview(0,Error));
             // Immediately replace an outstanding file read; it must never populate the new selection.
             if(Large){Service->SelectPreview(1,Error);Service->SelectPreview(0,Error);}
@@ -157,7 +157,7 @@ public:
             Service->StopPreview();Test->TestTrue(TEXT("stop removes view selection"),Service->PreviewStatus().Scenario==INDEX_NONE);
             if(Large&&++Preview<3){FileHash=HashFiles(Service->Items()[Preview]);Service->SelectPreview(Preview,Error);Phase=3;return false;}
             int64 Sent=0;for(const auto& Stream:Publisher->GetStreamStatuses())Sent+=Stream.SubmittedFrameCount;
-            Test->TestEqual(TEXT("PCD viewing submits zero transport frames"),Sent,Submitted);Test->TestEqual(TEXT("PCD viewing never acquires on source sensor"),Lidar->ScanComponent->GetRuntimeStatus().FrameId,SourceFrame);
+            Test->TestEqual(TEXT("PCD viewing submits zero transport frames"),Sent,Submitted);Test->TestEqual(TEXT("PCD viewing never acquires on source sensor"),Lidar->ScanComp->GetRuntimeStatus().FrameId,SourceFrame);
             Test->TestTrue(TEXT("clear completed list, preserve artifacts"),Service->ResetConfirmed(Error));Phase=6;return false;
         }
         if(Phase==6)
@@ -228,7 +228,7 @@ private:
         if(Service){Service->StopPreview();Service->ResetConfirmed(Error);}if(Lidar)Lidar->StopSensor();if(Publisher&&Lidar)Publisher->StopStream(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId());if(Periodic&&!PeriodicId.IsEmpty())Periodic->StopPeriodicSave(PeriodicId);
         if(Slab)Slab->SetSensorOutputs(OriginalOutputs);return true;
     }
-    FAutomationTestBase* Test;bool Large,ManualBusy=false,MatrixDone=false,PreStopEnabled=true,PreStopIntent=true;int32 MatrixStep=0;FString OriginalX,OriginalY,InputSource;double LastResize=0;UWorld* World=nullptr;UAgentTestSetSubsystem* Service=nullptr;UVirtualSensorPeriodicFileSaveSubsystem* Periodic=nullptr;UVirtualSensorStreamPublisherComponent* Publisher=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;
+    FAutomationTestBase* Test;bool Large,ManualBusy=false,MatrixDone=false,PreStopEnabled=true,PreStopIntent=true;int32 MatrixStep=0;FString OriginalX,OriginalY,InputSource;double LastResize=0;UWorld* World=nullptr;UAgentTestSetSubsystem* Service=nullptr;UVirtualSensorPeriodicFileSaveSubsystem* Periodic=nullptr;UVirtualSensorStreamPublisherComp* Publisher=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;
     FVirtualSlabSensorOutputSelection OriginalOutputs;TArray<FString> Inputs;FString Error,PeriodicId,PeriodicFolder,FileHash;int64 Submitted=0,SourceFrame=0;int32 Mode=0,Phase=0,Injected=0,Preview=0,SeenFrame=INDEX_NONE;double Started=FPlatformTime::Seconds(),Observed=0,At=0;
 };
 bool InspectionCase(FAutomationTestBase* Test,bool Large)
@@ -245,7 +245,7 @@ bool FInspectionTestSet100::RunTest(const FString&){if(!FParse::Param(FCommandLi
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInspectionTestSetScope,"MA0T10.TestSet.ScopedStopPreservesUserSettings",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FInspectionTestSetScope::RunTest(const FString&)
 {
-    auto* Publisher=NewObject<UVirtualSensorStreamPublisherComponent>();FVirtualSensorStreamConfig Config;Config.StreamKind=EVirtualSensorStreamKind::PointCloud;Config.SensorId.Reset();Config.bEnabled=true;Publisher->ConfigureStream(Config);
+    auto* Publisher=NewObject<UVirtualSensorStreamPublisherComp>();FVirtualSensorStreamConfig Config;Config.StreamKind=EVirtualSensorStreamKind::PointCloud;Config.SensorId.Reset();Config.bEnabled=true;Publisher->ConfigureStream(Config);
     Publisher->SetLocalCaptureSuspended(TEXT("A"),true);FVirtualSensorStreamConfig Effective;
     TestFalse(TEXT("held sensor cannot enter wildcard output"),Publisher->ResolveActiveStreamForSensor(EVirtualSensorStreamKind::PointCloud,TEXT("A"),Effective));
     TestTrue(TEXT("other sensor keeps wildcard route"),Publisher->ResolveActiveStreamForSensor(EVirtualSensorStreamKind::PointCloud,TEXT("B"),Effective));
@@ -254,7 +254,7 @@ bool FInspectionTestSetScope::RunTest(const FString&)
     TestTrue(TEXT("other sensor placement remains protected"),Publisher->HasSensorPlacementWork(TEXT("B"),EVirtualSensorKind::Lidar));
     Publisher->StopStream(EVirtualSensorStreamKind::PointCloud,FString());Publisher->SetLocalCaptureSuspended(TEXT("A"),false);
     TestFalse(TEXT("releasing hold preserves user stop"),Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,FString()));
-    auto* Recorder=NewObject<UVirtualSensorRecorderComponent>();Recorder->StartRecording();Recorder->SetLocalCaptureSuspended(TEXT("A"),true);
+    auto* Recorder=NewObject<UVirtualSensorRecorderComp>();Recorder->StartRecording();Recorder->SetLocalCaptureSuspended(TEXT("A"),true);
     TestFalse(TEXT("only selected recording is held"),Recorder->IsRecordingSensor(TEXT("A")));TestTrue(TEXT("other recording unchanged"),Recorder->IsRecordingSensor(TEXT("B")));
     Recorder->StopRecording();Recorder->SetLocalCaptureSuspended(TEXT("A"),false);TestFalse(TEXT("releasing recording hold preserves user stop"),Recorder->IsRecording());return true;
 }

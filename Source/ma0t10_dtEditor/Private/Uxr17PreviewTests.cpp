@@ -4,11 +4,11 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraGroundTruth.h"
+#include "Device/Camera/VirtualCameraGroundTruthComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "EngineUtils.h"
@@ -43,7 +43,7 @@ class FUxr17PreviewSession final : public IAutomationLatentCommand
     FString TimeoutShot;
     static void Visit(const TSharedRef<SWidget>& Item,TFunctionRef<void(const TSharedRef<SWidget>&)> Fn)
     {Fn(Item);auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)Visit(Children->GetChildAt(I),Fn);}
-    bool Check(UWorld* World,UVirtualSensorToolWorkspaceSubsystem* W,AVirtualSensorCoordinator* C,UVirtualSensorMonitorPanelWidget* M,double Now)
+    bool Check(UWorld* World,UVirtualSensorToolWorkspaceSubsystem* W,AVirtualSensorCoordinator* C,UDxWidgetVirtualSensorMonitorPanel* M,double Now)
     {
         if(CheckPhase==0)
         {
@@ -51,10 +51,10 @@ class FUxr17PreviewSession final : public IAutomationLatentCommand
             CameraA=World->SpawnActor<AVirtualCameraSensorActor>();CameraB=World->SpawnActor<AVirtualCameraSensorActor>();
             for(auto* A:{CameraA.Get(),CameraB.Get()})
             {
-                A->Tags.Add(TEXT("SensorTestManaged"));A->StopSensor();A->CaptureComponent->CaptureResolution=FIntPoint(320,180);A->CaptureComponent->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;A->CaptureComponent->CaptureInterval=.1f;C->RegisterSensorActor(A);
+                A->Tags.Add(TEXT("SensorTestManaged"));A->StopSensor();A->CaptureComp->CaptureResolution=FIntPoint(320,180);A->CaptureComp->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;A->CaptureComp->CaptureInterval=.1f;C->RegisterSensorActor(A);
             }
-            CameraA->CaptureComponent->SensorId=TEXT("UXR17-아주 긴 카메라 이름 · 상태와 주파수가 잘리면 안 됩니다-ABCDEFGHIJKLMNOPQRSTUVWXYZ");CameraB->CaptureComponent->SensorId=TEXT("UXR17-B");
-            CameraA->CaptureComponent->FreezeAcquisitionForTests=true;CameraA->StartSensor();CameraB->StartSensor();C->SelectSensorActor(CameraA.Get());
+            CameraA->CaptureComp->SensorId=TEXT("UXR17-아주 긴 카메라 이름 · 상태와 주파수가 잘리면 안 됩니다-ABCDEFGHIJKLMNOPQRSTUVWXYZ");CameraB->CaptureComp->SensorId=TEXT("UXR17-B");
+            CameraA->CaptureComp->FreezeAcquisitionForTests=true;CameraA->StartSensor();CameraB->StartSensor();C->SelectSensorActor(CameraA.Get());
             W->SetDockedCardRect(FVector2D(1504,740),W->GetDockedCardMinimum());M->RefreshImageBrush();M->RefreshOwnedMonitorText();
             Test->TestTrue(TEXT("fresh running camera shows preparing before first image"),M->bOwnedPreviewWaiting&&!M->bOwnedPreviewTimedOut);
             Test->TestEqual(TEXT("preparing copy"),M->OwnedPreparingText.ToString(),FString(TEXT("영상 준비 중…")));
@@ -82,11 +82,11 @@ class FUxr17PreviewSession final : public IAutomationLatentCommand
         if(CheckPhase==11)
         {
             if(!FPaths::FileExists(TimeoutShot))return false;
-            CameraA->CaptureComponent->FreezeAcquisitionForTests=false;Due=Now;CheckPhase=2;return false;
+            CameraA->CaptureComp->FreezeAcquisitionForTests=false;Due=Now;CheckPhase=2;return false;
         }
         if(CheckPhase==2)
         {
-            if(CameraA->CaptureComponent->GetAvailableLocalFrameId()<0)return false;
+            if(CameraA->CaptureComp->GetAvailableLocalFrameId()<0)return false;
             M->RefreshImageBrush();Test->TestFalse(TEXT("first available image removes wait immediately"),M->bOwnedPreviewWaiting);
             Test->TestFalse(TEXT("first image removes timeout"),M->bOwnedPreviewTimedOut);
             Test->AddInfo(FString::Printf(TEXT("UXR17 first image after frozen acquisition %.3f s; wait removed in same callback"),Now-WaitBegan));
@@ -97,16 +97,16 @@ class FUxr17PreviewSession final : public IAutomationLatentCommand
             // One switch per rendered frame, with both cameras already acquiring.
             auto* A=SwitchMs.Num()%2?CameraA.Get():CameraB.Get();const double Begin=FPlatformTime::Seconds();C->SelectSensorActor(A);M->RefreshImageBrush();SwitchMs.Add((FPlatformTime::Seconds()-Begin)*1000);
             Test->TestFalse(TEXT("running camera switch needs no blank/wait frame"),M->bOwnedPreviewWaiting);
-            Test->TestTrue(TEXT("switch uses selected camera's own cached target"),M->NativeViewBrush.GetResourceObject()==A->CaptureComponent->GetCameraRenderTarget());
+            Test->TestTrue(TEXT("switch uses selected camera's own cached target"),M->NativeViewBrush.GetResourceObject()==A->CaptureComp->GetCameraRenderTarget());
             if(SwitchMs.Num()<20)return false;
             SwitchMs.Sort();Test->AddInfo(FString::Printf(TEXT("UXR17 running switch n=20 separate rendered frames callback p50=%.4f p95=%.4f max=%.4f ms; blank/wait frames=0; cached target bound in same callback"),(SwitchMs[9]+SwitchMs[10])*.5,SwitchMs[18],SwitchMs[19]));
-            C->SelectSensorActor(CameraA.Get());CameraA->CaptureComponent->bGroundTruthEnabled=true;M->CameraTruthDisplayMode=1;M->RefreshCameraTruth();M->RefreshImageBrush();
+            C->SelectSensorActor(CameraA.Get());CameraA->CaptureComp->bGroundTruthEnabled=true;M->CameraTruthDisplayMode=1;M->RefreshCameraTruth();M->RefreshImageBrush();
             Test->TestTrue(TEXT("first truth texture shows preparing instead of a blank brush"),M->bOwnedPreviewWaiting);
             Due=Now+.4;CheckPhase=3;return false;
         }
         if(CheckPhase==3)
         {
-            const auto* Truth=CameraA->CaptureComponent->GetGroundTruth();if(Now<Due||!Truth||!Truth->Preview(1))return false;
+            const auto* Truth=CameraA->CaptureComp->GetGroundTruth();if(Now<Due||!Truth||!Truth->Preview(1))return false;
             for(uint8 Mode=1;Mode<=3;++Mode)
             {
                 M->CameraTruthDisplayMode=Mode;M->RefreshCameraTruth();M->RefreshImageBrush();M->RefreshOwnedMonitorText();
@@ -135,7 +135,7 @@ public:
         UWorld* World=nullptr;for(const auto& Context:GEngine->GetWorldContexts())if(Context.WorldType==EWorldType::PIE)World=Context.World();
         if(!FinalAcceptanceViewportReady(World))return false;
         auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* C=W?W->GetCoordinator():nullptr;
-        auto* M=W?Cast<UVirtualSensorMonitorPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor)):nullptr;
+        auto* M=W?Cast<UDxWidgetVirtualSensorMonitorPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor)):nullptr;
         if(!C||!M)return false;
         if(ChecksOnly)return Check(World,W,C,M,Now);
         if(!Initialized)
@@ -154,8 +154,8 @@ public:
             auto* Slab=World->SpawnActor<ASlabActor>();Slab->Tags.Add(TEXT("SensorTestManaged"));Slab->SetActorLocation(FVector(1500,2500,200));Slab->ApplyDatasetGeometry(FVector(800,200,50));Slab->SetDiagnosticHelpersVisible(false);
             const FVector Origin=Slab->GetActorLocation()+FVector(-1000,-1000,800);const FTransform Pose((Slab->GetActorLocation()-Origin).Rotation(),Origin);
             CameraB=World->SpawnActor<AVirtualCameraSensorActor>();CameraB->Tags.Add(TEXT("SensorTestManaged"));CameraB->StopSensor();CameraB->SetActorTransform(Pose);
-            auto* Capture=CameraB->CaptureComponent.Get();Capture->SensorId=TEXT("UXR16-MANUAL-CAMERA");Capture->CaptureResolution=FIntPoint(640,360);Capture->CaptureInterval=.1f;Capture->SimulationQuality=EVirtualSensorSimulationQuality::Custom;Capture->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;C->RegisterSensorActor(CameraB.Get());
-            LidarB=World->SpawnActor<AVirtualLidarSensorActor>();LidarB->Tags.Add(TEXT("SensorTestManaged"));LidarB->StopSensor();LidarB->SetActorTransform(Pose);LidarB->ScanComponent->SensorId=TEXT("UXR16-MANUAL-LIDAR");LidarB->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);LidarB->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);LidarB->ScanComponent->OutputMode=EVirtualLidarOutputMode::None;C->RegisterSensorActor(LidarB.Get());
+            auto* Capture=CameraB->CaptureComp.Get();Capture->SensorId=TEXT("UXR16-MANUAL-CAMERA");Capture->CaptureResolution=FIntPoint(640,360);Capture->CaptureInterval=.1f;Capture->SimulationQuality=EVirtualSensorSimulationQuality::Custom;Capture->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;C->RegisterSensorActor(CameraB.Get());
+            LidarB=World->SpawnActor<AVirtualLidarSensorActor>();LidarB->Tags.Add(TEXT("SensorTestManaged"));LidarB->StopSensor();LidarB->SetActorTransform(Pose);LidarB->ScanComp->SensorId=TEXT("UXR16-MANUAL-LIDAR");LidarB->ScanComp->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);LidarB->ScanComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);LidarB->ScanComp->OutputMode=EVirtualLidarOutputMode::None;C->RegisterSensorActor(LidarB.Get());
             LidarA->StartSensor();C->SelectSensorActor(LidarA.Get());M->SetMonitorPresentation(EVirtualSensorMonitorPresentation::TwoDimensional);
             W->SetPanelOpen(ESensorToolPanelRole::Monitor,true);
             const auto Size=Combination<2?FVector2D(400,288):W->GetDockedCardMinimum();
@@ -176,7 +176,7 @@ public:
                 auto* A=CameraA.Get();A->StopSensor();
                 for(TActorIterator<ASlabActor> It(World);It;++It)if(*It!=nullptr&&It->GetActorLocation()!=FVector(1500,2500,200))
                 {const FVector Target=It->GetActorLocation(),Origin=Target+FVector(-1000,-1000,800);A->SetActorTransform(FTransform((Target-Origin).Rotation(),Origin));break;}
-                auto* Capture=A->CaptureComponent.Get();Capture->CaptureResolution=FIntPoint(640,360);Capture->CaptureInterval=.1f;Capture->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;Capture->bGroundTruthEnabled=true;
+                auto* Capture=A->CaptureComp.Get();Capture->CaptureResolution=FIntPoint(640,360);Capture->CaptureInterval=.1f;Capture->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;Capture->bGroundTruthEnabled=true;
                 C->SelectSensorActor(A);A->StartSensor();M->CameraTruthDisplayMode=1;M->RefreshCameraTruth();Due=Now+3;Requested=true;return false;
             }
             if(Step==8||Step==9){M->CameraTruthDisplayMode=uint8(Step-6);M->RefreshCameraTruth();M->RefreshImageBrush();Due=Now+.4;Requested=true;return false;}
@@ -194,7 +194,7 @@ public:
                 if(Tip)Test->TestEqual(TEXT("name tooltip retains full sensor name"),StaticCastSharedRef<SToolTip>(Tip->AsWidget())->GetTextTooltip().ToString(),M->OwnedMonitorStatus.ToString());
             }
             if(Step>=7&&Step<=9)Test->TestEqual(TEXT("rendered card truth mode badge matches selected mode"),M->OwnedCameraMode,uint8(Step-6));
-            const auto* Truth=CameraA->CaptureComponent->GetGroundTruth();
+            const auto* Truth=CameraA->CaptureComp->GetGroundTruth();
             if(Step>=7&&Step<=9&&(!Truth||!Truth->Preview(uint8(Step-6))))return false;
             Path=Root/FString::Printf(TEXT("%s-%d-%s.png"),Combination<2?TEXT("regular"):TEXT("narrow"),Combination%2?150:100,Names[Step]);
             auto Record=MakeShared<FJsonObject>();Record->SetStringField(TEXT("capture"),Path);Record->SetNumberField(TEXT("client_width"),World->GetGameViewport()->Viewport->GetSizeXY().X);Record->SetNumberField(TEXT("client_height"),World->GetGameViewport()->Viewport->GetSizeXY().Y);Record->SetNumberField(TEXT("font"),W->GetOwnedPanelFontScale());
@@ -207,7 +207,7 @@ public:
         if(Manual)return FPaths::FileExists(Root/TEXT("finish.flag"));
         Path.Empty();Requested=false;Due=Now+(Step==2?1.5:.4);
         if(++Step<12)return false;
-        C->StopAllSensors();CameraA->CaptureComponent->bGroundTruthEnabled=false;M->CameraTruthDisplayMode=0;
+        C->StopAllSensors();CameraA->CaptureComp->bGroundTruthEnabled=false;M->CameraTruthDisplayMode=0;
         C->UnregisterSensorActor(CameraB.Get());CameraB->Destroy();C->UnregisterSensorActor(LidarB.Get());LidarB->Destroy();
         if(++Combination==4)return true;
         Initialized=false;Step=0;return false;

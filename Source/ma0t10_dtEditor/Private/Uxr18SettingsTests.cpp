@@ -4,19 +4,19 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "Uxr15ToggleTestHelpers.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/AgentTestSetWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetAgentTestSet.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiPreferences.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Sensor/VirtualImuComponent.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/Automation/AutomationControlSubsystem.h"
+#include "Device/Sensor/VirtualImuComp.h"
+#include "ma0t10_dt/MA0T10/Dataset/VirtualDatasetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Manager/Automation/AutomationControlSubsystem.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "RHIGlobals.h"
@@ -28,7 +28,7 @@ bool FUxr18SettingsTest::RunTest(const FString&)
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* C=World->SpawnActor<AVirtualSensorCoordinator>();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();W->SetCoordinator(C);
     auto* Camera=World->SpawnActor<AVirtualCameraSensorActor>();auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>();
     for(auto* A:TArray<AActor*>{C,Camera,Lidar})A->Tags.Add(TEXT("SensorTestManaged"));Camera->StopSensor();Lidar->StopSensor();C->RegisterSensorActor(Camera);C->RegisterSensorActor(Lidar);
-    auto* S=NewObject<UVirtualSensorSettingsPanelWidget>(World);S->Initialize();W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,S);S->BindSensorManager(C);S->SetVisibility(ESlateVisibility::Visible);const auto Slate=S->TakeWidget();
+    auto* S=NewObject<UDxWidgetVirtualSensorSettingsPanel>(World);S->Initialize();W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,S);S->BindSensorManager(C);S->SetVisibility(ESlateVisibility::Visible);const auto Slate=S->TakeWidget();
     TestEqual(TEXT("fresh settings shows basic only"),S->WorkspaceSettingsTab,0);
     C->SelectSensorActor(Lidar);S->SynchronizeWorkspaceSelection(true);S->RefreshOwnedSettingsText();
     TestEqual(TEXT("default fidelity count is zero"),S->OwnedTabEnabledCounts[1],0);TestEqual(TEXT("default automation count is zero"),S->OwnedTabEnabledCounts[2],0);
@@ -50,7 +50,7 @@ bool FUxr18SettingsTest::RunTest(const FString&)
     S->SetVisibility(ESlateVisibility::Collapsed);S->OwnedAutomationText=FText::FromString(TEXT("hidden sentinel"));S->OwnedTabActivity[1]=FText::FromString(TEXT("hidden badge sentinel"));S->NativeTick(FGeometry(),.3f);
     TestEqual(TEXT("hidden settings do not format API details"),S->OwnedAutomationText.ToString(),FString(TEXT("hidden sentinel")));TestEqual(TEXT("hidden settings do not format badges"),S->OwnedTabActivity[1].ToString(),FString(TEXT("hidden badge sentinel")));
     S->SetVisibility(ESlateVisibility::Visible);S->SelectOwnedSettingsTab(0);S->RefreshOwnedSettingsText();TestEqual(TEXT("inactive automation tab leaves detail cache untouched"),S->OwnedAutomationText.ToString(),FString(TEXT("hidden sentinel")));
-    auto* Fresh=NewObject<UVirtualSensorSettingsPanelWidget>(World);TestEqual(TEXT("new session instance defaults to basic"),Fresh->WorkspaceSettingsTab,0);
+    auto* Fresh=NewObject<UDxWidgetVirtualSensorSettingsPanel>(World);TestEqual(TEXT("new session instance defaults to basic"),Fresh->WorkspaceSettingsTab,0);
     TestNull(TEXT("no settings tab added to SensorUI SaveGame"),UVirtualSensorUiPreferencesSaveGame::StaticClass()->FindPropertyByName(TEXT("WorkspaceSettingsTab")));
     TestEqual(TEXT("existing SensorUI version remains six"),GetDefault<UVirtualSensorUiPreferencesSaveGame>()->Version,6);TestEqual(TEXT("existing Workspace version remains one"),GetDefault<USensorToolWorkspaceSaveGame>()->Version,1);
     W->UnregisterPanel(S);C->Destroy();Camera->Destroy();Lidar->Destroy();return true;
@@ -59,7 +59,7 @@ bool FUxr18SettingsTest::RunTest(const FString&)
 class FUxr18Routes final:public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;double Started=FPlatformTime::Seconds(),Wait=0;int32 Phase=0;
-    UWorld* World=nullptr;UVirtualSensorToolWorkspaceSubsystem* W=nullptr;UVirtualSensorSettingsPanelWidget* S=nullptr;AVirtualSensorActorBase* Actor=nullptr;
+    UWorld* World=nullptr;UVirtualSensorToolWorkspaceSubsystem* W=nullptr;UDxWidgetVirtualSensorSettingsPanel* S=nullptr;AVirtualSensorActorBase* Actor=nullptr;
     TSharedPtr<SWidget> Slate;FString Job;
 public:
     explicit FUxr18Routes(FAutomationTestBase* T):Test(T){}
@@ -73,17 +73,17 @@ public:
             W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* C=W->GetCoordinator();C->StopAllSensors();
             for(auto* A:C->GetSensorActors())if(A&&A->GetSensorKind()==EVirtualSensorKind::Lidar){Actor=A;C->SelectSensorActor(A);break;}
             if(!Actor){Test->AddError(TEXT("UXR18 requires existing LiDAR fixture"));return true;}
-            W->SynchronizeOwnedSelection();S=Cast<UVirtualSensorSettingsPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));W->SetPanelOpen(ESensorToolPanelRole::Settings,true);S->SelectOwnedSettingsTab(0);Slate=S->TakeWidget();Wait=Now+.3;return false;
+            W->SynchronizeOwnedSelection();S=Cast<UDxWidgetVirtualSensorSettingsPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));W->SetPanelOpen(ESensorToolPanelRole::Settings,true);S->SelectOwnedSettingsTab(0);Slate=S->TakeWidget();Wait=Now+.3;return false;
         }
         if(Now<Wait)return false;
-        auto* Bar=Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());auto* Data=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
+        auto* Bar=Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());auto* Data=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
         if(Phase==0)
         {
             Click(Slate.ToSharedRef(),TEXT("측정 시작"),Test);Test->TestTrue(TEXT("basic start uses existing placement action"),Actor->IsSensorRunning());
             Click(Slate.ToSharedRef(),TEXT("측정 중지"),Test);Test->TestFalse(TEXT("basic stop uses existing placement action"),Actor->IsSensorRunning());
             S->SelectOwnedSettingsTab(1);Click(Slate.ToSharedRef(),TEXT("IMU 부착·노이즈·설정 열기"),Test);Test->TestEqual(TEXT("IMU link opens original owner"),W->GetSidebarRole(),ESensorToolPanelRole::Placement);
-            Test->TestNull(TEXT("navigation alone never attaches IMU"),Actor->FindComponentByClass<UVirtualImuComponent>());
-            auto* Placement=W->GetOwnedPanel(ESensorToolPanelRole::Placement);Click(Placement->TakeWidget(),TEXT("선택 장비에 IMU 부착"),Test);Test->TestNotNull(TEXT("same owner attachment callback works"),Actor->FindComponentByClass<UVirtualImuComponent>());
+            Test->TestNull(TEXT("navigation alone never attaches IMU"),Actor->FindComponentByClass<UVirtualImuComp>());
+            auto* Placement=W->GetOwnedPanel(ESensorToolPanelRole::Placement);Click(Placement->TakeWidget(),TEXT("선택 장비에 IMU 부착"),Test);Test->TestNotNull(TEXT("same owner attachment callback works"),Actor->FindComponentByClass<UVirtualImuComp>());
             Bar->OpenOwnedDestination(ESensorToolDestination::SensorSettings);W->SetSidebarMode(false);W->SetSidebarMode(true);
             // Existing sidebar-mode restoration selects Placement. Reopen Settings
             // before observing its retained tab; do not change that workspace policy.
@@ -117,7 +117,7 @@ public:
         }
         Test->TestEqual(TEXT("job completion leaves dataset opt-in only"),Data->GetOwnedDatasetEnabledCount(),1);
         S->SelectOwnedSettingsTab(2);Click(Slate.ToSharedRef(),TEXT("데이터셋 생성·형식 설정 열기"),Test);Toggle(Data->TakeWidget(),TEXT("데이터셋 생성 사용"),Test);Data->NavigatePanelBack();
-        if(auto* Imu=Actor->FindComponentByClass<UVirtualImuComponent>())Imu->DestroyComponent();return true;
+        if(auto* Imu=Actor->FindComponentByClass<UVirtualImuComp>())Imu->DestroyComponent();return true;
     }
 };
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUxr18RoutesTest,"MA0T10.UXR18.OwnedRoutesAndActivityRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

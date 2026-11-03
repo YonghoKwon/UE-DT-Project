@@ -2,21 +2,21 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetTrigger.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Agent/AgentTestSetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Agent/AgentTestSetTrigger.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "Device/Core/VirtualSensorHitchDiagnostics.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "ma0t10_dt/MA0T10/WebSocket/TC/FactoryAgentScenarioTC.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "WebSocket/FTransactionCodeDataBase.h"
 #include "Async/Async.h"
 #include "Json.h"
@@ -143,7 +143,7 @@ public:
             for(TActorIterator<AVirtualSensorCoordinator> It(World);It;++It)Coordinator=*It;
             if(!Slab||!Coordinator){Test->AddError(TEXT("ordinary routing fixture missing"));return Finish();}
             // Session-only endpoint. No external Broker or deployment settings are touched.
-            auto* Transport=Coordinator->SharedTransportComponent.Get();auto Profile=Transport->GetTransportProfile();
+            auto* Transport=Coordinator->SharedTransportComp.Get();auto Profile=Transport->GetTransportProfile();
             Profile.BrokerUrl=TEXT("tcp://127.0.0.1:1");Transport->ConfigureTransportProfile(Profile);Transport->TransportMode=EVirtualSensorTransportMode::StompWebSocket;Transport->SetSessionCredentials(FString(),FString());
             Test->TestTrue(TEXT("ordinary fixture has default PCD-only selection"),Slab->GetSensorOutputs().bPointCloud&&!Slab->GetSensorOutputs().bCameraImage&&!Slab->GetSensorOutputs().bLidarTelemetry);
             Service=World->GetSubsystem<UAgentTestSetSubsystem>();
@@ -211,7 +211,7 @@ public:
             for(TActorIterator<AVirtualSensorActorBase> It(World);It;++It)It->StopSensor();
             for(TActorIterator<AVirtualLidarSensorActor> It(World);It;++It)if(It->GetSensorId()==TEXT("SLAB-LIDAR-001")){Lidar=*It;break;}
             if(!Slab||!Lidar){Test->AddError(TEXT("validation fixture missing"));return Finish();}
-            auto* Scan=Lidar->ScanComponent.Get();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->bEnableRangeNoise=false;
+            auto* Scan=Lidar->ScanComp.Get();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->bEnableRangeNoise=false;
             Slab->SetSensorOutputs(FVirtualSlabSensorOutputSelection::ObservationOnly());
             Service=World->GetSubsystem<UAgentTestSetSubsystem>();FAgentTestSetSettings C;C.Target=FParse::Param(FCommandLine::Get(),TEXT("TestSet03Hundred"))?100:6;C.LidarId=Lidar->GetSensorId();Service->ConfigureForTests(C);
             TC=NewObject<UFactoryAgentScenarioTC>(World);TC->AddToRoot();TC->ReceiverId=Slab->ReceiverId;

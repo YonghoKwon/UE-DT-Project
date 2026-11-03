@@ -21,10 +21,10 @@
 #include "Json.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
 
 /** Actual sensor snapshots. Fixed envelope identity isolates bytes from wall-clock/FrameId changes. */
 class FSlabSurfaceRhiCommand : public IAutomationLatentCommand
@@ -44,7 +44,7 @@ public:
         {
             FString Reason;const auto P=Phase<2||Phase==6?ESlabSurfacePreset::Default:Phase<4?ESlabSurfacePreset::HotRed:ESlabSurfacePreset::OxidationScale;
             if(Phase>0)Test->TestTrue(TEXT("explicit surface transition accepted"),Slab->ApplySurfacePreset(P,Phase==3||Phase==5,Reason));
-            auto* Scan=Sensor->ScanComponent.Get();Scan->StopScan();Scan->AcquisitionBackend=Backend==0?EVirtualLidarAcquisitionBackend::AccurateCpuTrace:EVirtualLidarAcquisitionBackend::GpuDepthProjection;
+            auto* Scan=Sensor->ScanComp.Get();Scan->StopScan();Scan->AcquisitionBackend=Backend==0?EVirtualLidarAcquisitionBackend::AccurateCpuTrace:EVirtualLidarAcquisitionBackend::GpuDepthProjection;
             ReadyAt=Now+.8;return false;
         }
         if(Now<ReadyAt)return false;
@@ -60,7 +60,7 @@ public:
             else if(Phase==4)Test->TestTrue(TEXT("oxide appearance visibly changes the surface"),Pixels!=Pixels0);
             Captured=true;
         }
-        auto* Scan=Sensor->ScanComponent.Get();
+        auto* Scan=Sensor->ScanComp.Get();
         if(!Requested){Scan->StartScan();Scan->RequestImmediateScheduledScan();Scan->PrepareScheduledScan(World->GetTimeSeconds());Requested=true;}
         Scan->ProcessScheduledScanChunk(1024);const auto Frame=Scan->GetLastFrameSnapshot();
         if(!Frame||!Frame->Points||Frame->FrameId==PreviousFrame)return false;
@@ -73,7 +73,7 @@ public:
         Report->SetNumberField(FString::Printf(TEXT("%s_phase%d_intensity"),Backend?TEXT("gpu"):TEXT("cpu"),Phase),Mean);
         FVirtualSensorFrameEnvelope Envelope;Envelope.SensorId=TEXT("surface-fixture");Envelope.FrameId=42;Envelope.TimestampUtc=FDateTime(2026,1,1);Envelope.PointSnapshot=Frame->Points;
         FVirtualSensorStreamConfig Config;Config.PointCloudFormat=EVirtualPointCloudStreamFormat::PCD;Config.PcdDataMode=EVirtualPcdDataMode::Binary;FString Ext,Error;int32 Count=0;TArray<uint8> Bytes;
-        Test->TestTrue(TEXT("actual points serialize as existing binary PCD"),UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(Envelope,Config,Ext,Bytes,Count,Error));
+        Test->TestTrue(TEXT("actual points serialize as existing binary PCD"),UVirtualSensorStreamPublisherComp::SerializePointCloudForTesting(Envelope,Config,Ext,Bytes,Count,Error));
         if(Phase==0){Points0=*Frame->Points;Pcd0=Bytes;}
         else if(Phase==1||Phase==2||Phase==4||Phase==6)
         {
@@ -110,7 +110,7 @@ private:
         auto* Results=World->GetSubsystem<USlabRunResultsSubsystem>();if(!Results){Test->AddError(TEXT("Preview world result subsystem unavailable"));return false;}Results->ReportDirectoryOverrideForTests=Directory()/TEXT("runs");
         Run=FGuid::NewGuid().ToString();Slab->Status.RunUUID=Run;Results->BeginRun(Run,TEXT("surface-fixture"),ESlabExecutionPolicy::ObservationAllowed,FVirtualSlabSensorOutputSelection::ObservationOnly());
         Sensor=World->SpawnActor<AVirtualLidarSensorActor>();Sensor->SetActorLocation(FVector(0,0,1000));Sensor->SetActorRotation(FRotator(-90,0,0));
-        auto* Scan=Sensor->ScanComponent.Get();Scan->StopScan();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Scan->HorizontalSamples=120;Scan->VerticalChannels=32;Scan->FidelityMode=EVirtualSensorFidelityMode::IdealTruth;Scan->bEnableRangeNoise=false;Scan->bEnableSemanticClassification=true;Scan->ViewMode=EVirtualLidarViewMode::ActorClassColor;Scan->SemanticClassRules.Reset();Scan->SetInteractivePreviewMode(false,true);
+        auto* Scan=Sensor->ScanComp.Get();Scan->StopScan();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Scan->HorizontalSamples=120;Scan->VerticalChannels=32;Scan->FidelityMode=EVirtualSensorFidelityMode::IdealTruth;Scan->bEnableRangeNoise=false;Scan->bEnableSemanticClassification=true;Scan->ViewMode=EVirtualLidarViewMode::ActorClassColor;Scan->SemanticClassRules.Reset();Scan->SetInteractivePreviewMode(false,true);
         FVirtualLidarSemanticClassRule Rule;Rule.Label=TEXT("Slab");Rule.ActorClassNames.Add(ASlabActor::StaticClass()->GetFName());Scan->SemanticClassRules.Add(Rule);
         CaptureOwner=World->SpawnActor<AActor>();Capture=NewObject<USceneCaptureComponent2D>(CaptureOwner);CaptureOwner->SetRootComponent(Capture);Capture->bCaptureEveryFrame=Capture->bCaptureOnMovement=false;Capture->CaptureSource=ESceneCaptureSource::SCS_BaseColor;Capture->ProjectionType=ECameraProjectionMode::Orthographic;Capture->OrthoWidth=1600;
         Capture->ShowFlags.SetPostProcessing(false);Capture->ShowFlags.SetTonemapper(false);Capture->ShowFlags.SetAntiAliasing(false);Capture->ShowFlags.SetTemporalAA(false);Capture->ShowFlags.SetMotionBlur(false);Capture->ShowFlags.SetEyeAdaptation(false);Capture->ShowFlags.SetAmbientOcclusion(false);Capture->ShowFlags.SetDynamicShadows(false);Capture->ShowFlags.SetScreenSpaceReflections(false);Capture->ShowFlags.SetLumenReflections(false);Capture->ShowFlags.SetLumenGlobalIllumination(false);Capture->ShowFlags.SetFog(false);Capture->ShowFlags.SetAtmosphere(false);
@@ -120,7 +120,7 @@ private:
     {IFileManager::Get().MakeDirectory(*Directory(),true);TArray64<uint8> Png;FImageUtils::PNGCompressImageArray(512,512,TArrayView64<const FColor>(Pixels.GetData(),Pixels.Num()),Png);FFileHelper::SaveArrayToFile(Png,*(Directory()/FString::Printf(TEXT("%s-phase%d.png"),Backend?TEXT("gpu"):TEXT("cpu"),Phase)));}
     bool Finish()
     {Report->SetBoolField(TEXT("passed"),!Test->HasAnyErrors());Report->SetStringField(TEXT("scope"),TEXT("D3D12 deterministic BaseColor SceneCapture pixels + actual CPU/GPU LiDAR snapshots; existing semantic capture enabled; fixed envelope identity for binary PCD; no production FinalColor/manual claim"));FString Text;FJsonSerializer::Serialize(Report.ToSharedRef(),TJsonWriterFactory<>::Create(&Text));IFileManager::Get().MakeDirectory(*Directory(),true);FFileHelper::SaveStringToFile(Text,*(Directory()/TEXT("result.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);Cleanup();return true;}
-    void Cleanup(){if(!World)return;if(Sensor){Sensor->ScanComponent->StopScan();Sensor->GpuDepthProjectionComponent->CancelAcquisition();Sensor->GpuDepthProjectionComponent->UnregisterComponent();}if(Capture){Capture->DestroyComponent();Capture=nullptr;}for(AActor* A:{static_cast<AActor*>(Sensor),static_cast<AActor*>(Slab),Floor,CaptureOwner,static_cast<AActor*>(Light)})if(IsValid(A))A->Destroy();Sensor=nullptr;Slab=nullptr;World=nullptr;}
+    void Cleanup(){if(!World)return;if(Sensor){Sensor->ScanComp->StopScan();Sensor->GpuDepthProjectionComponent->CancelAcquisition();Sensor->GpuDepthProjectionComponent->UnregisterComponent();}if(Capture){Capture->DestroyComponent();Capture=nullptr;}for(AActor* A:{static_cast<AActor*>(Sensor),static_cast<AActor*>(Slab),Floor,CaptureOwner,static_cast<AActor*>(Light)})if(IsValid(A))A->Destroy();Sensor=nullptr;Slab=nullptr;World=nullptr;}
 };
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabSurfaceRhiTest,"MA0T10.UXR08.DefaultCameraIntensityPcdAndLinkedResponseRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabSurfaceRhiTest::RunTest(const FString&)

@@ -3,29 +3,29 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#if __has_include("ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h")
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#if __has_include("ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h")
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "Device/Sensor/VirtualSensorEditableTypes.h"
 #else
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorControlTypes.h"
 #endif
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
-#include "Device/Sensor/VirtualSensorRecorderComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
+#include "Device/Sensor/VirtualSensorRecorderComp.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Camera/VirtualCameraCaptureComponent.h"
 #if __has_include("ma0t10_dt/MA0T10/Camera/VirtualCameraGroundTruth.h")
-#include "Device/Camera/VirtualCameraGroundTruth.h"
+#include "Device/Camera/VirtualCameraGroundTruthComp.h"
 #define CAM_GT_PERF_AVAILABLE 1
 #else
 #define CAM_GT_PERF_AVAILABLE 0
 #endif
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #if __has_include("ma0t10_dt/MA0T10/Sensor/VirtualImuComponent.h")
-#include "Device/Sensor/VirtualImuComponent.h"
+#include "Device/Sensor/VirtualImuComp.h"
 #define IMU_PERF_AVAILABLE 1
 #else
 #define IMU_PERF_AVAILABLE 0
@@ -142,13 +142,13 @@ public:
                     auto Pose=Original->GetActorTransform();Pose.AddToTranslation(FVector(0,20,0));
                     auto* Extra=World->SpawnActor<AVirtualSensorActorBase>(Original->GetClass(),Pose);
                     if(!Extra){Test->AddError(TEXT("Extra PIE sensor spawn failed"));return true;}
-                    Extra->SetSharedOutputServices(Coordinator->SharedTransportComponent,Coordinator->SharedRecorderComponent,Coordinator->StreamPublisherComponent);
+                    Extra->SetSharedOutputServices(Coordinator->SharedTransportComp,Coordinator->SharedRecorderComp,Coordinator->StreamPublisherComp);
                     Coordinator->RegisterSensorActor(Extra);Sensors.Add(Extra);
                 }
             }
-            Coordinator->SharedTransportComponent->TransportMode=EVirtualSensorTransportMode::None;
-            Coordinator->SharedRecorderComponent->StopRecording();
-            Coordinator->StreamPublisherComponent->StopAllStreams(TEXT("*"));
+            Coordinator->SharedTransportComp->TransportMode=EVirtualSensorTransportMode::None;
+            Coordinator->SharedRecorderComp->StopRecording();
+            Coordinator->StreamPublisherComp->StopAllStreams(TEXT("*"));
             int32 Cameras=0,Lidars=0;
             for(int32 I=0;I<Sensors.Num();++I)if(auto* A=Sensors[I].Get())
             {
@@ -169,24 +169,24 @@ public:
                 if(auto* L=Cast<AVirtualLidarSensorActor>(A))
                 {
                     // Test-owned condition, selected identically in both revisions.
-                    L->ScanComponent->AcquisitionBackend=LidarProfile==TEXT("Rev7")?EVirtualLidarAcquisitionBackend::HardwareRayTracing:EVirtualLidarAcquisitionBackend::GpuDepthProjection;
-                    if(LidarProfile==TEXT("Rev7"))L->ScanComponent->bEnableSemanticClassification=true;
-                    L->ScanComponent->FidelityMode=EVirtualSensorFidelityMode::IdealTruth;
-                    L->ScanComponent->bEnableRangeNoise=false;++Lidars;
+                    L->ScanComp->AcquisitionBackend=LidarProfile==TEXT("Rev7")?EVirtualLidarAcquisitionBackend::HardwareRayTracing:EVirtualLidarAcquisitionBackend::GpuDepthProjection;
+                    if(LidarProfile==TEXT("Rev7"))L->ScanComp->bEnableSemanticClassification=true;
+                    L->ScanComp->FidelityMode=EVirtualSensorFidelityMode::IdealTruth;
+                    L->ScanComp->bEnableRangeNoise=false;++Lidars;
                     if(bLidarFidelityPerformance)
                     {
                         // Reflection keeps this identical instrument compilable on the baseline.
                         for(const FName Name:{FName(TEXT("bUseRollingPointTimestamps")),FName(TEXT("bEnableMotionDistortion")),FName(TEXT("bEnableMaterialResponse"))})
                         {
-                            auto* Property=FindFProperty<FBoolProperty>(L->ScanComponent->GetClass(),Name);
+                            auto* Property=FindFProperty<FBoolProperty>(L->ScanComp->GetClass(),Name);
                             if(!Property){Test->AddError(TEXT("LIDAR-FID performance option missing on this revision"));return true;}
-                            Property->SetPropertyValue_InContainer(L->ScanComponent,true);
+                            Property->SetPropertyValue_InContainer(L->ScanComp,true);
                         }
-                        L->ScanComponent->bEnableRangeNoise=true;
+                        L->ScanComp->bEnableRangeNoise=true;
                     }
                 }
                 else ++Cameras;
-                Coordinator->StreamPublisherComponent->StopAllStreams(A->GetSensorId());
+                Coordinator->StreamPublisherComp->StopAllStreams(A->GetSensorId());
                 A->StartSensor();
             }
             if(Cameras!=Pairs||Lidars!=Pairs){Test->AddError(TEXT("PERF-01 wrong sensor kind counts"));return true;}
@@ -204,7 +204,7 @@ public:
             RateSums.Init(0,Sensors.Num());StartFrames.Init(0,Sensors.Num());
             #if IMU_PERF_AVAILABLE
             if(FParse::Param(FCommandLine::Get(),TEXT("ImuPerformance")))
-                for(const auto& Weak:Sensors)if(auto* A=Weak.Get()){auto* Imu=UVirtualImuComponent::Attach(A);FVirtualImuConfig C;C.RateHz=400;FString Error;Test->TestTrue(TEXT("IMU perf configure"),Imu&&Imu->Configure(C,Error));}
+                for(const auto& Weak:Sensors)if(auto* A=Weak.Get()){auto* Imu=UVirtualImuComp::Attach(A);FVirtualImuConfig C;C.RateHz=400;FString Error;Test->TestTrue(TEXT("IMU perf configure"),Imu&&Imu->Configure(C,Error));}
 #endif
             Started=Last=Now;Phase=TEXT("warmup");return false;
         }
@@ -272,9 +272,9 @@ public:
             Row->SetStringField(TEXT("backend"),S.ActiveAcquisitionBackend);
             if(auto* L=Cast<AVirtualLidarSensorActor>(A))
             {
-                Row->SetStringField(TEXT("device_profile"),StaticEnum<EVirtualLidarDeviceProfile>()->GetNameStringByValue(int64(L->ScanComponent->DeviceProfile)));
-                Row->SetBoolField(TEXT("semantic_classification_enabled"),L->ScanComponent->bEnableSemanticClassification);
-                if(LidarProfile==TEXT("Rev7"))Test->TestEqual(TEXT("Rev7 actual HWRT backend retained"),L->ScanComponent->GetActiveAcquisitionBackend(),EVirtualLidarAcquisitionBackend::HardwareRayTracing);
+                Row->SetStringField(TEXT("device_profile"),StaticEnum<EVirtualLidarDeviceProfile>()->GetNameStringByValue(int64(L->ScanComp->DeviceProfile)));
+                Row->SetBoolField(TEXT("semantic_classification_enabled"),L->ScanComp->bEnableSemanticClassification);
+                if(LidarProfile==TEXT("Rev7"))Test->TestEqual(TEXT("Rev7 actual HWRT backend retained"),L->ScanComp->GetActiveAcquisitionBackend(),EVirtualLidarAcquisitionBackend::HardwareRayTracing);
             }
             Row->SetNumberField(TEXT("acquisition_hz_mean_including_zero"),RateSamples?RateSums[I]/RateSamples:0);
             Row->SetNumberField(TEXT("completed_frame_id_delta"),S.FrameId-StartFrames[I]);
@@ -283,9 +283,9 @@ public:
             Test->TestTrue(TEXT("each device still acquiring including zero-rate devices"),A->IsSensorRunning()&&RateSums[I]>0);
             Test->TestEqual(TEXT("acquisition failures"),S.FailedAcquisitionFrameCount,0);Test->TestEqual(TEXT("queue overflow"),S.QueueOverflowCount,0);
 #if CAM_GT_PERF_AVAILABLE
-            if(auto* C=Cast<AVirtualCameraSensorActor>(A);C&&C->CaptureComponent->GetGroundTruth())
+            if(auto* C=Cast<AVirtualCameraSensorActor>(A);C&&C->CaptureComp->GetGroundTruth())
             {
-                const auto F=C->CaptureComponent->GetGroundTruth()->LastFrame;
+                const auto F=C->CaptureComp->GetGroundTruth()->LastFrame;
                 if(F){Row->SetNumberField(TEXT("truth_frame_id"),F->Acquisition.FrameId);Row->SetNumberField(TEXT("truth_submit_ms"),F->SubmitMs);Row->SetNumberField(TEXT("truth_readback_latency_ms"),F->ReadbackLatencyMs);Row->SetNumberField(TEXT("truth_decode_ms"),F->DecodeMs);}
                 if(FParse::Param(FCommandLine::Get(),TEXT("CameraTruthPerformance")))Test->TestTrue(TEXT("enabled truth frame completed"),F.IsValid());
             }

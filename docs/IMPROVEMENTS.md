@@ -358,7 +358,7 @@ UXR 이후의 사용자 기능 순서(기존 계획 유지):
 - **현재 PIE 배치 UI/API가 추가됐다.** 관찰 시점에 Camera/LiDAR를 생성·선택·미리보기하고, 측정 설정만 복제한다. 도구 장비만 삭제하며 수집 잠금과 wildcard 자동 편입을 차단한다. 레벨 Actor를 삭제하거나 맵을 저장하지 않는다.
 - 별도 `센서 배치` 패널에서 기존 북마크 서비스와 전체 배치 서비스를 연결한다. Settings는 장비 규격·품질, Data는 PCD 전송·결과를 담당한다. 기존 위치 관련 Blueprint API와 사용자 Designer는 유지한다. 구현 완료와 두 해상도의 전체 직접 수용 검증 완료는 구분한다.
 
-근거: `VirtualSensorSettingsPanelWidget.cpp`의 `RebuildWidget`/`BuildPoseBookmarkControls`, `SensorToolToolbarWidget.cpp`, `VirtualSensorLayoutSubsystem.cpp`, `SlabScenarioValidationRig.cpp`, `Saved/Reports/SensorPlacementWorkspace/FINAL_STATUS.md`. 검증맵은 PIE에서 사용했고 운영맵은 재저장하지 않았다.
+근거: `DxWidgetVirtualSensorSettingsPanel.cpp`의 `RebuildWidget`/`BuildPoseBookmarkControls`, `SensorToolToolbarWidget.cpp`, `VirtualSensorLayoutSubsystem.cpp`, `SlabScenarioValidationRig.cpp`, `Saved/Reports/SensorPlacementWorkspace/FINAL_STATUS.md`. 검증맵은 PIE에서 사용했고 운영맵은 재저장하지 않았다.
 
 ### PKG-02 — v1.0 Shipping/Development 패키지 검증 (P0)
 
@@ -676,7 +676,7 @@ Recorder/비동기CSV, 별도 topic/schema의 StreamPublisher, 선택적 데이�
 
 - `ma0t10_dt.Build.cs`의 `PixelStreaming`, `PixelStreamingInput`, `PixelStreamingBlueprint` 의존 제거(C++ 사용 0건). `.uproject`의 플러그인 활성화와 `Samples/PixelStreaming`은 건드리지 않는다. Editor 빌드와 Game target(`ma0t10_dt Win64 Development`) 빌드로 확인한다.
 - `ForTests` 계열 테스트 hook 멤버를 `WITH_DEV_AUTOMATION_TESTS`로 제한한다(Shipping 노출 제거).
-- 초대형 파일(`UI/VirtualSensorMonitorPanelWidget.cpp`, `Sensor/VirtualLidarScanComponent.cpp`, `Core/VirtualSensorStreamPublisherComponent.cpp`)을 **같은 클래스의 여러 `.cpp`로 이동만** 해서 나눈다. 순수 인코딩 함수는 별도 파일로 옮긴다.
+- 초대형 파일(`UI/DxWidgetVirtualSensorMonitorPanel.cpp`, `Sensor/VirtualLidarScanComp.cpp`, `Core/VirtualSensorStreamPublisherComp.cpp`)을 **같은 클래스의 여러 `.cpp`로 이동만** 해서 나눈다. 순수 인코딩 함수는 별도 파일로 옮긴다.
 - 빈 `Source/m7at10_dt/` 폴더는 **2026-10-12 사용자 승인으로 삭제 완료**했다(Claude 수행, 파일 0·git 추적 0).
 - **완료:** 빌드·전체 회귀 동일, 분할 diff가 이동만으로 구성됨을 리뷰에서 확인.
 - **2026-10-12 사용자 결정: PixelStreaming은 필요한 기능이다.** 아래 결과의 PixelStreaming 모듈 의존 제거(`65dbcc4`)는 `7316787`로 되돌렸고 Editor·Game Development 빌드를 확인했다. PixelStreaming 모듈 의존·`.uproject` 플러그인·`Samples/PixelStreaming`은 제거 대상이 아니다.

@@ -2,21 +2,21 @@
 #include "Misc/AutomationTest.h"
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorDefaults.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "SensorWorkspaceForeignFixture.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tests/DxWidgetSensorWorkspaceForeignFixture.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
 #include "Components/TextBlock.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Kismet/GameplayStatics.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tool/VirtualSensorTransformGizmoActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiHostActor.h"
 #include "GameFramework/PlayerController.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorWorkspaceIsolationTest,"MA0T10.SensorWorkspace.IsolationAndStorage",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -75,10 +75,10 @@ bool FSensorWorkspaceIsolationTest::RunTest(const FString&)
     TestEqual(TEXT("workspace position survives roundtrip"), ReloadedPanel->Layout.NormalizedPosition, FVector2D(0.2f, 0.3f));
     TestEqual(TEXT("workspace size survives roundtrip"), ReloadedPanel->Layout.ExpandedSize, FVector2D(520.0f, 600.0f));
 	auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-	auto* Foreign=NewObject<USensorWorkspaceForeignFixture>(World);
-	auto* Monitor=NewObject<UVirtualSensorMonitorPanelWidget>(World);
-	auto* Settings=NewObject<UVirtualSensorSettingsPanelWidget>(World);
-	auto* Placement=NewObject<UVirtualSensorPlacementPanelWidget>(World);
+	auto* Foreign=NewObject<UDxWidgetSensorWorkspaceForeignFixture>(World);
+	auto* Monitor=NewObject<UDxWidgetVirtualSensorMonitorPanel>(World);
+	auto* Settings=NewObject<UDxWidgetVirtualSensorSettingsPanel>(World);
+	auto* Placement=NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);
 	auto* ForeignText=NewObject<UTextBlock>(Foreign);ForeignText->SetText(FText::FromString(TEXT("동료 차트")));
 	const auto OriginalFont=ForeignText->GetFont();const auto OriginalSize=Foreign->GetEffectivePanelSize();const auto OriginalPosition=Foreign->GetCurrentPanelPosition();
 	TArray<uint8> Before,After,WorkspaceBefore;
@@ -119,7 +119,7 @@ bool FSensorWorkspaceSelectionSyncTest::RunTest(const FString&)
 	auto* Camera=World->SpawnActor<AVirtualCameraSensorActor>();
 	auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>();
 	Manager->RegisterSensorActor(Camera);Manager->RegisterSensorActor(Lidar);W->SetCoordinator(Manager);
-	auto* Settings=NewObject<UVirtualSensorSettingsPanelWidget>(World);
+	auto* Settings=NewObject<UDxWidgetVirtualSensorSettingsPanel>(World);
 	W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,Settings);Settings->BindSensorManager(Manager);
 	auto* Toolbar=NewObject<USensorToolToolbarWidget>(World);Toolbar->RefreshSensors();
 	TestTrue(TEXT("selector includes LiDAR"),Toolbar->SensorOptions.ContainsByPredicate([&](const auto& Id){return *Id==Lidar->GetSensorId();}));
@@ -148,7 +148,7 @@ bool FSensorWorkspacePlacementEntryTest::RunTest(const FString&)
     W->SetPanelOpen(ESensorToolPanelRole::Placement,true);
     TestTrue(TEXT("missing host has visible failure reason"),!W->GetPanelOpenMessage().IsEmpty());
     TestFalse(TEXT("failed open does not save fake open state"),W->IsPanelOpen(ESensorToolPanelRole::Placement));
-    auto* Host=World->SpawnActor<AVirtualSensorUiHostActor>();Host->PanelHostComponent=nullptr;FString Reason;
+    auto* Host=World->SpawnActor<AVirtualSensorUiHostActor>();Host->PanelHostComp=nullptr;FString Reason;
     TestFalse(TEXT("missing dependencies do not create panel"),Host->EnsurePlacementPanel(Reason));
     TestTrue(TEXT("missing dependencies explained"),!Reason.IsEmpty());
     auto* C=World->SpawnActor<AVirtualSensorCoordinator>();Host->SensorManager=C;
@@ -164,7 +164,7 @@ bool FSensorWorkspacePlacementEntryTest::RunTest(const FString&)
         TestTrue(TEXT("repeated ensure reuses same panel"),Panel==Host->GetPlacementWidget());
     }
     Host->DestroyMonitorWidget();W->UnregisterPlacementHost(Host);Host->Destroy();
-    auto* Disabled=World->SpawnActor<AVirtualSensorUiHostActor>();Disabled->PanelHostComponent=nullptr;Disabled->SensorManager=C;Disabled->bUseNativeToolWidgetFallback=false;
+    auto* Disabled=World->SpawnActor<AVirtualSensorUiHostActor>();Disabled->PanelHostComp=nullptr;Disabled->SensorManager=C;Disabled->bUseNativeToolWidgetFallback=false;
     TestFalse(TEXT("disabled fallback respects host configuration"),Disabled->EnsurePlacementPanel(Reason));
     TestTrue(TEXT("fallback failure is actionable"),Reason.Contains(TEXT("fallback")));
     W->UnregisterPlacementHost(Disabled);Disabled->Destroy();PC->Destroy();C->Destroy();return true;

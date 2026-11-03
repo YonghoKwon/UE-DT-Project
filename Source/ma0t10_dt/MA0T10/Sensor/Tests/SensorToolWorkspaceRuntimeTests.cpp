@@ -7,10 +7,10 @@
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
 #include "UnrealClient.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiHostActor.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
 namespace {
@@ -18,7 +18,7 @@ class FWorkspaceRuntimeCheck : public IAutomationLatentCommand
 {
 	FAutomationTestBase* Test;
 	double Start=FPlatformTime::Seconds(); int32 Step=0;
-	TWeakObjectPtr<UVirtualSensorMonitorPanelWidget> Monitor;
+	TWeakObjectPtr<UDxWidgetVirtualSensorMonitorPanel> Monitor;
 	TSharedPtr<SWidget> OriginalSlate;
 public:
 	explicit FWorkspaceRuntimeCheck(FAutomationTestBase* T):Test(T){}
@@ -30,7 +30,7 @@ public:
 		if(Step==0)
 		{
 			if(FPlatformTime::Seconds()-Start<3)return false;
-			W->ResetOwnedWorkspaceLayout();Monitor=Cast<UVirtualSensorMonitorPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));
+			W->ResetOwnedWorkspaceLayout();Monitor=Cast<UDxWidgetVirtualSensorMonitorPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));
 			if(!Monitor.IsValid()){Test->AddError(TEXT("No owned monitor"));return true;}
 			OriginalSlate=Monitor->GetCachedWidget();
 			C->SetViewMode(EVirtualSensorViewMode::Camera);
@@ -48,7 +48,7 @@ public:
 			W->SetPanelOpen(ESensorToolPanelRole::Monitor,true);
 			Test->TestTrue(TEXT("show does not rebuild Slate instance"),OriginalSlate==Monitor->GetCachedWidget());
 			W->SetPanelOpen(ESensorToolPanelRole::Settings,true);
-			auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));
+			auto* Settings=Cast<UDxWidgetVirtualSensorSettingsPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));
 			Settings->SetSensorManipulationEnabled(true);W->SetPanelOpen(ESensorToolPanelRole::Settings,false);
 			Test->TestFalse(TEXT("hide settings ends manipulation only"),C->GetSelectedSensorActor()->IsInteractiveManipulationActive());
 			W->SetPanelOpen(ESensorToolPanelRole::Data,true);W->SetPanelOpen(ESensorToolPanelRole::Replay,true);

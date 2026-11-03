@@ -10,10 +10,10 @@
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Device/Camera/VirtualCameraCaptureComponent.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPanelBase.h"
 #include "Misc/FileHelper.h"
 
 static FAutoConsoleCommandWithWorldAndArgs FreezeResourceManualAcquisition(
@@ -21,8 +21,8 @@ static FAutoConsoleCommandWithWorldAndArgs FreezeResourceManualAcquisition(
     FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args,UWorld*){
         if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_RESOURCE_MANUAL_FIXTURE"))!=TEXT("1")||Args.Num()!=1)return;
         UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();if(!World)return;
-        for(TActorIterator<AVirtualCameraSensorActor> It(World);It;++It)It->CaptureComponent->FreezeAcquisitionForTests=Args[0].Equals(TEXT("Camera"),ESearchCase::IgnoreCase);
-        for(TActorIterator<AVirtualLidarSensorActor> It(World);It;++It)It->ScanComponent->FreezeAcquisitionForTests=Args[0].Equals(TEXT("LiDAR"),ESearchCase::IgnoreCase);
+        for(TActorIterator<AVirtualCameraSensorActor> It(World);It;++It)It->CaptureComp->FreezeAcquisitionForTests=Args[0].Equals(TEXT("Camera"),ESearchCase::IgnoreCase);
+        for(TActorIterator<AVirtualLidarSensorActor> It(World);It;++It)It->ScanComp->FreezeAcquisitionForTests=Args[0].Equals(TEXT("LiDAR"),ESearchCase::IgnoreCase);
         UE_LOG(LogTemp,Display,TEXT("[ResourceManual] freeze=%s (test fixture only)"),*Args[0]);
     }));
 

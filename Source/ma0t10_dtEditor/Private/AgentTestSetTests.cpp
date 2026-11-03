@@ -2,17 +2,17 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/Automation/AutomationControlSubsystem.h"
+#include "ma0t10_dt/MA0T10/Agent/AgentTestSetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Dataset/VirtualDatasetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Manager/Automation/AutomationControlSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolRig.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tool/VirtualSensorToolRig.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -65,7 +65,7 @@ public:
             for(TActorIterator<ASlabActor> It(World);It;++It)It->StopSimulation();for(TActorIterator<AVirtualSensorActorBase> It(World);It;++It)It->StopSensor();
             Slab=World->SpawnActorDeferred<ASlabActor>(ASlabActor::StaticClass(),FTransform(FVector(1500,0,200)));Slab->ReceiverId=TEXT("TESTSET-Fixture");Slab->Tags.Add(TEXT("Slab"));Slab->InitialDimensions=FVector(800,200,50);Slab->FinishSpawning(FTransform(FVector(1500,0,200)));Slab->SetDiagnosticHelpersVisible(false);Slab->SetSensorOutputs(FVirtualSlabSensorOutputSelection::ObservationOnly());
             Lidar=World->SpawnActor<AVirtualLidarSensorActor>();Lidar->StopSensor();Lidar->SetActorLocation(FVector(1500,-1000,800));Lidar->SetActorRotation((FVector(1500,0,225)-Lidar->GetActorLocation()).Rotation());
-            auto* Scan=Lidar->ScanComponent.Get();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Scan->HorizontalSamples=512;Scan->VerticalChannels=32;Scan->OutputMode=EVirtualLidarOutputMode::None;Scan->bEnableRangeNoise=false;Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->SensorId=Large?TEXT("TESTSET-LIDAR"):TEXT("UNAVAILABLE");
+            auto* Scan=Lidar->ScanComp.Get();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Scan->HorizontalSamples=512;Scan->VerticalChannels=32;Scan->OutputMode=EVirtualLidarOutputMode::None;Scan->bEnableRangeNoise=false;Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->SensorId=Large?TEXT("TESTSET-LIDAR"):TEXT("UNAVAILABLE");
             if(Manual)for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(false);
             Service=World->GetSubsystem<UAgentTestSetSubsystem>();Dataset=World->GetSubsystem<UVirtualDatasetSubsystem>();Catalog=World->GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();Catalog->RegisterPlaybackAdapter(Slab);
             Dataset->OnSceneSnapshotForTests=[this](const FJsonObject&){Test->TestFalse(TEXT("generation captures direct poses without real-time playback"),Slab->IsSimulationActive());};
@@ -82,14 +82,14 @@ public:
         {
             if(Service->Items().IsEmpty()||Service->Items()[0].State!=EAgentTestSetItemState::Failed)return false;
             Test->TestFalse(TEXT("trigger never starts live simulation"),Slab->IsSimulationActive());Test->TestEqual(TEXT("trigger does not enter normal archive"),Catalog->GetScenarios().Num(),0);
-            Service->SetPaused(true);Lidar->ScanComponent->SensorId=TEXT("TESTSET-LIDAR");const auto Run=Service->Items()[0].RunId;
+            Service->SetPaused(true);Lidar->ScanComp->SensorId=TEXT("TESTSET-LIDAR");const auto Run=Service->Items()[0].RunId;
             Test->TestTrue(TEXT("retry accepted after missing sensor fixed"),Service->Retry(0,Error));Test->TestNotEqual(TEXT("retry has a new generation UUID"),Run,Service->Items()[0].RunId);
             Test->TestFalse(TEXT("duplicate trigger is rejected"),Slab->ReceiveScenario(Source));
-            PauseFrame=Lidar->ScanComponent->GetRuntimeStatus().FrameId;PauseAt=Now;Phase=1;return false;
+            PauseFrame=Lidar->ScanComp->GetRuntimeStatus().FrameId;PauseAt=Now;Phase=1;return false;
         }
         if(Phase==1)
         {
-            if(Now-PauseAt<.3)return false;Test->TestEqual(TEXT("paused generator does not acquire"),Lidar->ScanComponent->GetRuntimeStatus().FrameId,PauseFrame);Service->SetPaused(false);Phase=2;
+            if(Now-PauseAt<.3)return false;Test->TestEqual(TEXT("paused generator does not acquire"),Lidar->ScanComp->GetRuntimeStatus().FrameId,PauseFrame);Service->SetPaused(false);Phase=2;
         }
         if(Phase==2)
         {
@@ -108,7 +108,7 @@ public:
             Test->TestEqual(TEXT("exact target count reached"),Service->Completed(),Service->Settings().Target);Test->TestEqual(TEXT("two ordinary scenarios kept separate"),Catalog->GetScenarios().Num(),2);
             Test->TestFalse(TEXT("full set rejects excess trigger"),Slab->ReceiveScenario(MakeAgentTestSetFixture(2,Service->Settings().Trigger)));
             Test->TestNotNull(TEXT("first trigger opens the owned progress widget"),World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->GetTestSetWidget());
-            Test->TestEqual(TEXT("ordinary scenarios were both run"),NormalCount,2);CheckFiles();Record(Now);CompletedAt=Now;PreviewFrame=Lidar->ScanComponent->GetRuntimeStatus().FrameId;Phase=3;return false;
+            Test->TestEqual(TEXT("ordinary scenarios were both run"),NormalCount,2);CheckFiles();Record(Now);CompletedAt=Now;PreviewFrame=Lidar->ScanComp->GetRuntimeStatus().FrameId;Phase=3;return false;
         }
         if(Phase==3)
         {
@@ -134,7 +134,7 @@ public:
             }
             if(Catalog->IsReplayBusy())return false;
             Test->TestEqual(TEXT("three saved PCD scenarios viewed"),PreviewRuns.Num(),3);
-            Test->TestEqual(TEXT("preview never acquires or sends dataset PCD"),Lidar->ScanComponent->GetRuntimeStatus().FrameId,PreviewFrame);Test->TestEqual(TEXT("preview preserves completed test set"),Service->Completed(),Service->Settings().Target);
+            Test->TestEqual(TEXT("preview never acquires or sends dataset PCD"),Lidar->ScanComp->GetRuntimeStatus().FrameId,PreviewFrame);Test->TestEqual(TEXT("preview preserves completed test set"),Service->Completed(),Service->Settings().Target);
             Test->TestEqual(TEXT("preview does not evict normal archives"),Catalog->GetScenarios().Num(),2);
             int32 Code=0;const auto Api=World->GetSubsystem<UAutomationControlSubsystem>()->Dispatch(TEXT("GET"),TEXT("/v1/testset"),nullptr,Code);Test->TestEqual(TEXT("read-only status API"),Code,200);Test->TestEqual(TEXT("API completed count"),int32(Api->GetNumberField(TEXT("completed_scenarios"))),Service->Settings().Target);
             Test->TestTrue(TEXT("confirmed reset accepted"),Service->ResetConfirmed(Error));Phase=4;return false;

@@ -1,8 +1,8 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
-#include "ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h"
-#include "ma0t10_dt/MA0T10/UI/CoilLoadingPresentation.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchLabelPresentation.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMetricPresentation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Coil/DxWidgetCoilLoadingMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Coil/CoilLoadingPresentation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchLabelPresentation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMetricPresentation.h"
 #include "DeviceUI/SensorOwnedPresentationStyle.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/TextBlock.h"
@@ -11,19 +11,19 @@
 
 struct FUxrP2bCoilProbe
 {
-    static UVerticalBox* Prepare(UCoilLoadingMonitor& M)
+    static UVerticalBox* Prepare(UDxWidgetCoilLoadingMonitor& M)
     {
         M.WidgetTree=NewObject<UWidgetTree>(&M);
         auto* Root=M.WidgetTree->ConstructWidget<UVerticalBox>();M.WidgetTree->RootWidget=Root;return Root;
     }
-    static UTextBlock* Row(UCoilLoadingMonitor& M,const FString& Text,FLinearColor Color)
+    static UTextBlock* Row(UDxWidgetCoilLoadingMonitor& M,const FString& Text,FLinearColor Color)
     { return M.MakeIssueText(Text,Color); }
 };
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUxrP2bCoilFont,"MA0T10.UXRP2b.CoilRegeneratedIssueFont",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FUxrP2bCoilFont::RunTest(const FString&)
 {
-    auto* Monitor=NewObject<UCoilLoadingMonitor>();auto* Root=FUxrP2bCoilProbe::Prepare(*Monitor);
+    auto* Monitor=NewObject<UDxWidgetCoilLoadingMonitor>();auto* Root=FUxrP2bCoilProbe::Prepare(*Monitor);
     auto* Foreign=NewObject<UTextBlock>();const auto ForeignFont=Foreign->GetFont();
     const FString Warning=TEXT("위험 · 하중 · 3개 코일 · 최악 1.234 / 1.000"),Unknown=CoilLoadingPresentation::UnknownExplanation();
     Monitor->DangerCount=3;Monitor->CautionCount=2;Monitor->DataNeededCount=8;

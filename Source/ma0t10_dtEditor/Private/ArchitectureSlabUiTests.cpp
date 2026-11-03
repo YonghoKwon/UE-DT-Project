@@ -6,7 +6,7 @@
 #include "Engine/Level.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabUiRegistry.h"
-#include "ma0t10_dt/MA0T10/UI/SlabSimulationUiHostActor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Slab/SlabSimulationUiHostActor.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FArchitectureSlabUiTest,"MA0T10.Architecture.SlabUiRegistry",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FArchitectureSlabUiTest::RunTest(const FString&)

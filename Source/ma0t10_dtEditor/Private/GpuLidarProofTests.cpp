@@ -4,9 +4,9 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/IndustrialLidarProfiles.h"
 #include "Device/Contracts/VirtualSensorRayQuery.h"
 #include "EngineUtils.h"
@@ -89,13 +89,13 @@ public:
         {
             UWorld* W=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)W=C.World();if(!W||!FinalAcceptanceViewportReady(W))return false;
             for(TActorIterator<AShipHatchSimulation>I(W);I;++I)Sim=*I;if(!Sim||Sim->IsGenerating()||!Sim->HasFreshMeasurement())return false;
-            for(int I=0;I<3;++I)if(auto* A=Sim->SensorAt(I))A->ScanComponent->StopScan();
+            for(int I=0;I<3;++I)if(auto* A=Sim->SensorAt(I))A->ScanComp->StopScan();
             if(!Test->TestTrue(TEXT("real D3D12 HWRT pipeline is available; no skip substitutes for proof"),SensorOwnedRayTracing::IsAvailable()))return true;
-            auto* Sensor=Sim->SensorAt(0);auto* C=Sensor->ScanComponent.Get();
+            auto* Sensor=Sim->SensorAt(0);auto* C=Sensor->ScanComp.Get();
             if(OverrideProfile)C->ApplyDeviceProfile(*OverrideProfile);
             Query=Sim->CaptureRayQuery(Sensor,ECC_Visibility);if(!Query||!Query->CollisionMeshes(Meshes)){Test->AddError(TEXT("CPU collision snapshot export unavailable"));return true;}
             for(const auto& M:Meshes)for(const auto& Weak:M.Surfaces)if(auto* Component=Weak.Get())AcquisitionLabels.Add(Weak,C->ResolveSemanticLabelForComponent(Component));
-            auto Profile=UVirtualLidarScanComponent::ResolveProfilePreset(C->DeviceProfile,EVirtualSensorSimulationQuality::FullSpec);
+            auto Profile=UVirtualLidarScanComp::ResolveProfilePreset(C->DeviceProfile,EVirtualSensorSimulationQuality::FullSpec);
             const int Width=Profile.HorizontalSamples,Height=Profile.VerticalChannels;
             const auto Pose=C->GetComponentTransform();Rays.SetNum(Width*Height);Reference.SetNum(Width*Height);
             for(int I=0;I<Rays.Num();++I)

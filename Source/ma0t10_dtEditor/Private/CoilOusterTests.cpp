@@ -1,16 +1,16 @@
-#include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
+#include "ma0t10_dt/MA0T10/Coil/CoilLoadingSimulation.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Core/VirtualSensorLayoutSubsystem.h"
 #include "Device/Core/VirtualSensorPlacementSubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Coil/DxWidgetCoilLoadingMonitor.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/TextBlock.h"
 #include "EngineUtils.h"
@@ -22,7 +22,7 @@
 
 namespace
 {
-bool HasModel(UCoilLoadingMonitor& M,const FString& Model,const FString& Rate)
+bool HasModel(UDxWidgetCoilLoadingMonitor& M,const FString& Model,const FString& Rate)
 {
     M.Refresh();TArray<UWidget*> Widgets;M.WidgetTree->GetAllWidgets(Widgets);
     for(auto* Widget:Widgets)if(auto* Text=Cast<UTextBlock>(Widget))if(Text->GetText().ToString().Contains(Model)&&Text->GetText().ToString().Contains(Rate))return true;
@@ -39,7 +39,7 @@ public:
         for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE&&FinalAcceptanceViewportReady(C.World()))
         for(TActorIterator<ACoilLoadingMonitorHost> H(C.World());H;++H)if(H->Simulation&&H->Monitor&&H->Coordinator&&H->Simulation->Lidar)
         {
-            auto& S=*H->Simulation;auto* Sensor=S.Lidar.Get();auto* Scan=Sensor->ScanComponent.Get();
+            auto& S=*H->Simulation;auto* Sensor=S.Lidar.Get();auto* Scan=Sensor->ScanComp.Get();
             if(Stopped)
             {
                 FString DrainReason;
@@ -53,7 +53,7 @@ public:
             Test->TestTrue(TEXT("physical noise/material response preserved, no quality shortcut"),Scan->bEnableRangeNoise&&FMath::IsNearlyEqual(Scan->RangeNoiseStandardDeviationMillimeters,30.f)&&State.bLidarMaterialResponse&&!State.bUseMultiHit);
             Test->TestTrue(TEXT("UI shows actual selected model and rate"),HasModel(*H->Monitor,TEXT("Ouster OS1-64 Rev7"),TEXT("/ 20 Hz")));
             Test->TestTrue(TEXT("single-return full33-byte upper bound including all rays fits80MiB/s"),1024.*64.*33.*20./(1024.*1024.)<80.);
-            auto* Publisher=H->Coordinator->StreamPublisherComponent.Get();const auto Config=Publisher->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud,Sensor->GetSensorId());
+            auto* Publisher=H->Coordinator->StreamPublisherComp.Get();const auto Config=Publisher->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud,Sensor->GetSensorId());
             if(!Stopped)Test->TestTrue(TEXT("PCD stays on, binary and connected-no-loss"),Config.bEnabled&&Config.PointCloudFormat==EVirtualPointCloudStreamFormat::PCD&&Config.PcdDataMode==EVirtualPcdDataMode::Binary&&Config.DeliveryMode==EVirtualPointCloudDeliveryMode::ConnectedNoLoss);
             Publisher->StopAllStreams(Sensor->GetSensorId());Sensor->StopSensor();
             if(!Stopped){Stopped=true;return false;}FString Error;

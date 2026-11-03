@@ -15,11 +15,11 @@
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 #include "Components/StaticMeshComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "LidarGeometryValidationRig.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
 #include <atomic>
 
 struct FGeometryPixelEvidence { TArray<FColor> Pixels; std::atomic<bool> Ready{false}; };
@@ -43,8 +43,8 @@ public:
             Test->AddError(TEXT("validation rig/monitor did not initialize")); return true;
         }
         if(Now-Started>60){Test->AddError(TEXT("geometry pixel readback timed out"));return true;}
-        auto* V=Rig->Sensor->VisualizationComponent.Get();
-        auto* Scan=Rig->Sensor->ScanComponent.Get();
+        auto* V=Rig->Sensor->VisualizationComp.Get();
+        auto* Scan=Rig->Sensor->ScanComp.Get();
         if(MotionUntil>0)
         {
             if(Now<MotionUntil)return false;
@@ -82,7 +82,7 @@ public:
             Export.TimestampUtc=FDateTime::UtcNow();Export.PointSnapshot=Frame->Points;Export.LidarFrameSnapshot=Frame;
             FVirtualSensorStreamConfig Config;Config.PointCloudFormat=EVirtualPointCloudStreamFormat::PCD;Config.PcdDataMode=EVirtualPcdDataMode::Binary;
             FString Ext,Error;int32 PointCount=0;TArray<uint8> Bytes;
-            if(UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(Export,Config,Ext,Bytes,PointCount,Error))
+            if(UVirtualSensorStreamPublisherComp::SerializePointCloudForTesting(Export,Config,Ext,Bytes,PointCount,Error))
             {
                 IFileManager::Get().MakeDirectory(*(FPaths::ProjectSavedDir()/TEXT("Reports")),true);
                 FFileHelper::SaveArrayToFile(Bytes,*(FPaths::ProjectSavedDir()/FString::Printf(TEXT("Reports/geometry_phase_%d.pcd"),Phase)));

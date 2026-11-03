@@ -47,7 +47,7 @@ heap을 합산하거나 양의 top 행만 더해 전체 증가라고 부르지 �
 
 | CPU user 증가 | 개수 차이 | 위치 / 판단 |
 |---|---:|---|
-| +3.6794MiB | +1 | `FObservation` 복사→`TFuture::Get`→프로젝트 `ShipHatchMonitorWidget.cpp:489`; 한 pending/current 결과의 차이로 무제한 보유 미입증 |
+| +3.6794MiB | +1 | `FObservation` 복사→`TFuture::Get`→프로젝트 `DxWidgetShipHatchMonitor.cpp:489`; 한 pending/current 결과의 차이로 무제한 보유 미입증 |
 | +2.3195MiB | +2 | 엔진 `TArray<FD3D12QueryLocation>`→`FD3D12DynamicRHI::ForEachQueue/ProcessSubmissionQueue`; query-family 배열 증가 |
 | +2MiB | +1 | 프로젝트 Bootstrap `SensorOwnedRayTracing.cpp:280`의 hit/readback 배열; finished readback·retired scan 제거 경로 존재 |
 | +0.6333MiB | +1 | 프로젝트 `Sensor/VirtualPcdCodec.cpp:131`의 출력 배열; in-flight buffer 한 개 차이 |

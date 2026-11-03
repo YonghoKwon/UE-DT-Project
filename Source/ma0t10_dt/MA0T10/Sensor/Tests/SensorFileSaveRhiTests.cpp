@@ -17,13 +17,13 @@
 #include "Json.h"
 #include "Device/Core/VirtualSensorFileSaveSubsystem.h"
 #include "Device/Core/VirtualSensorPeriodicFileSaveSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
 
 namespace
 {
@@ -81,7 +81,7 @@ class FSensorFileSaveRhiCommand final:public IAutomationLatentCommand
 	TWeakObjectPtr<AVirtualCameraSensorActor> Camera;
 	TWeakObjectPtr<AVirtualLidarSensorActor> Lidar;
 	TWeakObjectPtr<AVirtualSensorCoordinator> Coordinator;
-	TWeakObjectPtr<UVirtualSensorCaptureExportPanelWidget> Panel;
+	TWeakObjectPtr<UDxWidgetVirtualSensorCaptureExportPanel> Panel;
 	FString CameraId,LidarId,CameraRequest,LidarRequest,PeriodicId,CancelledRequest;
 	FVirtualSensorFileSaveStatus CameraResult,LidarResult;
 	FVirtualSensorPeriodicFileSaveStatus PeriodicResult;
@@ -158,10 +158,10 @@ public:
 			FVirtualSensorEditableState State;FString Error;Camera->ReadEditableState(State);
 			State.SimulationQuality=EVirtualSensorSimulationQuality::Custom;State.CameraResolution=FIntPoint(320,180);State.CameraCaptureInterval=.1f;State.CameraJpegQuality=70;State.CameraCaptureMode=EVirtualCameraCaptureMode::PreviewOnly;
 			if(!Test->TestTrue(TEXT("camera configured through Actor editable-state API"),Camera->ApplyEditableState(State,Error))){Test->AddError(Error);return Finish(TEXT("camera configuration failed"));}
-			Camera->StartSensor();CameraId=Camera->GetSensorId();LidarId=Lidar->GetSensorId();OriginalTransportMode=Coordinator->SharedTransportComponent->TransportMode;
+			Camera->StartSensor();CameraId=Camera->GetSensorId();LidarId=Lidar->GetSensorId();OriginalTransportMode=Coordinator->SharedTransportComp->TransportMode;
 			Coordinator->SelectCameraByIndex(Coordinator->FindCameraIndexBySensorId(CameraId));Coordinator->SetViewMode(EVirtualSensorViewMode::Camera);
-			if(auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>())Panel=Cast<UVirtualSensorCaptureExportPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Data));
-			if(!Panel.IsValid()){Panel=CreateWidget<UVirtualSensorCaptureExportPanelWidget>(World,UVirtualSensorCaptureExportPanelWidget::StaticClass());Panel->BindSensorManager(Coordinator.Get());Panel->AddToViewport(90);bCreatedPanel=true;}
+			if(auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>())Panel=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Data));
+			if(!Panel.IsValid()){Panel=CreateWidget<UDxWidgetVirtualSensorCaptureExportPanel>(World,UDxWidgetVirtualSensorCaptureExportPanel::StaticClass());Panel->BindSensorManager(Coordinator.Get());Panel->AddToViewport(90);bCreatedPanel=true;}
 			OldVisibility=Panel->GetVisibility();Stage=1;return false;
 		}
 		if(!Camera.IsValid()||!Lidar.IsValid()||!Coordinator.IsValid()){Test->AddError(TEXT("A pinned test sensor disappeared."));return Finish(TEXT("sensor disappeared"));}
@@ -244,7 +244,7 @@ public:
 			PeriodicResult=Periodic->GetPeriodicStatus(PeriodicId);if(PeriodicResult.bPending){if(FPlatformTime::Seconds()-StopStarted>10){Test->AddError(TEXT("Periodic stop did not drain."));return Finish(TEXT("drain timeout"));}return false;}
 			Test->TestFalse(TEXT("periodic stop prevents new admissions"),PeriodicResult.bActive);Test->TestEqual(TEXT("periodic completed without failed writes"),PeriodicResult.FailedCount,int64(0));
 			FVirtualSensorEditableState State;Camera->ReadEditableState(State);Test->TestEqual(TEXT("file-only requests preserve PreviewOnly mode"),State.CameraCaptureMode,EVirtualCameraCaptureMode::PreviewOnly);
-			Test->TestEqual(TEXT("file-only requests preserve transport mode"),Coordinator->SharedTransportComponent->TransportMode,OriginalTransportMode);
+			Test->TestEqual(TEXT("file-only requests preserve transport mode"),Coordinator->SharedTransportComp->TransportMode,OriginalTransportMode);
 			FVirtualSensorCaptureSelection S;S.bCameraImage=true;S.bCameraPayload=true;S.bPointCloud=false;S.bLidarPayload=false;
 			CancelledRequest=Files->RequestSave(EVirtualSensorFileSaveMode::NewFrame,Camera.Get(),S);Camera->StopSensor();CancelledAt=FPlatformTime::Seconds();Stage=6;return false;
 		}
@@ -252,7 +252,7 @@ public:
 		{
 			const auto Cancelled=Files->GetRequestStatus(CancelledRequest);if(!Cancelled.IsTerminal()||FPlatformTime::Seconds()-CancelledAt<.3)return false;
 			RecordRequest(Cancelled);Test->TestEqual(TEXT("stop/generation change cancels awaiting camera result"),Cancelled.State,EVirtualSensorFileSaveState::Cancelled);Test->TestTrue(TEXT("cancelled generation cannot publish saved files"),Cancelled.FileResults.IsEmpty());
-			for(const auto& Status:Coordinator->StreamPublisherComponent->GetStreamStatuses())Test->TestFalse(TEXT("file requests do not enable a Topic stream"),Status.bEnabled);
+			for(const auto& Status:Coordinator->StreamPublisherComp->GetStreamStatuses())Test->TestFalse(TEXT("file requests do not enable a Topic stream"),Status.bEnabled);
 			return Finish(TEXT("real RHI immutable file save / selection / periodic / cancellation workflow completed"));
 		}
 		return false;

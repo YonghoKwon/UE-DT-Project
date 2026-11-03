@@ -3,7 +3,7 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
 #include "Device/Sensor/VirtualSensorEditableTypes.h"
@@ -16,13 +16,13 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "ProfilingDebugging/MiscTrace.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorPlacementInteraction.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Common/SensorPlacementInteraction.h"
 #include "Device/Core/VirtualSensorLayoutSubsystem.h"
 #include "Device/Core/VirtualSensorPlacementSubsystem.h"
 #include "UObject/StrongObjectPtr.h"
@@ -35,7 +35,7 @@
 #include "Windows/WindowsHWrapper.h"
 #endif
 #include "UxrScenarioUiFixture.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolRig.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tool/VirtualSensorToolRig.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
 
 /** Identical test-only instrument on both production revisions. No transmission or local frame saving. */
@@ -91,7 +91,7 @@ public:
             {
                 for(const auto Role:{ESensorToolPanelRole::Monitor,ESensorToolPanelRole::Placement,ESensorToolPanelRole::Settings,ESensorToolPanelRole::Replay,ESensorToolPanelRole::SlabCharts,ESensorToolPanelRole::SlabProgress})W->SetPanelOpen(Role,false);
                 W->SetPanelOpen(ESensorToolPanelRole::Data,true);
-                auto* Data=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
+                auto* Data=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
                 if(!Data){Test->AddError(TEXT("Transfer performance requires the owned data panel"));return true;}
                 Data->OpenOwnedTab(ESensorOwnedDataTab::Transfer);
             }
@@ -147,7 +147,7 @@ class FUxrPlacementOnlyWorkflow : public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;double Created=FPlatformTime::Seconds();int32 Step=0;
     TWeakObjectPtr<AVirtualSensorActorBase> Added;
-    TStrongObjectPtr<UVirtualSensorSettingsPanelWidget> BlueprintControls;
+    TStrongObjectPtr<UDxWidgetVirtualSensorSettingsPanel> BlueprintControls;
     FString PoseRequest,LayoutRequest,LayoutName=TEXT("UXR02-")+FGuid::NewGuid().ToString();FTransform SavedPose;
 public:
     explicit FUxrPlacementOnlyWorkflow(FAutomationTestBase* T):Test(T){}
@@ -155,7 +155,7 @@ public:
     {
         if(FPlatformTime::Seconds()-Created>40){Test->AddError(TEXT("placement-only workflow timed out"));return true;}
         UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();if(!World)return false;
-        auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* P=Cast<UVirtualSensorPlacementPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));auto* C=W->GetCoordinator();if(!P||!C)return false;
+        auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* P=Cast<UDxWidgetVirtualSensorPlacementPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));auto* C=W->GetCoordinator();if(!P||!C)return false;
         auto* Poses=World->GetSubsystem<UVirtualSensorPlacementSubsystem>();auto* Layout=World->GetSubsystem<UVirtualSensorLayoutSubsystem>();
         if(Step==0)
         {
@@ -174,7 +174,7 @@ public:
             const auto Status=Poses->GetPoseSaveStatus(PoseRequest);if(Status.State==EVirtualSensorPoseSaveState::Writing)return false;
             if(!Test->TestEqual(TEXT("placement bookmark saved"),Status.State,EVirtualSensorPoseSaveState::Saved))return true;
             Test->TestTrue(TEXT("placement bookmark applies"),P->MoveToBookmark(Status.BookmarkId));
-            BlueprintControls.Reset(CreateWidget<UVirtualSensorSettingsPanelWidget>(World));W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,BlueprintControls.Get());BlueprintControls->BindSensorManager(C);
+            BlueprintControls.Reset(CreateWidget<UDxWidgetVirtualSensorSettingsPanel>(World));W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,BlueprintControls.Get());BlueprintControls->BindSensorManager(C);
             Test->TestTrue(TEXT("settings BP API shares same gizmo"),BlueprintControls->GetTransformGizmoActor()==W->GetPlacementInteraction()->GetExistingGizmo());
             PoseRequest=BlueprintControls->RequestSaveSelectedSensorPose(TEXT("BP delegation"));LayoutRequest=P->SaveWholeLayout(LayoutName);Step=2;return false;
         }
@@ -212,7 +212,7 @@ public:
     {
         if(FPlatformTime::Seconds()-Created>60){Test->AddError(TEXT("UXR-02 render fixture timed out"));return true;}
         UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();if(!FinalAcceptanceViewportReady(World))return false;
-        auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* P=Cast<UVirtualSensorPlacementPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));auto* C=W->GetCoordinator();if(!P||!C)return false;
+        auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* P=Cast<UDxWidgetVirtualSensorPlacementPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));auto* C=W->GetCoordinator();if(!P||!C)return false;
         const auto Size=World->GetGameViewport()->Viewport->GetSizeXY();const float Scale=Phase==1?1.5f:1.f;
         if(!ReadyAt)
         {
@@ -289,7 +289,7 @@ public:
                 Json->SetArrayField(TEXT("panels"),PanelRows);Json->SetBoolField(TEXT("any_capture"),FSlateApplication::Get().HasAnyMouseCaptor());
                 if(auto* PC=World->GetFirstPlayerController()){Json->SetStringField(TEXT("view_rotation"),PC->GetControlRotation().ToString());if(PC->GetPawn())Json->SetStringField(TEXT("pawn_transform"),PC->GetPawn()->GetActorTransform().ToString());}
                 if(auto* C=W->GetCoordinator())for(auto* A:C->GetSensorActors())if(A){auto Row=MakeShared<FJsonObject>();Row->SetStringField(TEXT("id"),A->GetSensorId());Row->SetStringField(TEXT("pose"),A->GetActorTransform().ToString());Row->SetBoolField(TEXT("selected"),C->GetSelectedSensorActor()==A);Row->SetBoolField(TEXT("measuring"),A->IsSensorRunning());Row->SetBoolField(TEXT("manipulating"),A->IsInteractiveManipulationActive());Rows.Add(MakeShared<FJsonValueObject>(Row));}
-                Json->SetArrayField(TEXT("devices"),Rows);if(auto* P=Cast<UVirtualSensorPlacementPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Placement)))Json->SetStringField(TEXT("placement_message"),P->GetPlacementStatusText());
+                Json->SetArrayField(TEXT("devices"),Rows);if(auto* P=Cast<UDxWidgetVirtualSensorPlacementPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Placement)))Json->SetStringField(TEXT("placement_message"),P->GetPlacementStatusText());
                 if(!FontProbed&&FPlatformTime::Seconds()-Created>5)if(auto* P=W->GetOwnedPanel(ESensorToolPanelRole::Placement))if(auto Root=P->GetCachedWidget())
                 {
                     FontProbed=true;auto Probe=MakeShared<FJsonObject>();Probe->SetNumberField(TEXT("pixelScale"),W->GetOwnedPixelScale());Probe->SetNumberField(TEXT("storedScale"),P->GetSensorToolFontScale());Probe->SetNumberField(TEXT("visualScale"),P->GetSensorToolVisualScale());Probe->SetBoolField(TEXT("nativeOwned"),P->SupportsOwnedDocking());TArray<TSharedPtr<FJsonValue>> Fonts;

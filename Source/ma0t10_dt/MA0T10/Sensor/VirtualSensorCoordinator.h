@@ -10,13 +10,13 @@ class UActorComponent;
 class APlayerController;
 class AVirtualSensorActorBase;
 class UPrimitiveComponent;
-class URealSensorSourceComponent;
+class URealSensorSourceComp;
 class UVirtualCameraCaptureComponent;
-class UVirtualLidarScanComponent;
-class UVirtualSensorMonitorPanelWidget;
-class UVirtualSensorTransportComponent;
-class UVirtualSensorRecorderComponent;
-class UVirtualSensorStreamPublisherComponent;
+class UVirtualLidarScanComp;
+class UDxWidgetVirtualSensorMonitorPanel;
+class UVirtualSensorTransportComp;
+class UVirtualSensorRecorderComp;
+class UVirtualSensorStreamPublisherComp;
 class IVirtualSensorMonitorView;
 
 UCLASS()
@@ -46,13 +46,13 @@ public:
     void RegisterCamera(UVirtualCameraCaptureComponent* CameraComp);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
-    void RegisterLidar(UVirtualLidarScanComponent* LidarComp);
+    void RegisterLidar(UVirtualLidarScanComp* LidarComp);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
-    void RegisterRealSensorSource(URealSensorSourceComponent* RealSensorSourceComponent);
+    void RegisterRealSensorSource(URealSensorSourceComp* RealSensorSourceComp);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
-    void BindMonitorWidget(UVirtualSensorMonitorPanelWidget* MonitorWidget);
+    void BindMonitorWidget(UDxWidgetVirtualSensorMonitorPanel* MonitorWidget);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
     void SelectCameraByIndex(int32 Index);
@@ -127,10 +127,10 @@ public:
 	int32 FindCameraIndexBySensorId(const FString& SensorId) const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
-    UVirtualLidarScanComponent* GetSelectedLidar() const;
+    UVirtualLidarScanComp* GetSelectedLidar() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
-    URealSensorSourceComponent* GetSelectedRealSensorSource() const;
+    URealSensorSourceComp* GetSelectedRealSensorSource() const;
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorCoordinator")
     AVirtualSensorActorBase* GetSelectedSensorActor() const;
@@ -148,7 +148,7 @@ public:
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
     TArray<FVirtualSensorSummary> GetLidarSummaries() const;
 
-    const TArray<TObjectPtr<UVirtualLidarScanComponent>>& GetLidarComponents() const { return Super::GetLidarComponents(); }
+    const TArray<TObjectPtr<UVirtualLidarScanComp>>& GetLidarComponents() const { return Super::GetLidarComponents(); }
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
     TArray<FVirtualSensorSummary> GetRealSensorSourceSummaries() const;
@@ -190,18 +190,18 @@ public:
     TArray<FName> PointCloudOnlyKeepActorTags;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager")
-    TObjectPtr<UVirtualSensorTransportComponent> SharedTransportComponent;
+    TObjectPtr<UVirtualSensorTransportComp> SharedTransportComp;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager")
-    TObjectPtr<UVirtualSensorRecorderComponent> SharedRecorderComponent;
+    TObjectPtr<UVirtualSensorRecorderComp> SharedRecorderComp;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DigitalTwin|SensorManager")
-    TObjectPtr<UVirtualSensorStreamPublisherComponent> StreamPublisherComponent;
+    TObjectPtr<UVirtualSensorStreamPublisherComp> StreamPublisherComp;
 
 protected:
     virtual FDeviceSensorCoordinatorConfig GetDeviceCoordinatorConfig() const override;
     virtual void NotifyDeviceViewModeChanged(EVirtualSensorViewMode Mode) override { OnViewModeChanged.Broadcast(Mode); }
 private:
     UPROPERTY(Transient)
-    TObjectPtr<UVirtualSensorMonitorPanelWidget> BoundMonitorWidget;
+    TObjectPtr<UDxWidgetVirtualSensorMonitorPanel> BoundMonitorWidget;
 };

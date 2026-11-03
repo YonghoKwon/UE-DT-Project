@@ -3,9 +3,9 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Engine/Engine.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tool/VirtualSensorTransformGizmoActor.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 
@@ -35,7 +35,7 @@ public:
         if (!World) return false;
         auto* Workspace = World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
         auto* Coordinator = Workspace->GetCoordinator();
-        auto* Settings = Cast<UVirtualSensorSettingsPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings));
+        auto* Settings = Cast<UDxWidgetVirtualSensorSettingsPanel>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings));
         if (!Coordinator || !Settings) return false;
         if (FPlatformTime::Seconds() - Started < 3.0) return false;
         if (Step != 0 && !Target.IsValid())

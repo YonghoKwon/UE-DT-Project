@@ -5,22 +5,22 @@
 void ASlabScenarioValidationRig::SetValidationControlsVisibleForTests(bool Visible)
 {if(Controls)Controls->SetVisibility(Visible?EVisibility::SelfHitTestInvisible:EVisibility::Collapsed);}
 #endif
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Device/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabScenarioReplaySubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
 #include "Core/DxDataSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Engine/GameViewportClient.h"
@@ -43,13 +43,13 @@ void ASlabScenarioValidationRig::SetValidationControlsVisibleForTests(bool Visib
 ASlabScenarioValidationRig::ASlabScenarioValidationRig(){PrimaryActorTick.bCanEverTick=true;}
 void ASlabScenarioValidationRig::ConfigureLocalBroker()
 {
-    if(!Coordinator||!Coordinator->SharedTransportComponent)return;
-    auto Profile=Coordinator->SharedTransportComponent->GetTransportProfile();
+    if(!Coordinator||!Coordinator->SharedTransportComp)return;
+    auto Profile=Coordinator->SharedTransportComp->GetTransportProfile();
     Profile.BrokerUrl=TEXT("ws://127.0.0.1:61616");
     Profile.UserName=TEXT("artemis");
-    Coordinator->SharedTransportComponent->ConfigureTransportProfile(Profile);
-    Coordinator->SharedTransportComponent->SetSessionCredentials(TEXT("artemis"),FString());
-    Coordinator->SharedTransportComponent->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+    Coordinator->SharedTransportComp->ConfigureTransportProfile(Profile);
+    Coordinator->SharedTransportComp->SetSessionCredentials(TEXT("artemis"),FString());
+    Coordinator->SharedTransportComp->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
 }
 void ASlabScenarioValidationRig::Tick(float Delta)
 {
@@ -61,7 +61,7 @@ void ASlabScenarioValidationRig::Tick(float Delta)
         if(!PC||!GetWorld()->GetGameViewport())return;
         // Owned validation fixture only: production UI uses the Actor editable-state API.
         Lidar->StopSensor();
-        auto* Scan=Lidar->ScanComponent.Get();
+        auto* Scan=Lidar->ScanComp.Get();
         Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);
         Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
         Scan->SensorId=TEXT("SLAB-LIDAR-001");
@@ -70,15 +70,15 @@ void ASlabScenarioValidationRig::Tick(float Delta)
         Scan->bEnableRangeNoise=false;
         Scan->SetServerPayloadPolicy(32,1024,false);
         Coordinator->RegisterLidar(Scan);
-        Lidar->SetSharedOutputServices(Coordinator->SharedTransportComponent,Coordinator->SharedRecorderComponent,Coordinator->StreamPublisherComponent);
+        Lidar->SetSharedOutputServices(Coordinator->SharedTransportComp,Coordinator->SharedRecorderComp,Coordinator->StreamPublisherComp);
         Lidar->StartSensor();
         if(Camera)
         {
             Camera->StopSensor();
-            Camera->CaptureComponent->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);
-            Camera->CaptureComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
-            Coordinator->RegisterCamera(Camera->CaptureComponent);
-            Camera->SetSharedOutputServices(Coordinator->SharedTransportComponent,Coordinator->SharedRecorderComponent,Coordinator->StreamPublisherComponent);
+            Camera->CaptureComp->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);
+            Camera->CaptureComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+            Coordinator->RegisterCamera(Camera->CaptureComp);
+            Camera->SetSharedOutputServices(Coordinator->SharedTransportComp,Coordinator->SharedRecorderComp,Coordinator->StreamPublisherComp);
         }
         if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_LOCAL_BROKER"))==TEXT("1"))ConfigureLocalBroker();
         PC->bShowMouseCursor=true;PC->SetInputMode(FInputModeGameAndUI());
@@ -191,7 +191,7 @@ void ASlabScenarioValidationRig::WriteReport()
             Entry->SetStringField(TEXT("sensor_id"),Device->GetSensorId());Entry->SetStringField(TEXT("kind"),Device->GetSensorKind()==EVirtualSensorKind::Camera?TEXT("Camera"):TEXT("Lidar"));
             Entry->SetBoolField(TEXT("running"),Running);Entry->SetNumberField(TEXT("acquisitions"),AcceptanceAcquisitions.FindRef(S.RunUUID).FindRef(Device->GetSensorId()));
             Entry->SetObjectField(TEXT("configuration"),FJsonObjectConverter::UStructToJsonObject(State));Sensors.Add(MakeShared<FJsonValueObject>(Entry));
-            if(auto* L=Cast<AVirtualLidarSensorActor>(Device))Entry->SetObjectField(TEXT("compatibility_output"),FJsonObjectConverter::UStructToJsonObject(L->ScanComponent->GetCompatibilityOutputStatus()));
+            if(auto* L=Cast<AVirtualLidarSensorActor>(Device))Entry->SetObjectField(TEXT("compatibility_output"),FJsonObjectConverter::UStructToJsonObject(L->ScanComp->GetCompatibilityOutputStatus()));
         }
         Root->SetArrayField(TEXT("expected_sensors"),Sensors);
     }
@@ -226,7 +226,7 @@ void ASlabScenarioValidationRig::BeginAcceptanceObservation()
     for(auto* Device:Coordinator->GetSensorActors())
     {
         const FString Id=Device->GetSensorId();
-        if(auto* L=Cast<AVirtualLidarSensorActor>(Device))L->ScanComponent->OnFrameAcquiredNative.AddWeakLambda(this,[this,Id](int64){ObserveAcquisition(Id);});
+        if(auto* L=Cast<AVirtualLidarSensorActor>(Device))L->ScanComp->OnFrameAcquiredNative.AddWeakLambda(this,[this,Id](int64){ObserveAcquisition(Id);});
     }
 }
 void ASlabScenarioValidationRig::ObserveAcquisition(const FString& Id)
@@ -248,9 +248,9 @@ void ASlabScenarioValidationRig::SaveResourceEvidence(const FString& Phase,int32
     auto Add=[&](const FVirtualSensorResourceSnapshot& S){auto Item=MakeShared<FJsonObject>();Item->SetStringField(TEXT("owner"),S.Owner);
         auto Map=[&](const TCHAR* Key,const TMap<FString,int64>& Values){auto Object=MakeShared<FJsonObject>();for(const auto& P:Values)Object->SetNumberField(P.Key,P.Value);Item->SetObjectField(Key,Object);};
         Map(TEXT("counts"),S.Counts);Map(TEXT("owned_cpu_bytes"),S.OwnedCpuBytes);Map(TEXT("shared_cpu_bytes"),S.SharedCpuBytes);Map(TEXT("estimated_gpu_bytes"),S.EstimatedGpuBytes);Items.Add(MakeShared<FJsonValueObject>(Item));};
-    if(Camera)Add(Camera->CaptureComponent->GetResourceSnapshot());
-    if(Lidar){Add(Lidar->ScanComponent->GetResourceSnapshot());if(Lidar->GpuDepthProjectionComponent)Add(Lidar->GpuDepthProjectionComponent->GetResourceSnapshot());if(Lidar->VisualizationComponent)Add(Lidar->VisualizationComponent->GetResourceSnapshot());}
-    TInlineComponentArray<UVirtualSensorStreamPublisherComponent*> Publishers;Coordinator->GetComponents(Publishers);
+    if(Camera)Add(Camera->CaptureComp->GetResourceSnapshot());
+    if(Lidar){Add(Lidar->ScanComp->GetResourceSnapshot());if(Lidar->GpuDepthProjectionComponent)Add(Lidar->GpuDepthProjectionComponent->GetResourceSnapshot());if(Lidar->VisualizationComp)Add(Lidar->VisualizationComp->GetResourceSnapshot());}
+    TInlineComponentArray<UVirtualSensorStreamPublisherComp*> Publishers;Coordinator->GetComponents(Publishers);
     for(auto* Publisher:Publishers)Add(Publisher->GetResourceSnapshot());
     Add(GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->GetResourceSnapshotForTesting());
     Root->SetArrayField(TEXT("owners"),Items);

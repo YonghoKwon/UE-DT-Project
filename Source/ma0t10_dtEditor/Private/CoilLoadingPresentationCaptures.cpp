@@ -1,7 +1,7 @@
-#include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
+#include "ma0t10_dt/MA0T10/Coil/CoilLoadingSimulation.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
-#include "ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h"
-#include "ma0t10_dt/MA0T10/UI/CoilLoadingPlanProjection.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Coil/DxWidgetCoilLoadingMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Coil/CoilLoadingPlanProjection.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"

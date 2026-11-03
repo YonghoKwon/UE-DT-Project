@@ -11,11 +11,11 @@
 #include "Json.h"
 #include "LidarGeometryValidationRig.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 
 class FGeometryStreamCommand:public IAutomationLatentCommand
@@ -33,19 +33,19 @@ public:
         ALidarGeometryValidationRig* Rig=nullptr;
         if(W)for(TActorIterator<ALidarGeometryValidationRig> It(W);It;++It){Rig=*It;break;}
         if(!Rig||!Rig->Monitor||!Rig->Coordinator){if(Now-Begin<20)return false;Test->AddError(TEXT("Geometry map not ready"));return true;}
-        auto* P=Rig->Coordinator->StreamPublisherComponent.Get();
+        auto* P=Rig->Coordinator->StreamPublisherComp.Get();
         auto* H=W->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
         if(!Configured)
         {
             if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_GEOMETRY_BASELINE"))==TEXT("1"))
-                Rig->Sensor->VisualizationComponent->SetColorMode(ELidarColorMode::RelativeHeight);
-            auto* T=Rig->Coordinator->SharedTransportComponent.Get();auto Profile=T->GetTransportProfile();
+                Rig->Sensor->VisualizationComp->SetColorMode(ELidarColorMode::RelativeHeight);
+            auto* T=Rig->Coordinator->SharedTransportComp.Get();auto Profile=T->GetTransportProfile();
             P->SetTransportComponent(T);
             Rig->Sensor->SetSharedOutputServices(T,nullptr,P);
             // PCD still contains every valid point; bound the unused compatibility JSON derivation.
-            Rig->Sensor->ScanComponent->ServerPayloadStride=32;
-            Rig->Sensor->ScanComponent->MaxServerPayloadPoints=1024;
-            Rig->Sensor->ScanComponent->bIncludeMissPointsInServerPayload=false;
+            Rig->Sensor->ScanComp->ServerPayloadStride=32;
+            Rig->Sensor->ScanComp->MaxServerPayloadPoints=1024;
+            Rig->Sensor->ScanComp->bIncludeMissPointsInServerPayload=false;
             Profile.BrokerUrl=TEXT("ws://127.0.0.1:61616");Profile.UserName=TEXT("artemis");
             T->ConfigureTransportProfile(Profile);T->SetSessionCredentials(TEXT("artemis"),FString());T->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
             FVirtualSensorStreamConfig C;C.StreamKind=EVirtualSensorStreamKind::PointCloud;C.bEnabled=true;C.FrameStride=1;C.ReceiptSampleInterval=1;
@@ -56,13 +56,13 @@ public:
         const double Age=Now-Start;
         if(Age>8 && !Logged){Logged=true;for(const auto& S:P->GetStreamStatuses())Test->AddInfo(FString::Printf(TEXT("publisher input=%lld submitted=%lld enabled=%d message=%s"),S.InputFrameCount,S.SubmittedFrameCount,S.bEnabled,*S.Message));}
         if(Age<10){Last=Now;return false;}
-        if(StartFrame<0)StartFrame=Rig->Sensor->ScanComponent->GetRuntimeStatus().FrameId;
+        if(StartFrame<0)StartFrame=Rig->Sensor->ScanComp->GetRuntimeStatus().FrameId;
         if(Age<70)
         {
             Times.Add(FApp::GetDeltaTime()*1000);Wall.Add((Now-Last)*1000);Last=Now;
-            Analysis.Add(Rig->Sensor->VisualizationComponent->GetGeometryDiagnostics().ProcessingMs);return false;
+            Analysis.Add(Rig->Sensor->VisualizationComp->GetGeometryDiagnostics().ProcessingMs);return false;
         }
-        if(!Stopped){EndFrame=Rig->Sensor->ScanComponent->GetRuntimeStatus().FrameId;Rig->Sensor->StopSensor();Stopped=true;}
+        if(!Stopped){EndFrame=Rig->Sensor->ScanComp->GetRuntimeStatus().FrameId;Rig->Sensor->StopSensor();Stopped=true;}
         FVirtualSensorStreamTelemetry Telemetry;
         for(const auto& S:H->GetStreamTelemetry())if(S.StreamKind==EVirtualSensorStreamKind::PointCloud)Telemetry=S;
         if((Telemetry.ReceiptCount!=Telemetry.SubmittedCount||Telemetry.ConsumerReceivedCount!=Telemetry.SubmittedCount)&&Age<80)return false;

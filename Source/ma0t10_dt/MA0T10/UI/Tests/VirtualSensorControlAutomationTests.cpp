@@ -3,14 +3,14 @@
 #include "Misc/AutomationTest.h"
 #include <limits>
 #include "Device/Camera/VirtualCameraCaptureComponent.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPanelBase.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiHostActor.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tool/VirtualSensorTransformGizmoActor.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiPreferences.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 
@@ -28,8 +28,8 @@ bool FVirtualSensorPanelClampTest::RunTest(const FString& Parameters)
 {
     const FVector2D Viewport(1280.0f, 720.0f);
     const FVector2D Panel(450.0f, 640.0f);
-    TestEqual(TEXT("negative position clamps to margin"), UVirtualSensorPanelWidgetBase::ClampPanelPosition(FVector2D(-100, -100), Panel, Viewport, 18.0f), FVector2D(18.0f, 18.0f));
-    const FVector2D Clamped = UVirtualSensorPanelWidgetBase::ClampPanelPosition(FVector2D(2000, 2000), Panel, Viewport, 18.0f);
+    TestEqual(TEXT("negative position clamps to margin"), UDxWidgetVirtualSensorPanelBase::ClampPanelPosition(FVector2D(-100, -100), Panel, Viewport, 18.0f), FVector2D(18.0f, 18.0f));
+    const FVector2D Clamped = UDxWidgetVirtualSensorPanelBase::ClampPanelPosition(FVector2D(2000, 2000), Panel, Viewport, 18.0f);
     TestTrue(TEXT("right edge clamps"), FMath::IsNearlyEqual(Clamped.X, 812.0));
     TestTrue(TEXT("title remains reachable at bottom"), FMath::IsNearlyEqual(Clamped.Y, 638.0));
     return true;
@@ -61,7 +61,7 @@ bool FVirtualSensorMapApplyQueueTest::RunTest(const FString& Parameters)
 bool FVirtualSensorRealisticProfileTest::RunTest(const FString& Parameters)
 {
     UVirtualCameraCaptureComponent* Camera = NewObject<UVirtualCameraCaptureComponent>();
-    UVirtualLidarScanComponent* Lidar = NewObject<UVirtualLidarScanComponent>();
+    UVirtualLidarScanComp* Lidar = NewObject<UVirtualLidarScanComp>();
     Camera->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);
     Lidar->ApplyDeviceProfile(EVirtualLidarDeviceProfile::LivoxMid360S);
     const FVirtualSensorDeviceSpec& CameraSpec = Camera->GetDeviceSpec();
@@ -122,34 +122,34 @@ bool FVirtualSensorEditableStateValidationTest::RunTest(const FString& Parameter
     State.TargetKind = EVirtualSensorTargetKind::Camera;
     State.SensorId = TEXT("CAM-A");
     FString Error;
-    TestTrue(TEXT("real-time camera state is accepted"), UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(State, {}, Error));
+    TestTrue(TEXT("real-time camera state is accepted"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
 
-    TestFalse(TEXT("duplicate SensorId is rejected"), UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(State, { TEXT("CAM-A") }, Error));
+    TestFalse(TEXT("duplicate SensorId is rejected"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, { TEXT("CAM-A") }, Error));
     State.SensorId = TEXT("CAM-B");
     State.CameraResolution.X = 100;
-    TestFalse(TEXT("out-of-range camera resolution is rejected"), UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(State, {}, Error));
+    TestFalse(TEXT("out-of-range camera resolution is rejected"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
 
     State.CameraResolution = FIntPoint(640, 360);
     State.ActorTransform.SetLocation(FVector(std::numeric_limits<double>::quiet_NaN(), 0.0, 0.0));
-    TestFalse(TEXT("NaN transform is rejected"), UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(State, {}, Error));
+    TestFalse(TEXT("NaN transform is rejected"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
 
     State.ActorTransform = FTransform::Identity;
     State.TargetKind = EVirtualSensorTargetKind::Lidar;
     State.SensorId = TEXT("LIDAR-A");
     State.LidarMaxDistance = 15000.0f;
-    TestTrue(TEXT("150m LiDAR range is accepted"), UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(State, {}, Error));
+    TestTrue(TEXT("150m LiDAR range is accepted"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
     State.LidarMaxDistance = 20001.0f;
-    TestFalse(TEXT("LiDAR range above 200m is rejected"), UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(State, {}, Error));
+    TestFalse(TEXT("LiDAR range above 200m is rejected"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
     State.LidarMaxDistance = 15000.0f;
     State.LidarMinVerticalAngle = 52.0f;
     State.LidarMaxVerticalAngle = -7.0f;
-    TestFalse(TEXT("inverted LiDAR vertical angles are rejected"), UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(State, {}, Error));
+    TestFalse(TEXT("inverted LiDAR vertical angles are rejected"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
     return true;
 }
 
 bool FVirtualSensorStorageSummaryTest::RunTest(const FString& Parameters)
 {
-    UVirtualSensorCaptureExportPanelWidget* Widget = NewObject<UVirtualSensorCaptureExportPanelWidget>();
+    UDxWidgetVirtualSensorCaptureExportPanel* Widget = NewObject<UDxWidgetVirtualSensorCaptureExportPanel>();
     const FString Summary = Widget->GetStorageSummaryText();
     TestTrue(TEXT("summary includes payload folder"), Summary.Contains(TEXT("ServerPayload")));
     TestTrue(TEXT("summary includes point cloud folder"), Summary.Contains(TEXT("PointCloud")));
@@ -185,7 +185,7 @@ bool FVirtualSensorGizmoMathTest::RunTest(const FString& Parameters)
 bool FVirtualSensorDebugBudgetTest::RunTest(const FString& Parameters)
 {
     TestEqual(TEXT("projection debug ray budget remains performance safe"), AVirtualSensorTransformGizmoActor::ProjectionDebugRayBudget, 64);
-    UVirtualLidarScanComponent* Lidar = NewObject<UVirtualLidarScanComponent>();
+    UVirtualLidarScanComp* Lidar = NewObject<UVirtualLidarScanComp>();
     TestFalse(TEXT("legacy per-ray debug remains off by default"), Lidar->bDrawDebugRays);
     return true;
 }
@@ -268,7 +268,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FVirtualSensorCaptureSelectionTest::RunTest(const FString& Parameters)
 {
-	UVirtualSensorMonitorPanelWidget* Monitor = NewObject<UVirtualSensorMonitorPanelWidget>();
+	UDxWidgetVirtualSensorMonitorPanel* Monitor = NewObject<UDxWidgetVirtualSensorMonitorPanel>();
 	FVirtualSensorCaptureSelection Selection;
 	Selection.IntervalSeconds = 0.001f;
 	Selection.bCameraImage = false;
@@ -289,15 +289,15 @@ bool FVirtualSensorCaptureSelectionTest::RunTest(const FString& Parameters)
 
 bool FVirtualSensorCapturePanelResizeTest::RunTest(const FString& Parameters)
 {
-	const FVector2D Resized = UVirtualSensorPanelWidgetBase::CalculateResizedPanelSize(
+	const FVector2D Resized = UDxWidgetVirtualSensorPanelBase::CalculateResizedPanelSize(
 		FVector2D(900.0f, 620.0f), FVector2D(200.0f, 100.0f), 1.0f,
 		FVector2D(620.0f, 360.0f), FVector2D(1600.0f, 1000.0f));
 	TestEqual(TEXT("capture panel grows from bottom-right grip"), Resized, FVector2D(1100.0f, 720.0f));
-	const FVector2D Minimum = UVirtualSensorPanelWidgetBase::CalculateResizedPanelSize(
+	const FVector2D Minimum = UDxWidgetVirtualSensorPanelBase::CalculateResizedPanelSize(
 		FVector2D(900.0f, 620.0f), FVector2D(-1000.0f, -1000.0f), 1.0f,
 		FVector2D(620.0f, 360.0f), FVector2D(1600.0f, 1000.0f));
 	TestEqual(TEXT("capture panel respects its minimum size"), Minimum, FVector2D(620.0f, 360.0f));
-	UVirtualSensorCaptureExportPanelWidget* Widget = NewObject<UVirtualSensorCaptureExportPanelWidget>();
+	UDxWidgetVirtualSensorCaptureExportPanel* Widget = NewObject<UDxWidgetVirtualSensorCaptureExportPanel>();
 	Widget->SetPanelResizable(true);
 	TestTrue(TEXT("capture/export panel can opt into common resize behavior"), Widget->bPanelResizable);
 	Widget->SetActiveTab(EVirtualSensorCaptureExportTab::Export);

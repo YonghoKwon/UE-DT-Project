@@ -1,21 +1,21 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "ma0t10_dt/MA0T10/InteractableActor/FacilityBase.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSlabFrameContext.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSlabFrameContext.h"
 #include "SlabScenarioTypes.h"
 #include "SlabAnalysisTypes.h"
 #include "SlabActor.generated.h"
 
-class USlabDataSyncComponent;
-class USlabMotionComponent;
-class USlabVisualizationComponent;
-class USlabMetricsComponent;
+class USlabDataSyncComp;
+class USlabMotionComp;
+class USlabVisualizationComp;
+class USlabMetricsComp;
 class UStaticMeshComponent;
 class UMaterialInterface;
 class UMaterialInstanceDynamic;
 class ASlabTrackReferenceActor;
-class UVirtualLidarSurfaceResponseComponent;
+class UVirtualLidarSurfaceResponseComp;
 enum class ESlabSurfacePreset : uint8 { Default, HotRed, OxidationScale, CooledSteel, AnalysisMatte };
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSlabStateChanged);
 
@@ -95,7 +95,7 @@ public:
 	void AdvanceSimulation(double DeltaSeconds);
 	/** Motion component callback: pose already applied; update metadata/metrics and session lifecycle. */
 	void OnSlabPoseApplied(const FSlabScenarioRow& Row,int32 RowIndex,double Time,bool bEnd);
-	USlabDataSyncComponent* GetDataSyncComponent() const { return DataSyncComponent; }
+	USlabDataSyncComp* GetDataSyncComponent() const { return DataSyncComp; }
 	UPROPERTY(BlueprintAssignable,Category="Slab") FSlabStateChanged OnSlabStateChanged;
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Routing") FString ReceiverId=TEXT("SlabScenario.Main");
 	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category="Slab|Configuration") TObjectPtr<ASlabTrackReferenceActor> TrackReference;
@@ -116,10 +116,10 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 private:
-	UPROPERTY(VisibleAnywhere) TObjectPtr<USlabDataSyncComponent> DataSyncComponent;
-	UPROPERTY(VisibleAnywhere) TObjectPtr<USlabMotionComponent> MotionComponent;
-	UPROPERTY(VisibleAnywhere) TObjectPtr<USlabVisualizationComponent> VisualizationComponent;
-	UPROPERTY(VisibleAnywhere) TObjectPtr<USlabMetricsComponent> MetricsComponent;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<USlabDataSyncComp> DataSyncComp;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<USlabMotionComp> MotionComp;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<USlabVisualizationComp> VisualizationComp;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<USlabMetricsComp> MetricsComp;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> SurfaceInstance;
 	// Retain both owned MIDs across explicit preset switches, including user MID overrides.
 	UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> NonOxideSurfaceInstance;
@@ -143,10 +143,10 @@ private:
 	float BaselineSurfaceMetallic=0;
 	bool BaselineHot=false;
 	float BaselineOxidation=0,BaselineRoughness=0,BaselineEmissive=0;
-	TWeakObjectPtr<UVirtualLidarSurfaceResponseComponent> BaselineSurfaceResponse;
+	TWeakObjectPtr<UVirtualLidarSurfaceResponseComp> BaselineSurfaceResponse;
 	float BaselineReflectivity=0;
 	bool BaselineGpuOpticalOverride=false;
-	UPROPERTY(Transient) TObjectPtr<UVirtualLidarSurfaceResponseComponent> OwnedPresetSurfaceResponse;
+	UPROPERTY(Transient) TObjectPtr<UVirtualLidarSurfaceResponseComp> OwnedPresetSurfaceResponse;
 	void RecordSurfaceUsage(const FString& Run);
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 	friend class FSlabInformationCardTest;

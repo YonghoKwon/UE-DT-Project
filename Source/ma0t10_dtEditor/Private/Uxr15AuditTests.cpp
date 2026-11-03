@@ -3,11 +3,11 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
@@ -66,9 +66,9 @@ public:
         if(!FinalAcceptanceViewportReady(World))return false;
         auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* C=W->GetCoordinator();
         auto* Bar=Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());
-        auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));
-        auto* Data=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
-        auto* Monitor=Cast<UVirtualSensorMonitorPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));
+        auto* Settings=Cast<UDxWidgetVirtualSensorSettingsPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));
+        auto* Data=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
+        auto* Monitor=Cast<UDxWidgetVirtualSensorMonitorPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));
         if(!Bar||!C||!Settings||!Data||!Monitor)return false;
         const int32 View=Phase%Count;const float Scale=Phase<Count?1.f:1.5f;
         if(!ReadyAt)
@@ -82,8 +82,8 @@ public:
                     // Explicit transient targets for direct UI checks. No existing Actor is moved.
                     auto* Slab=World->SpawnActor<ASlabActor>();Slab->Tags.Add(TEXT("SensorTestManaged"));Slab->SetActorLocation(FVector(1500,2500,200));Slab->ApplyDatasetGeometry(FVector(800,200,50));Slab->SetDiagnosticHelpersVisible(false);
                     const FVector Origin=Slab->GetActorLocation()+FVector(-1000,-1000,800);const FTransform Pose((Slab->GetActorLocation()-Origin).Rotation(),Origin);
-                    auto* CameraActor=World->SpawnActor<AVirtualCameraSensorActor>();CameraActor->Tags.Add(TEXT("SensorTestManaged"));CameraActor->StopSensor();CameraActor->SetActorTransform(Pose);CameraActor->CaptureComponent->SensorId=TEXT("UXR15-MANUAL-CAMERA");CameraActor->CaptureComponent->CaptureResolution=FIntPoint(640,360);CameraActor->CaptureComponent->CaptureInterval=.1f;CameraActor->CaptureComponent->SimulationQuality=EVirtualSensorSimulationQuality::Custom;CameraActor->CaptureComponent->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;C->RegisterSensorActor(CameraActor);
-                    auto* LidarActor=World->SpawnActor<AVirtualLidarSensorActor>();LidarActor->Tags.Add(TEXT("SensorTestManaged"));LidarActor->StopSensor();LidarActor->SetActorTransform(Pose);LidarActor->ScanComponent->SensorId=TEXT("UXR15-MANUAL-LIDAR");LidarActor->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);LidarActor->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);LidarActor->ScanComponent->OutputMode=EVirtualLidarOutputMode::None;C->RegisterSensorActor(LidarActor);
+                    auto* CameraActor=World->SpawnActor<AVirtualCameraSensorActor>();CameraActor->Tags.Add(TEXT("SensorTestManaged"));CameraActor->StopSensor();CameraActor->SetActorTransform(Pose);CameraActor->CaptureComp->SensorId=TEXT("UXR15-MANUAL-CAMERA");CameraActor->CaptureComp->CaptureResolution=FIntPoint(640,360);CameraActor->CaptureComp->CaptureInterval=.1f;CameraActor->CaptureComp->SimulationQuality=EVirtualSensorSimulationQuality::Custom;CameraActor->CaptureComp->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;C->RegisterSensorActor(CameraActor);
+                    auto* LidarActor=World->SpawnActor<AVirtualLidarSensorActor>();LidarActor->Tags.Add(TEXT("SensorTestManaged"));LidarActor->StopSensor();LidarActor->SetActorTransform(Pose);LidarActor->ScanComp->SensorId=TEXT("UXR15-MANUAL-LIDAR");LidarActor->ScanComp->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);LidarActor->ScanComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);LidarActor->ScanComp->OutputMode=EVirtualLidarOutputMode::None;C->RegisterSensorActor(LidarActor);
                     Data->DatasetDraft.Name=TEXT("UXR15_manual");Data->DatasetDraft.Scenes=3;Data->DatasetDraft.SettleFrames=3;Data->DatasetSlab=Slab;Data->DatasetCamera=CameraActor;Data->DatasetLidar=LidarActor;
                 }
             }

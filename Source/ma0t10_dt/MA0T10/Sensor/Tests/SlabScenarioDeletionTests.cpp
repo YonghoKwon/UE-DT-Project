@@ -2,10 +2,10 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Engine/GameInstance.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
-#include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabScenarioReplayPanel.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabScenarioDeletionTest,"MA0T10.SlabScenario.ArchiveDeletionLifecycle",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabScenarioDeletionTest::RunTest(const FString&)
@@ -75,13 +75,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabScenarioDeletionUiTest,"MA0T10.SlabScenari
 bool FSlabScenarioDeletionUiTest::RunTest(const FString&)
 {
 	const TArray<FString> Before{TEXT("a"),TEXT("b"),TEXT("c")};
-	TestEqual(TEXT("deleting other item keeps selected UUID"),USlabScenarioReplayPanelWidget::ResolveStableSelection(Before,{TEXT("b"),TEXT("c")},TEXT("c")),FString(TEXT("c")));
-	TestEqual(TEXT("deleting selected item chooses newest remaining row"),USlabScenarioReplayPanelWidget::ResolveStableSelection(Before,{TEXT("a"),TEXT("c")},TEXT("b")),FString(TEXT("a")));
-	TestEqual(TEXT("deleting oldest selected item also chooses newest row"),USlabScenarioReplayPanelWidget::ResolveStableSelection(Before,{TEXT("a"),TEXT("b")},TEXT("c")),FString(TEXT("a")));
-	TestTrue(TEXT("empty list clears selection"),USlabScenarioReplayPanelWidget::ResolveStableSelection(Before,{},TEXT("a")).IsEmpty());
-	TestEqual(TEXT("new latest item does not steal existing selection"),USlabScenarioReplayPanelWidget::ResolveStableSelection(Before,{TEXT("new"),TEXT("a"),TEXT("b"),TEXT("c")},TEXT("b")),FString(TEXT("b")));
+	TestEqual(TEXT("deleting other item keeps selected UUID"),UDxWidgetSlabScenarioReplayPanel::ResolveStableSelection(Before,{TEXT("b"),TEXT("c")},TEXT("c")),FString(TEXT("c")));
+	TestEqual(TEXT("deleting selected item chooses newest remaining row"),UDxWidgetSlabScenarioReplayPanel::ResolveStableSelection(Before,{TEXT("a"),TEXT("c")},TEXT("b")),FString(TEXT("a")));
+	TestEqual(TEXT("deleting oldest selected item also chooses newest row"),UDxWidgetSlabScenarioReplayPanel::ResolveStableSelection(Before,{TEXT("a"),TEXT("b")},TEXT("c")),FString(TEXT("a")));
+	TestTrue(TEXT("empty list clears selection"),UDxWidgetSlabScenarioReplayPanel::ResolveStableSelection(Before,{},TEXT("a")).IsEmpty());
+	TestEqual(TEXT("new latest item does not steal existing selection"),UDxWidgetSlabScenarioReplayPanel::ResolveStableSelection(Before,{TEXT("new"),TEXT("a"),TEXT("b"),TEXT("c")},TEXT("b")),FString(TEXT("b")));
 	for(const FName Function:{FName(TEXT("SelectScenario")),FName(TEXT("ReplaySelected")),FName(TEXT("SetReplayOutputs")),FName(TEXT("CopyScenarioUUID")),FName(TEXT("RequestScenarioDeletion")),FName(TEXT("ConfirmScenarioDeletion")),FName(TEXT("CancelScenarioDeletion"))})
-		TestNotNull(TEXT("existing and additive Blueprint APIs available"),USlabScenarioReplayPanelWidget::StaticClass()->FindFunctionByName(Function));
+		TestNotNull(TEXT("existing and additive Blueprint APIs available"),UDxWidgetSlabScenarioReplayPanel::StaticClass()->FindFunctionByName(Function));
 	return true;
 }
 #endif

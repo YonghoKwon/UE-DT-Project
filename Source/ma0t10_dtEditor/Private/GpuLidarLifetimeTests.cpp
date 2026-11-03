@@ -4,10 +4,10 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualLidarSurfaceResponseComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualLidarSurfaceResponseComp.h"
 #include "Device/Contracts/VirtualSensorRayQuery.h"
 #include "EngineUtils.h"
 #include "Components/PrimitiveComponent.h"
@@ -26,7 +26,7 @@ namespace
 class FGpuLifetimeRun final:public IAutomationLatentCommand
 {
  FAutomationTestBase* Test;int Phase=0,Edits=0,Cancels=0,TargetDigs=50;double Started=FPlatformTime::Seconds(),Pause=0,EditStarted=0,LastLog=0,DigFinished=0;
- AShipHatchSimulation* Sim=nullptr;AVirtualLidarSensorActor* Sensor=nullptr;AActor* Cargo=nullptr;UVirtualLidarSurfaceResponseComponent* Optical=nullptr;
+ AShipHatchSimulation* Sim=nullptr;AVirtualLidarSensorActor* Sensor=nullptr;AActor* Cargo=nullptr;UVirtualLidarSurfaceResponseComp* Optical=nullptr;
  FTransform OriginalPose;TArray<FName> OriginalTags;float OriginalReflectivity=0;
  int64 Baseline=0;uint64 MemoryBefore=0,MemoryPeak=0;TArray<TSharedPtr<FJsonValue>> Samples;
  TSharedPtr<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe> Retained;uint32 Crc=0;
@@ -34,7 +34,7 @@ class FGpuLifetimeRun final:public IAutomationLatentCommand
  {FString P;if(FParse::Value(FCommandLine::Get(),TEXT("ReportExportPath="),P))return P/TEXT("lifetime");return FPaths::ProjectSavedDir()/TEXT("Reports/GPU-LIDAR-01/progress/lifetime");}
  uint32 Hash(const FVirtualLidarFrameSnapshot& F) const{return FCrc::MemCrc32(F.Points->GetData(),F.Points->Num()*sizeof(FVirtualLidarPoint));}
  void RestoreIdentity()
- {if(Cargo)Cargo->Tags=OriginalTags;if(Optical)Optical->Reflectivity940Nm=OriginalReflectivity;if(Sensor){Sensor->StopSensor();Sensor->SetActorTransform(OriginalPose);Sensor->ScanComponent->InvalidateSurfaceResponseCache();}}
+ {if(Cargo)Cargo->Tags=OriginalTags;if(Optical)Optical->Reflectivity940Nm=OriginalReflectivity;if(Sensor){Sensor->StopSensor();Sensor->SetActorTransform(OriginalPose);Sensor->ScanComp->InvalidateSurfaceResponseCache();}}
  void MutateAfterAdmission()
  {Cargo->Tags.Remove(TEXT("HatchCargo"));Cargo->Tags.Add(TEXT("GpuLidarChangedAfterAcquisition"));Optical->Reflectivity940Nm=.91f;
   Sensor->SetActorLocation(OriginalPose.GetLocation()+FVector(321,123,0));Phase=1;}
@@ -60,16 +60,16 @@ public:
    for(int I=0;I<3;++I)if(auto* A=Sim->SensorAt(I))A->StopSensor();Sensor=Sim->SensorAt(0);OriginalPose=Sensor->GetActorTransform();
    auto Query=Sim->CaptureRayQuery(Sensor,ECC_Visibility);TArray<FVirtualSensorCollisionMesh> Meshes;
    if(!Query||!Query->CollisionMeshes(Meshes)||Meshes.Num()<2||Meshes[1].Surfaces.IsEmpty()){Test->AddError(TEXT("cargo collision identity missing"));return true;}
-   Cargo=Meshes[1].Surfaces[0]->GetOwner();Optical=Cargo->FindComponentByClass<UVirtualLidarSurfaceResponseComponent>();if(!Optical){Test->AddError(TEXT("cargo optical snapshot source missing"));return true;}
+   Cargo=Meshes[1].Surfaces[0]->GetOwner();Optical=Cargo->FindComponentByClass<UVirtualLidarSurfaceResponseComp>();if(!Optical){Test->AddError(TEXT("cargo optical snapshot source missing"));return true;}
    OriginalTags=Cargo->Tags;OriginalReflectivity=Optical->Reflectivity940Nm;
-   auto* Scan=Sensor->ScanComponent.Get();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::HardwareRayTracing;Scan->ScanInterval=.05f;Baseline=Scan->GetRuntimeStatus().FrameId;
+   auto* Scan=Sensor->ScanComp.Get();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::HardwareRayTracing;Scan->ScanInterval=.05f;Baseline=Scan->GetRuntimeStatus().FrameId;
    Sensor->StartSensor();Scan->RequestImmediateScheduledScan();Scan->PrepareScheduledScan(Sensor->GetWorld()->GetTimeSeconds());
    // A restart retains the one-admission-per-engine-frame latch. Never mutate
    // the fixture before a real acquisition has taken its immutable snapshot.
    if(!Scan->GetRuntimeStatus().bAcquisitionInFlight){Test->AddInfo(TEXT("Identity fixture waits for actual admission after same-frame restart"));Phase=6;return false;}
    MutateAfterAdmission();return false;
   }
-  auto* Scan=Sensor->ScanComponent.Get();
+  auto* Scan=Sensor->ScanComp.Get();
   if(Phase==6)
   {Scan->PrepareScheduledScan(Sensor->GetWorld()->GetTimeSeconds());if(!Scan->GetRuntimeStatus().bAcquisitionInFlight)return false;MutateAfterAdmission();return false;}
   if(Now-LastLog>5){LastLog=Now;UE_LOG(LogTemp,Display,TEXT("[GpuLifetime] phase=%d digs=%d cancels=%d running=%d frame=%lld baseline=%lld"),Phase,Edits,Cancels,Scan->IsScanRunning()?1:0,Scan->GetRuntimeStatus().FrameId,Baseline);}

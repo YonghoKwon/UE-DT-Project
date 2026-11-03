@@ -3,14 +3,14 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchOverlay.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMonitorHost.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/DxWidgetShipHatchMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchOverlayComp.h"
 #include "DeviceUI/SensorOwnedPresentationStyle.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
 #include "ProceduralMeshComponent.h"
 #include "Components/ComboBoxString.h"
 #include "Components/TextBlock.h"
@@ -35,7 +35,7 @@
 
 struct FHatchFeedbackProbe
 {
-    static TWeakObjectPtr<UTextBlock> ComboLifetime(FAutomationTestBase& T,UShipHatchMonitorWidget& M,TWeakPtr<SWidget>& NativeWeak)
+    static TWeakObjectPtr<UTextBlock> ComboLifetime(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M,TWeakPtr<SWidget>& NativeWeak)
     {
         auto* Label=CastChecked<UTextBlock>(M.ComboEntry(TEXT("GC lifetime probe")));
         TWeakObjectPtr<UTextBlock> Weak=Label;
@@ -47,19 +47,19 @@ struct FHatchFeedbackProbe
         if(Alive)Native->SlatePrepass(1);
         return Weak;
     }
-    static void ComboReleased(FAutomationTestBase& T,UShipHatchMonitorWidget& M,TWeakObjectPtr<UTextBlock> Weak)
+    static void ComboReleased(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M,TWeakObjectPtr<UTextBlock> Weak)
     {
         auto* Next=CastChecked<UTextBlock>(M.ComboEntry(TEXT("replacement lifetime probe")));
         TSharedPtr<SWidget> NextNative=Next->TakeWidget();
         CollectGarbage(RF_NoFlags);
         T.TestFalse(TEXT("expired generated combo entry is released after native content replacement"),Weak.IsValid());
     }
-    static void Check(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
+    static void Check(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M)
     {
         auto& S=*M.Simulation;T.TestTrue(TEXT("default is grab unloader field layout, three live selected sensors"),S.bFieldLayout&&S.bShowUnloader&&S.CabRight&&S.CabRight->IsSensorRunning());
         int32 Bodies=0,Unloaders=0;for(TActorIterator<AShipHatchPart>I(S.GetWorld());I;++I)if(I->ActorHasTag(TEXT("ShipHatchPreviewSensor"))){++Bodies;Unloaders+=I->ActorHasTag(TEXT("ShipHatchUnloader"));T.TestEqual(TEXT("only the physical GTSU blocks measured rays; sensor badges remain decorative"),I->Mesh->GetCollisionEnabled(),I->ActorHasTag(TEXT("ShipHatchUnloader"))?ECollisionEnabled::QueryOnly:ECollisionEnabled::NoCollision);}
         T.TestEqual(TEXT("three bodies plus one low-poly unloader; no high mast"),Bodies,4);T.TestEqual(TEXT("one grab unloader display"),Unloaders,1);
-        for(int32 I=0;I<3;++I){auto* A=S.SensorAt(I);T.TestNotNull(TEXT("selected detector exists"),A);if(!A)continue;T.TestTrue(TEXT("installation SI origin equals actual sensor transform"),S.GetActorTransform().InverseTransformPosition(A->GetActorLocation()).Equals(S.SensorOrigin(I)*100,.001));T.TestEqual(TEXT("user-approved default: OS1-64 Rev7 three devices"),A->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);}
+        for(int32 I=0;I<3;++I){auto* A=S.SensorAt(I);T.TestNotNull(TEXT("selected detector exists"),A);if(!A)continue;T.TestTrue(TEXT("installation SI origin equals actual sensor transform"),S.GetActorTransform().InverseTransformPosition(A->GetActorLocation()).Equals(S.SensorOrigin(I)*100,.001));T.TestEqual(TEXT("user-approved default: OS1-64 Rev7 three devices"),A->ScanComp->DeviceProfile,EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);}
         T.TestTrue(TEXT("boom end is on sea +Y side of cab pair"),S.SensorOrigin(0).Y>S.SensorOrigin(1).Y&&S.SensorOrigin(0).Y>0);
         for(bool Along:{false,true})for(double N:{0.,.17,.5,.83,1.})
         {
@@ -77,7 +77,7 @@ struct FHatchFeedbackProbe
         T.TestTrue(TEXT("2D marker direction matches actual camera"),D.Equals(S.GetActorTransform().InverseTransformVectorNoScale(M.Host->ViewCamera->GetActorForwardVector()),1.e-8));
         M.SetFontPercent(150);auto* Entry=CastChecked<UTextBlock>(M.ComboEntry(TEXT("Select")));T.TestTrue(TEXT("generated selected/list text font is 150 percent"),Entry->GetFont().Size==FMath::RoundToInt(FSensorOwnedPresentationStyle::BodySize*1.5));
         const auto Text=Entry->GetColorAndOpacity().GetSpecifiedColor(),BG=FSensorOwnedPresentationStyle::Panel();const double L=Text.GetLuminance(),B=BG.GetLuminance();T.TestTrue(TEXT("Select text contrast exceeds 4.5 on normal list background"),(L+.05)/(B+.05)>=4.5);T.TestTrue(TEXT("Select text contrast exceeds 4.5 on hovered/selected list"),(L+.05)/(FSensorOwnedPresentationStyle::Selection().GetLuminance()+.05)>=4.5);M.SetFontPercent(100);
-        const auto F=S.MLX->ScanComponent->GetLastFrameSnapshot();const uint32 CRC=FCrc::MemCrc32(F->Points->GetData(),F->Points->Num()*sizeof(FVirtualLidarPoint));const auto Rev=S.Revision();
+        const auto F=S.MLX->ScanComp->GetLastFrameSnapshot();const uint32 CRC=FCrc::MemCrc32(F->Points->GetData(),F->Points->Num()*sizeof(FVirtualLidarPoint));const auto Rev=S.Revision();
         for(int32 I=0;I<3;++I)
         {
             if(I==0)M.OnNoon();if(I==1)M.OnEvening();if(I==2)M.OnWorkLight();T.TestEqual(TEXT("lighting never changes acquisition geometry revision"),S.Revision(),Rev);T.TestEqual(TEXT("lighting does not mutate immutable measured points"),FCrc::MemCrc32(F->Points->GetData(),F->Points->Num()*sizeof(FVirtualLidarPoint)),CRC);
@@ -85,7 +85,7 @@ struct FHatchFeedbackProbe
         }
         M.OnSensorColors();T.TestEqual(TEXT("sensor tint cannot mutate measured points"),FCrc::MemCrc32(F->Points->GetData(),F->Points->Num()*sizeof(FVirtualLidarPoint)),CRC);M.OnSensorColors();
     }
-    static void Configure(UShipHatchMonitorWidget& M,int32 State)
+    static void Configure(UDxWidgetShipHatchMonitor& M,int32 State)
     {
         M.SetSplitView(true);if(M.bSettings)M.OnSettings();M.SetMapHeat(true);
         if(State==0){M.SelectView(0);M.SetCameraPreset(1);M.SetSection(true,.5);}
@@ -95,10 +95,10 @@ struct FHatchFeedbackProbe
         if(State==5){M.SelectView(0);M.OnNoon();}if(State==6)M.OnEvening();if(State==7)M.OnWorkLight();
         if(State==8){M.OnSettings();CastChecked<UScrollBox>(M.SettingsPanel->GetContent())->ScrollToStart();M.CargoChoice->TakeWidget();StaticCastSharedRef<SComboBox<TSharedPtr<FString>>>(M.CargoChoice->TakeWidget())->SetIsOpen(true);}
     }
-    static void CloseCombo(UShipHatchMonitorWidget& M){StaticCastSharedRef<SComboBox<TSharedPtr<FString>>>(M.CargoChoice->TakeWidget())->SetIsOpen(false);if(M.bSettings)M.OnSettings();}
-    static void Profile(UShipHatchMonitorWidget& M,int32 Value){M.FieldChoices[0]->SetSelectedIndex(Value);}
-    static void PrepareGrab(UShipHatchMonitorWidget& M){M.Simulation->SetGrabVisible(true);M.SelectView(0);M.SetSplitView(true);M.SetCameraPreset(1);M.bDigEnabled=true;}
-    static bool Grab(UShipHatchMonitorWidget& M,FAutomationTestBase& Test)
+    static void CloseCombo(UDxWidgetShipHatchMonitor& M){StaticCastSharedRef<SComboBox<TSharedPtr<FString>>>(M.CargoChoice->TakeWidget())->SetIsOpen(false);if(M.bSettings)M.OnSettings();}
+    static void Profile(UDxWidgetShipHatchMonitor& M,int32 Value){M.FieldChoices[0]->SetSelectedIndex(Value);}
+    static void PrepareGrab(UDxWidgetShipHatchMonitor& M){M.Simulation->SetGrabVisible(true);M.SelectView(0);M.SetSplitView(true);M.SetCameraPreset(1);M.bDigEnabled=true;}
+    static bool Grab(UDxWidgetShipHatchMonitor& M,FAutomationTestBase& Test)
     {
         auto& S=*M.Simulation;FVector2D Pixel;auto* PC=M.GetOwningPlayer();const auto G=M.GetCachedGeometry();int32 W,H;PC->GetViewportSize(W,H);
         for(auto XY:{FVector2D(5,0),FVector2D(-5,0),FVector2D(5,5),FVector2D(-5,5),FVector2D(5,-5),FVector2D(-5,-5),FVector2D(0,-7)})
@@ -112,9 +112,9 @@ struct FHatchFeedbackProbe
         }
         return false;
     }
-    static void FloorView(UShipHatchMonitorWidget& M,int32 State)
+    static void FloorView(UDxWidgetShipHatchMonitor& M,int32 State)
     {M.bSensorColors=false;M.SelectColor(1);M.SelectView(State==0?0:State==1?1:4);}
-    static void DischargeWait(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
+    static void DischargeWait(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M)
     {
         auto& S=*M.Simulation;PrepareGrab(M);
         T.TestTrue(TEXT("first explicit dig starts a cycle"),Grab(M,T));
@@ -137,7 +137,7 @@ struct FHatchFeedbackProbe
         int32 Floor=0,FalseCargo=0;const auto& Surface=S.Surface();
         for(int32 Device=0;Device<3;++Device)if(S.SensorEnabled(Device))
         {
-            const auto Frame=S.SensorAt(Device)->ScanComponent->GetLastFrameSnapshot();T.TestTrue(TEXT("floor classification uses actual fresh detector snapshot"),Frame.IsValid()&&Frame->Points.IsValid());if(!Frame||!Frame->Points)continue;
+            const auto Frame=S.SensorAt(Device)->ScanComp->GetLastFrameSnapshot();T.TestTrue(TEXT("floor classification uses actual fresh detector snapshot"),Frame.IsValid()&&Frame->Points.IsValid());if(!Frame||!Frame->Points)continue;
             for(const auto& P:*Frame->Points)if(P.bHit)
             {
                 const FVector L=S.GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01;
@@ -151,7 +151,7 @@ struct FHatchFeedbackProbe
         }
         T.TestTrue(TEXT("actual point clouds classify exposed tank top as HatchHold"),Floor>0);T.TestEqual(TEXT("no cargo points in interior of zero-thickness grid region"),FalseCargo,0);
     }
-    static void Input(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
+    static void Input(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M)
     {
         const auto G=M.GetCachedGeometry();const auto P=G.LocalToAbsolute(FVector2D((M.SceneRect.Left+M.SceneRect.Right)*.5,(M.SceneRect.Top+M.SceneRect.Bottom)*.6));
         auto Event=[](FVector2D P,FVector2D Last,bool Held,FKey Key){TSet<FKey> Keys;if(Held)Keys.Add(Key);return FPointerEvent(0,P,Last,Keys,Key,0,FModifierKeysState());};
@@ -168,7 +168,7 @@ FString FeedbackRoot(){FString P;FParse::Value(FCommandLine::Get(),TEXT("HatchRe
 class FHatchFeedback final:public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;bool Captures;int32 Phase=0,State=0,Material=0,FloorEdits=0;double Start=FPlatformTime::Seconds(),Changed=0;FVector2D FloorTarget=FVector2D::ZeroVector;bool bFloorTarget=false;TUniquePtr<TGuardValue<bool>> Messages;
-    void Shot(UWorld* W,UShipHatchMonitorWidget& M,const FString& Name,bool Progress=false)
+    void Shot(UWorld* W,UDxWidgetShipHatchMonitor& M,const FString& Name,bool Progress=false)
     {
         TArray<FColor> Pixels;FIntVector Size;if(!Test->TestTrue(TEXT("actual viewport RHI capture"),FSlateApplication::Get().TakeScreenshot(W->GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,Size)))return;
         TArray64<uint8> PNG;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,PNG);const FString Path=FeedbackRoot()/TEXT("captures")/Name;IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path),true);FFileHelper::SaveArrayToFile(PNG,*Path);
@@ -176,7 +176,7 @@ class FHatchFeedback final:public IAutomationLatentCommand
         const auto* Sim=M.GetSimulation();double Opening,Floor,Area;Sim->Coverage(Opening,Floor,Area);R->SetNumberField(TEXT("opening_fov_percent"),Opening);R->SetNumberField(TEXT("visible_floor_fov_percent"),Floor);R->SetNumberField(TEXT("structurally_visible_floor_m2"),Area);R->SetNumberField(TEXT("removed_m3"),Sim->TotalRemovedVolume());
         const auto Window=FSlateApplication::Get().FindWidgetWindow(W->GetGameViewport()->GetGameViewportWidget().ToSharedRef());R->SetNumberField(TEXT("window_dpi"),Window?Window->GetDPIScaleFactor():0);R->SetNumberField(TEXT("umg_scale"),UWidgetLayoutLibrary::GetViewportScale(&M));
         TArray<TSharedPtr<FJsonValue>> Sensors;
-        for(int32 I=0;I<3;++I)if(auto* A=Sim->SensorAt(I)){auto Row=MakeShared<FJsonObject>();const auto P=Sim->SensorOrigin(I);Row->SetNumberField(TEXT("index"),I);Row->SetNumberField(TEXT("x_m"),P.X);Row->SetNumberField(TEXT("y_m"),P.Y);Row->SetNumberField(TEXT("z_above_floor_m"),P.Z);Row->SetStringField(TEXT("profile"),StaticEnum<EVirtualLidarDeviceProfile>()->GetNameStringByValue(int64(A->ScanComponent->DeviceProfile)));Row->SetNumberField(TEXT("pitch_degrees"),A->GetActorRotation().Pitch);Row->SetNumberField(TEXT("yaw_degrees"),A->GetActorRotation().Yaw);Sensors.Add(MakeShared<FJsonValueObject>(Row));}
+        for(int32 I=0;I<3;++I)if(auto* A=Sim->SensorAt(I)){auto Row=MakeShared<FJsonObject>();const auto P=Sim->SensorOrigin(I);Row->SetNumberField(TEXT("index"),I);Row->SetNumberField(TEXT("x_m"),P.X);Row->SetNumberField(TEXT("y_m"),P.Y);Row->SetNumberField(TEXT("z_above_floor_m"),P.Z);Row->SetStringField(TEXT("profile"),StaticEnum<EVirtualLidarDeviceProfile>()->GetNameStringByValue(int64(A->ScanComp->DeviceProfile)));Row->SetNumberField(TEXT("pitch_degrees"),A->GetActorRotation().Pitch);Row->SetNumberField(TEXT("yaw_degrees"),A->GetActorRotation().Yaw);Sensors.Add(MakeShared<FJsonValueObject>(Row));}
         R->SetArrayField(TEXT("sensors"),Sensors);R->SetStringField(TEXT("site_model"),TEXT("unconfirmed; screen-selectable"));R->SetNumberField(TEXT("display_hardware_measured_ray_occlusion_percent"),0);R->SetStringField(TEXT("hardware_measurement_policy"),TEXT("player-only decoration: no collision, SceneCapture, shadows or lidar response"));JSON.Reset();FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&JSON));FFileHelper::SaveStringToFile(JSON,*FPaths::ChangeExtension(Path,TEXT("json")));
         if(Progress&&Size.X==1920&&Size.Y==1080){const FString P=FPaths::ProjectSavedDir()/TEXT("Reports/HATCH-04/progress")/FString::Printf(TEXT("%02d-%s-%s"),State+1,*FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M")),*Name);IFileManager::Get().MakeDirectory(*FPaths::GetPath(P),true);FFileHelper::SaveArrayToFile(PNG,*P);}
     }
@@ -196,8 +196,8 @@ public:
             if(Captures&&++State<9){FHatchFeedbackProbe::Configure(M,State);Changed=Now;return false;}
             FHatchFeedbackProbe::CloseCombo(M);if(Material==0){FHatchFeedbackProbe::Profile(M,1);Phase=4;return false;}FHatchFeedbackProbe::PrepareGrab(M);State=-1;Changed=Now;Phase=8;return false;
         }
-        if(Phase==4){Test->TestEqual(TEXT("screen profile selection immediately measures with ML-X80 Integration"),S.MLX->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::IYOBOT_MLX80);FHatchFeedbackProbe::Profile(M,3);Phase=5;return false;}
-        if(Phase==5){Test->TestEqual(TEXT("screen profile selection immediately measures with ML-X80 Native"),S.MLX->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);FHatchFeedbackProbe::Profile(M,2);S.SensorOffsets[2].X=.5;S.SensorTiltTrim[2]=5;S.SensorYaw[2]=7;S.RefreshFieldLayout();Phase=6;return false;}
+        if(Phase==4){Test->TestEqual(TEXT("screen profile selection immediately measures with ML-X80 Integration"),S.MLX->ScanComp->DeviceProfile,EVirtualLidarDeviceProfile::IYOBOT_MLX80);FHatchFeedbackProbe::Profile(M,3);Phase=5;return false;}
+        if(Phase==5){Test->TestEqual(TEXT("screen profile selection immediately measures with ML-X80 Native"),S.MLX->ScanComp->DeviceProfile,EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);FHatchFeedbackProbe::Profile(M,2);S.SensorOffsets[2].X=.5;S.SensorTiltTrim[2]=5;S.SensorYaw[2]=7;S.RefreshFieldLayout();Phase=6;return false;}
         if(Phase==6)
         {
             Test->TestTrue(TEXT("per-sensor installation offset reaches actual sensor"),S.GetActorTransform().InverseTransformPosition(S.CabRight->GetActorLocation()).Equals(S.SensorOrigin(2)*100,.001));

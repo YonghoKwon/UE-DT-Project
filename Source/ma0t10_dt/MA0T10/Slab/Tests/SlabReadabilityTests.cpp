@@ -2,7 +2,7 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
-#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComp.h"
 #include "Engine/Font.h"
 #include "Components/TextRenderComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -10,7 +10,7 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabReadabilityTest,"MA0T10.SlabAnalysis.ScreenSizingAndReadableAssets",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabReadabilityTest::RunTest(const FString&)
 {
-	using V=USlabVisualizationComponent;
+	using V=USlabVisualizationComp;
 	const float Near=V::CalculateScreenWorldSize(1000,90,720,16./9.,4);
 	TestTrue(TEXT("perspective doubles stroke at twice distance"),FMath::IsNearlyEqual(V::CalculateScreenWorldSize(2000,90,720,16./9.,4),Near*2));
 	TestTrue(TEXT("pixel control scales linearly"),FMath::IsNearlyEqual(V::CalculateScreenWorldSize(1000,90,720,16./9.,12),Near*3));

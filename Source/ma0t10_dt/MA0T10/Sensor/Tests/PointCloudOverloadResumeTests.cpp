@@ -1,34 +1,34 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolUiText.h"
+#include "ma0t10_dt/MA0T10/UI/Common/SensorToolUiText.h"
 
 // Drive the production transition with a deterministic transport readiness input.
 // Actual socket reservations and connection recovery are covered by SocketRecovery.
 struct FPointCloudOverloadTestAccess
 {
-    using FRuntime = UVirtualSensorStreamPublisherComponent::FStreamRuntime;
-    using FMessage = UVirtualSensorStreamPublisherComponent::FPreparedMessage;
-    static FRuntime& Runtime(UVirtualSensorStreamPublisherComponent* P)
+    using FRuntime = UVirtualSensorStreamPublisherComp::FStreamRuntime;
+    using FMessage = UVirtualSensorStreamPublisherComp::FPreparedMessage;
+    static FRuntime& Runtime(UVirtualSensorStreamPublisherComp* P)
     { return P->FindOrAddRuntime(EVirtualSensorStreamKind::PointCloud, TEXT("PCD-RESUME")); }
-    static FString Key(UVirtualSensorStreamPublisherComponent* P)
+    static FString Key(UVirtualSensorStreamPublisherComp* P)
     { return P->MakeStreamKey(EVirtualSensorStreamKind::PointCloud, TEXT("PCD-RESUME")); }
-    static void Suspend(UVirtualSensorStreamPublisherComponent* P)
+    static void Suspend(UVirtualSensorStreamPublisherComp* P)
     { P->StopForPointCloudOverload(Key(P), Runtime(P), TEXT("test queue limit")); }
-    static bool Recover(UVirtualSensorStreamPublisherComponent* P, double Now, bool Ready)
+    static bool Recover(UVirtualSensorStreamPublisherComp* P, double Now, bool Ready)
     { return P->UpdatePointCloudOverloadRecovery(Key(P), Runtime(P), Now, Ready); }
-    static void Progress(UVirtualSensorStreamPublisherComponent* P, double Now, bool Connected)
+    static void Progress(UVirtualSensorStreamPublisherComp* P, double Now, bool Connected)
     { P->UpdatePointCloudDeliveryProgress(Runtime(P), Now, Connected); }
-    static bool HasRecoveryWork(UVirtualSensorStreamPublisherComponent* P) { return P->bHasPointCloudRecoveryWork; }
-    static void CompleteOld(UVirtualSensorStreamPublisherComponent* P, int32 Revision)
+    static bool HasRecoveryWork(UVirtualSensorStreamPublisherComp* P) { return P->bHasPointCloudRecoveryWork; }
+    static void CompleteOld(UVirtualSensorStreamPublisherComp* P, int32 Revision)
     {
-        UVirtualSensorStreamPublisherComponent::FPreparedMessage M;
+        UVirtualSensorStreamPublisherComp::FPreparedMessage M;
         M.SensorId = TEXT("PCD-RESUME"); M.FrameId = 10; M.SlabContext.RunId = TEXT("discard-run");
         M.Json = TEXT("old-result");
         P->CompletePointCloudSerialization(Key(P), MoveTemp(M), FString(), Revision);
     }
-    static void MergeOldTelemetry(UVirtualSensorStreamPublisherComponent* P)
+    static void MergeOldTelemetry(UVirtualSensorStreamPublisherComp* P)
     {
         FVirtualSensorStreamTelemetry T; T.StreamKind = EVirtualSensorStreamKind::PointCloud;
         T.SensorId = TEXT("PCD-RESUME"); T.Message = TEXT("historical receipt");
@@ -47,7 +47,7 @@ void FPointCloudOverloadResumeTest::GetTests(TArray<FString>& Names, TArray<FStr
 bool FPointCloudOverloadResumeTest::RunTest(const FString& Case)
 {
     using A = FPointCloudOverloadTestAccess;
-    auto* P = NewObject<UVirtualSensorStreamPublisherComponent>();
+    auto* P = NewObject<UVirtualSensorStreamPublisherComp>();
     FVirtualSensorStreamConfig C; C.StreamKind = EVirtualSensorStreamKind::PointCloud;
     C.SensorId = TEXT("PCD-RESUME"); C.bEnabled = true;
     C.TransportBackend = EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;

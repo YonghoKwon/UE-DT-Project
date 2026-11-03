@@ -3,11 +3,11 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMonitorHost.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/DxWidgetShipHatchMonitor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Camera/CameraActor.h"
 #include "ProceduralMeshComponent.h"
 #include "EngineUtils.h"
@@ -29,7 +29,7 @@ class FHatchQualityRun final:public IAutomationLatentCommand
 {
  FAutomationTestBase* T;int32 Step=0;double Began=FPlatformTime::Seconds(),Changed=0;bool Setup=false;TArray<TSharedPtr<FJsonValue>> Details;
  void Camera(AShipHatchMonitorHost& H,AShipHatchSimulation& S,FVector P,FVector Aim){const auto Pose=S.GetActorTransform();P=Pose.TransformPosition(P*100);Aim=Pose.TransformPosition(Aim*100);H.ViewCamera->SetActorLocationAndRotation(P,(Aim-P).Rotation());}
- void Configure(AShipHatchMonitorHost& H,AShipHatchSimulation& S,UShipHatchMonitorWidget& M)
+ void Configure(AShipHatchMonitorHost& H,AShipHatchSimulation& S,UDxWidgetShipHatchMonitor& M)
  {
   M.SelectView(0);M.SetSplitView(false);M.SetModelPresentation(true);
   if(Step==0){M.SetCameraPreset(3);M.SetModelPresentation(true);}
@@ -48,7 +48,7 @@ class FHatchQualityRun final:public IAutomationLatentCommand
    Camera(H,S,State%2?FVector(10,-13,Z+5):FVector(23,-27,Z+23),FVector(6,-6,Z-.2));
   }
  }
- void Shot(UWorld& W,UShipHatchMonitorWidget& M)
+ void Shot(UWorld& W,UDxWidgetShipHatchMonitor& M)
  {
   const TCHAR* Names[]={TEXT("ref4-v2"),TEXT("ref1-v2"),TEXT("ref5-v2"),TEXT("girder-detail-v2"),TEXT("hopper-stair-detail-v2"),TEXT("bridge-detail-v2"),TEXT("cargo-quality-iron-wide-before"),TEXT("cargo-quality-iron-close-before"),TEXT("cargo-quality-iron-wide-after"),TEXT("cargo-quality-iron-close-after"),TEXT("cargo-quality-coal-wide-before"),TEXT("cargo-quality-coal-close-before"),TEXT("cargo-quality-coal-wide-after"),TEXT("cargo-quality-coal-close-after")};
   TArray<FColor> Pixels;FIntVector Size;if(!T->TestTrue(TEXT("quality evidence uses actual D3D12 pixels"),FSlateApplication::Get().TakeScreenshot(W.GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,Size)))return;TArray64<uint8> Png;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,Png);const FString Dir=QualityRoot()/TEXT("captures");IFileManager::Get().MakeDirectory(*Dir,true);FFileHelper::SaveArrayToFile(Png,*(Dir/(FString(Names[Step])+TEXT(".png"))));

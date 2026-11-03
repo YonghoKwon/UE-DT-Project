@@ -1,9 +1,9 @@
-#include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
+#include "ma0t10_dt/MA0T10/Coil/CoilLoadingSimulation.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "CoilTestReportPaths.h"
-#include "ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Coil/DxWidgetCoilLoadingMonitor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
@@ -22,7 +22,7 @@
 #include "HAL/FileManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 
 namespace
 {
@@ -50,7 +50,7 @@ public:
         if(Step==0)
         {
             Test->TestTrue(TEXT("default placement has zero actual dangers"),M.DangerCount==0);Test->TestTrue(TEXT("missing data counted separately and collapsed"),M.DataNeededCount>0&&!M.DataExpanded());
-            const auto Stream=H->Coordinator->StreamPublisherComponent->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud,S.Lidar->GetSensorId());Test->TestTrue(TEXT("owned sensor keeps default on binary PCD ConnectedNoLoss"),Stream.bEnabled&&Stream.PointCloudFormat==EVirtualPointCloudStreamFormat::PCD&&Stream.PcdDataMode==EVirtualPcdDataMode::Binary&&Stream.DeliveryMode==EVirtualPointCloudDeliveryMode::ConnectedNoLoss);
+            const auto Stream=H->Coordinator->StreamPublisherComp->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud,S.Lidar->GetSensorId());Test->TestTrue(TEXT("owned sensor keeps default on binary PCD ConnectedNoLoss"),Stream.bEnabled&&Stream.PointCloudFormat==EVirtualPointCloudStreamFormat::PCD&&Stream.PcdDataMode==EVirtualPcdDataMode::Binary&&Stream.DeliveryMode==EVirtualPointCloudDeliveryMode::ConnectedNoLoss);
             Evidence->SetBoolField(TEXT("pcd_default_on"),Stream.bEnabled);Evidence->SetStringField(TEXT("transport_scope"),TEXT("binary PCD / ConnectedNoLoss route configured; this scene test has no connected receiver or consumer ACK acceptance"));
             Capture(*W,TEXT("01-context-ref1-ref3"));S.NextSpec.OD=1.8;S.RefreshPreview();Test->TestTrue(TEXT("spec edit changes mass and ghost dimensions"),S.NextSpec.GrossMass()>19&&S.Ghost->Body->Bounds.BoxExtent.Y>89);
             S.NextSpec=CoilLoading::FSpec();S.RefreshPreview();Test->TestTrue(TEXT("warning does not block animated placement"),S.PlaceNext());Step=1;Changed=Now;return false;

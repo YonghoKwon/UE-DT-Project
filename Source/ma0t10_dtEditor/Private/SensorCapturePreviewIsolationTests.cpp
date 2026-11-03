@@ -18,7 +18,7 @@
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Device/Camera/VirtualCameraCaptureComponent.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
 
 class FDepthPreviewIsolationCheck : public IAutomationLatentCommand
@@ -26,7 +26,7 @@ class FDepthPreviewIsolationCheck : public IAutomationLatentCommand
     FAutomationTestBase* Test;UWorld* World;AVirtualCameraSensorActor* Camera;AVirtualLidarSensorActor* Markers;AVirtualLidarSensorActor* DepthSensor;AStaticMeshActor* Wall;UInstancedStaticMeshComponent* Preview;
     FVirtualLidarDepthAcquisitionFrame Off;int32 Stage=0;double Started=FPlatformTime::Seconds();
     void Cleanup(){DepthSensor->GpuDepthProjectionComponent->CancelAcquisition();Camera->Destroy();Markers->Destroy();DepthSensor->Destroy();Wall->Destroy();}
-    bool Begin(int64 Id){World->SendAllEndOfFrameUpdates();FVirtualLidarDepthAcquisitionRequest Q;Q.FrameId=Id;Q.AcquisitionTransform=Camera->CaptureComponent->GetComponentTransform();Q.HorizontalSamples=64;Q.VerticalChannels=16;Q.HorizontalFovDegrees=90;Q.MaxDistanceCm=1000;return DepthSensor->GpuDepthProjectionComponent->BeginAcquisition(Q);}
+    bool Begin(int64 Id){World->SendAllEndOfFrameUpdates();FVirtualLidarDepthAcquisitionRequest Q;Q.FrameId=Id;Q.AcquisitionTransform=Camera->CaptureComp->GetComponentTransform();Q.HorizontalSamples=64;Q.VerticalChannels=16;Q.HorizontalFovDegrees=90;Q.MaxDistanceCm=1000;return DepthSensor->GpuDepthProjectionComponent->BeginAcquisition(Q);}
 public:
     FDepthPreviewIsolationCheck(FAutomationTestBase* T,UWorld* W,AVirtualCameraSensorActor* C,AVirtualLidarSensorActor* M,AStaticMeshActor* A,UInstancedStaticMeshComponent* P):Test(T),World(W),Camera(C),Markers(M),Wall(A),Preview(P)
     {DepthSensor=World->SpawnActor<AVirtualLidarSensorActor>();DepthSensor->StopSensor();}
@@ -64,12 +64,12 @@ static bool RunCapturePreviewFixture(FAutomationTestBase* Test,UWorld* W)
     auto* Cube=LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube"));
     auto* Wall=W->SpawnActor<AStaticMeshActor>();Wall->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);Wall->GetStaticMeshComponent()->SetStaticMesh(Cube);Wall->GetStaticMeshComponent()->SetMaterial(0,Material(FLinearColor(.15,.15,.15)));
     Wall->SetActorLocation(FVector(100800,0,100));Wall->SetActorScale3D(FVector(.1,30,30));
-    auto* Camera=W->SpawnActor<AVirtualCameraSensorActor>();auto* C=Camera->CaptureComponent.Get();C->StopCapture();C->SetWorldLocationAndRotation(FVector(100000,0,100),FRotator::ZeroRotator);
+    auto* Camera=W->SpawnActor<AVirtualCameraSensorActor>();auto* C=Camera->CaptureComp.Get();C->StopCapture();C->SetWorldLocationAndRotation(FVector(100000,0,100),FRotator::ZeroRotator);
     C->CaptureResolution=FIntPoint(128,128);C->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;C->OutputMode=EVirtualCameraOutputMode::None;C->FOVAngle=90;
     // This editor-world fixture has no BeginPlay or exposure warmup. Use direct
     // scene colour so the exclusion test cannot be hidden by temporal exposure.
     C->CaptureSource=ESceneCaptureSource::SCS_SceneColorHDR;C->ShowFlags.SetEyeAdaptation(false);
-    auto* Lidar=W->SpawnActor<AVirtualLidarSensorActor>();Lidar->StopSensor();Lidar->ScanComponent->SetPointCloudPreviewEnabled(true);
+    auto* Lidar=W->SpawnActor<AVirtualLidarSensorActor>();Lidar->StopSensor();Lidar->ScanComp->SetPointCloudPreviewEnabled(true);
     TArray<UInstancedStaticMeshComponent*> Components;Lidar->GetComponents(Components);UInstancedStaticMeshComponent* Preview=nullptr;
     for(auto* P:Components)if(P->GetName()==TEXT("VirtualLidarPointCloudPreview"))Preview=P;
     if(!TestNotNull(TEXT("owned CPU diagnostic fixture exists"),Preview))return false;

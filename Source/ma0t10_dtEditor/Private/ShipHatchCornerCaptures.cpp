@@ -3,11 +3,11 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMonitorHost.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/DxWidgetShipHatchMonitor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "SensorOwnedRayTracing.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -136,7 +136,7 @@ class FHatchCornerCaptureRun final:public IAutomationLatentCommand
         TArray<TSharedPtr<FJsonValue>> Sensors;
         for(int I=0;I<3;++I)if(auto* A=S.SensorAt(I))
         {
-            const auto* Scan=A->ScanComponent.Get();const auto F=Scan->GetLastFrameSnapshot();auto Row=MakeShared<FJsonObject>();
+            const auto* Scan=A->ScanComp.Get();const auto F=Scan->GetLastFrameSnapshot();auto Row=MakeShared<FJsonObject>();
             Row->SetStringField(TEXT("sensor_id"),Scan->SensorId);Row->SetStringField(TEXT("backend"),Scan->GetRuntimeStatus().ActiveAcquisitionBackend);
             Row->SetNumberField(TEXT("frame_id"),F?double(F->FrameId):0);Row->SetNumberField(TEXT("ray_count"),F&&F->Points?F->Points->Num():0);
             Row->SetStringField(TEXT("acquisition_utc"),F?F->GetAcquisitionStartUtc().ToIso8601():TEXT(""));
@@ -227,7 +227,7 @@ public:
             if(Now-Changed<4||!S.HasFreshMeasurement())return false;
             for(int I=0;I<3;++I)
             {
-                auto* Scan=S.SensorAt(I)->ScanComponent.Get();const auto F=Scan->GetLastFrameSnapshot();
+                auto* Scan=S.SensorAt(I)->ScanComp.Get();const auto F=Scan->GetLastFrameSnapshot();
                 if(!F||F->AcquisitionStartedMonotonic<LastDig)return false;
                 if(!Test->TestEqual(TEXT("residual point cloud was acquired by HWRT"),Scan->GetActiveAcquisitionBackend(),EVirtualLidarAcquisitionBackend::HardwareRayTracing))return true;
             }

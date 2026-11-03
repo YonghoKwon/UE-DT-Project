@@ -1,10 +1,10 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Device/Camera/VirtualCameraCaptureComponent.h"
 #include "Json.h"
@@ -13,12 +13,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabPerSensorDeliveryTest,"MA0T10.SlabReliabil
 bool FSlabPerSensorDeliveryTest::RunTest(const FString&)
 {
     auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* R=W->GetSubsystem<USlabRunResultsSubsystem>();
-    auto* A=W->SpawnActor<AVirtualLidarSensorActor>();auto* B=W->SpawnActor<AVirtualLidarSensorActor>();A->ScanComponent->SensorId=TEXT("A");B->ScanComponent->SensorId=TEXT("B");
+    auto* A=W->SpawnActor<AVirtualLidarSensorActor>();auto* B=W->SpawnActor<AVirtualLidarSensorActor>();A->ScanComp->SensorId=TEXT("A");B->ScanComp->SensorId=TEXT("B");
     TMap<FString,TWeakObjectPtr<AVirtualSensorActorBase>> Sensors;Sensors.Add(TEXT("A"),A);Sensors.Add(TEXT("B"),B);
     R->ReportDirectoryOverrideForTests=FPaths::ProjectSavedDir()/TEXT("Reports/SensorOutputReliability/ledger");R->BeginRun(TEXT("run"),TEXT("scenario"),ESlabExecutionPolicy::ObservationAllowed,FVirtualSlabSensorOutputSelection());R->SetSensors(TEXT("run"),Sensors,nullptr);
-    auto* Camera=W->SpawnActor<AVirtualCameraSensorActor>();Camera->CaptureComponent->SensorId=TEXT("C");Sensors.Add(TEXT("C"),Camera);R->SetSensors(TEXT("run"),Sensors,nullptr);
-    const_cast<FVirtualSensorRuntimeStatus&>(A->ScanComponent->GetRuntimeStatus()).MeasuredAcquisitionRateHz=20;
-    const_cast<FVirtualSensorRuntimeStatus&>(B->ScanComponent->GetRuntimeStatus()).MeasuredAcquisitionRateHz=20;
+    auto* Camera=W->SpawnActor<AVirtualCameraSensorActor>();Camera->CaptureComp->SensorId=TEXT("C");Sensors.Add(TEXT("C"),Camera);R->SetSensors(TEXT("run"),Sensors,nullptr);
+    const_cast<FVirtualSensorRuntimeStatus&>(A->ScanComp->GetRuntimeStatus()).MeasuredAcquisitionRateHz=20;
+    const_cast<FVirtualSensorRuntimeStatus&>(B->ScanComp->GetRuntimeStatus()).MeasuredAcquisitionRateHz=20;
     R->SetAppliedOutputs(TEXT("run"),FVirtualSlabSensorOutputSelection());R->SetMeasuredRates(TEXT("run"),Sensors);
     FSlabRunDeliverySummary Rates;R->GetRunResult(TEXT("run"),Rates);
     TestTrue(TEXT("unselected stopped camera does not create a rate failure"),Rates.Warning.IsEmpty());

@@ -1,7 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
-#include "ma0t10_dt/MA0T10/UI/SlabScenarioChartWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Slab/SlabScenarioChartWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabChartsPanel.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioTypes.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabProgressiveChartTest,"MA0T10.Slab.Chart.ProgressiveNoFutureLeak",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -57,16 +57,16 @@ bool FSlabProgressiveChartTest::RunTest(const FString&)
 	TArray<FSlabScenarioRow> Rows;Rows.SetNum(600);
 	for(int32 I=0;I<600;++I){Rows[I].ElapsedSec=I*.05;Rows[I].CenterX=I;}
 	Rows[500].CenterX=1000000;
-	TestEqual(TEXT("first speed does not inspect future row"),USlabChartsPanelWidget::CalculateHistoricalSpeed(Rows,0,1),0.0);
-	TestTrue(TEXT("future position anomaly cannot contaminate current speed"),FMath::IsNearlyEqual(USlabChartsPanelWidget::CalculateHistoricalSpeed(Rows,499,1),20.0,1.e-6));
-	TestTrue(TEXT("anomaly visible only when its current row arrives"),USlabChartsPanelWidget::CalculateHistoricalSpeed(Rows,500,1)>1000000);
+	TestEqual(TEXT("first speed does not inspect future row"),UDxWidgetSlabChartsPanel::CalculateHistoricalSpeed(Rows,0,1),0.0);
+	TestTrue(TEXT("future position anomaly cannot contaminate current speed"),FMath::IsNearlyEqual(UDxWidgetSlabChartsPanel::CalculateHistoricalSpeed(Rows,499,1),20.0,1.e-6));
+	TestTrue(TEXT("anomaly visible only when its current row arrives"),UDxWidgetSlabChartsPanel::CalculateHistoricalSpeed(Rows,500,1)>1000000);
 	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabThreeChartSlotsTest,"MA0T10.Slab.Chart.ThreeSlotsAndLegacyApi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabThreeChartSlotsTest::RunTest(const FString&)
 {
-	auto* P=NewObject<USlabChartsPanelWidget>();
+	auto* P=NewObject<UDxWidgetSlabChartsPanel>();
 	TestEqual(TEXT("first defaults to angles"),P->GetChartSlotMetric(0),ESlabChartMetric::Angles);
 	TestEqual(TEXT("second defaults to center offset"),P->GetChartSlotMetric(1),ESlabChartMetric::CenterOffset);
 	TestEqual(TEXT("third defaults to margins"),P->GetChartSlotMetric(2),ESlabChartMetric::RailMargins);

@@ -1,13 +1,13 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabScenarioReplayPanel.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Types/SlateAttributeMetaData.h"
 
 namespace
@@ -31,14 +31,14 @@ bool FUxrSlabCapabilityIsolation::RunTest(const FString&)
     for(bool Enabled:{false,true})
     {
         Workspace->SetSlabToolsEnabled(Enabled);
-        auto* Preview=NewObject<UVirtualSensorMonitorPanelWidget>(World);Workspace->RegisterOwnedPanel(ESensorToolPanelRole::Monitor,Preview);
+        auto* Preview=NewObject<UDxWidgetVirtualSensorMonitorPanel>(World);Workspace->RegisterOwnedPanel(ESensorToolPanelRole::Monitor,Preview);
         TestEqual(TEXT("Owned preview Slab summary follows the same capability"),Preview->GetSlabAnalysisSummaryText().IsEmpty(),!Enabled);
         TSharedPtr<SWidget> ReplayRoot;
         if(Enabled)
         {
-            auto* Replay=NewObject<USlabScenarioReplayPanelWidget>(World);Workspace->RegisterOwnedPanel(ESensorToolPanelRole::Replay,Replay);Replay->Initialize();ReplayRoot=Replay->TakeWidget();
+            auto* Replay=NewObject<UDxWidgetSlabScenarioReplayPanel>(World);Workspace->RegisterOwnedPanel(ESensorToolPanelRole::Replay,Replay);Replay->Initialize();ReplayRoot=Replay->TakeWidget();
         }
-        auto* Data=NewObject<UVirtualSensorCaptureExportPanelWidget>(World);Workspace->RegisterOwnedPanel(ESensorToolPanelRole::Data,Data);
+        auto* Data=NewObject<UDxWidgetVirtualSensorCaptureExportPanel>(World);Workspace->RegisterOwnedPanel(ESensorToolPanelRole::Data,Data);
         Data->BindSensorManager(Coordinator);Data->BindScenarioSlabActor(Slab);Data->Initialize();Data->SetVisibility(ESlateVisibility::Visible);
         const auto Root=Data->TakeWidget();Data->OpenOwnedTab(ESensorOwnedDataTab::Transfer);
         // A stale scenario/replay selection must not override the current world's capability.
@@ -73,7 +73,7 @@ bool FUxrSlabCapabilityIsolation::RunTest(const FString&)
         }
         Data->OpenOwnedTab(ESensorOwnedDataTab::FileSave);Root->SlatePrepass(1);TArray<FString> File;UxrCapabilityText(Root,File);
         TestTrue(TEXT("File saving remains available in both world types"),File.Contains(TEXT("새 프레임 저장")));
-        TestFalse(TEXT("Showing UI does not start general PCD transmission"),Coordinator->StreamPublisherComponent->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId()));
+        TestFalse(TEXT("Showing UI does not start general PCD transmission"),Coordinator->StreamPublisherComp->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId()));
         Workspace->UnregisterPanel(Data);
         Workspace->UnregisterPanel(Preview);
         if(auto* Replay=Workspace->GetOwnedPanel(ESensorToolPanelRole::Replay))Workspace->UnregisterPanel(Replay);

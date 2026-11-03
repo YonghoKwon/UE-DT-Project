@@ -3,7 +3,7 @@
 #include "SensorOwnedRayTracing.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualSensorEditableTypes.h"
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
@@ -15,7 +15,7 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGpuPointModelSnapshotTest,"MA0T10.GpuLidar.PointModelSnapshot",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FGpuPointModelSnapshotTest::RunTest(const FString&)
 {
- auto* Scan=NewObject<UVirtualLidarScanComponent>();Scan->FrameId=71;Scan->DatasetNoiseSequence=TPair<int32,int64>(812,47);
+ auto* Scan=NewObject<UVirtualLidarScanComp>();Scan->FrameId=71;Scan->DatasetNoiseSequence=TPair<int32,int64>(812,47);
  Scan->MaxDistance=10000;Scan->FidelityMode=EVirtualSensorFidelityMode::PublicSpecBased;Scan->bEnableRangeNoise=true;
  Scan->RangeNoiseStandardDeviationMillimeters=5;Scan->MaximumRangeErrorMillimeters=20;
  for(bool Material:{false,true})
@@ -39,7 +39,7 @@ bool FGpuLidarFallbackTest::RunTest(const FString&)
 {
  auto* Cvar=IConsoleManager::Get().FindConsoleVariable(TEXT("ma0t10.Lidar.HardwareRayTracing"));if(!Cvar){AddError(TEXT("HWRT fallback switch missing"));return false;}
  const int Old=Cvar->GetInt();const auto Priority=EConsoleVariableFlags(Cvar->GetFlags()&ECVF_SetByMask);Cvar->Set(0,Priority);
- auto* Scan=NewObject<UVirtualLidarScanComponent>();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::HardwareRayTracing;FString Reason;
+ auto* Scan=NewObject<UVirtualLidarScanComp>();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::HardwareRayTracing;FString Reason;
  TestFalse(TEXT("backend diagnostic disable is independent from renderer settings"),SensorOwnedRayTracing::IsAvailable());
  TestEqual(TEXT("explicit unavailable HWRT retains CPU fallback"),Scan->GetResolvedAcquisitionBackend(Reason),EVirtualLidarAcquisitionBackend::AccurateCpuTrace);
  TestFalse(TEXT("fallback provides an explanation"),Reason.IsEmpty());
@@ -103,18 +103,18 @@ bool FGpuLidarBackendSettingsTest::RunTest(const FString&)
  auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* Manager=World->SpawnActor<AVirtualSensorCoordinator>();
  auto* A=World->SpawnActor<AVirtualLidarSensorActor>();auto* B=World->SpawnActor<AVirtualLidarSensorActor>();Manager->RegisterSensorActor(A);Manager->RegisterSensorActor(B);
  TestEqual(TEXT("manager applies backend through registered native Actor contracts"),Manager->SetLidarAcquisitionBackend(EVirtualLidarAcquisitionBackend::AccurateCpuTrace),2);
- TestEqual(TEXT("second sensor receives manager CPU selection"),B->ScanComponent->AcquisitionBackend,EVirtualLidarAcquisitionBackend::AccurateCpuTrace);
- A->StartSensor();const int Generation=A->ScanComponent->GetFileCaptureRevision(),Revision=A->GetConfigurationRevision();FString Reason;
+ TestEqual(TEXT("second sensor receives manager CPU selection"),B->ScanComp->AcquisitionBackend,EVirtualLidarAcquisitionBackend::AccurateCpuTrace);
+ A->StartSensor();const int Generation=A->ScanComp->GetFileCaptureRevision(),Revision=A->GetConfigurationRevision();FString Reason;
  TestTrue(TEXT("individual sensor can select GPU while running"),A->SetLidarAcquisitionBackend(EVirtualLidarAcquisitionBackend::HardwareRayTracing,Reason));
- TestTrue(TEXT("backend switch cancels obsolete generation and preserves running intent"),A->ScanComponent->GetFileCaptureRevision()>Generation&&A->IsSensorRunning());
+ TestTrue(TEXT("backend switch cancels obsolete generation and preserves running intent"),A->ScanComp->GetFileCaptureRevision()>Generation&&A->IsSensorRunning());
  TestTrue(TEXT("configuration revision changes for existing 5Hz UI refresh"),A->GetConfigurationRevision()>Revision);
- TestEqual(TEXT("individual selection does not affect another sensor"),B->ScanComponent->AcquisitionBackend,EVirtualLidarAcquisitionBackend::AccurateCpuTrace);
+ TestEqual(TEXT("individual selection does not affect another sensor"),B->ScanComp->AcquisitionBackend,EVirtualLidarAcquisitionBackend::AccurateCpuTrace);
  FVirtualSensorEditableState State,Applied;A->ReadEditableState(State);++State.PreviewPointStride;
  TestTrue(TEXT("ordinary editable-state transaction remains available"),A->ApplyEditableState(State,Reason));
- TestEqual(TEXT("ordinary settings changes preserve explicit GPU backend"),A->ScanComponent->AcquisitionBackend,EVirtualLidarAcquisitionBackend::HardwareRayTracing);
+ TestEqual(TEXT("ordinary settings changes preserve explicit GPU backend"),A->ScanComp->AcquisitionBackend,EVirtualLidarAcquisitionBackend::HardwareRayTracing);
  B->ReadEditableState(State);State.LidarProfile=EVirtualLidarDeviceProfile::HesaiXT32;State.SimulationQuality=EVirtualSensorSimulationQuality::FullSpec;
  TestTrue(TEXT("profile transaction remains available"),B->ApplyProfileAndSimulationQuality(State,Applied,Reason));
- TestEqual(TEXT("profile selection preserves explicit CPU backend"),B->ScanComponent->AcquisitionBackend,EVirtualLidarAcquisitionBackend::AccurateCpuTrace);
+ TestEqual(TEXT("profile selection preserves explicit CPU backend"),B->ScanComp->AcquisitionBackend,EVirtualLidarAcquisitionBackend::AccurateCpuTrace);
 
  A->StopSensor();A->Destroy();B->Destroy();Manager->Destroy();return !HasAnyErrors();
 }

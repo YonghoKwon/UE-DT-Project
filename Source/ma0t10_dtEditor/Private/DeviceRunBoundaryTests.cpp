@@ -1,8 +1,8 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Device/Core/DeviceRunDeliveryLedger.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
-#include "ma0t10_dt/MA0T10/Scenario/ProjectRunDeliveryAdapter.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
+#include "ma0t10_dt/MA0T10/Common/ProjectRunDeliveryAdapter.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeviceRunLedgerBoundary,"MA0T10.DeviceBoundary.RunLedgerBoundary",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FDeviceRunLedgerBoundary::RunTest(const FString&)
@@ -19,7 +19,7 @@ bool FDeviceRunLedgerBoundary::RunTest(const FString&)
     int64 Retained=0;for(int32 I=0;I<40;++I)Retained+=Ledger.Count(FString::FromInt(I));
     TestEqual(TEXT("existing 32 run bound retained"),Retained,int64(32));
     TestEqual(TEXT("latest run retained"),Ledger.Count(TEXT("39")),int64(1));
-    auto* Publisher=NewObject<UVirtualSensorStreamPublisherComponent>();
+    auto* Publisher=NewObject<UVirtualSensorStreamPublisherComp>();
     TestEqual(TEXT("legacy pending adapter"),Publisher->GetPendingSlabRunCount(TEXT("x")),ProjectRunDeliveryAdapter::Pending(*Publisher,TEXT("x")));
     TestEqual(TEXT("legacy failure adapter"),Publisher->GetFailedSlabRunCount(TEXT("x")),ProjectRunDeliveryAdapter::Failed(*Publisher,TEXT("x")));
     return true;

@@ -2,18 +2,18 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetExamples.h"
-#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Agent/AgentTestSetExamples.h"
+#include "ma0t10_dt/MA0T10/Agent/AgentTestSetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Dataset/VirtualDatasetSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
-#include "ma0t10_dt/MA0T10/Slab/SlabMotionComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabMotionComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/AgentTestSetWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetAgentTestSet.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -60,7 +60,7 @@ bool FAgentExampleDeterminism::RunTest(const FString&)
             TestEqual(TEXT("optional presence preserved"),R.bHasCenterY,Source->Rows[N].bHasCenterY);
             const double Width=FSlabScenarioCodec::ToCm(R.Width,U);TestTrue(TEXT("realistic width cap follows input unit"),Width>=30&&Width<=400);
             const FTransform Track(FRotator(0,35,0),FVector(10,20,30));const FVector Size(100,50,20);
-            const auto Pose=USlabMotionComponent::BuildPose(R,Track,Size,U);
+            const auto Pose=USlabMotionComp::BuildPose(R,Track,Size,U);
             TestTrue(TEXT("existing TrackReference and BuildPose rule retained"),Pose.GetLocation().Equals(Track.TransformPositionNoScale(FVector(FSlabScenarioCodec::ToCm(R.CenterX,U),0,10))));
         }
     }
@@ -90,7 +90,7 @@ public:
             for(TActorIterator<AVirtualSensorActorBase> It(World);It;++It)It->StopSensor();
             for(TActorIterator<AVirtualLidarSensorActor> It(World);It;++It)if(It->GetSensorId()==TEXT("SLAB-LIDAR-001")){Lidar=*It;break;}
             if(!Slab||!Lidar){Test->AddError(TEXT("validation map Slab and LiDAR missing"));return Finish();}
-            auto* Scan=Lidar->ScanComponent.Get();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->bEnableRangeNoise=false;
+            auto* Scan=Lidar->ScanComp.Get();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->bEnableRangeNoise=false;
             Slab->SetSensorOutputs(FVirtualSlabSensorOutputSelection::ObservationOnly());
             Service=World->GetSubsystem<UAgentTestSetSubsystem>();FAgentTestSetSettings C;C.Target=Hundred?100:6;C.LidarId=Lidar->GetSensorId();Test->TestTrue(TEXT("autofill defaults on, examples use one representative frame"),C.AutoFillExamples&&C.ExampleMaxFrames==1);Service->ConfigureForTests(C);
             Source=ExampleTestSource();if(!Source){Test->AddError(TEXT("fixture parse failed"));return Finish();}

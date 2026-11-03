@@ -20,7 +20,7 @@
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Device/Camera/VirtualCameraCaptureComponent.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -86,7 +86,7 @@ public:
     ~FCameraMarkerCheck()
     {
         State->Alive.Store(false);
-        if(Camera.IsValid()){Camera->CaptureComponent->BeforeSceneCaptureForTests=nullptr;Camera->CaptureComponent->OnScheduledFrameForTests=nullptr;Camera->StopSensor();Camera->Destroy();}
+        if(Camera.IsValid()){Camera->CaptureComp->BeforeSceneCaptureForTests=nullptr;Camera->CaptureComp->OnScheduledFrameForTests=nullptr;Camera->StopSensor();Camera->Destroy();}
         if(Marker.IsValid())Marker->Destroy();
         if(Session.IsValid()&&!Run.IsEmpty())Session->EndSlabSensorSession(Run,true);
     }
@@ -111,7 +111,7 @@ public:
                 I->SetCollisionEnabled(ECollisionEnabled::NoCollision);I->CastShadow=false;I->RegisterComponent();Marker->AddInstanceComponent(I);
             }
             FAssetCompilingManager::Get().FinishAllCompilation();FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
-            Camera=W->SpawnActor<AVirtualCameraSensorActor>(FVector(0,0,100),FRotator::ZeroRotator);auto* C=Camera->CaptureComponent.Get();C->StopCapture();
+            Camera=W->SpawnActor<AVirtualCameraSensorActor>(FVector(0,0,100),FRotator::ZeroRotator);auto* C=Camera->CaptureComp.Get();C->StopCapture();
             C->SensorId=TEXT("CAMERA-COHERENCE-TEST");Coordinator->RegisterSensorActor(Camera.Get());
             C->CaptureMode=EVirtualCameraCaptureMode::Payload;C->CaptureResolution=FIntPoint(1280,720);C->CaptureInterval=1.0f/30;C->FOVAngle=87;C->OutputMode=EVirtualCameraOutputMode::None;
             C->PrimitiveRenderMode=ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;C->ShowOnlyActorComponents(Marker.Get());
@@ -123,7 +123,7 @@ public:
             C->EncodeDelayForTests=.04f;
             C->BeforeSceneCaptureForTests=[this](int64 Id)
             {
-                auto* Capture=Camera->CaptureComponent.Get();FMarkerExpected E;
+                auto* Capture=Camera->CaptureComp.Get();FMarkerExpected E;
                 E.Revision=Capture->GetAcquisitionRevisionForTests();E.Token=(uint64(E.Revision+1)<<48)|uint64(Id);
                 E.Pose=Capture->GetComponentTransform();E.Slab=Session->GetSlabSensorSessionStatus().CurrentSlab;
                 for(int32 I=0;I<CameraFrameMarker::Count;++I)Cells[I]->SetScalarParameterValue(TEXT("Bit"),CameraFrameMarker::Cell(E.Token,I)?1.0f:0.0f);
@@ -144,7 +144,7 @@ public:
             };
             C->StartCapture();Ready=FPlatformTime::Seconds()+3;StageAt=Ready;Stage=1;return false;
         }
-        auto* C=Camera.IsValid()?Camera->CaptureComponent.Get():nullptr;
+        auto* C=Camera.IsValid()?Camera->CaptureComp.Get():nullptr;
         Pump();FMarkerResult R;while(State->Results.Dequeue(R)){++Checked;if(!R.Valid)Test->AddError(FString::Printf(TEXT("Camera frame %lld: %s"),R.Frame,*R.Error));}
         if(Stage==1)
         {

@@ -1,8 +1,8 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
-#include "ma0t10_dt/MA0T10/UI/CoilLoadingPresentation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Coil/CoilLoadingPresentation.h"
 #include "DeviceUI/VirtualPcdOptionsPresentation.h"
 #include "DeviceUI/VirtualPcdBandwidthPresentation.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolUiText.h"
+#include "ma0t10_dt/MA0T10/UI/Common/SensorToolUiText.h"
 #include "Misc/AutomationTest.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUxrP2CoilUnits,"MA0T10.UXRP2.CoilUnitsAndComparison",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

@@ -1,4 +1,4 @@
-#include "Device/Sensor/LidarPlayerDisplayComponent.h"
+#include "Device/Sensor/LidarPlayerDisplayComp.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
@@ -14,7 +14,7 @@ bool FPointUploadByteOracleTest::RunTest(const FString&)
 {
     if(GUsingNullRHI){AddError(TEXT("Actual RHI required"));return false;}
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* Actor=World->SpawnActor<AActor>();Actor->Tags.Add(TEXT("SensorTestManaged"));
-    auto* C=NewObject<ULidarPlayerDisplayComponent>(Actor);Actor->AddInstanceComponent(C);Actor->SetRootComponent(C);
+    auto* C=NewObject<ULidarPlayerDisplayComp>(Actor);Actor->AddInstanceComponent(C);Actor->SetRootComponent(C);
     C->bFixedPointSubmission=true;C->PointPixelScale=1./1024;
     C->BatchedPoints.Emplace(FVector(128,8,16),FLinearColor(.125f,.5f,.75f,1),2.f,0.f,SDPG_World);
     C->BatchedPoints.Emplace(FVector(256,-16,32),FLinearColor(.5f,.25f,1,1),4.f,0.f,SDPG_World);

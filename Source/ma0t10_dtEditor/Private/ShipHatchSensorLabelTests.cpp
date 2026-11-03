@@ -3,12 +3,12 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchLabelPresentation.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/DxWidgetShipHatchMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchLabelPresentation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMonitorHost.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "ProceduralMeshComponent.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/Button.h"
@@ -28,12 +28,12 @@
 
 struct FHatchLabelProbe
 {
-    static void View(UShipHatchMonitorWidget& M,int32 State)
+    static void View(UDxWidgetShipHatchMonitor& M,int32 State)
     {
         M.SelectView(State==4?1:0);M.SetSplitView(State!=3);M.SetCameraPreset(State==0||State==3?0:1);
         if(State==2){M.OrbitYaw=-132;M.UpdateCamera();}
     }
-    static TSharedRef<FJsonObject> Inspect(FAutomationTestBase& T,UShipHatchMonitorWidget& M,bool Baseline)
+    static TSharedRef<FJsonObject> Inspect(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M,bool Baseline)
     {
         auto R=MakeShared<FJsonObject>();auto& S=*M.Simulation;auto* PC=M.GetOwningPlayer();const auto G=M.GetCachedGeometry();int32 W,H;PC->GetViewportSize(W,H);
         auto Vector=[](FVector P){TArray<TSharedPtr<FJsonValue>> A;for(double V:{P.X,P.Y,P.Z})A.Add(MakeShared<FJsonValueNumber>(V));return A;};
@@ -61,7 +61,7 @@ struct FHatchLabelProbe
             T.TestTrue(TEXT("full physical TF identity remains on its own badge"),M.SensorBadges[I]->GetToolTipText().ToString().Contains(Names[I]));
             auto Row=MakeShared<FJsonObject>();Row->SetNumberField(TEXT("index"),I);Row->SetStringField(TEXT("physical_role"),Names[I]);Row->SetArrayField(TEXT("actor_world_cm"),Vector(A->GetActorLocation()));Row->SetArrayField(TEXT("origin_hold_m"),Vector(Local));Row->SetArrayField(TEXT("projected_root_xy"),Vector(FVector(P[I],0)));
             TArray<TSharedPtr<FJsonValue>> Rect;for(double V:{double(Boxes[I].Left),double(Boxes[I].Top),double(Boxes[I].Right),double(Boxes[I].Bottom)})Rect.Add(MakeShared<FJsonValueNumber>(V));Row->SetArrayField(TEXT("badge_root_ltrb"),Rect);Rows.Add(MakeShared<FJsonValueObject>(Row));
-            const auto Frame=A->ScanComponent->GetLastFrameSnapshot();if(Frame){Row->SetArrayField(TEXT("acquisition_world_cm"),Vector(Frame->AcquisitionTransform.GetLocation()));Row->SetNumberField(TEXT("frame_id"),A->ScanComponent->GetRuntimeStatus().FrameId);T.TestTrue(TEXT("latched static acquisition origin agrees with actual detector"),Frame->AcquisitionTransform.GetLocation().Equals(A->GetActorLocation(),.001));}
+            const auto Frame=A->ScanComp->GetLastFrameSnapshot();if(Frame){Row->SetArrayField(TEXT("acquisition_world_cm"),Vector(Frame->AcquisitionTransform.GetLocation()));Row->SetNumberField(TEXT("frame_id"),A->ScanComp->GetRuntimeStatus().FrameId);T.TestTrue(TEXT("latched static acquisition origin agrees with actual detector"),Frame->AcquisitionTransform.GetLocation().Equals(A->GetActorLocation(),.001));}
             if(!Baseline){FVector2D Anchor,End;T.TestTrue(TEXT("visible label owns an explicit anchor and connector"),M.GetSensorBadgeLink(I,Anchor,End));T.TestTrue(TEXT("anchor matches independent actual detector projection <= 1 logical pixel"),Anchor.Equals(P[I],1));T.TestTrue(TEXT("connector terminates on its own label boundary"),End.X>=Boxes[I].Left-.1&&End.X<=Boxes[I].Right+.1&&End.Y>=Boxes[I].Top-.1&&End.Y<=Boxes[I].Bottom+.1);Row->SetArrayField(TEXT("anchor_root_xy"),Vector(FVector(Anchor,0)));Row->SetArrayField(TEXT("connector_end_root_xy"),Vector(FVector(End,0)));}
             if(!Baseline)T.TestTrue(TEXT("badge remains in owned 3D scene rectangle"),Boxes[I].Left>=M.SceneRect.Left-.1&&Boxes[I].Top>=M.SceneRect.Top-.1&&Boxes[I].Right<=M.SceneRect.Right+.1&&Boxes[I].Bottom<=M.SceneRect.Bottom+.1);
         }
@@ -73,7 +73,7 @@ struct FHatchLabelProbe
         }
         return R;
     }
-    static void Raster(FAutomationTestBase& T,UShipHatchMonitorWidget& M,const TArray<FColor>& Pixels,FIntVector Size)
+    static void Raster(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M,const TArray<FColor>& Pixels,FIntVector Size)
     {
         const auto Root=M.GetCachedGeometry(),VG=M.GetWorld()->GetGameViewport()->GetGameViewportWidget()->GetCachedGeometry();const FLinearColor Colors[]={FLinearColor(.1,.9,1),FLinearColor(1,.6,.06),FLinearColor(.9,.2,.8)};
         for(int I=0;I<3;++I)

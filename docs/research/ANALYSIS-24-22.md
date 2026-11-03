@@ -16,19 +16,19 @@
 2. 메인 `Saved/Reports/TESTSET-04/package-nogit/runtime-subscribed/semantic-audit.json:2–4`는 ID 1이 3,225,600개라고 기록한다. 당시 RESULT의 “Ground(1)” 해석은 데이터의 class table과 맞지 않는다. 첫 `dataset.json`은 `0 Background, 1 Other, 2 Slab, 3 Roller, 4 Conveyor, 5 Floor, 6 Sensor`이며, 보관된 `1a75969` 소스의 class mapping도 같다.
 3. 이번 `historical-label-audit.json`은 원본 100개의 `lidar_labels.bin`을 **little-endian `<BI` / 5B**로 다시 읽었다. 파일별 잔여 바이트 0, 전체 semantic **1:3,225,600**, instance **0:3,225,600**이다. 첫 manifest의 instances에는 `id=19, actor_name=SlabActor_0, actor_class=SlabActor`가 있다. 전체 런타임 Actor가 제거된 상황과는 다르다. 원본 경로·파일별 SHA256을 함께 기록했다.
 4. [분류 규칙](../../Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorSemanticLabels.cpp) 16, 27–42행은 Actor Tag → `GetName()` → class → component 이름을 검사한다. SlabActor_0/SlabMesh는 이름 규칙에도 부합한다. `GetActorLabel`, 문자열 테이블 또는 Editor 전용 metadata를 사용하지 않는다. 44–49행에서 알 수 없는 이름/NAME_None은 ID 1로 변환된다.
-5. [dataset writer](../../Source/ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.cpp) 429–435행은 immutable 점의 `SemanticLabel`과 `HitActorName`을 5B에 기록한다. Actor 이름 lookup 실패는 instance 0이다. 따라서 **Other+instance0은 semantic metadata 미적용과 일치**하지만 이것만으로 GPU 버퍼가 비었는지, 깊이가 불일치했는지까지 구분할 수 없다.
+5. [dataset writer](../../Source/ma0t10_dt/MA0T10/Dataset/VirtualDatasetSubsystem.cpp) 429–435행은 immutable 점의 `SemanticLabel`과 `HitActorName`을 5B에 기록한다. Actor 이름 lookup 실패는 instance 0이다. 따라서 **Other+instance0은 semantic metadata 미적용과 일치**하지만 이것만으로 GPU 버퍼가 비었는지, 깊이가 불일치했는지까지 구분할 수 없다.
 
 ### 원인 후보 순위
 
 | 순위 | 후보 / 근거 파일:행 | 판단·반증 방법 |
 |---|---|---|
-| 1 | **GPU semantic proxy capture/readback/깊이 대응 실패.** `Sensor/VirtualLidarGpuDepthProjectionComponent.cpp:142–152,192–212`; `Sensor/VirtualLidarScanComponentSampling.cpp:374–397` | 현재 가장 유력한 실패 **구간**. depth 측정은 유지되면서 semantic ID 배열 없음·ID lookup 실패·깊이 차이 >1cm면 identity가 붙지 않는다. 관찰한 모든 instance0과 맞는다. 아래 세부 후보를 실행으로 분리해야 한다. |
+| 1 | **GPU semantic proxy capture/readback/깊이 대응 실패.** `Sensor/VirtualLidarGpuDepthProjectionComponent.cpp:142–152,192–212`; `Sensor/VirtualLidarScanCompSampling.cpp:374–397` | 현재 가장 유력한 실패 **구간**. depth 측정은 유지되면서 semantic ID 배열 없음·ID lookup 실패·깊이 차이 >1cm면 identity가 붙지 않는다. 관찰한 모든 instance0과 맞는다. 아래 세부 후보를 실행으로 분리해야 한다. |
 | 1a | 런타임에서도 기본 **EditorPreview world**를 사용하는 proxy scene. `Sensor/VirtualLidarSemanticScene.cpp:12–29` | UE5.3 `Engine/Source/Runtime/Engine/Public/PreviewScene.h:23–34,63`의 `bEditor=true` 기본값과 `Private/PreviewScene.cpp:31–40`의 world type 선택을 로컬 엔진 원문에서 확인했다. 패키지 전용 차이를 조사할 구체적 후보지만, 이 값이 실제 누락을 일으켰다는 증거는 없다. 단독 A/B 후보다. |
 | 1b | proxy 지원 조건/재질 shader 상태. `Sensor/VirtualLidarSemanticScene.cpp:41–53,77–93,139–154` | 숨김·미등록·SceneCapture 제외 또는 opaque가 아닌 재질/WPO는 proxy에서 제외된다. main depth는 계속 보일 수 있다. Slab source가 제외됐는지, ID 재질/shader가 준비됐는지 기록이 부족하다. 원본 재질을 강제로 바꾸지 않는다. |
-| 1c | proxy ID/depth와 main depth의 대응 실패. `Sensor/VirtualLidarScanComponentSampling.cpp:376–395` | 전체 1cm 불일치 또는 유효 ID가 없는 경우도 같은 결과다. projection·pose·크기·프레임별 ID/depth 대응과 mismatch 수를 먼저 확인한다. 1cm 기준 완화는 수정안이 아니다. |
-| 2 | runtime 문자열 경로 자산의 cook 누락. `Sensor/VirtualLidarSemanticScene.cpp:41–42`; `Slab/SlabActor.cpp:44`; `Slab/SlabVisualizationComponent.cpp:41–48` | ID material, Slab 재질/폰트가 경로 로드된다. 그러나 현재 `Config/DefaultGame.ini:7,10`에 Slab/Materials 및 Sensor/Materials AlwaysCook이 이미 있다. 같은 패키지의 실제 pak/asset registry 포함 여부·shader permutation은 이번에 검사하지 않았다. “soft ref라 무조건 누락”으로 결론 내릴 수 없다. |
+| 1c | proxy ID/depth와 main depth의 대응 실패. `Sensor/VirtualLidarScanCompSampling.cpp:376–395` | 전체 1cm 불일치 또는 유효 ID가 없는 경우도 같은 결과다. projection·pose·크기·프레임별 ID/depth 대응과 mismatch 수를 먼저 확인한다. 1cm 기준 완화는 수정안이 아니다. |
+| 2 | runtime 문자열 경로 자산의 cook 누락. `Sensor/VirtualLidarSemanticScene.cpp:41–42`; `Slab/SlabActor.cpp:44`; `Slab/SlabVisualizationComp.cpp:41–48` | ID material, Slab 재질/폰트가 경로 로드된다. 그러나 현재 `Config/DefaultGame.ini:7,10`에 Slab/Materials 및 Sensor/Materials AlwaysCook이 이미 있다. 같은 패키지의 실제 pak/asset registry 포함 여부·shader permutation은 이번에 검사하지 않았다. “soft ref라 무조건 누락”으로 결론 내릴 수 없다. |
 | 3 | Actor/Component Tag 혼동 또는 editor-only component/Actor. `Sensor/VirtualSensorSemanticLabels.cpp:30,35`; `Slab/SlabActor.cpp:35–43` | ActorTags만 검사하며 ComponentTags는 검사하지 않는다. UE5.3 `Classes/GameFramework/Actor.h:1155–1157`의 Tags는 일반 UPROPERTY이고, ActorLabel은 `1050–1061`의 editor data와 구분된다. `Classes/Components/ActorComponent.h:257–259`의 bIsEditorOnly 인스턴스 설정은 자산 검사 필요. 현재 native SlabMesh는 일반 CreateDefaultSubobject이고 이름 규칙도 있으므로 이 증거에서는 낮은 순위다. |
-| 4 | WITH_EDITOR/WITH_EDITORONLY_DATA 가드·문자열 테이블 제거 | 위 native 분류/writer/SlabMesh 생성 경로에 해당 가드나 StringTable 참조가 없다. `Slab/SlabVisualizationComponent.cpp:14–19`의 측정 제외는 진단 선/글자용이고 본체 SlabMesh와 별개다. 화면 글자가 안 보인다는 별도 증상에는 이 컴포넌트의 폰트/cook·viewport 조건(`142–158`)을 확인하되 semantic 파일 누락과 섞지 않는다. |
+| 4 | WITH_EDITOR/WITH_EDITORONLY_DATA 가드·문자열 테이블 제거 | 위 native 분류/writer/SlabMesh 생성 경로에 해당 가드나 StringTable 참조가 없다. `Slab/SlabVisualizationComp.cpp:14–19`의 측정 제외는 진단 선/글자용이고 본체 SlabMesh와 별개다. 화면 글자가 안 보인다는 별도 증상에는 이 컴포넌트의 폰트/cook·viewport 조건(`142–158`)을 확인하되 semantic 파일 누락과 섞지 않는다. |
 
 위 표의 프로젝트 경로는 `Source/ma0t10_dt/MA0T10/` 기준이다. UE 소스 경로는 `C:/Program Files/Epic Games/UE_5.3/Engine/Source/Runtime/Engine/` 기준이다.
 
@@ -60,8 +60,8 @@
 | 순위 | 후보와 근거 | 판단 |
 |---|---|---|
 | 1 | `focused-layout/MA0T10.Inspection.NumericClampFeedback_MA0T10.Inspection.LidarHelpVocabulary_MA0T10.Inspection.UiFeedbackLifecycle_MA0T10.UXR18_MA0T10.UXR06/automation.log:1290–1291`: primary `0,0`, secondary `153.123,114.842`, empty=0/waiting=0. `RESULT.md:66`에 Collapsed SImage/ScaleToFit 원인 설명 | **보관된 0 px 증상의 가장 유력하고 직접적인 원인**은 Slate layout. 이미지 파일/RT의 0×0 증거는 아니다. |
-| 1 검증 이력 | `focused-scale-visibility/MA0T10.Inspection.UiFeedbackLifecycle/automation.log:1273`: primary `87.499,49.218`, secondary `153.123,114.842`. `focused-precommit/.../automation.log:1294`에서도 동일 | 현재 `UI/VirtualSensorMonitorPanelWidgetConstruction.cpp:524–536`은 readiness visibility를 ScaleBox 컨테이너에 둔다. git blame은 `fa3d6ea`, 검수 Runtime `6b42f84`도 HEAD의 조상이다. **기존 수정은 존재**, 현재 SHA의 재현/수용은 미수행. |
-| 2 | RT pointer/frame ID만으로 brush 크기를 갱신. `UI/VirtualSensorMonitorPanelWidgetPreview.cpp:518–547,559–569` | 동일 RT를 resize하고 frame이 진행하지 않으면 brush 크기가 오래 남을 수 있다. 실제 RT SizeX/Y, brush ImageSize, SImage geometry를 각각 기록해야 한다. stopped/resize/rehost 조합의 새 재현은 없다. |
+| 1 검증 이력 | `focused-scale-visibility/MA0T10.Inspection.UiFeedbackLifecycle/automation.log:1273`: primary `87.499,49.218`, secondary `153.123,114.842`. `focused-precommit/.../automation.log:1294`에서도 동일 | 현재 `UI/DxWidgetVirtualSensorMonitorPanelConstruction.cpp:524–536`은 readiness visibility를 ScaleBox 컨테이너에 둔다. git blame은 `fa3d6ea`, 검수 Runtime `6b42f84`도 HEAD의 조상이다. **기존 수정은 존재**, 현재 SHA의 재현/수용은 미수행. |
+| 2 | RT pointer/frame ID만으로 brush 크기를 갱신. `UI/DxWidgetVirtualSensorMonitorPanelPreview.cpp:518–547,559–569` | 동일 RT를 resize하고 frame이 진행하지 않으면 brush 크기가 오래 남을 수 있다. 실제 RT SizeX/Y, brush ImageSize, SImage geometry를 각각 기록해야 한다. stopped/resize/rehost 조합의 새 재현은 없다. |
 | 3 | primary Resource가 null이면 함수 전체 return. 같은 파일 `516–527,557–570` | 주 GT preview 준비 중 null이 되면 정상 secondary RGB brush 갱신까지 막힌다. 조건부 코드 경로는 확인했지만 제보 원인이라는 증거는 없다. 주/보조를 독립 갱신하는 아래 초안의 적용 조건이다. |
 | 4 | RT 생성 순서·0 해상도·자산 공유. `Camera/VirtualCameraCaptureComponent.cpp:113–139,736–751`; `.h:193–194,223–224`; `Camera/VirtualCameraSensorActor.cpp:132–151` | 기본 해상도는 640×360이고 BeginPlay/Start/측정에서 Ensure한다. 새 RT의 outer는 각 Camera component라 같은 이름이 공유를 뜻하지 않는다. 다만 RT는 EditAnywhere 포인터라 자산에서 명시 공유했을 가능성은 남는다. 두 pointer/outer/TextureTarget을 비교하고 BP 우회로 0 입력됐는지 확인한다. |
 | 5 | 비동기 readback/JPEG 경합·스케줄러 | `Camera/VirtualCameraCaptureComponent.cpp:318–359,401–429`는 각 component의 슬롯/크기/weak owner/generation을 보존한다. `Core/VirtualSensorSchedulerSubsystem.cpp:228–258`은 round-robin admission이다. 전역 encode 한도는 있지만 듀얼 SImage는 RT를 직접 사용(`Preview.cpp:516,559`)하므로 JPEG 실패만으로 Slate geometry가 0이 되는 설명은 약하다. 빈 저장 파일 증거가 확보되면 별도로 추적한다. |
@@ -73,8 +73,8 @@ UE5.3 `Classes/Engine/TextureRenderTarget2D.h:200–201`의 GetSurfaceWidth/Heig
 기존 layout 수정을 유지한다. **현재 코드에서 primary null + secondary 유효가 로그로 재현될 때만** 아래처럼 primary 작업을 조건부로 감싸 secondary 갱신까지 도달하게 한다. 이것은 과거 layout 수정의 재적용이 아니며, 빌드/실행 미검증이다.
 
 ```diff
---- a/Source/ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidgetPreview.cpp
-+++ b/Source/ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidgetPreview.cpp
+--- a/Source/ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanelPreview.cpp
++++ b/Source/ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanelPreview.cpp
 @@
      if (!Resource)
      {

@@ -2,23 +2,23 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Agent/AgentTestSetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Dataset/VirtualDatasetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "Device/Core/VirtualSensorPeriodicFileSaveSubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
-#include "Device/Sensor/VirtualSensorOutputComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
+#include "Device/Sensor/VirtualSensorOutputComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Device/Camera/VirtualCameraCaptureComponent.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "Device/Core/VirtualSensorHitchDiagnostics.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/WebSocket/TC/FactoryAgentScenarioTC.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "AgentTestSetPresentationChecks.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -51,20 +51,20 @@ public:
             for(TActorIterator<AVirtualSensorActorBase> It(World);It;++It)It->StopSensor();
             for(TActorIterator<AVirtualLidarSensorActor> It(World);It;++It)if(It->GetSensorId()==TEXT("SLAB-LIDAR-001"))Lidar=*It;
             if(!Slab||!Lidar){Test->AddError(TEXT("Slab/LiDAR fixture missing"));return Finish();}
-            Other=World->SpawnActor<AVirtualLidarSensorActor>();Other->StopSensor();Other->ScanComponent->SensorId=TEXT("ZZ-COMPANY-LIDAR");
+            Other=World->SpawnActor<AVirtualLidarSensorActor>();Other->StopSensor();Other->ScanComp->SensorId=TEXT("ZZ-COMPANY-LIDAR");
             // A deployed second sensor observes the scene during warmup. An unplaced
             // sensor inside the floor first saw geometry only after the test moved Slab,
             // deferring its renderer's cold initialization into the measured interval.
             Other->SetActorTransform(Lidar->GetActorTransform());Other->AddActorWorldOffset(FVector(100,0,0));
-            Other->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Other->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Other->ScanComponent->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;
+            Other->ScanComp->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Other->ScanComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Other->ScanComp->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;
             {FVirtualSensorEditableState E;FString Error;Other->ReadEditableState(E);E.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::WhenRequested;Test->TestTrue(TEXT("deployed sensor uses requested compatibility outputs without lowering acquisition quality"),Other->ApplyEditableState(E,Error));}
             Camera=World->SpawnActor<AVirtualCameraSensorActor>();Camera->StopSensor();
-            Camera->CaptureComponent->SensorId=TEXT("ZZ-COMPANY-CAMERA");
-            auto* Scan=Lidar->ScanComponent.Get();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->bEnableRangeNoise=false;
-            Service=World->GetSubsystem<UAgentTestSetSubsystem>();Periodic=World->GetSubsystem<UVirtualSensorPeriodicFileSaveSubsystem>();Publisher=Lidar->OutputComponent->StreamPublisherComponent;
+            Camera->CaptureComp->SensorId=TEXT("ZZ-COMPANY-CAMERA");
+            auto* Scan=Lidar->ScanComp.Get();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->bEnableRangeNoise=false;
+            Service=World->GetSubsystem<UAgentTestSetSubsystem>();Periodic=World->GetSubsystem<UVirtualSensorPeriodicFileSaveSubsystem>();Publisher=Lidar->OutputComp->StreamPublisherComp;
             if(FParse::Param(FCommandLine::Get(),TEXT("TestSet04Broker")))
             {
-                auto* T=Lidar->OutputComponent->TransportComponent.Get();auto P=T->GetTransportProfile();P.BrokerUrl=TEXT("tcp://127.0.0.1:61616");P.UserName=TEXT("guest");T->ConfigureTransportProfile(P);T->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+                auto* T=Lidar->OutputComp->TransportComp.Get();auto P=T->GetTransportProfile();P.BrokerUrl=TEXT("tcp://127.0.0.1:61616");P.UserName=TEXT("guest");T->ConfigureTransportProfile(P);T->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
                 T->SetSessionCredentials(FPlatformMisc::GetEnvironmentVariable(TEXT("TESTSET04_BROKER_PASSWORD")),FString());
                 auto Stream=Publisher->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId());Stream.TransportBackend=EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;Stream.SensorId=Lidar->GetSensorId();Stream.StreamKind=EVirtualSensorStreamKind::PointCloud;Stream.PointCloudFormat=EVirtualPointCloudStreamFormat::PCD;Stream.PcdDataMode=EVirtualPcdDataMode::Binary;Publisher->ConfigureStream(Stream);
             }
@@ -146,7 +146,7 @@ private:
     }
     void BeginTrigger()
     {
-        Test->TestTrue(TEXT("background FullSpec sensor observes geometry during ten-second preparation"),Other->ScanComponent->GetLastHitPointCount()>0);
+        Test->TestTrue(TEXT("background FullSpec sensor observes geometry during ten-second preparation"),Other->ScanComp->GetLastHitPointCount()>0);
         if(FParse::Param(FCommandLine::Get(),TEXT("TestSet04Hitch")))FVirtualSensorHitchDiagnostics::Start();
         auto* TC=NewObject<UFactoryAgentScenarioTC>(World);TC->ReceiverId=Slab->ReceiverId;
         FString Json=TEXT("{\"MESSAGE_ID\":\"IFactory-agent\",\"DATA_MAP\":[{\"mtl_no\":\"SQ23456 077\"}]}");
@@ -164,7 +164,7 @@ private:
     }
     void StopWork(){Lidar->StopSensor();Other->StopSensor();Camera->StopSensor();Publisher->StopStream(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId());Periodic->StopPeriodicSave(PeriodicId);}
     bool Finish(){if(FVirtualSensorHitchDiagnostics::IsEnabled())FVirtualSensorHitchDiagnostics::Stop();if(Service){StopWork();FString E;Service->ResetConfirmed(E);}return true;}
-    FAutomationTestBase* Test;UWorld* World=nullptr;UAgentTestSetSubsystem* Service=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;AVirtualLidarSensorActor* Other=nullptr;AVirtualCameraSensorActor* Camera=nullptr;UVirtualSensorPeriodicFileSaveSubsystem* Periodic=nullptr;UVirtualSensorStreamPublisherComponent* Publisher=nullptr;
+    FAutomationTestBase* Test;UWorld* World=nullptr;UAgentTestSetSubsystem* Service=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;AVirtualLidarSensorActor* Other=nullptr;AVirtualCameraSensorActor* Camera=nullptr;UVirtualSensorPeriodicFileSaveSubsystem* Periodic=nullptr;UVirtualSensorStreamPublisherComp* Publisher=nullptr;
     FString Report,PeriodicId,PeriodicFolder;bool Baseline=false,CommitBaseline=false,CompletionSaved=false;int32 Phase=0,Case=0;double Started=FPlatformTime::Seconds(),At=0,LastWall=0;uint64 LastFrame=0;TArray<double> Engine,Game,Wall;
 };
 }
@@ -214,7 +214,7 @@ public:
             {
                 Test->TestFalse(TEXT("unchanged missing sensor retry immediately rejects"),Service->Retry(0,Error));Test->TestTrue(TEXT("rejection includes configured ID"),Error.Contains(TEXT("COMPANY-RECOVERY")));
                 const FString Id=Service->Items()[0].RunId;Service->EnqueueDemoTrigger(Service->Settings().Trigger,Slab,Error);Test->TestEqual(TEXT("failed set duplicate preserves run"),Service->Items()[0].RunId,Id);
-                Lidar->ScanComponent->SensorId=TEXT("COMPANY-RECOVERY");
+                Lidar->ScanComp->SensorId=TEXT("COMPANY-RECOVERY");
             }
             if(Case==1){FString Json;FFileHelper::LoadFileToString(Json,*(FPaths::ProjectDir()/TEXT("Config/AgentTestSetScenario.json")));FFileHelper::SaveStringToFile(Json,*Template);}
             if(Case==2||Case==3||Case==4)Test->TestTrue(TEXT("remove only the fixture-owned empty blocker directory"),IFileManager::Get().DeleteDirectory(*Blocker,false,false));
@@ -234,7 +234,7 @@ public:
         }
         if(Phase==2&&!Service->HasItems())
         {
-            Lidar->ScanComponent->SensorId=TEXT("SLAB-LIDAR-001");if(++Case<5){Begin();return false;}
+            Lidar->ScanComp->SensorId=TEXT("SLAB-LIDAR-001");if(++Case<5){Begin();return false;}
             AVirtualCameraSensorActor* Camera=nullptr;for(TActorIterator<AVirtualCameraSensorActor> It(World);It;++It){Camera=*It;break;}
             FVirtualDatasetSettings C;C.Enabled=true;C.Scenes=1;C.Name=TEXT("TESTSET04_unknown_commit");C.CameraTruth=true;C.LidarFidelity=true;FString E;
             if(!Test->TestTrue(TEXT("ordinary DATASET-01 admits missing build metadata"),Dataset->Start(C,Slab,Lidar,Camera,nullptr,E))){Test->AddError(E);return Finish();}Phase=7;

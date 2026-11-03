@@ -2,17 +2,17 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
 #include "Device/Core/VirtualSensorPlacementSubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Misc/Paths.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Device/Camera/VirtualCameraCaptureComponent.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunComparison.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunComparison.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/SWindow.h"
@@ -25,12 +25,12 @@
 
 class FSlabValidationManualWindow final:public IAutomationLatentCommand
 {
-    TStrongObjectPtr<UVirtualSensorCaptureExportPanelWidget> Panel;
+    TStrongObjectPtr<UDxWidgetVirtualSensorCaptureExportPanel> Panel;
     TWeakObjectPtr<UVirtualSensorToolWorkspaceSubsystem> Workspace;
     TSharedRef<SWindow> Window;TSharedRef<bool> Closed;
     double Deadline;bool Recorded=false;
 public:
-    FSlabValidationManualWindow(UVirtualSensorCaptureExportPanelWidget* P,UVirtualSensorToolWorkspaceSubsystem* W,TSharedRef<SWindow> InWindow,TSharedRef<bool> InClosed,double Seconds)
+    FSlabValidationManualWindow(UDxWidgetVirtualSensorCaptureExportPanel* P,UVirtualSensorToolWorkspaceSubsystem* W,TSharedRef<SWindow> InWindow,TSharedRef<bool> InClosed,double Seconds)
         :Panel(P),Workspace(W),Window(InWindow),Closed(InClosed),Deadline(FPlatformTime::Seconds()+Seconds){}
     bool Update() override
     {
@@ -101,7 +101,7 @@ bool FSlabRunComparisonUiTest::RunTest(const FString&)
 {
     auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* Results=W->GetSubsystem<USlabRunResultsSubsystem>();
     auto A=ComparisonFixture(TEXT("A")),B=ComparisonFixture(TEXT("B"));Results->Results={A,B};Results->Changed();
-    auto* Panel=NewObject<UVirtualSensorCaptureExportPanelWidget>(W);FString Reason;
+    auto* Panel=NewObject<UDxWidgetVirtualSensorCaptureExportPanel>(W);FString Reason;
     TestTrue(TEXT("A/B selected explicitly"),Panel->SelectScenarioComparisonRun(TEXT("A"),true,Reason)&&Panel->SelectScenarioComparisonRun(TEXT("B"),false,Reason));
     TestTrue(TEXT("comparison text identifies runs"),Panel->GetScenarioRunComparisonText().Contains(TEXT("A: A"))&&Panel->GetScenarioRunComparisonText().Contains(TEXT("B: B")));
     auto* Workspace=W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();Workspace->RegisterOwnedPanel(ESensorToolPanelRole::Data,Panel);
@@ -140,11 +140,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorPlacementIdentityUiTest,"MA0T10.Placemen
 bool FSensorPlacementIdentityUiTest::RunTest(const FString&)
 {
     auto* W=FAutomationEditorCommonUtils::CreateNewMap();
-    auto* Sensor=W->SpawnActor<AVirtualLidarSensorActor>();Sensor->StopSensor();Sensor->ScanComponent->SensorId=TEXT("pose-ui-A");
-    auto* Manager=W->SpawnActor<AVirtualSensorCoordinator>();Manager->RegisterSensorActor(Sensor);Manager->RegisterLidar(Sensor->ScanComponent);
+    auto* Sensor=W->SpawnActor<AVirtualLidarSensorActor>();Sensor->StopSensor();Sensor->ScanComp->SensorId=TEXT("pose-ui-A");
+    auto* Manager=W->SpawnActor<AVirtualSensorCoordinator>();Manager->RegisterSensorActor(Sensor);Manager->RegisterLidar(Sensor->ScanComp);
     auto* Placement=W->GetSubsystem<UVirtualSensorPlacementSubsystem>();
     Placement->SetAutomationStorageRoot(FPaths::ProjectSavedDir()/TEXT("Reports/SensorPlacementComparison/identity")/FGuid::NewGuid().ToString());
-    auto* Settings=NewObject<UVirtualSensorSettingsPanelWidget>(W);
+    auto* Settings=NewObject<UDxWidgetVirtualSensorSettingsPanel>(W);
     Settings->SetToolWorkspace(W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>(),ESensorToolPanelRole::Settings);
     Settings->BindSensorManager(Manager);Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
     const auto Initial=Sensor->GetActorTransform();
@@ -156,7 +156,7 @@ bool FSensorPlacementIdentityUiTest::RunTest(const FString&)
     TestTrue(TEXT("reset is one undoable pose change"),Placement->UndoSensorPlacement(Sensor,Reason)&&UVirtualSensorPlacementSubsystem::SamePose(Sensor->GetActorTransform(),Moved));
     TestTrue(TEXT("reset redo returns to start"),Placement->RedoSensorPlacement(Sensor,Reason)&&UVirtualSensorPlacementSubsystem::SamePose(Sensor->GetActorTransform(),Initial));
     Settings->PendingState.ActorTransform.AddToTranslation(FVector(80,0,0));Settings->ApplyPendingTransform();
-    auto* Publisher=NewObject<UVirtualSensorStreamPublisherComponent>(Sensor);Sensor->SetSharedOutputServices(nullptr,nullptr,Publisher);
+    auto* Publisher=NewObject<UVirtualSensorStreamPublisherComp>(Sensor);Sensor->SetSharedOutputServices(nullptr,nullptr,Publisher);
     Publisher->StartStream(EVirtualSensorStreamKind::PointCloud,Sensor->GetSensorId());
     const auto Locked=Sensor->GetActorTransform();const int32 HistoryIndex=Placement->HistoryFor(Sensor).Index;
     Settings->ResetPendingStateToMapValue();

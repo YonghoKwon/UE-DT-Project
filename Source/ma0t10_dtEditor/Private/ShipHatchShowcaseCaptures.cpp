@@ -4,12 +4,12 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMonitorHost.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/DxWidgetShipHatchMonitor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
 #include "Camera/CameraActor.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Camera/CameraComponent.h"
@@ -45,7 +45,7 @@ class FHatchShowcaseRun final:public IAutomationLatentCommand
  const TCHAR* Names[29]={TEXT("00-quay-vessel-overview"),TEXT("01-vessel-gtsu-side"),TEXT("02-ref4-composition"),TEXT("03-portal-boom-machine"),TEXT("04-covers-seaward"),TEXT("05-covers-landward"),TEXT("06-hopper-inside-seaward-leg"),TEXT("07-clamshell-open"),TEXT("08-clamshell-closed"),TEXT("09-iron-surface"),TEXT("10-coal-surface"),TEXT("11-three-sensor-colors"),TEXT("12-coverage-heatmap"),TEXT("13-measured-section"),TEXT("14-top-plan"),TEXT("15-settings-three-panels"),TEXT("16-lidar-mid360"),TEXT("17-lidar-avia"),TEXT("18-lidar-os1-64"),TEXT("19-lidar-xt32"),TEXT("20-lidar-vlp16"),TEXT("21-dig-before"),TEXT("22-dig-after"),TEXT("23-exposed-floor-close"),TEXT("24-exposed-floor-gpu-points"),TEXT("25-full-load-corner"),TEXT("27-exposed-floor-section"),TEXT("pres-01-gtsu-ship-normal"),TEXT("pres-02-gtsu-ship-points")};
  TSharedRef<FJsonObject> LidarMetrics(AShipHatchSimulation& S,int Index)
  {
-  auto R=MakeShared<FJsonObject>();const auto* C=S.SensorAt(Index)->ScanComponent.Get();const auto F=C->GetLastFrameSnapshot();
+  auto R=MakeShared<FJsonObject>();const auto* C=S.SensorAt(Index)->ScanComp.Get();const auto F=C->GetLastFrameSnapshot();
   T->TestTrue(TEXT("comparison metrics use a full immutable HWRT frame"),F&&F->Points&&F->AcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing&&F->RequestedRayCount==C->HorizontalSamples*C->VerticalChannels);
   TArray<ShipHatch::FObservation> Cargo;TSet<int32> Floor;int Hits=0,FloorPoints=0;
   const auto Settings=S.Settings();const int NX=FMath::CeilToInt(Settings.Length),NY=FMath::CeilToInt(Settings.Width);const double DX=Settings.Length/NX,DY=Settings.Width/NY;
@@ -71,9 +71,9 @@ class FHatchShowcaseRun final:public IAutomationLatentCommand
  {const auto Size=FinalAcceptanceViewportSize();return FString(Names[Shot])+(Presentation?FString::Printf(TEXT("-%dx%d"),Size.X,Size.Y):TEXT(""));}
  void Regenerate(AShipHatchSimulation& S,bool Coal)
  {S.Seed=19019;S.FillMin=S.FillMax=65;S.bCoal=Coal;T->TestTrue(TEXT("showcase regenerates through production heightfield"),S.Regenerate(false));}
- void Colors(UShipHatchMonitorWidget& M)
+ void Colors(UDxWidgetShipHatchMonitor& M)
  {if(!M.IsSensorColoring())M.ProcessEvent(M.FindFunctionChecked(TEXT("OnSensorColors")),nullptr);}
- void Frame(AShipHatchMonitorHost& H,AShipHatchSimulation& S,UShipHatchMonitorWidget& M)
+ void Frame(AShipHatchMonitorHost& H,AShipHatchSimulation& S,UDxWidgetShipHatchMonitor& M)
  {
   if(auto* PC=M.GetOwningPlayer()){for(const auto& C:OwnedPlayerHides)PC->HiddenPrimitiveComponents.RemoveSingle(C);OwnedPlayerHides.Reset();}
   if(SettingsOpen){M.ProcessEvent(M.FindFunctionChecked(TEXT("OnSettings")),nullptr);SettingsOpen=false;}
@@ -122,7 +122,7 @@ class FHatchShowcaseRun final:public IAutomationLatentCommand
   const auto Pose=S.GetActorTransform();const auto P=Pose.TransformPosition(CameraLocal*100),A=Pose.TransformPosition(AimLocal*100);
   H.ViewCamera->SetActorLocationAndRotation(P,(A-P).Rotation());Changed=FPlatformTime::Seconds();
  }
- bool Capture(UWorld& W,AShipHatchMonitorHost& H,AShipHatchSimulation& S,UShipHatchMonitorWidget& M)
+ bool Capture(UWorld& W,AShipHatchMonitorHost& H,AShipHatchSimulation& S,UDxWidgetShipHatchMonitor& M)
  {
   uint32 GrabHash=0;
   if(Shot==7||Shot==8)
@@ -164,7 +164,7 @@ class FHatchShowcaseRun final:public IAutomationLatentCommand
   R->SetArrayField(TEXT("camera_hold_m"),ShowcaseVector(CameraLocal));R->SetArrayField(TEXT("aim_hold_m"),ShowcaseVector(AimLocal));R->SetNumberField(TEXT("horizontal_fov_deg"),H.ViewCamera->GetCameraComponent()->FieldOfView);
   TArray<TSharedPtr<FJsonValue>> Sensors;
   for(int I=0;I<3;++I)if(auto* A=S.SensorAt(I))
-  {const auto* C=A->ScanComponent.Get();const auto F=C->GetLastFrameSnapshot();auto D=MakeShared<FJsonObject>();T->TestTrue(TEXT("captured sensor frame uses actual HWRT"),F&&F->AcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing);D->SetStringField(TEXT("sensor_id"),C->SensorId);D->SetStringField(TEXT("model"),C->DeviceSpec.Model);D->SetStringField(TEXT("backend"),C->GetRuntimeStatus().ActiveAcquisitionBackend);D->SetNumberField(TEXT("measured_hz"),C->GetRuntimeStatus().MeasuredAcquisitionRateHz);D->SetNumberField(TEXT("frame_id"),F?double(F->FrameId):0);D->SetNumberField(TEXT("rays"),F?F->RequestedRayCount:0);Sensors.Add(MakeShared<FJsonValueObject>(D));}
+  {const auto* C=A->ScanComp.Get();const auto F=C->GetLastFrameSnapshot();auto D=MakeShared<FJsonObject>();T->TestTrue(TEXT("captured sensor frame uses actual HWRT"),F&&F->AcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing);D->SetStringField(TEXT("sensor_id"),C->SensorId);D->SetStringField(TEXT("model"),C->DeviceSpec.Model);D->SetStringField(TEXT("backend"),C->GetRuntimeStatus().ActiveAcquisitionBackend);D->SetNumberField(TEXT("measured_hz"),C->GetRuntimeStatus().MeasuredAcquisitionRateHz);D->SetNumberField(TEXT("frame_id"),F?double(F->FrameId):0);D->SetNumberField(TEXT("rays"),F?F->RequestedRayCount:0);Sensors.Add(MakeShared<FJsonValueObject>(D));}
   R->SetArrayField(TEXT("sensors"),Sensors);
   if(Shot>=16&&Shot<=20)
   {
@@ -213,10 +213,10 @@ public:
    const auto P=S.GetActorTransform();if(!S.Dig(P.TransformPosition(FVector(Target,S.HoldDepth+10)*100),P.TransformVectorNoScale(FVector(0,0,-1)),5,3)){T->AddError(TEXT("showcase production dig rejected"));return true;}++Digs;return false;
   }
   if(Shot>=16&&Shot<=20)for(int I=0;I<3;++I)
-  {auto* V=S.SensorAt(I)->VisualizationComponent.Get();auto Settings=V->GetVisualizationSettings();if(Settings.bShowWorldPointCloud!=(I==0)||Settings.PointSize!=6){Settings.bShowWorldPointCloud=I==0;Settings.PointSize=6;V->SetVisualizationSettings(Settings);}}
+  {auto* V=S.SensorAt(I)->VisualizationComp.Get();auto Settings=V->GetVisualizationSettings();if(Settings.bShowWorldPointCloud!=(I==0)||Settings.PointSize!=6){Settings.bShowWorldPointCloud=I==0;Settings.PointSize=6;V->SetVisualizationSettings(Settings);}}
   if(Presentation&&Shot==28)for(int I=0;I<3;++I)
   {
-   auto* V=S.SensorAt(I)->VisualizationComponent.Get();auto Settings=V->GetVisualizationSettings();
+   auto* V=S.SensorAt(I)->VisualizationComp.Get();auto Settings=V->GetVisualizationSettings();
    const float PointSize=4.f*FinalAcceptanceViewportSize().X/1920.f;
    if(!Settings.bShowWorldPointCloud||Settings.PointSize!=PointSize){Settings.bShowWorldPointCloud=true;Settings.PointSize=PointSize;V->SetVisualizationSettings(Settings);}
   }

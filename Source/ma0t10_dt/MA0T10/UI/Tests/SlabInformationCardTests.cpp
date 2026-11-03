@@ -1,16 +1,16 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/UI/SlabInformationCard.h"
-#include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Slab/SlabInformationCard.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabProgressPanel.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
-#include "Device/Sensor/VirtualLidarSurfaceResponseComponent.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
+#include "Device/Sensor/VirtualLidarSurfaceResponseComp.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
 #include "Json.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabUiRegistry.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabInformationCardTest,"MA0T10.UXR08.InformationUsesSourceRowAndMissingValues",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabInformationCardTest::RunTest(const FString&)
@@ -29,7 +29,7 @@ bool FSlabInformationCardTest::RunTest(const FString&)
     TestEqual(TEXT("basic card contains twelve label/value rows"),Basic.Num(),12);
     TestFalse(TEXT("source position/speed stay out of basic card"),Basic.ContainsByPredicate([](const auto& Row){return Row.bSourceDetail||Row.Label.ToString().Contains(TEXT("원본 행 위치"))||Row.Label.ToString().Contains(TEXT("원본 행 속도"));}));
     TestTrue(TEXT("source position and speed are explicitly labeled in details"),Card.Contains(TEXT("원본 행 위치:"))&&Card.Contains(TEXT("원본 행 속도:")));
-    auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* P=NewObject<USlabProgressPanelWidget>(World);W->RegisterOwnedPanel(ESensorToolPanelRole::SlabProgress,P);P->BindSlabActor(Slab);P->SetVisibility(ESlateVisibility::Hidden);P->CachedInformationText=TEXT("hidden card sentinel");P->NativeTick(FGeometry(),.3);
+    auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* P=NewObject<UDxWidgetSlabProgressPanel>(World);W->RegisterOwnedPanel(ESensorToolPanelRole::SlabProgress,P);P->BindSlabActor(Slab);P->SetVisibility(ESlateVisibility::Hidden);P->CachedInformationText=TEXT("hidden card sentinel");P->NativeTick(FGeometry(),.3);
     TestEqual(TEXT("hidden information card is not formatted"),P->CachedInformationText,FString(TEXT("hidden card sentinel")));
     TSharedPtr<FJsonObject> Json;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Data->OriginalJson),Json);
     for(const auto& Value:Json->GetArrayField(TEXT("DATA_MAP"))){Value->AsObject()->RemoveField(TEXT("center_y"));Value->AsObject()->RemoveField(TEXT("is_meandering"));}
@@ -43,8 +43,8 @@ bool FSlabSurfacePresetTest::RunTest(const FString&)
 {
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* Slab=World->SpawnActor<ASlabActor>();FString Reason;
     const float Rough=Slab->Roughness,Emissive=Slab->EmissiveStrength;
-    TestTrue(TEXT("default/link-off is a no-op"),Slab->ApplySurfacePreset(ESlabSurfacePreset::Default,false,Reason));TestNull(TEXT("default creates no optical component"),Slab->FindComponentByClass<UVirtualLidarSurfaceResponseComponent>());
-    auto* Existing=NewObject<UVirtualLidarSurfaceResponseComponent>(Slab);Existing->RegisterComponent();Existing->Reflectivity940Nm=.31f;Existing->IntensityGain=2;
+    TestTrue(TEXT("default/link-off is a no-op"),Slab->ApplySurfacePreset(ESlabSurfacePreset::Default,false,Reason));TestNull(TEXT("default creates no optical component"),Slab->FindComponentByClass<UVirtualLidarSurfaceResponseComp>());
+    auto* Existing=NewObject<UVirtualLidarSurfaceResponseComp>(Slab);Existing->RegisterComponent();Existing->Reflectivity940Nm=.31f;Existing->IntensityGain=2;
     TestTrue(TEXT("hot preset uses existing material parameters"),Slab->ApplySurfacePreset(ESlabSurfacePreset::HotRed,false,Reason));TestEqual(TEXT("link off preserves reflectivity"),Existing->Reflectivity940Nm,.31f);
     Existing->Reflectivity940Nm=.47f;Slab->ApplySurfacePreset(ESlabSurfacePreset::CooledSteel,false,Reason);TestEqual(TEXT("visual-only changes do not overwrite later optical edits"),Existing->Reflectivity940Nm,.47f);
     Slab->ApplySurfacePreset(ESlabSurfacePreset::HotRed,true,Reason);TestEqual(TEXT("explicit link applies preset response"),Existing->Reflectivity940Nm,.08f);TestEqual(TEXT("link preserves existing intensity gain"),Existing->IntensityGain,2.f);
@@ -70,13 +70,13 @@ bool FSlabClickRegistryTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabGpuLinkGuardTest,"MA0T10.UXR08.GpuLinkDoesNotAddSemanticCapture",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabGpuLinkGuardTest::RunTest(const FString&)
 {
-    auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* Slab=World->SpawnActor<ASlabActor>();auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>();auto* Scan=Lidar->ScanComponent.Get();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->ViewMode=EVirtualLidarViewMode::DepthGradient;Scan->bEnableSemanticClassification=true;
+    auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* Slab=World->SpawnActor<ASlabActor>();auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>();auto* Scan=Lidar->ScanComp.Get();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->ViewMode=EVirtualLidarViewMode::DepthGradient;Scan->bEnableSemanticClassification=true;
     FString Reason;const auto Backend=Scan->GetResolvedAcquisitionBackend(Reason);
     if(Backend!=EVirtualLidarAcquisitionBackend::GpuDepthProjection){AddError(TEXT("D3D12 fixture must resolve the real GPU backend"));Slab->Destroy();Lidar->Destroy();return false;}
     TestFalse(TEXT("default view does not silently request a new semantic capture"),Scan->IsSemanticCaptureRequested());
-    TestFalse(TEXT("unsupported link is rejected atomically"),Slab->ApplySurfacePreset(ESlabSurfacePreset::HotRed,true,Reason));TestFalse(TEXT("rejected link does not change appearance"),Slab->GetHotAppearance());TestFalse(TEXT("rejected link does not change view"),Scan->ViewMode==EVirtualLidarViewMode::ActorClassColor);TestNull(TEXT("rejected link creates no response component"),Slab->FindComponentByClass<UVirtualLidarSurfaceResponseComponent>());
+    TestFalse(TEXT("unsupported link is rejected atomically"),Slab->ApplySurfacePreset(ESlabSurfacePreset::HotRed,true,Reason));TestFalse(TEXT("rejected link does not change appearance"),Slab->GetHotAppearance());TestFalse(TEXT("rejected link does not change view"),Scan->ViewMode==EVirtualLidarViewMode::ActorClassColor);TestNull(TEXT("rejected link creates no response component"),Slab->FindComponentByClass<UVirtualLidarSurfaceResponseComp>());
     Scan->ViewMode=EVirtualLidarViewMode::ActorClassColor;TestTrue(TEXT("explicit existing capture demand enables link"),Slab->ApplySurfacePreset(ESlabSurfacePreset::HotRed,true,Reason));Slab->ApplySurfacePreset(ESlabSurfacePreset::Default,false,Reason);
-    for(int32 I=0;I<3;++I){TestTrue(TEXT("repeated opt-in creates only its own response"),Slab->ApplySurfacePreset(ESlabSurfacePreset::HotRed,true,Reason));TestTrue(TEXT("repeated opt-out removes only owned response"),Slab->ApplySurfacePreset(ESlabSurfacePreset::Default,false,Reason));TestNull(TEXT("no leaked optical component"),Slab->FindComponentByClass<UVirtualLidarSurfaceResponseComponent>());}
+    for(int32 I=0;I<3;++I){TestTrue(TEXT("repeated opt-in creates only its own response"),Slab->ApplySurfacePreset(ESlabSurfacePreset::HotRed,true,Reason));TestTrue(TEXT("repeated opt-out removes only owned response"),Slab->ApplySurfacePreset(ESlabSurfacePreset::Default,false,Reason));TestNull(TEXT("no leaked optical component"),Slab->FindComponentByClass<UVirtualLidarSurfaceResponseComp>());}
     Slab->Destroy();Lidar->Destroy();return true;
 }
 #endif

@@ -86,7 +86,7 @@
 
 - 수신은 DTCore → `UFactoryAgentScenarioTC` → DataSync → Actor 또는 `SubmitScenarioJson` 한 경로다. archive 등록을 선행 중복 호출하지 않는다.
 - 현재 입력 Topic은 `topic.scenario`, MESSAGE_ID는 `IFactory-agent`다. 다른 업무 구독을 제거하거나 공유 설정을 자동 덮어쓰지 않는다.
-- `USlabMotionComponent`가 World time/보간을 소유한다. 자세 적용 뒤 원본 행 경계에서 context를 알리며 행마다 센서 스캔을 호출하지 않는다.
+- `USlabMotionComp`가 World time/보간을 소유한다. 자세 적용 뒤 원본 행 경계에서 context를 알리며 행마다 센서 스캔을 호출하지 않는다.
 - 신규 벌크는 기본 PCD만, replay는 기본 관찰 전용이다. 명시적 선택은 보존한다. 준비 실패 fallback은 센서/독립 스트림을 건드리지 않는 unbound observation이다.
 - 중복/오류/busy/drain을 fallback으로 우회하지 않는다. 실행 중 새 벌크는 보관만 하고 자동 큐에 넣지 않는다. 중간부터 자동 송신하지 않는다.
 - 원본 JSON·최대 10개 메모리 보관·삭제 보호를 유지한다. 재실행은 새 RunUUID를 사용한다. 영상 복원·영구 replay와 혼동하지 않는다.

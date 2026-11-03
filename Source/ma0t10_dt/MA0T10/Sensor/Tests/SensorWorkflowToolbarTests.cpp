@@ -1,22 +1,22 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolUiText.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/SensorToolUiText.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabProgressPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabScenarioReplayPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabChartsPanel.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Core/VirtualSensorSchedulerSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "Kismet/GameplayStatics.h"
@@ -39,9 +39,9 @@ bool FSensorWorkflowToolbarTest::RunTest(const FString&)
     auto* C=World->SpawnActor<AVirtualSensorCoordinator>();W->SetCoordinator(C);
     auto* L=World->SpawnActor<AVirtualLidarSensorActor>();auto* Camera=World->SpawnActor<AVirtualCameraSensorActor>();
     C->RegisterSensorActor(L);C->RegisterSensorActor(Camera);
-    auto* Placement=NewObject<UVirtualSensorPlacementPanelWidget>(World);auto* Monitor=NewObject<UVirtualSensorMonitorPanelWidget>(World);
-    auto* Settings=NewObject<UVirtualSensorSettingsPanelWidget>(World);auto* Data=NewObject<UVirtualSensorCaptureExportPanelWidget>(World);
-    auto* Progress=NewObject<USlabProgressPanelWidget>(World);auto* Replay=NewObject<USlabScenarioReplayPanelWidget>(World);auto* Charts=NewObject<USlabChartsPanelWidget>(World);
+    auto* Placement=NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);auto* Monitor=NewObject<UDxWidgetVirtualSensorMonitorPanel>(World);
+    auto* Settings=NewObject<UDxWidgetVirtualSensorSettingsPanel>(World);auto* Data=NewObject<UDxWidgetVirtualSensorCaptureExportPanel>(World);
+    auto* Progress=NewObject<UDxWidgetSlabProgressPanel>(World);auto* Replay=NewObject<UDxWidgetSlabScenarioReplayPanel>(World);auto* Charts=NewObject<UDxWidgetSlabChartsPanel>(World);
     W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,Placement);W->RegisterOwnedPanel(ESensorToolPanelRole::Monitor,Monitor);
     W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,Settings);W->RegisterOwnedPanel(ESensorToolPanelRole::Data,Data);
     W->RegisterOwnedPanel(ESensorToolPanelRole::SlabProgress,Progress);W->RegisterOwnedPanel(ESensorToolPanelRole::Replay,Replay);W->RegisterOwnedPanel(ESensorToolPanelRole::SlabCharts,Charts);
@@ -81,7 +81,7 @@ bool FSensorWorkflowToolbarTest::RunTest(const FString&)
     TestFalse(TEXT("equipment label has no redundant prefix"),Toolbar->SelectedSensorText().ToString().StartsWith(TEXT("장비")));
     TArray<FString> EquipmentTexts;FindTexts(Toolbar->BuildEquipmentMenu(),EquipmentTexts);
     TestTrue(TEXT("selector preserves kind groups and placement entry"),EquipmentTexts.Contains(TEXT("LiDAR"))&&EquipmentTexts.Contains(TEXT("Camera"))&&EquipmentTexts.Contains(SensorToolUiText::AddEquipment().ToString()));
-    auto* Transport=C->SharedTransportComponent.Get();auto Profile=Transport->GetTransportProfile();
+    auto* Transport=C->SharedTransportComp.Get();auto Profile=Transport->GetTransportProfile();
     Profile.BrokerUrl=TEXT("tcp://127.0.0.1:61616");Profile.ExportTopic.Reset();Transport->ConfigureTransportProfile(Profile);Transport->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
     auto* Slab=World->SpawnActor<ASlabActor>();Data->BindScenarioSlabActor(Slab);
     Data->bOwnedScenarioStreamView=true;Data->bOwnedReplayPreflight=false;Data->OpenOwnedTab(ESensorOwnedDataTab::Transfer);
@@ -122,7 +122,7 @@ bool FSensorWorkflowStatusTest::RunTest(const FString&)
     auto* C=World->SpawnActor<AVirtualSensorCoordinator>();W->SetCoordinator(C);auto* L=World->SpawnActor<AVirtualLidarSensorActor>();
     C->RegisterSensorActor(L);auto* Toolbar=NewObject<USensorToolToolbarWidget>(World);W->Toolbar=Toolbar;
     const auto Transform=L->GetActorTransform();const auto Before=L->GetSensorRuntimeStatus();const bool Running=L->IsSensorRunning();
-    const auto Streams=C->StreamPublisherComponent->GetStreamStatuses();const int32 Revision=L->GetConfigurationRevision();
+    const auto Streams=C->StreamPublisherComp->GetStreamStatuses();const int32 Revision=L->GetConfigurationRevision();
     TArray<uint8> SaveBefore,SaveAfter;const bool HadSave=UGameplayStatics::LoadDataFromSlot(SaveBefore,UVirtualSensorUiPreferencesSaveGame::SlotName,0);
     Toolbar->RefreshOwnedStatus(1.0);const double Next=Toolbar->NextStatusRefresh;
     Toolbar->RefreshOwnedStatus(1.1);TestEqual(TEXT("status throttles to at most five hz"),Toolbar->NextStatusRefresh,Next);
@@ -133,7 +133,7 @@ bool FSensorWorkflowStatusTest::RunTest(const FString&)
     TestEqual(TEXT("settings revision untouched"),L->GetConfigurationRevision(),Revision);
     TestEqual(TEXT("no acquisition caused by display"),L->GetSensorRuntimeStatus().FrameId,Before.FrameId);
     TestEqual(TEXT("no derived output caused by display"),L->GetSensorRuntimeStatus().LastPayloadLength,Before.LastPayloadLength);
-    TestEqual(TEXT("stream inventory untouched"),C->StreamPublisherComponent->GetStreamStatuses().Num(),Streams.Num());
+    TestEqual(TEXT("stream inventory untouched"),C->StreamPublisherComp->GetStreamStatuses().Num(),Streams.Num());
     const bool HasSave=UGameplayStatics::LoadDataFromSlot(SaveAfter,UVirtualSensorUiPreferencesSaveGame::SlotName,0);
     TestTrue(TEXT("status does not save preferences"),HadSave==HasSave&&SaveBefore==SaveAfter);
     const double LastRefresh=Toolbar->NextStatusRefresh;

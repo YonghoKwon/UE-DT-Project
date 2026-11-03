@@ -8,10 +8,10 @@
 #include "Widgets/SViewport.h"
 #include "InputCoreTypes.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tool/VirtualSensorTransformGizmoActor.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
 #include "DTCoreContractListener.h"
@@ -26,7 +26,7 @@
 #include "UObject/UnrealType.h"
 #include "Widgets/Input/SEditableTextBox.h"
 
-void UDTCoreMainAcceptanceWidget::NativeOnInitialized()
+void UDxWidgetDTCoreMainAcceptance::NativeOnInitialized()
 {
     Super::NativeOnInitialized();
     auto* Canvas=WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(),TEXT("AddWidgetPanel"));
@@ -83,7 +83,7 @@ public:
             if(Workspace->IsPanelOpen(ESensorToolPanelRole::Monitor))Workspace->SetPanelOpen(ESensorToolPanelRole::Monitor,false);
             if(FPlatformTime::Seconds()-Start<3)return false;
             Workspace->SetPanelOpen(ESensorToolPanelRole::Settings,true);
-            auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings));
+            auto* Settings=Cast<UDxWidgetVirtualSensorSettingsPanel>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings));
             if(!bSettingsPrepared)
             {
                 if(Settings->IsPanelCollapsed())Settings->TogglePanelCollapsed();
@@ -172,7 +172,7 @@ public:
             if(Data){Test->TestTrue(TEXT("Data actually visible"),Data->IsVisible());Test->TestTrue(TEXT("Data has usable rendered geometry"),Data->GetCachedGeometry().GetLocalSize().X>=360&&Data->GetCachedGeometry().GetLocalSize().Y>=280);}
             Workspace->SetPanelOpen(ESensorToolPanelRole::Data,false);
             Widgets=W->GetGameInstance()->GetSubsystem<UDxWidgetSubsystem>();OriginalMain=Widgets->GetMainWidget();
-            FixtureMain=CreateWidget<UDTCoreMainAcceptanceWidget>(W,UDTCoreMainAcceptanceWidget::StaticClass());FixtureMain->AddToViewport();
+            FixtureMain=CreateWidget<UDxWidgetDTCoreMainAcceptance>(W,UDxWidgetDTCoreMainAcceptance::StaticClass());FixtureMain->AddToViewport();
             auto* Property=FindFProperty<FObjectProperty>(UDxWidgetSubsystem::StaticClass(),TEXT("MainWidgetInstance"));Property->SetObjectPropertyValue_InContainer(Widgets.Get(),FixtureMain.Get());
             Phase=3;PhaseAt=FPlatformTime::Seconds();return false;
         }

@@ -3,10 +3,10 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Core/VirtualSensorOutputPreflight.h"
 #include "Device/Core/VirtualSensorLayoutSubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorOutputPreflightTest,"MA0T10.SensorLayout.OutputPreflight",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorOutputPreflightTest::RunTest(const FString&)
@@ -24,8 +24,8 @@ bool FSensorOutputPreflightTest::RunTest(const FString&)
     for(int32 I=0;I<10;++I)R=UVirtualSensorOutputPreflight::Inspect(W,O,{});
     TestEqual(TEXT("preview camera not counted as JPEG send"),R.Streams.Num(),1);TestTrue(TEXT("original native dimensions used during manipulation"),R.Streams[0].EstimatedBytesPerFrame>=576*56*33);
     TestTrue(TEXT("repeated read leaves actor/config/manipulation intact"),A->GetActorTransform().Equals(Before)&&Revision==A->GetConfigurationRevision()&&A->IsInteractiveManipulationActive());
-    TestTrue(TEXT("stopped camera stays stopped"),!Camera->IsSensorRunning());TestEqual(TEXT("submission budget unchanged"),C->StreamPublisherComponent->MaxSubmissionsPerFrame,2);
-    for(const auto& Status:C->StreamPublisherComponent->GetStreamStatuses())TestFalse(TEXT("inspection starts no Topic"),Status.bEnabled);
+    TestTrue(TEXT("stopped camera stays stopped"),!Camera->IsSensorRunning());TestEqual(TEXT("submission budget unchanged"),C->StreamPublisherComp->MaxSubmissionsPerFrame,2);
+    for(const auto& Status:C->StreamPublisherComp->GetStreamStatuses())TestFalse(TEXT("inspection starts no Topic"),Status.bEnabled);
     A->EndInteractiveManipulation();return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorOutputPreflightRoutesTest,"MA0T10.SensorLayout.PreflightEffectiveRoutes",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -35,7 +35,7 @@ bool FSensorOutputPreflightRoutesTest::RunTest(const FString&)
     auto* A=L->CreateSensorAtPose(EVirtualSensorKind::Lidar,FTransform::Identity,Error,false);
     auto* Camera=L->CreateSensorAtPose(EVirtualSensorKind::Camera,FTransform::Identity,Error,false);
     if(!A||!Camera){AddError(Error);return false;}
-    auto* P=C->StreamPublisherComponent.Get();auto* T=C->SharedTransportComponent.Get();T->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+    auto* P=C->StreamPublisherComp.Get();auto* T=C->SharedTransportComp.Get();T->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
     auto Profile=T->GetTransportProfile();Profile.BrokerUrl=TEXT("ws://127.0.0.1:61616");T->ConfigureTransportProfile(Profile);
     FVirtualSensorStreamConfig Config;Config.bEnabled=true;Config.StreamKind=EVirtualSensorStreamKind::PointCloud;P->ConfigureStream(Config);
     FVirtualSensorStreamConfig Exact=Config;Exact.SensorId=A->GetSensorId();Exact.bEnabled=false;P->ConfigureStream(Exact);
@@ -69,7 +69,7 @@ bool FSensorOutputPreflightRoutesTest::RunTest(const FString&)
     TestTrue(TEXT("manual native PCD start uses its actual default raw backend"),R.bRequiresRaw&&R.bRequiresEngine);
     R=UVirtualSensorOutputPreflight::InspectForPurpose(W,O,{},EVirtualSensorPreflightPurpose::ManualStreamStart,60);
     TestTrue(TEXT("manual empty target is not silently all sensors"),R.BlockingReasons.ContainsByPredicate([](const auto& S){return S.Contains(TEXT("선택 센서 없음"));}));
-    auto* Scan=CastChecked<AVirtualLidarSensorActor>(A)->ScanComponent.Get();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->bUseProfileEchoCapability=false;Scan->bUseMultiHit=true;Scan->MaxHitsPerRay=2;
+    auto* Scan=CastChecked<AVirtualLidarSensorActor>(A)->ScanComp.Get();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->bUseProfileEchoCapability=false;Scan->bUseMultiHit=true;Scan->MaxHitsPerRay=2;
     R=UVirtualSensorOutputPreflight::InspectForPurpose(W,O,{A->GetSensorId()},EVirtualSensorPreflightPurpose::ScenarioTransition,60);
     const auto* Pcd=R.Streams.FindByPredicate([](const auto& S){return S.Kind==EVirtualSensorStreamKind::PointCloud;});
     TestTrue(TEXT("GPU fallback keeps CPU echo upper bound and labels uncertainty"),Pcd&&Pcd->bEstimateUncertain&&Pcd->EstimatedBytesPerFrame>=int64(576)*56*2*33);

@@ -3,11 +3,11 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
@@ -61,7 +61,7 @@ public:
         if(!FinalAcceptanceViewportReady(World))return false;
         auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* C=W->GetCoordinator();
         auto* Bar=Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());
-        auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));
+        auto* Settings=Cast<UDxWidgetVirtualSensorSettingsPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));
         if(!Bar||!C||!Settings)return false;
         const int32 View=Phase%Count;const bool Wide=(Phase/Count)%2!=0;const float Scale=Phase<Count*2?1.f:1.5f;
         if(!ReadyAt)
@@ -79,8 +79,8 @@ public:
             for(auto* A:C->GetSensorActors())if(A&&A->GetSensorKind()==(Camera?EVirtualSensorKind::Camera:EVirtualSensorKind::Lidar)){C->SelectSensorActor(A);W->SynchronizeOwnedSelection();break;}
             Bar->OpenOwnedDestination(View==8?ESensorToolDestination::Placement:View==9?ESensorToolDestination::FileSave:ESensorToolDestination::SensorSettings);
             if(View<8){Settings->SelectOwnedSettingsTab(View==5||View==6?2:View==1?(Baseline?0:1):View==2?1:View==4?(Baseline?0:1):0);Scroll(Settings->TakeWidget(),View==2||View==6);}
-            if(View==8){auto* P=Cast<UVirtualSensorPlacementPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));if(Baseline){Expand(P->TakeWidget(),TEXT("IMU ·"));Scroll(P->TakeWidget(),true);}else P->OpenOwnedImuSettings();}
-            if(View==9){auto* P=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data));if(Baseline){Expand(P->TakeWidget(),TEXT("데이터셋"));Scroll(P->TakeWidget(),false);}else P->OpenOwnedDatasetSettings();}
+            if(View==8){auto* P=Cast<UDxWidgetVirtualSensorPlacementPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));if(Baseline){Expand(P->TakeWidget(),TEXT("IMU ·"));Scroll(P->TakeWidget(),true);}else P->OpenOwnedImuSettings();}
+            if(View==9){auto* P=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Data));if(Baseline){Expand(P->TakeWidget(),TEXT("데이터셋"));Scroll(P->TakeWidget(),false);}else P->OpenOwnedDatasetSettings();}
             ReadyAt=FPlatformTime::Seconds()+1.2;return false;
         }
         if(FPlatformTime::Seconds()<ReadyAt)return false;

@@ -1,15 +1,15 @@
 #include "VirtualSensorCoordinator.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
-#include "Device/Sensor/VirtualSensorRecorderComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
+#include "Device/Sensor/VirtualSensorRecorderComp.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 
 AVirtualSensorCoordinator::AVirtualSensorCoordinator()
 {
     PrimaryActorTick.bCanEverTick = false;
-    SharedTransportComponent = CreateDefaultSubobject<UVirtualSensorTransportComponent>(TEXT("SharedSensorTransport"));
-    SharedRecorderComponent = CreateDefaultSubobject<UVirtualSensorRecorderComponent>(TEXT("SharedSensorRecorder"));
-    StreamPublisherComponent = CreateDefaultSubobject<UVirtualSensorStreamPublisherComponent>(TEXT("SensorStreamPublisher"));
-    StreamPublisherComponent->SetTransportComponent(SharedTransportComponent);
+    SharedTransportComp = CreateDefaultSubobject<UVirtualSensorTransportComp>(TEXT("SharedSensorTransport"));
+    SharedRecorderComp = CreateDefaultSubobject<UVirtualSensorRecorderComp>(TEXT("SharedSensorRecorder"));
+    StreamPublisherComp = CreateDefaultSubobject<UVirtualSensorStreamPublisherComp>(TEXT("SensorStreamPublisher"));
+    StreamPublisherComp->SetTransportComponent(SharedTransportComp);
 }
 
 void AVirtualSensorCoordinator::BeginPlay() { Super::BeginPlay(); }
@@ -23,14 +23,14 @@ void AVirtualSensorCoordinator::RegisterCamera(UVirtualCameraCaptureComponent* C
     Super::RegisterCamera(CameraComp);
 }
 
-void AVirtualSensorCoordinator::RegisterLidar(UVirtualLidarScanComponent* LidarComp)
+void AVirtualSensorCoordinator::RegisterLidar(UVirtualLidarScanComp* LidarComp)
 {
     Super::RegisterLidar(LidarComp);
 }
 
-void AVirtualSensorCoordinator::RegisterRealSensorSource(URealSensorSourceComponent* RealSensorSourceComponent)
+void AVirtualSensorCoordinator::RegisterRealSensorSource(URealSensorSourceComp* RealSensorSourceComp)
 {
-    Super::RegisterRealSensorSource(RealSensorSourceComponent);
+    Super::RegisterRealSensorSource(RealSensorSourceComp);
 }
 
 void AVirtualSensorCoordinator::SelectCameraByIndex(int32 Index)
@@ -158,12 +158,12 @@ int32 AVirtualSensorCoordinator::FindCameraIndexBySensorId(const FString& Sensor
     return Super::FindCameraIndexBySensorId(SensorId);
 }
 
-UVirtualLidarScanComponent* AVirtualSensorCoordinator::GetSelectedLidar() const
+UVirtualLidarScanComp* AVirtualSensorCoordinator::GetSelectedLidar() const
 {
     return Super::GetSelectedLidar();
 }
 
-URealSensorSourceComponent* AVirtualSensorCoordinator::GetSelectedRealSensorSource() const
+URealSensorSourceComp* AVirtualSensorCoordinator::GetSelectedRealSensorSource() const
 {
     return Super::GetSelectedRealSensorSource();
 }
@@ -218,5 +218,5 @@ FDeviceSensorCoordinatorConfig AVirtualSensorCoordinator::GetDeviceCoordinatorCo
     return {bDiscoverOnBeginPlay,bStartSensorsOnBeginPlay,bUseSynchronizedCapture,
         SynchronizedInterval,StaleSensorSeconds,bPointCloudOnlyHideWorld,
         bPointCloudOnlyAutoSelectLidarView,PointCloudOnlyKeepActorTags,
-        SharedTransportComponent.Get(),SharedRecorderComponent.Get(),StreamPublisherComponent.Get()};
+        SharedTransportComp.Get(),SharedRecorderComp.Get(),StreamPublisherComp.Get()};
 }

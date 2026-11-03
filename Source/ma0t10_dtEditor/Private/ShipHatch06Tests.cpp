@@ -3,12 +3,12 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/DxWidgetShipHatchMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMonitorHost.h"
 #include "Device/Sensor/IndustrialLidarProfiles.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
 #include "Components/CanvasPanelSlot.h"
@@ -26,18 +26,18 @@
 #include "Json.h"
 #include "ProceduralMeshComponent.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchOverlay.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchOverlayComp.h"
 #include "Camera/CameraActor.h"
 
-void ValidateHatchPresentation(FAutomationTestBase*,UShipHatchMonitorWidget*);
+void ValidateHatchPresentation(FAutomationTestBase*,UDxWidgetShipHatchMonitor*);
 
 struct FHatch06Probe
 {
- static void Cargo(UShipHatchMonitorWidget& M){M.OnFrameCargo();}
- static void Covers(UShipHatchMonitorWidget& M){M.SetCameraPreset(0);M.bFrameVessel=false;M.bFrameUnloader=false;M.OrbitDistance=8500;M.UpdateCamera();}
- static FSlateRect Scene(const UShipHatchMonitorWidget& M){return M.SceneRect;}
- static void Vessel(UShipHatchMonitorWidget& M){M.OnFrameVessel();}
- static bool StartReferenceGrab(UShipHatchMonitorWidget& M,FString& Trace)
+ static void Cargo(UDxWidgetShipHatchMonitor& M){M.OnFrameCargo();}
+ static void Covers(UDxWidgetShipHatchMonitor& M){M.SetCameraPreset(0);M.bFrameVessel=false;M.bFrameUnloader=false;M.OrbitDistance=8500;M.UpdateCamera();}
+ static FSlateRect Scene(const UDxWidgetShipHatchMonitor& M){return M.SceneRect;}
+ static void Vessel(UDxWidgetShipHatchMonitor& M){M.OnFrameVessel();}
+ static bool StartReferenceGrab(UDxWidgetShipHatchMonitor& M,FString& Trace)
  {
   M.bDigEnabled=true;auto& S=*M.Simulation;auto* PC=M.GetOwningPlayer();int W=0,H=0;PC->GetViewportSize(W,H);const auto G=M.GetCachedGeometry();bool Accepted=false;
   // At720p/150% a valid cargo projection can lie behind a sensor badge.
@@ -52,29 +52,29 @@ struct FHatch06Probe
   }
   M.bDigEnabled=false;return Accepted;
  }
- static void HopperCamera(UShipHatchMonitorWidget& M)
+ static void HopperCamera(UDxWidgetShipHatchMonitor& M)
  {
   const auto& S=*M.Simulation;const double Y=S.HopperCenterY(),Z=S.HopperRimZ();
   const auto Pose=S.GetActorTransform();const auto Target=Pose.TransformPosition(FVector(0,Y,Z+4.5)*100),Position=Pose.TransformPosition(FVector(18,Y-18,Z+22)*100);
   M.Host->ViewCamera->SetActorLocationAndRotation(Position,(Target-Position).Rotation());
  }
- static void GroundRigCamera(UShipHatchMonitorWidget& M)
+ static void GroundRigCamera(UDxWidgetShipHatchMonitor& M)
  {
   const auto& S=*M.Simulation;const auto Pose=S.GetActorTransform();const auto P=Pose.TransformPosition(FVector(80,S.QuayEdgeY()-25,S.QuayZ()+1.8)*100),Target=Pose.TransformPosition(FVector(0,(S.BoomTipY()+S.SeaRailY()-S.RailSpan)*.5,(S.QuayZ()+S.HoldDepth+S.BoomHeight+16.2)*.5)*100);M.Host->ViewCamera->SetActorLocationAndRotation(P,(Target-P).Rotation());
  }
- static void SideRigCamera(UShipHatchMonitorWidget& M)
+ static void SideRigCamera(UDxWidgetShipHatchMonitor& M)
  {
   const auto& S=*M.Simulation;const auto Pose=S.GetActorTransform();const auto P=Pose.TransformPosition(FVector(100,-22,S.QuayZ()+8)*100),Aim=Pose.TransformPosition(FVector(0,-22,S.QuayZ()+24)*100);M.Host->ViewCamera->SetActorLocationAndRotation(P,(Aim-P).Rotation());
  }
- static void HullSideCamera(UShipHatchMonitorWidget& M)
+ static void HullSideCamera(UDxWidgetShipHatchMonitor& M)
  {
   const auto& S=*M.Simulation;const auto Pose=S.GetActorTransform();const auto P=Pose.TransformPosition(FVector(75,S.QuayEdgeY()-23,S.QuayZ()+6)*100),Aim=Pose.TransformPosition(FVector(30,-S.VesselBeam*.5,S.WaterZ()+2)*100);M.Host->ViewCamera->SetActorLocationAndRotation(P,(Aim-P).Rotation());
  }
- static void GrabCloseCamera(UShipHatchMonitorWidget& M)
+ static void GrabCloseCamera(UDxWidgetShipHatchMonitor& M)
  {
   const auto& S=*M.Simulation;const auto Pose=S.GetActorTransform();const double Z=S.Surface().Height(0,4);const auto P=Pose.TransformPosition(FVector(14,14,Z+18)*100),Target=Pose.TransformPosition(FVector(0,4,Z+3)*100);M.Host->ViewCamera->SetActorLocationAndRotation(P,(Target-P).Rotation());
  }
- static void CheckDischarge(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
+ static void CheckDischarge(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M)
  {
   const auto* Sim=M.GetSimulation();auto* Grip=Cast<UProceduralMeshComponent>(Sim->GrabPrimitive());const auto* Section=Grip?Grip->GetProcMeshSection(0):nullptr;
   T.TestTrue(TEXT("one physical clamshell and bounded mist/stream; no duplicate overlay grab"),Sim->IsGrabVisible()&&Section&&Section->ProcVertexBuffer.Num()>500&&Section->ProcVertexBuffer.Num()<5000&&M.Overlay&&M.Overlay->BatchedMeshes.Num()==4&&M.Overlay->BatchedMeshes[1].MeshVerts.IsEmpty()&&M.Overlay->BatchedMeshes[2].MeshVerts.Num()<=32&&M.Overlay->BatchedMeshes[3].MeshVerts.Num()>0);
@@ -82,16 +82,16 @@ struct FHatch06Probe
 
   T.TestEqual(TEXT("display effect adds no measurement collision"),M.Overlay->GetCollisionEnabled(),ECollisionEnabled::NoCollision);
  }
- static void FullRig(UShipHatchMonitorWidget& M){M.OnFrameUnloader();}
- static void Site(UShipHatchMonitorWidget& M){M.OnSiteOverview();}
- static void Clean(UShipHatchMonitorWidget& M){M.SetModelPresentation(true);}
- static void PointControls(UShipHatchMonitorWidget& M){M.OnPointControlsToggle();}
- static void CheckPointState(FAutomationTestBase& T,UShipHatchMonitorWidget& M,bool Expanded)
+ static void FullRig(UDxWidgetShipHatchMonitor& M){M.OnFrameUnloader();}
+ static void Site(UDxWidgetShipHatchMonitor& M){M.OnSiteOverview();}
+ static void Clean(UDxWidgetShipHatchMonitor& M){M.SetModelPresentation(true);}
+ static void PointControls(UDxWidgetShipHatchMonitor& M){M.OnPointControlsToggle();}
+ static void CheckPointState(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M,bool Expanded)
  {T.TestEqual(TEXT("point controls are collapsed by default, or explicitly expanded"),M.PointPanel->IsVisible(),Expanded);T.TestEqual(TEXT("session remembers explicit expansion"),M.bPointControlsExpanded,Expanded);}
- static void VerifyPointSession(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
+ static void VerifyPointSession(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M)
  {M.SelectView(0);T.TestFalse(TEXT("general3D always hides point card"),M.PointPanel->IsVisible());M.SelectView(1);T.TestTrue(TEXT("explicit expanded state returns in point mode"),M.PointPanel->IsVisible());M.SetCameraPreset(0);T.TestFalse(TEXT("camera preset auto-hides card without forgetting preference"),M.PointPanel->IsVisible());T.TestTrue(TEXT("preset preserves session preference"),M.bPointControlsExpanded);M.bPointControlsExpanded=false;M.SelectView(0);}
- static bool IsCleanModel(const UShipHatchMonitorWidget& M){return M.bModelPresentation;}
- static TSharedRef<FJsonObject> OverlayContract(FAutomationTestBase& T,UWorld& W,UShipHatchMonitorWidget& M)
+ static bool IsCleanModel(const UDxWidgetShipHatchMonitor& M){return M.bModelPresentation;}
+ static TSharedRef<FJsonObject> OverlayContract(FAutomationTestBase& T,UWorld& W,UDxWidgetShipHatchMonitor& M)
  {
   auto R=MakeShared<FJsonObject>();const auto Center=M.OverlayExclusionRect();const auto Root=M.GetCachedGeometry();
   TArray<UWidget*> Widgets;for(auto B:M.SensorBadges)Widgets.Add(B.Get());for(auto B:M.DirectionBadges)Widgets.Add(B.Get());Widgets.Add(M.PointPanel.Get());Widgets.Add(M.PointControlsToggle.Get());
@@ -113,7 +113,7 @@ struct FHatch06Probe
   int Changed=0,Count=0;for(int Y=FMath::CeilToInt(P.Y);Y<FMath::FloorToInt(Q.Y);++Y)for(int X=FMath::CeilToInt(P.X);X<FMath::FloorToInt(Q.X);++X){const int I=Y*A.X+X;if(With.IsValidIndex(I)&&Without.IsValidIndex(I)){++Count;Changed+=With[I]!=Without[I];}}
   T.TestTrue(TEXT("HUD removal changes zero rendered pixels in central60percent"),Count>0&&Changed==0);R->SetNumberField(TEXT("central_pixels"),Count);R->SetNumberField(TEXT("changed_pixels"),Changed);R->SetStringField(TEXT("method"),TEXT("same engine update: actual D3D12 with/without HUD; geometry and acquisition unchanged"));return R;
  }
- static void FloorCamera(UShipHatchMonitorWidget& M,FVector2D Target)
+ static void FloorCamera(UDxWidgetShipHatchMonitor& M,FVector2D Target)
  {
   const auto Pose=M.Simulation->GetActorTransform();const auto P=Pose.TransformPosition(FVector(Target.X+3,Target.Y-2,15)*100),Aim=Pose.TransformPosition(FVector(Target,0)*100);
   // UXR-P2b (fadf810) made toolbar height part of Layout's cache key.
@@ -122,16 +122,16 @@ struct FHatch06Probe
   // keep the original eye/target, geometry, collision and pixel predicates.
   M.SetFreeCamera(true);M.FreeCameraPosition=P;M.FreeCameraRotation=(Aim-P).Rotation();M.UpdateCamera();
  }
- static bool UsesFreeCamera(const UShipHatchMonitorWidget& M){return M.bFreeCamera;}
- static void Settings(UShipHatchMonitorWidget& M,bool Open){if(M.bSettings!=Open)M.OnSettings();}
- static void CheckLayout(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
+ static bool UsesFreeCamera(const UDxWidgetShipHatchMonitor& M){return M.bFreeCamera;}
+ static void Settings(UDxWidgetShipHatchMonitor& M,bool Open){if(M.bSettings!=Open)M.OnSettings();}
+ static void CheckLayout(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M)
  {
   const auto* D=M.LayoutSlots[8].Get();const auto P=D->GetPosition(),Z=D->GetSize();
   for(int I:{4,5}){const auto* Slot=M.LayoutSlots[I].Get();T.TestTrue(TEXT("both right cards remain visible with settings open"),Slot->Content->IsVisible());const auto Q=Slot->GetPosition(),S=Slot->GetSize();const double Intersection=FMath::Max(0.,FMath::Min(P.X+Z.X,Q.X+S.X)-FMath::Max(P.X,Q.X))*FMath::Max(0.,FMath::Min(P.Y+Z.Y,Q.Y+S.Y)-FMath::Max(P.Y,Q.Y));T.TestEqual(TEXT("drawer occlusion of each right card is exactly zero pixels (visible area100%)"),Intersection,0.);}
  }
- static void Scale(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
+ static void Scale(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M)
  {
-  auto& S=*M.Simulation;T.TestEqual(TEXT("user2026-10-22 default boom is OS1-64 Rev7"),S.SensorAt(0)->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);for(int I=1;I<3;++I)T.TestEqual(TEXT("cab defaults are OS1-64 Rev7"),S.SensorAt(I)->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);FString Error;T.TestTrue(TEXT("live vessel and rig dimensions satisfy real-scale ranges"),S.ValidateSceneScale(Error));
+  auto& S=*M.Simulation;T.TestEqual(TEXT("user2026-10-22 default boom is OS1-64 Rev7"),S.SensorAt(0)->ScanComp->DeviceProfile,EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);for(int I=1;I<3;++I)T.TestEqual(TEXT("cab defaults are OS1-64 Rev7"),S.SensorAt(I)->ScanComp->DeviceProfile,EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);FString Error;T.TestTrue(TEXT("live vessel and rig dimensions satisfy real-scale ranges"),S.ValidateSceneScale(Error));
   T.TestTrue(TEXT("rail is on land side of quay edge; boom reaches into vessel"),S.SeaRailY()<S.QuayEdgeY()&&S.QuayEdgeY()<-S.VesselBeam*.5&&S.BoomTipY()>0&&S.BoomTipY()<S.VesselBeam*.5);
   T.TestTrue(TEXT("tank top is reachable within reference25m hoist below rail"),S.QuayZ()>0&&S.QuayZ()<25);
   T.TestTrue(TEXT("hopper near face is attached to sea portal, not isolated at rail midpoint"),FMath::Abs(S.HopperCenterY()+4.8-S.SeaRailY())<.001&&S.HopperCenterY()>S.SeaRailY()-S.RailSpan*.5&&S.HopperRimZ()<S.HoldDepth+S.BoomHeight);
@@ -175,16 +175,16 @@ class FHatch06Run:public IAutomationLatentCommand
  TSharedPtr<FJsonObject> LowBoomBefore;
  TSharedRef<FJsonObject> BoomEvidence(const AShipHatchSimulation& S,int Sensor=0)
  {
-  auto R=MakeShared<FJsonObject>();const auto* A=S.SensorAt(Sensor);const auto Frame=A->ScanComponent->GetLastFrameSnapshot();TArray<ShipHatch::FObservation> Points;int Floor=0;
+  auto R=MakeShared<FJsonObject>();const auto* A=S.SensorAt(Sensor);const auto Frame=A->ScanComp->GetLastFrameSnapshot();TArray<ShipHatch::FObservation> Points;int Floor=0;
   if(Frame&&Frame->Points)for(const auto& P:*Frame->Points)if(P.bHit){if(P.SemanticLabel==TEXT("HatchCargo"))Points.Add({S.GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01,P.SemanticLabel});if(P.SemanticLabel==TEXT("HatchHold")&&FMath::Abs(S.GetActorTransform().InverseTransformPosition(P.WorldLocation).Z)<2)++Floor;}
   const auto Analysis=ShipHatch::Analyze(S.Settings(),1,Points);const auto Sight=S.DiagnoseSight(Sensor,FVector::ZeroVector);
-  R->SetStringField(TEXT("model"),A->ScanComponent->DeviceSpec.Model);R->SetNumberField(TEXT("cargo_points"),Points.Num());R->SetNumberField(TEXT("floor_points"),Floor);R->SetNumberField(TEXT("observed_percent"),100*Analysis.Coverage);R->SetNumberField(TEXT("unobserved_percent"),100*(1-Analysis.Coverage));R->SetStringField(TEXT("floor_center_cause"),Sight.Cause.ToString());R->SetNumberField(TEXT("floor_center_distance_m"),Sight.DistanceMeters);R->SetNumberField(TEXT("range_m"),Sight.RangeMeters);R->SetNumberField(TEXT("mount_z_m"),S.SensorOrigin(Sensor).Z);R->SetNumberField(TEXT("requested_hz"),1.f/A->ScanComponent->ScanInterval);R->SetNumberField(TEXT("measured_hz"),A->ScanComponent->GetRuntimeStatus().MeasuredAcquisitionRateHz);if(Frame){R->SetNumberField(TEXT("frame_id"),double(Frame->FrameId));R->SetNumberField(TEXT("requested_rays"),Frame->RequestedRayCount);}return R;
+  R->SetStringField(TEXT("model"),A->ScanComp->DeviceSpec.Model);R->SetNumberField(TEXT("cargo_points"),Points.Num());R->SetNumberField(TEXT("floor_points"),Floor);R->SetNumberField(TEXT("observed_percent"),100*Analysis.Coverage);R->SetNumberField(TEXT("unobserved_percent"),100*(1-Analysis.Coverage));R->SetStringField(TEXT("floor_center_cause"),Sight.Cause.ToString());R->SetNumberField(TEXT("floor_center_distance_m"),Sight.DistanceMeters);R->SetNumberField(TEXT("range_m"),Sight.RangeMeters);R->SetNumberField(TEXT("mount_z_m"),S.SensorOrigin(Sensor).Z);R->SetNumberField(TEXT("requested_hz"),1.f/A->ScanComp->ScanInterval);R->SetNumberField(TEXT("measured_hz"),A->ScanComp->GetRuntimeStatus().MeasuredAcquisitionRateHz);if(Frame){R->SetNumberField(TEXT("frame_id"),double(Frame->FrameId));R->SetNumberField(TEXT("requested_rays"),Frame->RequestedRayCount);}return R;
  }
  void DefaultEvidence(const AShipHatchSimulation& S)
  {
   auto R=MakeShared<FJsonObject>();TArray<TSharedPtr<FJsonValue>> Devices;for(int I=0;I<3;++I){auto D=BoomEvidence(S,I);if(I==0)T->TestTrue(TEXT("new Ouster default contributes at least50percent initial hold coverage"),D->GetNumberField(TEXT("observed_percent"))>=50);Devices.Add(MakeShared<FJsonValueObject>(D));}R->SetArrayField(TEXT("sensors"),Devices);TArray<ShipHatch::FObservation> Points;S.CollectObservations(Points);const auto A=ShipHatch::Analyze(S.Settings(),1,Points);R->SetNumberField(TEXT("combined_observed_percent"),100*A.Coverage);R->SetNumberField(TEXT("combined_unobserved_percent"),100*(1-A.Coverage));R->SetStringField(TEXT("authorization"),TEXT("user2026-10-22: OS1-64 Rev7 x3; performance/RSS gates unchanged"));Save06(TEXT("default-configuration.json"),R);
  }
- void DiagnoseGray(UShipHatchMonitorWidget& M)
+ void DiagnoseGray(UDxWidgetShipHatchMonitor& M)
  {
   const auto* S=M.GetSimulation();const auto* A=M.GetDisplayAnalysis();if(!S||!A)return;auto Root=MakeShared<FJsonObject>();TArray<TSharedPtr<FJsonValue>> Cells;bool Grab=false;
   for(int I=0;I<A->Cells.Num();++I)
@@ -196,7 +196,7 @@ class FHatch06Run:public IAutomationLatentCommand
   }
   Root->SetArrayField(TEXT("unobserved_cells_near_grab"),Cells);Root->SetStringField(TEXT("method"),TEXT("same-revision current cell-center first collision, separate from acquired sampling; no geometry or frame mutation"));Root->SetBoolField(TEXT("actual_grab_occlusion_found"),Grab);Save06(TEXT("visibility-diagnostics.json"),Root);T->TestTrue(TEXT("default grab-off excludes physical grab occlusion"),!Grab);
  }
- void Shot(UWorld* W,UShipHatchMonitorWidget& M,const FString& Name,bool Floor=false)
+ void Shot(UWorld* W,UDxWidgetShipHatchMonitor& M,const FString& Name,bool Floor=false)
  {
   TArray<FColor> Pixels;FIntVector Size;if(!T->TestTrue(TEXT("real RHI pixels captured"),FSlateApplication::Get().TakeScreenshot(W->GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,Size)))return;
   TArray64<uint8> PNG;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,PNG);const FString Path=Root06()/TEXT("captures")/(Name+TEXT(".png"));IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path),true);FFileHelper::SaveArrayToFile(PNG,*Path);
@@ -285,7 +285,7 @@ public:
   if(Phase==3)
   {
    if(!S->HasFreshMeasurement()||!M.GetAnalysis()||Now-Changed<10)return false;
-   Engine.Reset();Game.Reset();Wall.Reset();LastWall=Now;LastFrame=GFrameCounter;Changed=Now;RssBefore=FPlatformMemory::GetStats().UsedPhysical;for(int I=0;I<3;++I)ModelStartFrames[I]=S->SensorAt(I)->ScanComponent->GetRuntimeStatus().FrameId;Phase=4;return false;
+   Engine.Reset();Game.Reset();Wall.Reset();LastWall=Now;LastFrame=GFrameCounter;Changed=Now;RssBefore=FPlatformMemory::GetStats().UsedPhysical;for(int I=0;I<3;++I)ModelStartFrames[I]=S->SensorAt(I)->ScanComp->GetRuntimeStatus().FrameId;Phase=4;return false;
   }
   if(Phase==4)
   {
@@ -297,10 +297,10 @@ public:
    TArray<TSharedPtr<FJsonValue>> Devices;
    for(int I=0;I<3;++I)
    {
-    auto* A=S->SensorAt(I);const auto F=A->ScanComponent->GetLastFrameSnapshot();T->TestTrue(TEXT("each selected industrial model produces a fresh acquisition"),F&&F->Points&&F->Points->Num());if(!F||!F->Points)continue;
-    T->TestEqual(TEXT("actual acquired ray budget matches published selected mode"),F->RequestedRayCount,Spec.Columns*Spec.Rows);T->TestEqual(TEXT("actual selected device"),A->ScanComponent->DeviceProfile,Spec.Profile);
+    auto* A=S->SensorAt(I);const auto F=A->ScanComp->GetLastFrameSnapshot();T->TestTrue(TEXT("each selected industrial model produces a fresh acquisition"),F&&F->Points&&F->Points->Num());if(!F||!F->Points)continue;
+    T->TestEqual(TEXT("actual acquired ray budget matches published selected mode"),F->RequestedRayCount,Spec.Columns*Spec.Rows);T->TestEqual(TEXT("actual selected device"),A->ScanComp->DeviceProfile,Spec.Profile);
     TArray<ShipHatch::FObservation> P;int Hits=0;double MaxHeightError=0,HeightSquares=0;for(const auto& Point:*F->Points)if(Point.bHit){++Hits;T->TestTrue(TEXT("physical hit respects model range"),Point.Distance<=Spec.RangeMeters*100+.01);T->TestTrue(TEXT("physical return respects echo capability"),Point.EchoCount<=Spec.Echoes);if(Point.SemanticLabel==TEXT("HatchCargo")){const auto Local=S->GetActorTransform().InverseTransformPosition(Point.WorldLocation)*.01;P.Add({Local,Point.SemanticLabel});const double Error=FMath::Abs(Local.Z-S->Surface().Height(Local.X,Local.Y));MaxHeightError=FMath::Max(MaxHeightError,Error);HeightSquares+=Error*Error;}}
-    const auto Analysis=ShipHatch::Analyze(S->Settings(),1,P);auto D=MakeShared<FJsonObject>();D->SetNumberField(TEXT("sensor"),I);D->SetNumberField(TEXT("hit_points"),Hits);D->SetNumberField(TEXT("cargo_points"),P.Num());D->SetNumberField(TEXT("observed_percent"),100*Analysis.Coverage);D->SetNumberField(TEXT("unobserved_percent"),100*(1-Analysis.Coverage));const int64 Completed=A->ScanComponent->GetRuntimeStatus().FrameId-ModelStartFrames[I];D->SetNumberField(TEXT("completed_acquisitions"),double(Completed));D->SetNumberField(TEXT("measured_hz"),Completed/(Now-Changed));D->SetNumberField(TEXT("instantaneous_hz"),A->ScanComponent->GetRuntimeStatus().MeasuredAcquisitionRateHz);D->SetNumberField(TEXT("requested_hz"),1.f/A->ScanComponent->ScanInterval);D->SetNumberField(TEXT("requested_rays"),F->RequestedRayCount);D->SetNumberField(TEXT("height_max_error_m"),MaxHeightError);D->SetNumberField(TEXT("height_rms_error_m"),P.Num()?FMath::Sqrt(HeightSquares/P.Num()):0);D->SetStringField(TEXT("backend"),A->ScanComponent->GetRuntimeStatus().ActiveAcquisitionBackend);Devices.Add(MakeShared<FJsonValueObject>(D));T->TestTrue(TEXT("each model completes acquisitions inside measurement interval"),Completed>0);T->TestTrue(TEXT("mounted industrial model sees cargo"),P.Num()>0);T->TestTrue(TEXT("each mounted model preserves15cm cargo height accuracy"),P.Num()>0&&MaxHeightError<.15);
+    const auto Analysis=ShipHatch::Analyze(S->Settings(),1,P);auto D=MakeShared<FJsonObject>();D->SetNumberField(TEXT("sensor"),I);D->SetNumberField(TEXT("hit_points"),Hits);D->SetNumberField(TEXT("cargo_points"),P.Num());D->SetNumberField(TEXT("observed_percent"),100*Analysis.Coverage);D->SetNumberField(TEXT("unobserved_percent"),100*(1-Analysis.Coverage));const int64 Completed=A->ScanComp->GetRuntimeStatus().FrameId-ModelStartFrames[I];D->SetNumberField(TEXT("completed_acquisitions"),double(Completed));D->SetNumberField(TEXT("measured_hz"),Completed/(Now-Changed));D->SetNumberField(TEXT("instantaneous_hz"),A->ScanComp->GetRuntimeStatus().MeasuredAcquisitionRateHz);D->SetNumberField(TEXT("requested_hz"),1.f/A->ScanComp->ScanInterval);D->SetNumberField(TEXT("requested_rays"),F->RequestedRayCount);D->SetNumberField(TEXT("height_max_error_m"),MaxHeightError);D->SetNumberField(TEXT("height_rms_error_m"),P.Num()?FMath::Sqrt(HeightSquares/P.Num()):0);D->SetStringField(TEXT("backend"),A->ScanComp->GetRuntimeStatus().ActiveAcquisitionBackend);Devices.Add(MakeShared<FJsonValueObject>(D));T->TestTrue(TEXT("each model completes acquisitions inside measurement interval"),Completed>0);T->TestTrue(TEXT("mounted industrial model sees cargo"),P.Num()>0);T->TestTrue(TEXT("each mounted model preserves15cm cargo height accuracy"),P.Num()>0&&MaxHeightError<.15);
    }
    R->SetArrayField(TEXT("sensors"),Devices);Rows.Add(MakeShared<FJsonValueObject>(R));Save06(TEXT("models.json"),[&](){auto J=MakeShared<FJsonObject>();J->SetArrayField(TEXT("models"),Rows);return J;}());Phase=5;Changed=Now;return false;
   }

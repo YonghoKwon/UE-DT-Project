@@ -3,11 +3,11 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchViewTransform.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/DxWidgetShipHatchMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMonitorHost.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchViewTransform.h"
 #include "DeviceUI/SensorOwnedPresentationStyle.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Camera/CameraActor.h"
 #include "GameFramework/PlayerController.h"
@@ -26,7 +26,7 @@
 // Test-only in-memory fixture. No package or personal setting is saved.
 struct FHatchOrientationProbe
 {
-    static void Prepare(UShipHatchMonitorWidget& M)
+    static void Prepare(UDxWidgetShipHatchMonitor& M)
     {
         if(!M.bSectionExpanded)M.OnSectionDrawer(); // Exercise the visible section drawer before raster checks.
         auto& S=*M.Simulation;auto& Surface=S.Current;
@@ -40,16 +40,16 @@ struct FHatchOrientationProbe
         S.FinishCargoEdit();M.SelectView(0);M.SetSplitView(true);int32 Font=100;FParse::Value(FCommandLine::Get(),TEXT("HatchFontPercent="),Font);M.SetFontPercent(Font);M.SetCameraPreset(0);
         M.SetSection(true,6/S.HoldWidth+.5);M.SetMapHeat(false);
     }
-    static void View(UShipHatchMonitorWidget& M,int32 State)
+    static void View(UDxWidgetShipHatchMonitor& M,int32 State)
     {M.SetMapHeat(State==1||State==2);if(State==2)M.SetSection(false,5/M.Simulation->HoldLength+.5);if(State==3)M.SetCameraPreset(1);if(State==4){M.bCoverageOverlay=true;M.UpdateSection();}}
-    static void Manual(UShipHatchMonitorWidget& M)
+    static void Manual(UDxWidgetShipHatchMonitor& M)
     {M.bCoverageOverlay=false;M.SetMapHeat(true);M.SetCameraPreset(0);M.SetSection(true,6/M.Simulation->HoldWidth+.5);}
-    static FVector2D Pixel(UShipHatchMonitorWidget& M,const FGeometry& G,FVector2D Local,FIntVector Size)
+    static FVector2D Pixel(UDxWidgetShipHatchMonitor& M,const FGeometry& G,FVector2D Local,FIntVector Size)
     {
         const auto VG=M.GetWorld()->GetGameViewport()->GetGameViewportWidget()->GetCachedGeometry();
         return VG.AbsoluteToLocal(G.LocalToAbsolute(Local))*FVector2D(Size.X,Size.Y)/VG.GetLocalSize();
     }
-    static void Check(FAutomationTestBase& T,UShipHatchMonitorWidget& M,int32 State,const TArray<FColor>& Pixels,FIntVector Size,FJsonObject& Report)
+    static void Check(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M,int32 State,const TArray<FColor>& Pixels,FIntVector Size,FJsonObject& Report)
     {
         auto& S=*M.Simulation;const auto& Settings=S.Surface().Settings;auto* PC=M.GetOwningPlayer();
         auto* View=State?M.HeatView.Get():M.TopView.Get();const auto G=View->GetCachedGeometry();
@@ -132,7 +132,7 @@ struct FHatchOrientationProbe
         Report.SetNumberField(TEXT("section_worst_client_x"),WorstSectionPixel.X);Report.SetNumberField(TEXT("section_worst_client_y"),WorstSectionPixel.Y);
         Report.SetNumberField(TEXT("window_dpi"),FSlateApplication::Get().FindWidgetWindow(M.TakeWidget())->GetDPIScaleFactor());Report.SetNumberField(TEXT("umg_scale"),UWidgetLayoutLibrary::GetViewportScale(&M));
     }
-    static void Overlays(FAutomationTestBase& T,UShipHatchMonitorWidget& M,int32 State,const TArray<FColor>& Pixels,FIntVector Size,FJsonObject& Report)
+    static void Overlays(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M,int32 State,const TArray<FColor>& Pixels,FIntVector Size,FJsonObject& Report)
     {
         const auto& S=M.GetSurface()->Settings;const auto G=M.TopView->GetCachedGeometry();const auto Map=ShipHatch::FViewTransform::Top(S);const auto R=Map.Fit(G.GetLocalSize(),false,M.GetFontScale());
         FVector O,D;double Fov;T.TestTrue(TEXT("oblique camera pose"),M.CameraInHold(O,D,Fov));
@@ -167,7 +167,7 @@ struct FHatchOrientationProbe
         }
         T.TestTrue(TEXT("asymmetric coverage mask has multiple observed contributions"),Checked>100&&Kinds.Num()>=2);Report.SetNumberField(TEXT("coverage_samples"),Checked);Report.SetNumberField(TEXT("coverage_mask_kinds"),Kinds.Num());
     }
-    static void Input(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
+    static void Input(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M)
     {
         const auto& Settings=M.GetSurface()->Settings;auto* View=M.HeatView.Get();const auto G=View->GetCachedGeometry();const auto Map=ShipHatch::FViewTransform::Top(Settings);const auto R=Map.Fit(G.GetLocalSize(),true,M.GetFontScale());
         const TSet<FKey> Keys{EKeys::LeftMouseButton};auto Event=[&](FVector2D P){return FPointerEvent(0,P,P,Keys,EKeys::LeftMouseButton,0,FModifierKeysState());};
@@ -202,7 +202,7 @@ class FHatchOrientation final:public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;int32 Phase=0,State=0;double Start=FPlatformTime::Seconds(),Changed=0;uint64 Builds=0;
     TUniquePtr<TGuardValue<bool>> Messages;
-    void Shot(UWorld* W,UShipHatchMonitorWidget& M)
+    void Shot(UWorld* W,UDxWidgetShipHatchMonitor& M)
     {
         TArray<FColor> Pixels;FIntVector Size;
         if(!Test->TestTrue(TEXT("actual D3D12 viewport capture"),FSlateApplication::Get().TakeScreenshot(W->GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,Size)))return;

@@ -18,9 +18,9 @@
 #include "HAL/FileManager.h"
 #include "Json.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
-#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
 
 /** Transient render-world test. No map load/save, subscriptions, extra production captures or credentials. */
@@ -94,7 +94,7 @@ public:
 			bCameraCaptured=true;
 		}
 		if(Phase==1) { NextPhase(Now); return false; }
-		auto* Scan=Sensor->ScanComponent.Get();
+		auto* Scan=Sensor->ScanComp.Get();
 		if(!bScanRequested)
 		{ Scan->StartScan(); Scan->RequestImmediateScheduledScan(); Scan->PrepareScheduledScan(0); bScanRequested=true; }
 		Scan->ProcessScheduledScanChunk(1024);
@@ -155,10 +155,10 @@ private:
 		Slab->SetActorLocation(FVector(0,0,12.5)); Slab->SetActorRotation(FRotator(0,-5,0));
 		FSlabScenarioRow Row;Row.LeftAngle=-5;FSlabMetrics Metrics=Slab->CalculateMetricsForRow(Row);Metrics.bMarginsValid=true;Metrics.MarginLeftCm=Metrics.MarginRightCm=50;
 		FSlabSimulationStatus Status;Status.MtlNo=TEXT("RHI-TEST");Status.FrameNo=30;Status.ElapsedSec=1.5;Status.DurationSec=30;Status.Progress=.05;
-		Slab->FindComponentByClass<USlabVisualizationComponent>()->UpdateAnalysis(Row,Metrics,Status,FVector(1000,200,25),FTransform::Identity,-170,170,true,1800);
+		Slab->FindComponentByClass<USlabVisualizationComp>()->UpdateAnalysis(Row,Metrics,Status,FVector(1000,200,25),FTransform::Identity,-170,170,true,1800);
 		Slab->SetDiagnosticHelpersVisible(false);
 		Sensor=World->SpawnActor<AVirtualLidarSensorActor>();Sensor->SetActorLocation(FVector(0,0,1000));Sensor->SetActorRotation(FRotator(-90,0,0));
-		auto* Scan=Sensor->ScanComponent.Get();Scan->StopScan();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+		auto* Scan=Sensor->ScanComp.Get();Scan->StopScan();Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
 		Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;Scan->FidelityMode=EVirtualSensorFidelityMode::IdealTruth;Scan->bEnableRangeNoise=false;
 		Scan->ViewMode=EVirtualLidarViewMode::ActorClassColor;Scan->bEnableSemanticClassification=true;Scan->SemanticClassRules.Reset();Scan->SetInteractivePreviewMode(false,true);
 		FVirtualLidarSemanticClassRule SlabRule;SlabRule.Label=TEXT("SlabTest");SlabRule.ActorClassNames.Add(ASlabActor::StaticClass()->GetFName());Scan->SemanticClassRules.Add(SlabRule);
@@ -184,7 +184,7 @@ private:
 	void Cleanup()
 	{
 		if(!Scene) return;
-		if(Sensor) {Sensor->ScanComponent->StopScan();Sensor->GpuDepthProjectionComponent->CancelAcquisition();Sensor->GpuDepthProjectionComponent->UnregisterComponent();}
+		if(Sensor) {Sensor->ScanComp->StopScan();Sensor->GpuDepthProjectionComponent->CancelAcquisition();Sensor->GpuDepthProjectionComponent->UnregisterComponent();}
 		if(Capture) {Scene->RemoveComponent(Capture);Capture=nullptr;}
 		DepthBaseline.Reset();Slab=nullptr;Sensor=nullptr;Scene.Reset();
 	}

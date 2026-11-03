@@ -78,7 +78,7 @@ body and sets `bAccepted=false`.
 Current implementation file:
 
 ```text
-Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComponent.cpp
+Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComp.cpp
 ```
 
 ## Inbound HTTP Live Bridge

@@ -14,17 +14,17 @@
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "SlabScenarioReplayTestAdapter.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "Device/Sensor/VirtualSensorExternalSourceHostActor.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayUiHostActor.h"
-#include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Slab/SlabScenarioReplayUiHostActor.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabScenarioReplayPanel.h"
 
 namespace {
 class FReplayRuntimeCheck : public IAutomationLatentCommand
@@ -60,15 +60,15 @@ public:
 		{
 			if(FPlatformTime::Seconds()-Start<2) return false;
 			FVirtualSensorTransportProfile Profile; Profile.BrokerUrl=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_URL")); Profile.UserName=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_USER"));
-			Coordinator->SharedTransportComponent->ConfigureTransportProfile(Profile);
-			Coordinator->SharedTransportComponent->SetSessionCredentials(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_PASSWORD")),FString());
-			Coordinator->SharedTransportComponent->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+			Coordinator->SharedTransportComp->ConfigureTransportProfile(Profile);
+			Coordinator->SharedTransportComp->SetSessionCredentials(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_ARTEMIS_PASSWORD")),FString());
+			Coordinator->SharedTransportComp->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
 			for(TActorIterator<AVirtualLidarSensorActor> It(World);It;++It){
 				// Test preset setup uses the existing public profile resolver.
-				It->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE); It->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec); LidarId=It->GetSensorId(); break;
+				It->ScanComp->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE); It->ScanComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec); LidarId=It->GetSensorId(); break;
 			}
 			for(TActorIterator<AVirtualCameraSensorActor> It(World);It;++It) It->StopSensor();
-			Coordinator->StreamPublisherComponent->StopAllStreams(FString());
+			Coordinator->StreamPublisherComp->StopAllStreams(FString());
 			for(TActorIterator<AVirtualSensorExternalSourceHostActor> It(World);It;++It) { It->ConfigureReceiverTopics(Profile.LidarTopic,Profile.CameraTopic,Profile.ExportTopic);It->StartTopicReceivers(); }
 			Adapter=World->SpawnActor<ASlabScenarioReplayTestAdapter>(); Ui=World->SpawnActor<ASlabScenarioReplayUiHostActor>();
 			Test->TestNotNull(TEXT("compiled replay WBP loaded"),Ui->ReplayWidget.Get());

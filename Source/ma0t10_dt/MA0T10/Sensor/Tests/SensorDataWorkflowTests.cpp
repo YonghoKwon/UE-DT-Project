@@ -1,10 +1,10 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolUiText.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabScenarioReplayPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Common/SensorToolUiText.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "Device/Core/VirtualSensorOutputPreflight.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -40,7 +40,7 @@ bool FSensorDataWorkflowTest::RunTest(const FString&)
 {
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
     auto* Slab=World->SpawnActor<ASlabActor>();
-    auto* Data=NewObject<UVirtualSensorCaptureExportPanelWidget>(World);auto* Replay=NewObject<USlabScenarioReplayPanelWidget>(World);
+    auto* Data=NewObject<UDxWidgetVirtualSensorCaptureExportPanel>(World);auto* Replay=NewObject<UDxWidgetSlabScenarioReplayPanel>(World);
     W->RegisterOwnedPanel(ESensorToolPanelRole::Data,Data);W->RegisterOwnedPanel(ESensorToolPanelRole::Replay,Replay);
     Data->BindScenarioSlabActor(Slab);Data->Initialize();Replay->Initialize();
     const auto DataSlate=Data->TakeWidget();const auto ReplaySlate=Replay->TakeWidget();
@@ -106,7 +106,7 @@ bool FSensorDataWorkflowTest::RunTest(const FString&)
     TestTrue(TEXT("preflight choices identify what is selected"),Texts.Contains(SensorToolUiText::PreflightTarget().ToString()));
     TestTrue(TEXT("direct transfer remains discoverable while collapsed"),Texts.Contains(SensorToolUiText::DirectTransfer().ToString()));
     for(const auto& Text:Texts)for(const TCHAR* Word:{TEXT("Payload"),TEXT("Topic"),TEXT("receipt"),TEXT("Raw TCP"),TEXT("coherent"),TEXT("revision"),TEXT("p95"),TEXT("STOMP")})TestFalse(TEXT("default transfer has no developer vocabulary"),Text.Contains(Word,ESearchCase::IgnoreCase));
-    auto* Legacy=NewObject<USlabScenarioReplayPanelWidget>(World);Legacy->Initialize();TestEqual(TEXT("native legacy replay retains all output controls"),CheckCount(Legacy->TakeWidget()),4);
+    auto* Legacy=NewObject<UDxWidgetSlabScenarioReplayPanel>(World);Legacy->Initialize();TestEqual(TEXT("native legacy replay retains all output controls"),CheckCount(Legacy->TakeWidget()),4);
     TestNotNull(TEXT("existing replay setter remains reflected"),Replay->FindFunction(TEXT("SetReplayOutputs")));
     for(const TCHAR* Api:{TEXT("SelectScenarioComparisonRun"),TEXT("GetScenarioRunComparisonText"),TEXT("RetrySelectedScenarioRunReport")})TestNotNull(TEXT("result APIs remain reflected"),Data->FindFunction(FName(Api)));
     W->UnregisterPanel(Data);W->UnregisterPanel(Replay);Slab->Destroy();return true;

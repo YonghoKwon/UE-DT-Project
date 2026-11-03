@@ -3,9 +3,9 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Contracts/VirtualSensorRayQuery.h"
 #include "EngineUtils.h"
 #include "Misc/CommandLine.h"
@@ -104,7 +104,7 @@ bool FHatchQueryTest::RunTest(const FString&){if(!AutomationOpenMap(TEXT("/Game/
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHatchPointPoolLifetimeTest,"MA0T10.Hatch.PointPoolLifetime",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FHatchPointPoolLifetimeTest::RunTest(const FString&)
 {
- auto* Scan=NewObject<UVirtualLidarScanComponent>();
+ auto* Scan=NewObject<UVirtualLidarScanComp>();
  Scan->AcquireScenePointStorage(64);Scan->ScheduledPoints.SetNum(1);Scan->ScheduledPoints[0].WorldLocation=FVector(1,2,3);
  auto A=Scan->CompleteScenePointStorage();const auto* Address=A->GetData();TWeakPtr<TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe> OldWeak=A;
  A.Reset();TestFalse(TEXT("released publication expires weak pointers even though storage is retained"),OldWeak.IsValid());

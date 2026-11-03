@@ -4,7 +4,7 @@
 #include "Device/Core/VirtualSensorLayoutSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorLayoutLifecycleTest,"MA0T10.SensorLayout.Lifecycle",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorLayoutLifecycleTest::RunTest(const FString&)
@@ -26,12 +26,12 @@ bool FSensorLayoutLifecycleTest::RunTest(const FString&)
     const auto InventoryRevision=L->GetRevision();B->ReadEditableState(During);During.SensorId=TEXT("LAYOUT-RENAMED-LIDAR");
     TestTrue(TEXT("identity edit through existing actor API"),B->ApplyEditableState(During,E));L->Tick(.3f);
     TestTrue(TEXT("identity change invalidates inventory cache"),L->GetRevision()>InventoryRevision&&L->GetLayoutSensors().ContainsByPredicate([](const auto& I){return I.SensorId==TEXT("LAYOUT-RENAMED-LIDAR");}));
-    C->StreamPublisherComponent->StartStream(EVirtualSensorStreamKind::PointCloud,B->GetSensorId());
-    TestFalse(TEXT("busy sensor deletion rejected"),L->DeleteSensor(B,E));C->StreamPublisherComponent->StopAllStreams(B->GetSensorId());
+    C->StreamPublisherComp->StartStream(EVirtualSensorStreamKind::PointCloud,B->GetSensorId());
+    TestFalse(TEXT("busy sensor deletion rejected"),L->DeleteSensor(B,E));C->StreamPublisherComp->StopAllStreams(B->GetSensorId());
     TestFalse(TEXT("preplaced sensor deletion protected"),L->DeleteSensor(Original,E));
     TestTrue(TEXT("owned camera deletion"),L->DeleteSensor(A,E));TestEqual(TEXT("component deregistered"),C->GetCameraSummaries().Num(),0);
-    C->StreamPublisherComponent->StartStream(EVirtualSensorStreamKind::PointCloud,FString());
-    TestFalse(TEXT("wildcard cannot silently enroll new lidar"),L->CanCreateSensor(EVirtualSensorKind::Lidar,E));C->StreamPublisherComponent->StopAllStreams(FString());
+    C->StreamPublisherComp->StartStream(EVirtualSensorStreamKind::PointCloud,FString());
+    TestFalse(TEXT("wildcard cannot silently enroll new lidar"),L->CanCreateSensor(EVirtualSensorKind::Lidar,E));C->StreamPublisherComp->StopAllStreams(FString());
     TestTrue(TEXT("owned lidar deletion"),L->DeleteSensor(B,E));TestEqual(TEXT("original remains"),C->GetSensorActors().Num(),1);
     return true;
 }

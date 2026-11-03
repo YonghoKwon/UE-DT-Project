@@ -1,5 +1,5 @@
 #include "TrainBatchScenarioTC.h"
-#include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchSubsystem.h"
+#include "ma0t10_dt/MA0T10/Training/TrainBatchSubsystem.h"
 #include "Engine/World.h"
 
 UTrainBatchScenarioTC::UTrainBatchScenarioTC(){TransactionCode=TrainBatchContract::MessageId;}

@@ -5,17 +5,17 @@
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarAnalysisComponent.h"
-#include "Device/Sensor/VirtualLidarExportComponent.h"
+#include "Device/Sensor/VirtualLidarAnalysisComp.h"
+#include "Device/Sensor/VirtualLidarExportComp.h"
 #include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
-#include "Device/Sensor/VirtualSensorOutputComponent.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
+#include "Device/Sensor/VirtualSensorOutputComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualSensorExternalSourceHostActor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorStressSceneActor.h"
-#include "Device/Sensor/RealSensorSourceComponent.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
+#include "Device/Sensor/RealSensorSourceComp.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorAcquisitionUtcTest,"MA0T10.SensorV2.Frame.AcquisitionUtc",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorAcquisitionUtcTest::RunTest(const FString&)
@@ -86,16 +86,16 @@ bool FSensorV2ActorCompositionTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("LiDAR derives through the virtual sensor base"),
 		AVirtualLidarSensorActor::StaticClass()->IsChildOf(AVirtualSensorActorBase::StaticClass()));
 
-	TestNotNull(TEXT("Camera V2 capture component"), Camera->CaptureComponent.Get());
-	TestNotNull(TEXT("Camera V2 output component"), Camera->OutputComponent.Get());
+	TestNotNull(TEXT("Camera V2 capture component"), Camera->CaptureComp.Get());
+	TestNotNull(TEXT("Camera V2 output component"), Camera->OutputComp.Get());
 	TestEqual(TEXT("Camera V2 kind"), Camera->GetSensorKind(), EVirtualSensorKind::Camera);
 
-	TestNotNull(TEXT("LiDAR V2 scan component"), Lidar->ScanComponent.Get());
-	TestNotNull(TEXT("LiDAR V2 analysis component"), Lidar->AnalysisComponent.Get());
-	TestNotNull(TEXT("LiDAR V2 visualization component"), Lidar->VisualizationComponent.Get());
-	TestNotNull(TEXT("LiDAR V2 export component"), Lidar->ExportComponent.Get());
+	TestNotNull(TEXT("LiDAR V2 scan component"), Lidar->ScanComp.Get());
+	TestNotNull(TEXT("LiDAR V2 analysis component"), Lidar->AnalysisComp.Get());
+	TestNotNull(TEXT("LiDAR V2 visualization component"), Lidar->VisualizationComp.Get());
+	TestNotNull(TEXT("LiDAR V2 export component"), Lidar->ExportComp.Get());
 	TestNotNull(TEXT("LiDAR V2 GPU depth acquisition component"), Lidar->GpuDepthProjectionComponent.Get());
-	TestNotNull(TEXT("LiDAR V2 output component"), Lidar->OutputComponent.Get());
+	TestNotNull(TEXT("LiDAR V2 output component"), Lidar->OutputComp.Get());
 	TestEqual(TEXT("LiDAR V2 kind"), Lidar->GetSensorKind(), EVirtualSensorKind::Lidar);
 	const AVirtualSensorStressSceneActor* StressScene = NewObject<AVirtualSensorStressSceneActor>();
 	TestEqual(TEXT("stress fixture defaults to ten thousand static primitives"), StressScene->StaticPrimitiveCount, 10000);
@@ -105,7 +105,7 @@ bool FSensorV2ActorCompositionTest::RunTest(const FString& Parameters)
 
 bool FSensorV2OutputDeduplicationTest::RunTest(const FString& Parameters)
 {
-	UVirtualSensorOutputComponent* Output = NewObject<UVirtualSensorOutputComponent>();
+	UVirtualSensorOutputComp* Output = NewObject<UVirtualSensorOutputComp>();
 	FVirtualSensorFrameEnvelope Frame;
 	Frame.SensorId = TEXT("V2-TEST-001");
 	Frame.SensorKind = EVirtualSensorKind::Camera;
@@ -166,8 +166,8 @@ bool FSensorV2SelectionIndependenceTest::RunTest(const FString& Parameters)
 	AVirtualLidarSensorActor* Lidar = NewObject<AVirtualLidarSensorActor>();
 	Coordinator->RegisterSensorActor(Camera);
 	Coordinator->RegisterSensorActor(Lidar);
-	Coordinator->RegisterCamera(Camera->CaptureComponent);
-	Coordinator->RegisterLidar(Lidar->ScanComponent);
+	Coordinator->RegisterCamera(Camera->CaptureComp);
+	Coordinator->RegisterLidar(Lidar->ScanComp);
 
 	Coordinator->SetViewMode(EVirtualSensorViewMode::Camera);
 	TestEqual(TEXT("monitor view still resolves camera"), Coordinator->GetSelectedSensorActor(), static_cast<AVirtualSensorActorBase*>(Camera));
@@ -186,28 +186,28 @@ bool FSensorV2KindSpecificSelectionTest::RunTest(const FString& Parameters)
 	AVirtualCameraSensorActor* CameraB = NewObject<AVirtualCameraSensorActor>();
 	AVirtualLidarSensorActor* LidarA = NewObject<AVirtualLidarSensorActor>();
 	AVirtualLidarSensorActor* LidarB = NewObject<AVirtualLidarSensorActor>();
-	CameraA->CaptureComponent->SensorId = TEXT("CAM-A");
-	CameraB->CaptureComponent->SensorId = TEXT("CAM-B");
-	LidarA->ScanComponent->SensorId = TEXT("LIDAR-A");
-	LidarB->ScanComponent->SensorId = TEXT("LIDAR-B");
+	CameraA->CaptureComp->SensorId = TEXT("CAM-A");
+	CameraB->CaptureComp->SensorId = TEXT("CAM-B");
+	LidarA->ScanComp->SensorId = TEXT("LIDAR-A");
+	LidarB->ScanComp->SensorId = TEXT("LIDAR-B");
 	for (AVirtualSensorActorBase* Sensor : { static_cast<AVirtualSensorActorBase*>(CameraA), static_cast<AVirtualSensorActorBase*>(CameraB), static_cast<AVirtualSensorActorBase*>(LidarA), static_cast<AVirtualSensorActorBase*>(LidarB) })
 	{
 		Coordinator->RegisterSensorActor(Sensor);
 	}
-	Coordinator->RegisterCamera(CameraA->CaptureComponent);
-	Coordinator->RegisterCamera(CameraB->CaptureComponent);
-	Coordinator->RegisterLidar(LidarA->ScanComponent);
-	Coordinator->RegisterLidar(LidarB->ScanComponent);
+	Coordinator->RegisterCamera(CameraA->CaptureComp);
+	Coordinator->RegisterCamera(CameraB->CaptureComp);
+	Coordinator->RegisterLidar(LidarA->ScanComp);
+	Coordinator->RegisterLidar(LidarB->ScanComp);
 
-	UVirtualSensorSettingsPanelWidget* Settings = NewObject<UVirtualSensorSettingsPanelWidget>();
+	UDxWidgetVirtualSensorSettingsPanel* Settings = NewObject<UDxWidgetVirtualSensorSettingsPanel>();
 	Settings->BindSensorManager(Coordinator);
 	Settings->SelectTargetKind(EVirtualSensorTargetKind::Camera);
-	TestEqual(TEXT("repeated Camera selection advances only Camera"), Coordinator->GetSelectedCamera(), CameraB->CaptureComponent.Get());
-	TestEqual(TEXT("Camera selection keeps first LiDAR"), Coordinator->GetSelectedLidar(), LidarA->ScanComponent.Get());
+	TestEqual(TEXT("repeated Camera selection advances only Camera"), Coordinator->GetSelectedCamera(), CameraB->CaptureComp.Get());
+	TestEqual(TEXT("Camera selection keeps first LiDAR"), Coordinator->GetSelectedLidar(), LidarA->ScanComp.Get());
 	Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
-	TestEqual(TEXT("first LiDAR selection changes kind without advancing"), Coordinator->GetSelectedLidar(), LidarA->ScanComponent.Get());
+	TestEqual(TEXT("first LiDAR selection changes kind without advancing"), Coordinator->GetSelectedLidar(), LidarA->ScanComp.Get());
 	Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
-	TestEqual(TEXT("repeated LiDAR selection advances only LiDAR"), Coordinator->GetSelectedLidar(), LidarB->ScanComponent.Get());
+	TestEqual(TEXT("repeated LiDAR selection advances only LiDAR"), Coordinator->GetSelectedLidar(), LidarB->ScanComp.Get());
 	return true;
 }
 
@@ -215,21 +215,21 @@ bool FSensorV2InteractionBudgetTest::RunTest(const FString& Parameters)
 {
 	FVirtualSensorInteractionRequest Request;
 	AVirtualCameraSensorActor* Camera = NewObject<AVirtualCameraSensorActor>();
-	Camera->CaptureComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+	Camera->CaptureComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
 	TestTrue(TEXT("Camera accepts interaction mode"), Camera->BeginInteractiveManipulation(Request));
-	TestEqual(TEXT("Camera interaction uses preview width"), Camera->CaptureComponent->CaptureResolution.X, 640);
-	TestEqual(TEXT("Camera interaction suppresses derived output"), Camera->CaptureComponent->CaptureMode, EVirtualCameraCaptureMode::PreviewOnly);
+	TestEqual(TEXT("Camera interaction uses preview width"), Camera->CaptureComp->CaptureResolution.X, 640);
+	TestEqual(TEXT("Camera interaction suppresses derived output"), Camera->CaptureComp->CaptureMode, EVirtualCameraCaptureMode::PreviewOnly);
 	Camera->EndInteractiveManipulation();
-	TestEqual(TEXT("Camera restores FullSpec width"), Camera->CaptureComponent->CaptureResolution.X, 1280);
+	TestEqual(TEXT("Camera restores FullSpec width"), Camera->CaptureComp->CaptureResolution.X, 1280);
 
 	AVirtualLidarSensorActor* Lidar = NewObject<AVirtualLidarSensorActor>();
-	Lidar->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+	Lidar->ScanComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
 	TestTrue(TEXT("LiDAR accepts interaction mode"), Lidar->BeginInteractiveManipulation(Request));
-	TestEqual(TEXT("LiDAR interaction uses preview horizontal samples"), Lidar->ScanComponent->HorizontalSamples, 120);
-	TestEqual(TEXT("LiDAR interaction uses preview vertical channels"), Lidar->ScanComponent->VerticalChannels, 24);
+	TestEqual(TEXT("LiDAR interaction uses preview horizontal samples"), Lidar->ScanComp->HorizontalSamples, 120);
+	TestEqual(TEXT("LiDAR interaction uses preview vertical channels"), Lidar->ScanComp->VerticalChannels, 24);
 	Lidar->EndInteractiveManipulation();
-	TestEqual(TEXT("LiDAR restores FullSpec horizontal samples"), Lidar->ScanComponent->HorizontalSamples, 360);
-	TestEqual(TEXT("LiDAR restores FullSpec vertical channels"), Lidar->ScanComponent->VerticalChannels, 60);
+	TestEqual(TEXT("LiDAR restores FullSpec horizontal samples"), Lidar->ScanComp->HorizontalSamples, 360);
+	TestEqual(TEXT("LiDAR restores FullSpec vertical channels"), Lidar->ScanComp->VerticalChannels, 60);
 	return true;
 }
 
@@ -242,9 +242,9 @@ bool FSensorV2ExternalSourceHostTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("HTTP LiDAR source"), Host->LidarHttpJson.Get());
 	TestNotNull(TEXT("UDP LiDAR source"), Host->LidarUdpJson.Get());
 	TestNotNull(TEXT("buffered camera JSON source"), Host->CameraBufferedJson.Get());
-	TInlineComponentArray<URealSensorSourceComponent*> Sources;
+	TInlineComponentArray<URealSensorSourceComp*> Sources;
 	Host->GetComponents(Sources);
-	for (const URealSensorSourceComponent* Source : Sources)
+	for (const URealSensorSourceComp* Source : Sources)
 	{
 		TestFalse(TEXT("external source does not auto-start"), Source->bAutoStartSource);
 		TestFalse(TEXT("external input is not forwarded unless Capture/Export requests it"), Source->bSendTransportByDefault);
@@ -261,44 +261,44 @@ bool FSensorV2ManipulationLifecycleTest::RunTest(const FString& Parameters)
 	Coordinator->RegisterSensorActor(Camera);
 	Coordinator->RegisterSensorActor(OtherCamera);
 	Coordinator->RegisterSensorActor(Lidar);
-	Coordinator->RegisterCamera(Camera->CaptureComponent);
-	Coordinator->RegisterCamera(OtherCamera->CaptureComponent);
-	Coordinator->RegisterLidar(Lidar->ScanComponent);
-	auto* Settings = NewObject<UVirtualSensorSettingsPanelWidget>();
+	Coordinator->RegisterCamera(Camera->CaptureComp);
+	Coordinator->RegisterCamera(OtherCamera->CaptureComp);
+	Coordinator->RegisterLidar(Lidar->ScanComp);
+	auto* Settings = NewObject<UDxWidgetVirtualSensorSettingsPanel>();
 	Settings->BindSensorManager(Coordinator);
-	Camera->CaptureComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
-	const auto OriginalMode = Camera->CaptureComponent->CaptureMode;
-	const float OriginalInterval = Camera->CaptureComponent->CaptureInterval;
+	Camera->CaptureComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+	const auto OriginalMode = Camera->CaptureComp->CaptureMode;
+	const float OriginalInterval = Camera->CaptureComp->CaptureInterval;
 	Settings->SetSensorManipulationEnabled(true);
 	TestTrue(TEXT("camera enters interaction"), Camera->IsInteractiveManipulationActive());
 	Settings->PendingState.ActorTransform.SetLocation(FVector(10,20,30));
 	TestTrue(TEXT("camera numeric transform applies without acquisition reset"), Settings->ApplyPendingTransform());
-	TestEqual(TEXT("numeric commit keeps lightweight camera resolution"), Camera->CaptureComponent->CaptureResolution.X, 640);
-	TestEqual(TEXT("numeric commit keeps lightweight camera interval"), Camera->CaptureComponent->CaptureInterval, 0.2f);
+	TestEqual(TEXT("numeric commit keeps lightweight camera resolution"), Camera->CaptureComp->CaptureResolution.X, 640);
+	TestEqual(TEXT("numeric commit keeps lightweight camera interval"), Camera->CaptureComp->CaptureInterval, 0.2f);
 	TestTrue(TEXT("camera transform changed through actor API"), Camera->GetActorLocation().Equals(FVector(10,20,30)));
 	Coordinator->SelectNextCamera(); // Selection can change before the widget's next tick.
 	Settings->SetSensorManipulationEnabled(false);
 	TestFalse(TEXT("widget exit state is synchronized"), Settings->bManipulationEnabled);
 	TestFalse(TEXT("exit cleans the original camera, not the new selection"), Camera->IsInteractiveManipulationActive());
-	TestEqual(TEXT("original camera resolution restored"), Camera->CaptureComponent->CaptureResolution.X, 1280);
-	TestEqual(TEXT("original camera mode restored"), Camera->CaptureComponent->CaptureMode, OriginalMode);
-	TestEqual(TEXT("original camera interval restored"), Camera->CaptureComponent->CaptureInterval, OriginalInterval);
-	TestFalse(TEXT("original stopped camera stays stopped"), Camera->CaptureComponent->IsCaptureRunning());
+	TestEqual(TEXT("original camera resolution restored"), Camera->CaptureComp->CaptureResolution.X, 1280);
+	TestEqual(TEXT("original camera mode restored"), Camera->CaptureComp->CaptureMode, OriginalMode);
+	TestEqual(TEXT("original camera interval restored"), Camera->CaptureComp->CaptureInterval, OriginalInterval);
+	TestFalse(TEXT("original stopped camera stays stopped"), Camera->CaptureComp->IsCaptureRunning());
 	TestFalse(TEXT("new camera never enters interaction"), OtherCamera->IsInteractiveManipulationActive());
 	Settings->SetSensorManipulationEnabled(false);
 	Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
-	Lidar->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+	Lidar->ScanComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
 	Settings->SetSensorManipulationEnabled(true);
 	Settings->PendingState.ActorTransform.SetLocation(FVector(20,30,40));
 	TestTrue(TEXT("LiDAR numeric transform applies without restoring full scan"), Settings->ApplyPendingTransform());
-	TestEqual(TEXT("numeric commit keeps lightweight LiDAR samples"), Lidar->ScanComponent->HorizontalSamples, 120);
-	TestEqual(TEXT("numeric commit keeps lightweight LiDAR interval"), Lidar->ScanComponent->ScanInterval, 0.25f);
+	TestEqual(TEXT("numeric commit keeps lightweight LiDAR samples"), Lidar->ScanComp->HorizontalSamples, 120);
+	TestEqual(TEXT("numeric commit keeps lightweight LiDAR interval"), Lidar->ScanComp->ScanInterval, 0.25f);
 	TestTrue(TEXT("LiDAR transform changed through actor API"), Lidar->GetActorLocation().Equals(FVector(20,30,40)));
 	Settings->SelectTargetKind(EVirtualSensorTargetKind::Camera);
 	TestFalse(TEXT("kind selection ends original LiDAR interaction"), Lidar->IsInteractiveManipulationActive());
 	TestFalse(TEXT("kind selection does not implicitly manipulate new camera"), OtherCamera->IsInteractiveManipulationActive());
-	TestEqual(TEXT("LiDAR restores full resolution"), Lidar->ScanComponent->HorizontalSamples, 360);
-	TestFalse(TEXT("original stopped LiDAR stays stopped"), Lidar->ScanComponent->IsScanRunning());
+	TestEqual(TEXT("LiDAR restores full resolution"), Lidar->ScanComp->HorizontalSamples, 360);
+	TestFalse(TEXT("original stopped LiDAR stays stopped"), Lidar->ScanComp->IsScanRunning());
 	Settings->SetSensorManipulationEnabled(true);
 	Settings->NativeDestruct();
 	TestFalse(TEXT("widget destruction restores manipulated camera"), OtherCamera->IsInteractiveManipulationActive());
@@ -320,11 +320,11 @@ bool FSensorV2ManipulationMonitorFollowTest::RunTest(const FString& Parameters)
 	AVirtualLidarSensorActor* Lidar = NewObject<AVirtualLidarSensorActor>();
 	Coordinator->RegisterSensorActor(Camera);
 	Coordinator->RegisterSensorActor(Lidar);
-	Coordinator->RegisterCamera(Camera->CaptureComponent);
-	Coordinator->RegisterLidar(Lidar->ScanComponent);
+	Coordinator->RegisterCamera(Camera->CaptureComp);
+	Coordinator->RegisterLidar(Lidar->ScanComp);
 	Coordinator->SetViewMode(EVirtualSensorViewMode::Camera);
 
-	UVirtualSensorSettingsPanelWidget* Settings = NewObject<UVirtualSensorSettingsPanelWidget>();
+	UDxWidgetVirtualSensorSettingsPanel* Settings = NewObject<UDxWidgetVirtualSensorSettingsPanel>();
 	Settings->BindSensorManager(Coordinator);
 	Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
 	Coordinator->SetViewMode(EVirtualSensorViewMode::Camera);

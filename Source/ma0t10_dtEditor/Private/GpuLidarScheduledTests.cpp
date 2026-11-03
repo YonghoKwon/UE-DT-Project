@@ -4,9 +4,9 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "EngineUtils.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Misc/FileHelper.h"
@@ -17,9 +17,9 @@
 #include "HAL/PlatformMemory.h"
 #include "Json.h"
 #include "RHI.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "Device/Core/VirtualSensorHitchDiagnostics.h"
 
 namespace
@@ -37,7 +37,7 @@ class FGpuScheduledRun final:public IAutomationLatentCommand
     int64 CameraBaseline=0;int Phase=0;FDateTime MeasurementUtc;double Started=FPlatformTime::Seconds(),Last=0,Measured=0;
     TArray<TWeakObjectPtr<AVirtualLidarSensorActor>> Sensors;TArray<int64> Baselines, MissedSlotBaselines;
     TArray<double> Engine,Wall,Game,Gpu;uint64 FirstFrame=0;int Slow=0;
-    TWeakObjectPtr<UVirtualSensorStreamPublisherComponent> PcdPublisher;
+    TWeakObjectPtr<UVirtualSensorStreamPublisherComp> PcdPublisher;
     TMap<FString,FVirtualSensorStreamStatus> PcdBaselines;
     int PcdPort=0; FIntPoint MeasurementClient; float MeasurementDpi=0; bool VisibleWindowVerified=false;
     TMap<FString,TArray<double>> EncodeTimes;
@@ -83,11 +83,11 @@ public:
                 // This fixture explicitly checks internal receive rates; product publishing keeps observation off.
                 W->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->ConfigureReceiver(FVirtualSensorReceiveSelection{});
                 if(!Test->TestTrue(TEXT("PCD proof requires an unprivileged local loopback port"),PcdPort>=1024&&PcdPort<=65535))return true;
-                auto* Transport=NewObject<UVirtualSensorTransportComponent>(Sim);Sim->AddInstanceComponent(Transport);
+                auto* Transport=NewObject<UVirtualSensorTransportComp>(Sim);Sim->AddInstanceComponent(Transport);
                 Transport->RegisterComponent();Transport->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
                 FVirtualSensorTransportProfile Profile;Profile.BrokerUrl=FString::Printf(TEXT("tcp://127.0.0.1:%d"),PcdPort);Profile.UserName.Reset();
                 Transport->ConfigureTransportProfile(Profile);Transport->SetSessionCredentials(TEXT(""),TEXT(""));
-                auto* Publisher=NewObject<UVirtualSensorStreamPublisherComponent>(Sim);Sim->AddInstanceComponent(Publisher);
+                auto* Publisher=NewObject<UVirtualSensorStreamPublisherComp>(Sim);Sim->AddInstanceComponent(Publisher);
                 Publisher->SetTransportComponent(Transport);Publisher->RegisterComponent();PcdPublisher=Publisher;
                 FString FieldProfile;FParse::Value(FCommandLine::Get(),TEXT("PcdBandwidthProfile="),FieldProfile);
                 if(FieldProfile==TEXT("Compact"))BandwidthOptions.Profile=EVirtualPcdFieldProfile::Compact;
@@ -108,7 +108,7 @@ public:
                 for(int I=0;I<SensorCount;++I)if(auto* A=Sim->SensorAt(I))
                 {
                     A->StopSensor();A->SetSharedOutputServices(Transport,nullptr,Publisher);
-                    FVirtualSensorStreamConfig Config;Config.SensorId=A->ScanComponent->SensorId;
+                    FVirtualSensorStreamConfig Config;Config.SensorId=A->ScanComp->SensorId;
                     Config.StreamKind=EVirtualSensorStreamKind::PointCloud;Config.bEnabled=true;Publisher->ConfigureStream(Config);
                 }
             }
@@ -116,7 +116,7 @@ public:
             for(int I=0;I<3;++I)if(auto* A=Sim->SensorAt(I))
             {
                 A->StopSensor();if(I>=SensorCount)continue;
-                auto* Scan=A->ScanComponent.Get();if(OS1)Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::OusterOS1_64_Rev05);
+                auto* Scan=A->ScanComp.Get();if(OS1)Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::OusterOS1_64_Rev05);
                 Scan->AcquisitionBackend=FParse::Param(FCommandLine::Get(),TEXT("GpuLidarCpu"))?EVirtualLidarAcquisitionBackend::AccurateCpuTrace:EVirtualLidarAcquisitionBackend::Auto;Scan->ScanInterval=.05f;
 #if defined(MA0T10_LIDAR_TIMING_TRACE_AVAILABLE)
                 if(FParse::Param(FCommandLine::Get(),TEXT("GpuLidarTimingTrace")))Scan->StartTimingTraceForTests();
@@ -141,9 +141,9 @@ public:
             }
             if(Now-Started<10){Last=Now;return false;}
             MissedSlotBaselines.Reset();
-            for(int I=0;I<Sensors.Num();++I){Baselines[I]=Sensors[I]->ScanComponent->GetRuntimeStatus().FrameId;
+            for(int I=0;I<Sensors.Num();++I){Baselines[I]=Sensors[I]->ScanComp->GetRuntimeStatus().FrameId;
 #if defined(MA0T10_LIDAR_TIMING_TRACE_AVAILABLE)
-                MissedSlotBaselines.Add(Sensors[I]->ScanComponent->GetScheduledMissedSlotCount());
+                MissedSlotBaselines.Add(Sensors[I]->ScanComp->GetScheduledMissedSlotCount());
 #else
                 MissedSlotBaselines.Add(0);
 #endif
@@ -152,7 +152,7 @@ public:
             if(auto Window=FSlateApplication::Get().FindWidgetWindow(Sensors[0]->GetWorld()->GetGameViewport()->GetGameViewportWidget().ToSharedRef()))
             {MeasurementDpi=Window->GetDPIScaleFactor();VisibleWindowVerified=Window->IsVisible();}
             if(!FParse::Param(FCommandLine::Get(),TEXT("RenderOffscreen"))&&!Test->TestTrue(TEXT("visible PIE window verified"),VisibleWindowVerified))return true;
-            if(PcdPublisher.IsValid())for(const auto& A:Sensors)PcdBaselines.Add(A->ScanComponent->SensorId,PcdStatus(A->ScanComponent->SensorId));
+            if(PcdPublisher.IsValid())for(const auto& A:Sensors)PcdBaselines.Add(A->ScanComp->SensorId,PcdStatus(A->ScanComp->SensorId));
             if(OperatingCamera.IsValid())CameraBaseline=OperatingCamera->GetSensorRuntimeStatus().FrameId;
             CaptureFrameCosts=FParse::Param(FCommandLine::Get(),TEXT("GpuLidarTimingTrace"));PreviousFrames=Baselines;
 #if defined(MA0T10_SENSOR_HITCH_FRAME_COSTS_AVAILABLE)
@@ -216,7 +216,7 @@ public:
         TArray<TSharedPtr<FJsonValue>> Rows;
         for(int I=0;I<Sensors.Num();++I)
         {
-            auto* Scan=Sensors[I]->ScanComponent.Get();const auto& Status=Scan->GetRuntimeStatus();const double Hz=(Status.FrameId-Baselines[I])/(Now-Measured);
+            auto* Scan=Sensors[I]->ScanComp.Get();const auto& Status=Scan->GetRuntimeStatus();const double Hz=(Status.FrameId-Baselines[I])/(Now-Measured);
             auto Row=MakeShared<FJsonObject>();Row->SetStringField(TEXT("sensor"),Scan->SensorId);Row->SetStringField(TEXT("backend"),Status.ActiveAcquisitionBackend);Row->SetStringField(TEXT("backend_message"),Status.AcquisitionBackendMessage);Row->SetNumberField(TEXT("hz"),Hz);
             Row->SetNumberField(TEXT("horizontal_samples"),Scan->HorizontalSamples);Row->SetNumberField(TEXT("vertical_channels"),Scan->VerticalChannels);Row->SetNumberField(TEXT("frame_count"),Status.FrameId-Baselines[I]);
             Row->SetStringField(TEXT("device_profile"),StaticEnum<EVirtualLidarDeviceProfile>()->GetNameStringByValue(int64(Scan->DeviceProfile)));

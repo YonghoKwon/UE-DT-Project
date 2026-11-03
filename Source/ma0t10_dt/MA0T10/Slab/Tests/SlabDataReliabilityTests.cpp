@@ -8,8 +8,8 @@
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 
 namespace
@@ -30,8 +30,8 @@ public:
         if(Stage==0)
         {
             Manager=W->SpawnActor<AVirtualSensorCoordinator>();Lidar=W->SpawnActor<AVirtualLidarSensorActor>();Manager->DiscoverSensorsInLevel();Lidar->StopSensor();
-            auto Profile=Manager->SharedTransportComponent->GetTransportProfile();Profile.BrokerUrl=TEXT("tcp://127.0.0.1:1");Manager->SharedTransportComponent->ConfigureTransportProfile(Profile);Manager->SharedTransportComponent->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
-            auto Config=Manager->StreamPublisherComponent->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId());Config.bEnabled=true;Manager->StreamPublisherComponent->ConfigureStream(Config);
+            auto Profile=Manager->SharedTransportComp->GetTransportProfile();Profile.BrokerUrl=TEXT("tcp://127.0.0.1:1");Manager->SharedTransportComp->ConfigureTransportProfile(Profile);Manager->SharedTransportComp->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+            auto Config=Manager->StreamPublisherComp->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId());Config.bEnabled=true;Manager->StreamPublisherComp->ConfigureStream(Config);
             Slab=W->SpawnActor<ASlabActor>(FVector(313,77,44),FRotator(3,17,0));Placement=Slab->GetActorTransform();FSlabExecutionOptions O;O.Policy=ESlabExecutionPolicy::RequireData;O.PreparationTimeoutSeconds=1;Slab->SetExecutionOptions(O);
             Test->TestTrue(TEXT("required request admitted"),Slab->ReceiveScenario(Data()));Run=Slab->GetSimulationStatus().RunUUID;
             Test->TestEqual(TEXT("preparation does not mean playing"),Slab->GetSimulationStatus().State,ESlabSimulationState::Preparing);
@@ -46,14 +46,14 @@ public:
             for(const auto& T:Raw->GetStreamTelemetry())Test->TestEqual(TEXT("no run submission before ready"),T.SubmittedCount,int64(0));
             if(Slab->GetSimulationStatus().State==ESlabSimulationState::Preparing){if(FPlatformTime::Seconds()-Started>5){Test->AddError(TEXT("Preparation did not timeout"));return true;}return false;}
             Test->TestEqual(TEXT("timeout records failed execution"),Slab->GetSimulationStatus().State,ESlabSimulationState::Failed);
-            Test->TestTrue(TEXT("independent stream preserved"),Manager->StreamPublisherComponent->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId()));
+            Test->TestTrue(TEXT("independent stream preserved"),Manager->StreamPublisherComp->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId()));
             FString Reason;Test->TestTrue(TEXT("failed preparation permits reset"),Slab->ResetToInitialPlacement(Reason));
             Test->TestTrue(TEXT("next fresh request admitted"),Slab->ReceiveScenario(Data()));Slab->StopSimulation();
             Test->TestTrue(TEXT("cancel leaves pose unchanged"),Slab->GetActorTransform().Equals(Placement));Test->TestTrue(TEXT("cancel unlocks configuration"),Lidar->CanEditSensorConfiguration(Reason));
-            auto Changed=Manager->SharedTransportComponent->GetTransportProfile();Changed.BrokerUrl=TEXT("tcp://127.0.0.1:2");Manager->SharedTransportComponent->TransportProfile=Changed;
+            auto Changed=Manager->SharedTransportComp->GetTransportProfile();Changed.BrokerUrl=TEXT("tcp://127.0.0.1:2");Manager->SharedTransportComp->TransportProfile=Changed;
             Test->TestFalse(TEXT("independent sender prevents shared profile replacement"),Slab->ReceiveScenario(Data()));
-            Test->TestTrue(TEXT("conflict keeps independent sender enabled"),Manager->StreamPublisherComponent->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId()));
-            Manager->StreamPublisherComponent->StopAllStreams(FString());
+            Test->TestTrue(TEXT("conflict keeps independent sender enabled"),Manager->StreamPublisherComp->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,Lidar->GetSensorId()));
+            Manager->StreamPublisherComp->StopAllStreams(FString());
             Test->TestTrue(TEXT("idle transport may adopt the requested profile"),Slab->ReceiveScenario(Data()));Slab->StopSimulation();
             Slab->SetSensorOutputs(FVirtualSlabSensorOutputSelection::ObservationOnly());Test->TestFalse(TEXT("required request without output rejected"),Slab->ReceiveScenario(Data()));
             Slab->Destroy();Lidar->Destroy();Manager->Destroy();return true;

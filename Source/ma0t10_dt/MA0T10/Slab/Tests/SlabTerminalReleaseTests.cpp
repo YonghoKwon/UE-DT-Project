@@ -1,13 +1,13 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
 #include "HAL/PlatformProcess.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabTerminalReleaseTest,"MA0T10.SlabReliability.TerminalReleasesIndependentUiStream",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -15,8 +15,8 @@ bool FSlabTerminalReleaseTest::RunTest(const FString&)
 {
     auto* W=FAutomationEditorCommonUtils::CreateNewMap();
     auto* M=W->SpawnActor<AVirtualSensorCoordinator>();auto* Sensor=W->SpawnActor<AVirtualLidarSensorActor>();M->RegisterSensorActor(Sensor);
-    auto* Panel=NewObject<UVirtualSensorCaptureExportPanelWidget>(W);Panel->BindSensorManager(M);
-    auto* P=M->StreamPublisherComponent.Get();auto* T=M->SharedTransportComponent.Get();auto Profile=T->GetTransportProfile();Profile.BrokerUrl=TEXT("tcp://127.0.0.1:1");T->ConfigureTransportProfile(Profile);T->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+    auto* Panel=NewObject<UDxWidgetVirtualSensorCaptureExportPanel>(W);Panel->BindSensorManager(M);
+    auto* P=M->StreamPublisherComp.Get();auto* T=M->SharedTransportComp.Get();auto Profile=T->GetTransportProfile();Profile.BrokerUrl=TEXT("tcp://127.0.0.1:1");T->ConfigureTransportProfile(Profile);T->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
     auto* Session=W->GetSubsystem<UVirtualSensorSlabContextSubsystem>();auto* Results=W->GetSubsystem<USlabRunResultsSubsystem>();
     const FString Id=Sensor->GetSensorId();
     for(bool Cancelled:{false,true})

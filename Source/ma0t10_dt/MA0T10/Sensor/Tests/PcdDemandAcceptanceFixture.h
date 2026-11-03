@@ -3,10 +3,10 @@
 #include "Device/Core/VirtualSensorLayoutSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Device/Sensor/VirtualSensorExternalSourceHostActor.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "EngineUtils.h"
 
 inline bool IsPcdDemandAcceptanceFixture()
@@ -23,7 +23,7 @@ inline bool CreatePcdDemandAcceptanceDevices(UWorld* World, AVirtualSensorCoordi
     for(TActorIterator<AVirtualSensorExternalSourceHostActor> It(World);It;++It){Receiver=*It;break;}
     if(!Receiver)Receiver=World->SpawnActor<AVirtualSensorExternalSourceHostActor>();
     if(!Receiver){Error=TEXT("PCD acceptance UI receiver unavailable");return false;}
-    const auto& Profile=Coordinator->SharedTransportComponent->GetTransportProfile();
+    const auto& Profile=Coordinator->SharedTransportComp->GetTransportProfile();
     Receiver->ConfigureReceiverTopics(Profile.LidarTopic,Profile.CameraTopic,Profile.ExportTopic);Receiver->StartTopicReceivers();
     const auto Existing=Coordinator->GetSensorActors();
     for(auto* Sensor:Existing)if(IsValid(Sensor)){Sensor->StopSensor();Coordinator->UnregisterSensorActor(Sensor);}
@@ -40,8 +40,8 @@ inline bool CreatePcdDemandAcceptanceDevices(UWorld* World, AVirtualSensorCoordi
         State.CompatibilityOutputPolicy=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_JSON_POLICY"))==TEXT("requested")
             ?EVirtualLidarCompatibilityOutputPolicy::WhenRequested:EVirtualLidarCompatibilityOutputPolicy::LegacyAlways;
         if(!L->ApplyEditableState(State,Error))return false;
-        L->ScanComponent->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;
-        L->VisualizationComponent->SetWorldPointCloudEnabled(false);
+        L->ScanComp->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;
+        L->VisualizationComp->SetWorldPointCloudEnabled(false);
         L->StartSensor();C->StartSensor();Devices.Add(L);Devices.Add(C);
     }
     return Devices.Num()==Pairs*2;

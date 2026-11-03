@@ -9,9 +9,9 @@
 #include "Framework/Notifications/NotificationManager.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Device/Camera/VirtualCameraCaptureComponent.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiHostActor.h"
 
 namespace
 {
@@ -37,7 +37,7 @@ bool ApplyStateToEditorActor(AActor* Actor, const FVirtualSensorEditableState& S
     if (State.TargetKind == EVirtualSensorTargetKind::Camera)
     {
         AVirtualCameraSensorActor* CameraActor = Cast<AVirtualCameraSensorActor>(Actor);
-        UVirtualCameraCaptureComponent* Camera = CameraActor ? CameraActor->CaptureComponent : nullptr;
+        UVirtualCameraCaptureComponent* Camera = CameraActor ? CameraActor->CaptureComp : nullptr;
         if (!Camera) return false;
         Camera->Modify();
         Camera->ApplyDeviceProfile(State.CameraProfile);
@@ -53,7 +53,7 @@ bool ApplyStateToEditorActor(AActor* Actor, const FVirtualSensorEditableState& S
     }
 
     AVirtualLidarSensorActor* LidarActor = Cast<AVirtualLidarSensorActor>(Actor);
-    UVirtualLidarScanComponent* Lidar = LidarActor ? LidarActor->ScanComponent : nullptr;
+    UVirtualLidarScanComp* Lidar = LidarActor ? LidarActor->ScanComp : nullptr;
     if (!Lidar) return false;
     Lidar->Modify();
     Lidar->ApplyDeviceProfile(State.LidarProfile);
@@ -82,10 +82,10 @@ bool IsEditorActorCompatible(const AActor* Actor, const FVirtualSensorEditableSt
     if (State.TargetKind == EVirtualSensorTargetKind::Camera)
     {
         const AVirtualCameraSensorActor* CameraActor = Cast<AVirtualCameraSensorActor>(Actor);
-        return CameraActor && CameraActor->CaptureComponent;
+        return CameraActor && CameraActor->CaptureComp;
     }
     const AVirtualLidarSensorActor* LidarActor = Cast<AVirtualLidarSensorActor>(Actor);
-    return LidarActor && LidarActor->ScanComponent;
+    return LidarActor && LidarActor->ScanComp;
 }
 }
 

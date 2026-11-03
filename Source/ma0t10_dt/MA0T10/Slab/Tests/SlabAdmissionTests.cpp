@@ -6,11 +6,11 @@
 #include "Engine/GameInstance.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 
 namespace
 {
@@ -45,8 +45,8 @@ public:
 		Test->TestFalse(TEXT("pre-registered input not silently executed twice"),Slab->ReceiveScenario(PreRegistered));
 		Test->TestEqual(TEXT("pre-registration diagnostic"),Slab->GetLastScenarioAdmissionStatus().Result,ESlabScenarioAdmission::Duplicate);
 		auto* Manager=World->SpawnActor<AVirtualSensorCoordinator>();auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>();Manager->RegisterSensorActor(Lidar);
-		auto* Publisher=Manager->StreamPublisherComponent.Get();Publisher->SetTransportComponent(Manager->SharedTransportComponent);
-		Manager->SharedTransportComponent->TransportMode=EVirtualSensorTransportMode::LogOnly;
+		auto* Publisher=Manager->StreamPublisherComp.Get();Publisher->SetTransportComponent(Manager->SharedTransportComp);
+		Manager->SharedTransportComp->TransportMode=EVirtualSensorTransportMode::LogOnly;
 		Publisher->StartStream(EVirtualSensorStreamKind::LidarPayload,Lidar->GetSensorId());
 		const bool Running=Lidar->IsSensorRunning();FString Reason;
 		Test->TestFalse(TEXT("unapplied STOMP configuration fails readonly readiness"),Session->ValidateScenarioOutputs({},Slab->GetSensorOutputs(),Reason));
@@ -55,7 +55,7 @@ public:
 		Test->TestFalse(TEXT("fallback owns no sensor"),Session->ControlsSensor(Lidar->GetSensorId()));
 		Test->TestEqual(TEXT("fallback does not start sensor"),Lidar->IsSensorRunning(),Running);
 		Test->TestTrue(TEXT("independent stream survives fallback start"),Publisher->IsStreamEnabled(EVirtualSensorStreamKind::LidarPayload,Lidar->GetSensorId()));
-		Manager->SharedTransportComponent->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+		Manager->SharedTransportComp->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
 		Slab->AdvanceSimulation(.1);Test->TestFalse(TEXT("configuration recovery cannot enable mid-run output"),Session->GetSlabSensorSessionStatus().Outputs.HasAnyOutput());End();
 		Test->TestTrue(TEXT("independent stream survives fallback finish"),Publisher->IsStreamEnabled(EVirtualSensorStreamKind::LidarPayload,Lidar->GetSensorId()));
 		Slab->TargetSensorIds={TEXT("MissingSensor")};Test->TestTrue(TEXT("missing target falls back"),Slab->ReceiveScenario(NewData()));End();

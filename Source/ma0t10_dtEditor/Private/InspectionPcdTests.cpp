@@ -4,15 +4,15 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
-#include "ma0t10_dt/MA0T10/Scenario/Automation/AutomationControlSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Manager/Automation/AutomationControlSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiPreferences.h"
 #include "Core/DxDataSubsystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h"
@@ -52,7 +52,7 @@ public:
             for(TActorIterator<AVirtualSensorCoordinator> It(World);It;++It){Coordinator=*It;break;}
             if(!Slab||!Coordinator){Test->AddError(TEXT("inspection map fixture missing"));return Finish();}
             Catalog=World->GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();Control=World->GetSubsystem<UAutomationControlSubsystem>();
-            Panel=NewObject<UVirtualSensorCaptureExportPanelWidget>(World);Panel->BindScenarioSlabActor(Slab);
+            Panel=NewObject<UDxWidgetVirtualSensorCaptureExportPanel>(World);Panel->BindScenarioSlabActor(Slab);
             Test->TestTrue(TEXT("committed validation map defaults to PCD on"),Slab->GetSensorOutputs().bPointCloud&&Panel->GetLiveScenarioOutputs().bPointCloud);
             UE_LOG(LogTemp,Display,TEXT("[INSP-FIX-1] fixture ready"));return StartApi(false);
         }
@@ -64,7 +64,7 @@ public:
             Test->TestEqual(TEXT("API leaves the user's next live PCD selection intact"),Slab->GetSensorOutputs().bPointCloud,Stage==0);
             auto* Prefs=UVirtualSensorUiPreferencesSaveGame::LoadOrCreate();Test->TestTrue(TEXT("save preferences"),UVirtualSensorUiPreferencesSaveGame::Save(Prefs));
             auto* Restored=UVirtualSensorUiPreferencesSaveGame::LoadOrCreate();Test->TestNotNull(TEXT("preferences restored"),Restored);
-            auto* Reopened=NewObject<UVirtualSensorCaptureExportPanelWidget>(World);Reopened->BindScenarioSlabActor(Slab);
+            auto* Reopened=NewObject<UDxWidgetVirtualSensorCaptureExportPanel>(World);Reopened->BindScenarioSlabActor(Slab);
             Test->TestEqual(TEXT("save/load and reopened UI preserve next live selection"),Reopened->GetLiveScenarioOutputs().bPointCloud,Stage==0);
             if(Stage==0)
             {
@@ -90,12 +90,12 @@ public:
                 }
                 return Finish();
             }
-            auto* T=Coordinator->SharedTransportComponent.Get();auto P=T->GetTransportProfile();P.BrokerUrl=TEXT("tcp://127.0.0.1:61616");P.UserName=TEXT("guest");P.ExportTopic=TEXT("pcd.topic");T->ConfigureTransportProfile(P);T->TransportMode=EVirtualSensorTransportMode::StompWebSocket;T->SetSessionCredentials(FString(),FString());
+            auto* T=Coordinator->SharedTransportComp.Get();auto P=T->GetTransportProfile();P.BrokerUrl=TEXT("tcp://127.0.0.1:61616");P.UserName=TEXT("guest");P.ExportTopic=TEXT("pcd.topic");T->ConfigureTransportProfile(P);T->TransportMode=EVirtualSensorTransportMode::StompWebSocket;T->SetSessionCredentials(FString(),FString());
             Test->TestTrue(TEXT("TCP connection test admitted without a stream"),T->TestConnection().bSubmitted);Stage=2;return false;
         }
         if(Stage==2)
         {
-            bool Connected=false,Expected=false;Coordinator->SharedTransportComponent->GetOutputServerConnection(Connected,Expected);if(!Connected)return false;
+            bool Connected=false,Expected=false;Coordinator->SharedTransportComp->GetOutputServerConnection(Connected,Expected);if(!Connected)return false;
             Test->TestTrue(TEXT("idle connection test success observable"),Connected&&Expected);
             const FString Json=InspectionScenario(5);
             // Same DTCore receive path as the validation map, then DataSync/Actor.
@@ -123,7 +123,7 @@ private:
         int32 Code=0;Control->Dispatch(TEXT("POST"),TEXT("/v1/scenario/start"),Body,Code);Test->TestEqual(TEXT("scenario API accepted"),Code,202);return Code==202?false:Finish();
     }
     bool Finish(){if(IsValid(Slab))Slab->StopSimulation();if(IsValid(World))World->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->StopHighThroughputTransport();return true;}
-    FAutomationTestBase* Test;bool Broker;int32 Stage=0,LoggedStage=-1;double Started=FPlatformTime::Seconds(),ReadyAt=0;UWorld* World=nullptr;ASlabActor* Slab=nullptr;AVirtualSensorCoordinator* Coordinator=nullptr;USlabScenarioReplaySubsystem* Catalog=nullptr;UAutomationControlSubsystem* Control=nullptr;UVirtualSensorCaptureExportPanelWidget* Panel=nullptr;FString Run;
+    FAutomationTestBase* Test;bool Broker;int32 Stage=0,LoggedStage=-1;double Started=FPlatformTime::Seconds(),ReadyAt=0;UWorld* World=nullptr;ASlabActor* Slab=nullptr;AVirtualSensorCoordinator* Coordinator=nullptr;USlabScenarioReplaySubsystem* Catalog=nullptr;UAutomationControlSubsystem* Control=nullptr;UDxWidgetVirtualSensorCaptureExportPanel* Panel=nullptr;FString Run;
 };
 bool RunInspection(FAutomationTestBase* Test,bool Broker)
 {

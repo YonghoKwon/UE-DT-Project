@@ -5,9 +5,9 @@
 #include "Components/PrimitiveComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
-#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComp.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabTrackReferenceActor.h"
-#include "ma0t10_dt/MA0T10/UI/SlabSimulationUiHostActor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Slab/SlabSimulationUiHostActor.h"
 #include "TimerManager.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -50,11 +50,11 @@ bool FSlabOverlayIsolationTest::RunTest(const FString&)
 	auto* World=FAutomationEditorCommonUtils::CreateNewMap(); auto* Slab=World->SpawnActor<ASlabActor>();
 	Slab->SetDimensionUnit(ESlabInputUnit::Millimeters);
 	Slab->DispatchBeginPlay(); // Match the engine lifecycle before testing component EndPlay.
-	auto* Visual=Slab->FindComponentByClass<USlabVisualizationComponent>();
+	auto* Visual=Slab->FindComponentByClass<USlabVisualizationComp>();
 	FSlabScenarioRow Row; Row.LeftAngle=-5; FSlabMetrics Metrics; Metrics.LeftAngle=-5; Metrics.bMarginsValid=true; Metrics.MarginLeftCm=-3; Metrics.MarginRightCm=20;
 	FSlabSimulationStatus Status; Status.FrameNo=12; Status.MtlNo=TEXT("TEST"); Status.ElapsedSec=.6; Status.DurationSec=30; Status.Progress=.02;
 	const FVector Size(1083,110,25); Visual->UpdateAnalysis(Row,Metrics,Status,Size,FTransform::Identity,-70,70,true);
-	TestEqual(TEXT("fixed pool includes reusable label backgrounds"),Visual->GetOwnedHelperCount(),USlabVisualizationComponent::MaxLineHelpers+USlabVisualizationComponent::MaxTextHelpers+USlabVisualizationComponent::MaxLabelBackgrounds);
+	TestEqual(TEXT("fixed pool includes reusable label backgrounds"),Visual->GetOwnedHelperCount(),USlabVisualizationComp::MaxLineHelpers+USlabVisualizationComp::MaxTextHelpers+USlabVisualizationComp::MaxLabelBackgrounds);
 	TArray<UPrimitiveComponent*> Parts; Slab->GetComponents(Parts); int32 Count=0;
 	for(auto* P:Parts) if(P!=Slab->SlabMesh)
 	{
@@ -164,20 +164,20 @@ bool FSlabUiHostRetryTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabReadableTextTest,"MA0T10.SlabAnalysis.ReadableWorldText",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabReadableTextTest::RunTest(const FString&)
 {
-	auto Size=[](double Distance){return USlabVisualizationComponent::CalculateReadableTextSize(Distance,90,720,16.0/9.0);};
+	auto Size=[](double Distance){return USlabVisualizationComp::CalculateReadableTextSize(Distance,90,720,16.0/9.0);};
 	TestTrue(TEXT("20m observation yields readable world text"),FMath::IsNearlyEqual(Size(2000),56.25f,.01f));
 	TestTrue(TEXT("farther camera increases world text size"),Size(3000)>Size(2000));
 	TestEqual(TEXT("near-view minimum bounded"),Size(1),20.0f);TestEqual(TEXT("distant-view maximum bounded"),Size(100000),120.0f);
-	TestEqual(TEXT("invalid viewport fallback"),USlabVisualizationComponent::CalculateReadableTextSize(2000,90,0,16.0/9.0),30.0f);
-	const float OrthoA=USlabVisualizationComponent::CalculateReadableTextSize(1000,90,720,16.0/9.0,true,3000);
-	const float OrthoB=USlabVisualizationComponent::CalculateReadableTextSize(9000,90,720,16.0/9.0,true,3000);
+	TestEqual(TEXT("invalid viewport fallback"),USlabVisualizationComp::CalculateReadableTextSize(2000,90,0,16.0/9.0),30.0f);
+	const float OrthoA=USlabVisualizationComp::CalculateReadableTextSize(1000,90,720,16.0/9.0,true,3000);
+	const float OrthoB=USlabVisualizationComp::CalculateReadableTextSize(9000,90,720,16.0/9.0,true,3000);
 	TestEqual(TEXT("orthographic text is independent of camera distance"),OrthoA,OrthoB);
 	const FVector Camera(10,-20,30),Forward(1,0,0),Original=Camera+FVector(2000,300,-150);float Scale=0;
-	const FVector Near=USlabVisualizationComponent::PullLabelTowardCamera(Original,Camera,Forward,2000,700,false,Scale)-Camera;
+	const FVector Near=USlabVisualizationComp::PullLabelTowardCamera(Original,Camera,Forward,2000,700,false,Scale)-Camera;
 	TestTrue(TEXT("nearer label plane preserves perspective screen X"),FMath::IsNearlyEqual(Near.Y/Near.X,300.0/2000.0,1.e-9));
 	TestTrue(TEXT("nearer label plane preserves perspective screen Y"),FMath::IsNearlyEqual(Near.Z/Near.X,-150.0/2000.0,1.e-9));
 	TestTrue(TEXT("glyph scale preserves perspective pixel height"),FMath::IsNearlyEqual(double(Scale)/Near.X,1.0/2000.0,1.e-10));
-	const FVector Ortho=USlabVisualizationComponent::PullLabelTowardCamera(Original,Camera,Forward,2000,700,true,Scale);
+	const FVector Ortho=USlabVisualizationComp::PullLabelTowardCamera(Original,Camera,Forward,2000,700,true,Scale);
 	TestEqual(TEXT("orthographic glyph size unchanged"),Scale,1.0f);TestTrue(TEXT("orthographic projection unchanged"),FMath::IsNearlyEqual(Ortho.Y,Original.Y)&&FMath::IsNearlyEqual(Ortho.Z,Original.Z));
 	return true;
 }

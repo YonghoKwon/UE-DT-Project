@@ -2,9 +2,9 @@
 
 #include "Misc/AutomationTest.h"
 #include "Device/Camera/VirtualCameraCaptureComponent.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Core/VirtualSensorSchedulerSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorPerformanceTierTest, "MA0T10.SensorPerformance.AutomaticTier", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorPerformanceFullSpecContractTest, "MA0T10.SensorPerformance.FullSpecContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -105,7 +105,7 @@ bool FVirtualSensorPerformanceTierTest::RunTest(const FString& Parameters)
 bool FVirtualSensorPerformanceFullSpecContractTest::RunTest(const FString& Parameters)
 {
     UVirtualCameraCaptureComponent* Camera = NewObject<UVirtualCameraCaptureComponent>();
-    UVirtualLidarScanComponent* Lidar = NewObject<UVirtualLidarScanComponent>();
+    UVirtualLidarScanComp* Lidar = NewObject<UVirtualLidarScanComp>();
     Camera->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
     Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
 
@@ -126,20 +126,20 @@ bool FVirtualSensorPerformanceLoadCalculationTest::RunTest(const FString& Parame
     State.LidarHorizontalSamples = 360;
     State.LidarVerticalChannels = 60;
     State.LidarScanInterval = 0.1f;
-    const double CameraMpPerSecond = UVirtualSensorSettingsPanelWidget::CalculateCameraMegaPixelsPerSecond(State);
-    const double LidarRaysPerSecond = UVirtualSensorSettingsPanelWidget::CalculateLidarRaysPerSecond(State);
+    const double CameraMpPerSecond = UDxWidgetVirtualSensorSettingsPanel::CalculateCameraMegaPixelsPerSecond(State);
+    const double LidarRaysPerSecond = UDxWidgetVirtualSensorSettingsPanel::CalculateLidarRaysPerSecond(State);
     TestTrue(TEXT("camera MP/s is calculated from pixels and interval"), FMath::IsNearlyEqual(CameraMpPerSecond, 27.648, 0.001));
     TestTrue(TEXT("lidar rays/s is calculated from samples, channels, and interval"), FMath::IsNearlyEqual(LidarRaysPerSecond, 216000.0, 0.1));
     State.CameraCaptureInterval = 0.0f;
     State.LidarScanInterval = 0.0f;
-    TestEqual(TEXT("zero camera interval is safe"), UVirtualSensorSettingsPanelWidget::CalculateCameraMegaPixelsPerSecond(State), 0.0);
-    TestEqual(TEXT("zero lidar interval is safe"), UVirtualSensorSettingsPanelWidget::CalculateLidarRaysPerSecond(State), 0.0);
+    TestEqual(TEXT("zero camera interval is safe"), UDxWidgetVirtualSensorSettingsPanel::CalculateCameraMegaPixelsPerSecond(State), 0.0);
+    TestEqual(TEXT("zero lidar interval is safe"), UDxWidgetVirtualSensorSettingsPanel::CalculateLidarRaysPerSecond(State), 0.0);
     return true;
 }
 
 bool FVirtualSensorSettingHelpCoverageTest::RunTest(const FString& Parameters)
 {
-    UVirtualSensorSettingsPanelWidget* Widget = NewObject<UVirtualSensorSettingsPanelWidget>();
+    UDxWidgetVirtualSensorSettingsPanel* Widget = NewObject<UDxWidgetVirtualSensorSettingsPanel>();
     const TArray<FVirtualSensorSettingHelpDescriptor> Descriptors = Widget->GetAllSettingHelpDescriptors();
     TSet<FName> Keys;
     for (const FVirtualSensorSettingHelpDescriptor& Descriptor : Descriptors)

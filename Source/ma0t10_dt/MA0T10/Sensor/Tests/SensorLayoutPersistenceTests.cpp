@@ -4,11 +4,11 @@
 #include "Device/Core/VirtualSensorLayoutSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 #include "JsonObjectConverter.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
 
 class FLayoutPersistenceCheck : public IAutomationLatentCommand
 {
@@ -26,7 +26,7 @@ public:
         FString Error;const FString SensorId=Owned->GetSensorId();
         Level->SetActorLocation(FVector(999,999,999));L->DeleteSensor(Owned.Get(),Error);
         auto* Extra=L->CreateSensorAtPose(EVirtualSensorKind::Camera,FTransform(FVector(999,0,0)),Error,false);
-        auto* Panel=NewObject<UVirtualSensorPlacementPanelWidget>(L->GetWorld());
+        auto* Panel=NewObject<UDxWidgetVirtualSensorPlacementPanel>(L->GetWorld());
         Panel->SelectLayoutForRestore(TEXT("persistence fixture"));
         const FString Cancelled=Panel->PreviewSelectedLayoutRestore();
         Test->TestTrue(TEXT("preview identifies layout by name"),Panel->GetPlacementStatusText().Contains(TEXT("persistence fixture")));
@@ -46,14 +46,14 @@ public:
         auto* Restored=L->Coordinator()->GetSensorActors().FindByPredicate([&](auto* A){return A&&A->GetSensorId()==SensorId;});
         Test->TestTrue(TEXT("saved SensorId retained on recreated runtime actor"),Restored!=nullptr);
         if(Restored)Test->TestTrue(TEXT("preview stopped flag restored"),!(*Restored)->IsSensorRunning());
-        for(const auto& S:L->Coordinator()->GetDeviceCoordinatorConfig().StreamPublisherComponent->GetStreamStatuses())Test->TestFalse(TEXT("restore never starts Topic sending"),S.bEnabled);
+        for(const auto& S:L->Coordinator()->GetDeviceCoordinatorConfig().StreamPublisherComp->GetStreamStatuses())Test->TestFalse(TEXT("restore never starts Topic sending"),S.bEnabled);
         const FString Stale=L->PreviewLayoutRestore(TEXT("persistence fixture"));Level->SetActorLocation(FVector(25,0,0));
         Test->TestFalse(TEXT("pose change invalidates preview"),L->ApplyLayoutRestore(Stale,Error));
         Test->TestTrue(TEXT("rejection leaves pose intact"),Level->GetActorLocation().Equals(FVector(25,0,0)));
         const FString Busy=L->PreviewLayoutRestore(TEXT("persistence fixture"));
-        L->Coordinator()->GetDeviceCoordinatorConfig().StreamPublisherComponent->StartStream(EVirtualSensorStreamKind::PointCloud,Level->GetSensorId());
+        L->Coordinator()->GetDeviceCoordinatorConfig().StreamPublisherComp->StartStream(EVirtualSensorStreamKind::PointCloud,Level->GetSensorId());
         Test->TestFalse(TEXT("collection lock rechecked at apply"),L->ApplyLayoutRestore(Busy,Error));
-        L->Coordinator()->GetDeviceCoordinatorConfig().StreamPublisherComponent->StopAllStreams(Level->GetSensorId());
+        L->Coordinator()->GetDeviceCoordinatorConfig().StreamPublisherComp->StopAllStreams(Level->GetSensorId());
         FString Json;FFileHelper::LoadFileToString(Json,*Status.Path);FVirtualSensorLayoutDocument D;
         FJsonObjectConverter::JsonObjectStringToUStruct(Json,&D);D.MapPackage=TEXT("/Game/WrongMap");
         FJsonObjectConverter::UStructToJsonObjectString(D,Json);FFileHelper::SaveStringToFile(Json,*Status.Path);

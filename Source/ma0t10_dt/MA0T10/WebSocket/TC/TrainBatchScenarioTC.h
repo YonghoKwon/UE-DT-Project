@@ -3,7 +3,7 @@
 #include "WebSocket/TransactionCodeMessage.h"
 #include "WebSocket/FTransactionCodeDataBase.h"
 #include "Core/DxWebSocketSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchCodec.h"
+#include "ma0t10_dt/MA0T10/Training/TrainBatchCodec.h"
 #include "TrainBatchScenarioTC.generated.h"
 
 struct FTrainBatchTransaction : FTransactionCodeDataBase

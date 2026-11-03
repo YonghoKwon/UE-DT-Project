@@ -1,16 +1,16 @@
 #pragma once
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
-#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/AgentTestSetWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/Agent/AgentTestSetSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetAgentTestSet.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Misc/FileHelper.h"
 #include "Json.h"
 
 /** Inspect the actual visible owned Slate tree, including ancestor visibility. */
-inline TArray<FString> AgentTestSetVisibleText(UAgentTestSetWidget* Widget)
+inline TArray<FString> AgentTestSetVisibleText(UDxWidgetAgentTestSet* Widget)
 {
     TArray<FString> Texts;TSet<const SWidget*> Seen;
     TFunction<void(TSharedRef<SWidget>)> Visit=[&](TSharedRef<SWidget> W)

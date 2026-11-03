@@ -1,22 +1,22 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolUiText.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
+#include "ma0t10_dt/MA0T10/UI/Common/SensorToolUiText.h"
 
 struct FPcdRateControlTestAccess
 {
-    static auto& Runtime(UVirtualSensorStreamPublisherComponent* P){return P->FindOrAddRuntime(EVirtualSensorStreamKind::PointCloud,TEXT("rate-test"));}
-    static void Update(UVirtualSensorStreamPublisherComponent* P,double Now,const FVirtualSensorHighThroughputProfile& Profile={}){P->UpdatePointCloudRateControl(Runtime(P),Now,Profile);}
-    static void Log(UVirtualSensorStreamPublisherComponent* P,double Now){P->LogPointCloudTransition(TEXT("rate-test"),Runtime(P),TEXT("test transition"),Now);}
+    static auto& Runtime(UVirtualSensorStreamPublisherComp* P){return P->FindOrAddRuntime(EVirtualSensorStreamKind::PointCloud,TEXT("rate-test"));}
+    static void Update(UVirtualSensorStreamPublisherComp* P,double Now,const FVirtualSensorHighThroughputProfile& Profile={}){P->UpdatePointCloudRateControl(Runtime(P),Now,Profile);}
+    static void Log(UVirtualSensorStreamPublisherComp* P,double Now){P->LogPointCloudTransition(TEXT("rate-test"),Runtime(P),TEXT("test transition"),Now);}
 };
 IMPLEMENT_COMPLEX_AUTOMATION_TEST(FPcdRateControlTest,"MA0T10.SensorStream.PcdRateControl",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 void FPcdRateControlTest::GetTests(TArray<FString>& Names,TArray<FString>& Commands) const
 {for(const TCHAR* Name:{TEXT("FrameAndBytePressure"),TEXT("EvenAdmissionAndSlabFailure"),TEXT("SlowerInterval"),TEXT("Recovery"),TEXT("Disabled"),TEXT("ConsoleThrottle")}){Names.Add(Name);Commands.Add(Name);}}
 bool FPcdRateControlTest::RunTest(const FString& Case)
 {
-    auto* P=NewObject<UVirtualSensorStreamPublisherComponent>();auto* T=NewObject<UVirtualSensorTransportComponent>();
+    auto* P=NewObject<UVirtualSensorStreamPublisherComp>();auto* T=NewObject<UVirtualSensorTransportComp>();
     T->TransportMode=EVirtualSensorTransportMode::StompWebSocket;FVirtualSensorTransportProfile Profile;Profile.BrokerUrl=TEXT("tcp://127.0.0.1:1");T->ConfigureTransportProfile(Profile);P->SetTransportComponent(T);
     FVirtualSensorStreamConfig C;C.StreamKind=EVirtualSensorStreamKind::PointCloud;C.SensorId=TEXT("rate-test");C.bEnabled=true;P->ConfigureStream(C);
     auto& R=FPcdRateControlTestAccess::Runtime(P);

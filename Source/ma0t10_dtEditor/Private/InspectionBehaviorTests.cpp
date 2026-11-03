@@ -8,14 +8,14 @@
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Core/VirtualSensorFileSaveSubsystem.h"
 #include "Device/Core/VirtualSensorLayoutSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorPlacementInteraction.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Common/SensorPlacementInteraction.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tool/VirtualSensorTransformGizmoActor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
 #include "UxrScenarioUiFixture.h"
 #include "EngineUtils.h"
 #include "Framework/Application/SlateApplication.h"
@@ -54,9 +54,9 @@ public:
         if(Candidate!=World){World=Candidate;ReadyAt=Now;return false;}
         if(!World||Now-ReadyAt<3||!FinalAcceptanceViewportReady(World)||Now<Next)return false;
         auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* C=W?W->GetCoordinator():nullptr;if(!C)return false;
-        auto* P=Cast<UVirtualSensorPlacementPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));
-        auto* M=Cast<UVirtualSensorMonitorPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));
-        auto* D=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
+        auto* P=Cast<UDxWidgetVirtualSensorPlacementPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));
+        auto* M=Cast<UDxWidgetVirtualSensorMonitorPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));
+        auto* D=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
         auto* Files=World->GetSubsystem<UVirtualSensorFileSaveSubsystem>();auto* Layout=World->GetSubsystem<UVirtualSensorLayoutSubsystem>();
         auto& App=FSlateApplication::Get();
         if(!P||!M||!D){Test->AddError(TEXT("Missing owned inspection panels"));return true;}
@@ -90,7 +90,7 @@ public:
                 auto J=MakeShared<FJsonObject>();J->SetStringField(TEXT("selected"),Id);J->SetStringField(TEXT("detail"),P->CachedSelectedText.ToString());
                 J->SetStringField(TEXT("row"),Rows.Num()==1&&Rows[0]->Actor.IsValid()?Rows[0]->Actor->GetSensorId():TEXT("none"));
                 auto* Preview=M->GetOwnedMonitoredActor();J->SetStringField(TEXT("preview"),Preview?Preview->GetSensorId():TEXT("none"));
-                auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));auto* Detail=Settings?Cast<AVirtualSensorActorBase>(Settings->GetSelectedSensorActor()):nullptr;
+                auto* Settings=Cast<UDxWidgetVirtualSensorSettingsPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));auto* Detail=Settings?Cast<AVirtualSensorActorBase>(Settings->GetSelectedSensorActor()):nullptr;
                 J->SetStringField(TEXT("settings"),Detail?Detail->GetSensorId():TEXT("none"));J->SetNumberField(TEXT("font"),W->GetOwnedPanelFontScale());J->SetNumberField(TEXT("dpi"),P->GetCachedGeometry().Scale);
                 if(const auto Window=App.FindWidgetWindow(P->GetCachedWidget().ToSharedRef()))J->SetNumberField(TEXT("window_dpi"),Window->GetDPIScaleFactor());
                 const auto Size=World->GetGameViewport()->Viewport->GetSizeXY();J->SetStringField(TEXT("client"),Size.ToString());J->SetNumberField(TEXT("engine_frame"),GFrameCounter);
@@ -114,30 +114,30 @@ public:
                 Directory=FPaths::GetPath(Status.FileResults[0].AbsolutePath);
                 Test->TestEqual(TEXT("F7 folder button targets completed bundle"),M->CameraTruthSavedDirectory,Directory);
                 Test->TestTrue(TEXT("F7 completion visible with path"),M->CameraTruthStatus.ToString().Contains(Directory)&&M->CameraTruthStatus.ToString().Contains(TEXT("저장 완료")));
-                Camera->CaptureComponent->GetGroundTruth()->Status=TEXT("정답 미리보기 갱신");M->RefreshCameraTruth();
+                Camera->CaptureComp->GetGroundTruth()->Status=TEXT("정답 미리보기 갱신");M->RefreshCameraTruth();
                 Test->TestTrue(TEXT("F7 preview cannot overwrite save completion"),M->CameraTruthStatus.ToString().Contains(Directory));
-                Camera->CaptureComponent->SetGroundTruthEnabled(false);M->RefreshCameraTruth();
+                Camera->CaptureComp->SetGroundTruthEnabled(false);M->RefreshCameraTruth();
                 Test->TestTrue(TEXT("F7 off remains visible alongside the completed folder"),M->CameraTruthStatus.ToString().Contains(TEXT("꺼짐"))&&M->CameraTruthStatus.ToString().Contains(Directory));
-                Camera->CaptureComponent->SetGroundTruthEnabled(true);
+                Camera->CaptureComp->SetGroundTruthEnabled(true);
                 Camera->StopSensor();M->RequestCameraTruthSave();
                 Test->TestEqual(TEXT("F7 stopped request fails explicitly"),Files->GetRequestStatus(M->CameraTruthSaveRequest).State,EVirtualSensorFileSaveState::Failed);
                 Test->TestTrue(TEXT("F7 failure reason stays in initiating screen"),M->CameraTruthStatus.ToString().Contains(TEXT("측정을 시작"))&&M->CameraTruthSavedDirectory.IsEmpty());
                 Camera->StartSensor();M->RequestCameraTruthSave();const FString Cancelled=M->CameraTruthSaveRequest;Camera->StopSensor();
                 Test->TestTrue(TEXT("F7 stop completes queued request without success path"),Files->GetRequestStatus(Cancelled).IsTerminal()&&Files->GetRequestStatus(Cancelled).FileResults.IsEmpty());
                 Camera->StartSensor();M->RequestCameraTruthSave();const FString Reconfigured=M->CameraTruthSaveRequest;
-                const auto Size=Camera->CaptureComponent->CaptureResolution;Camera->CaptureComponent->CaptureResolution.X+=16;Files->Tick(0);
+                const auto Size=Camera->CaptureComp->CaptureResolution;Camera->CaptureComp->CaptureResolution.X+=16;Files->Tick(0);
                 Test->TestEqual(TEXT("F7 changed revision cancels queued result"),Files->GetRequestStatus(Reconfigured).State,EVirtualSensorFileSaveState::Cancelled);
-                Test->TestFalse(TEXT("F7 changed revision clears only the owned truth request"),Camera->CaptureComponent->IsGroundTruthSavePending());
-                Camera->CaptureComponent->CaptureResolution=Size;Camera->StopSensor();
-                auto* Deleted=World->SpawnActor<AVirtualCameraSensorActor>();Deleted->CaptureComponent->SensorId=TEXT("INSP-FIX-3-DELETED");Deleted->CaptureComponent->SetGroundTruthEnabled(true);Deleted->StartSensor();
+                Test->TestFalse(TEXT("F7 changed revision clears only the owned truth request"),Camera->CaptureComp->IsGroundTruthSavePending());
+                Camera->CaptureComp->CaptureResolution=Size;Camera->StopSensor();
+                auto* Deleted=World->SpawnActor<AVirtualCameraSensorActor>();Deleted->CaptureComp->SensorId=TEXT("INSP-FIX-3-DELETED");Deleted->CaptureComp->SetGroundTruthEnabled(true);Deleted->StartSensor();
                 const FString DeletedId=Files->RequestTrackedCameraGroundTruthSave(Deleted);Deleted->Destroy();Files->Tick(0);
                 Test->TestTrue(TEXT("F7 deleted sensor cannot publish a successful folder"),Files->GetRequestStatus(DeletedId).IsTerminal()&&Files->GetRequestStatus(DeletedId).FileResults.IsEmpty());
-                Camera->CaptureComponent->ProjectionType=ECameraProjectionMode::Orthographic;Camera->StartSensor();M->RequestCameraTruthSave();Stage=2;return false;
+                Camera->CaptureComp->ProjectionType=ECameraProjectionMode::Orthographic;Camera->StartSensor();M->RequestCameraTruthSave();Stage=2;return false;
             }
             const auto Failed=Files->GetRequestStatus(M->CameraTruthSaveRequest);if(!Failed.IsTerminal())return false;
             Test->TestEqual(TEXT("F7 asynchronous capture failure is terminal"),Failed.State,EVirtualSensorFileSaveState::Failed);
             Test->TestTrue(TEXT("F7 asynchronous failure reason and no stale folder"),M->CameraTruthStatus.ToString().Contains(TEXT("기본 원근"))&&M->CameraTruthSavedDirectory.IsEmpty());
-            Camera->CaptureComponent->ProjectionType=ECameraProjectionMode::Perspective;Camera->StopSensor();
+            Camera->CaptureComp->ProjectionType=ECameraProjectionMode::Perspective;Camera->StopSensor();
             Test->AddInfo(TEXT("F7 retained actual bundle: ")+Directory);return true;
         }
         if(Stage==10)
@@ -172,7 +172,7 @@ public:
         const auto SelectedRows=P->SensorList->GetSelectedItems();
         Test->TestTrue(TEXT("F10 highlight and coordinator agree after down/refresh/up"),C->GetSelectedSensorActor()==Target.Get()&&SelectedRows.Num()==1&&SelectedRows[0]->Actor==Target);
         Test->TestTrue(TEXT("F10 selected detail within 5 Hz"),P->CachedSelectedText.ToString().Contains(Target->GetSensorId()));
-        auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));
+        auto* Settings=Cast<UDxWidgetVirtualSensorSettingsPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));
         Test->TestTrue(TEXT("F10 sensor settings target agrees"),Settings&&Settings->GetSelectedSensorActor()==Target.Get());
         Test->TestTrue(TEXT("F10 3D gizmo target agrees"),W->GetPlacementInteraction()->GetExistingGizmo()->GetBoundTargetActor()==Target.Get());
         Test->TestTrue(TEXT("F10 preview target agrees"),Target->GetSensorKind()==EVirtualSensorKind::Camera?M->CameraComp==C->GetSelectedCamera()&&!M->bShowingLidar:M->LidarComp==C->GetSelectedLidar()&&M->bShowingLidar);
