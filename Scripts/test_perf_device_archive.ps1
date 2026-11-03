@@ -19,7 +19,8 @@ foreach ($name in @('Get-Git','Get-Sha256','Prepare-DevicePerfArchive')) {
 $baselineSha = Get-Git @('rev-parse', $Baseline)
 $currentSha = Get-Git @('rev-parse', 'HEAD')
 $headers = @([regex]::Matches([IO.File]::ReadAllText($instrumentSource), '#include\s+"(Device/[^"\r\n]+)"') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
-$paths = @('Source/ma0t10_dtEditor/ma0t10_dtEditor.Build.cs')
+$legacySessionPath = 'Source/ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h'
+$paths = @('Source/ma0t10_dtEditor/ma0t10_dtEditor.Build.cs', $legacySessionPath)
 foreach ($header in $headers) {
     if ($header -ne 'Device/Tests/Sensor/FinalAcceptanceTestSession.h') { $paths += 'Source/ma0t10_dt/MA0T10/' + $header.Substring('Device/'.Length) }
 }
@@ -28,11 +29,13 @@ $zip = Join-Path $owned 'legacy-source.zip'
 & git.exe -C $root archive --format=zip "--output=$zip" $baselineSha @paths
 if ($LASTEXITCODE -ne 0) { throw 'Legacy fixture archive failed' }
 Expand-Archive -LiteralPath $zip -DestinationPath $legacy
-$before = @{}; foreach ($path in $paths | Where-Object { $_ -like '*.h' }) { $before[$path] = Get-Sha256 (Join-Path $legacy $path) }
+$before = @{}; foreach ($path in $paths | Where-Object { $_ -like '*.h' -and $_ -ne $legacySessionPath }) { $before[$path] = Get-Sha256 (Join-Path $legacy $path) }
 $old = Prepare-DevicePerfArchive -Target $legacy -Revision $baselineSha -Label 'Legacy'
 if (-not $old.LegacyIncludes -or $old.Headers.Count -ne ($headers.Count - 1)) { throw 'Legacy forwarding coverage differs from instrument includes' }
 if (Test-Path -LiteralPath (Join-Path $legacy 'Plugins/DTDevice/DTDevice.uplugin')) { throw 'Candidate plugin leaked into legacy baseline' }
 foreach ($path in $before.Keys) { if ((Get-Sha256 (Join-Path $legacy $path)) -ne $before[$path]) { throw 'Baseline public header changed' } }
+$forwardedSession = [IO.File]::ReadAllText((Join-Path $legacy $legacySessionPath))
+if (-not $old.LegacySessionForwarded -or $forwardedSession -notmatch '#include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"' -or $forwardedSession.Contains('class FStartFinalAcceptancePIE')) { throw 'Unity baseline still has two shared fixture bodies' }
 $newTarget = Join-Path $owned 'modern'
 New-Item -ItemType Directory -Path $newTarget | Out-Null
 $new = Prepare-DevicePerfArchive -Target $newTarget -Revision $currentSha -Label 'Modern'
@@ -51,6 +54,6 @@ $rejected = $false
 try { Prepare-DevicePerfArchive -Target $bad -Revision $baselineSha -Label 'Missing' | Out-Null }
 catch { if ($_.Exception.Message -like 'Baseline public header missing:*') { $rejected = $true } else { throw } }
 if (-not $rejected) { throw 'Missing legacy header accepted' }
-$result = [ordered]@{ Pass=$true; Baseline=$baselineSha; Candidate=$currentSha; LegacyHeaders=$old.Headers.Count; ModernDTDevice=$new.DTDevice; BaselineHeadersUnchanged=$true; InstrumentBytesIdentical=$true; MissingHeaderRejected=$true; NoUnrealExecution=$true; OwnedFixtures=$owned }
+$result = [ordered]@{ Pass=$true; Baseline=$baselineSha; Candidate=$currentSha; LegacyHeaders=$old.Headers.Count; ModernDTDevice=$new.DTDevice; BaselineHeadersUnchanged=$true; LegacySessionSingleBody=$true; InstrumentBytesIdentical=$true; MissingHeaderRejected=$true; NoUnrealExecution=$true; OwnedFixtures=$owned }
 $result | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 -LiteralPath (Join-Path $ReportRoot 'manifest.json')
 Write-Output "Perf archive preparation PASS: legacy=$($old.Headers.Count), modern pin=$($new.DTDevice), missing-header rejected"

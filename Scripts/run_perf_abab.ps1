@@ -79,6 +79,12 @@ function Prepare-DevicePerfArchive([string]$Target, [string]$Revision, [string]$
         [IO.File]::WriteAllText($forwarder, "#pragma once`r`n#include `"$oldInclude`"`r`n", (New-Object Text.UTF8Encoding($false)))
         $mappings += [ordered]@{ Include = $header; BaselineHeader = $oldInclude; BaselineSha256 = (Get-Sha256 $oldPath) }
     }
+    # Unity builds also include this fixture from other legacy test files. Route
+    # that old include to the one byte-identical common fixture, not a second body.
+    $legacySession = Join-Path $Target 'Source/ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h'
+    if (-not (Test-Path -LiteralPath $legacySession -PathType Leaf)) { throw 'Baseline shared fixture header missing' }
+    $legacySessionBefore = Get-Sha256 $legacySession
+    [IO.File]::WriteAllText($legacySession, "#pragma once`r`n#include `"Device/Tests/Sensor/FinalAcceptanceTestSession.h`"`r`n", (New-Object Text.UTF8Encoding($false)))
     $rulesPath = Join-Path $Target 'Source/ma0t10_dtEditor/ma0t10_dtEditor.Build.cs'
     $before = Get-Sha256 $rulesPath
     $rules = [IO.File]::ReadAllText($rulesPath)
@@ -86,7 +92,7 @@ function Prepare-DevicePerfArchive([string]$Target, [string]$Revision, [string]$
     if (([regex]::Matches($rules, [regex]::Escape($anchor))).Count -ne 1) { throw 'Cannot locate baseline Editor include-path insertion' }
     $extra = 'PrivateIncludePaths.Add(System.IO.Path.Combine(ModuleDirectory, "..", "..", "Plugins", "DTDevice", "Source", "DeviceRuntime", "Public"));'
     [IO.File]::WriteAllText($rulesPath, $rules.Replace($anchor, "$anchor`r`n        $extra"), (New-Object Text.UTF8Encoding($false)))
-    return [ordered]@{ DTDevice = ''; LegacyIncludes = $true; IncludeRoot = $includeRoot; Headers = $mappings; EditorRulesBefore = $before; EditorRulesAfter = (Get-Sha256 $rulesPath) }
+    return [ordered]@{ DTDevice = ''; LegacyIncludes = $true; IncludeRoot = $includeRoot; Headers = $mappings; LegacySessionBefore = $legacySessionBefore; LegacySessionForwarded = $true; EditorRulesBefore = $before; EditorRulesAfter = (Get-Sha256 $rulesPath) }
 }
 
 function Get-Verdict([string]$RunFolder, [double]$Threshold) {
