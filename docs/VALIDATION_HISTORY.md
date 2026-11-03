@@ -6,6 +6,15 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+## 2026-11-03 DEVICE-PLUGIN-01 r49 — 통합 검증 전 pin·문서 정리
+
+- 기준 host `5dc4518`, DTCore `bc60f05` 유지. DTDevice main을 `cf09a7ce8f563f066789505575559bac5fe53cc4`로 fast-forward하고 `Scripts/device_plugin_pin.txt`를 명시 갱신했다. TestHost launcher·DTCore 소스 지정·CRLF 정리이며 plugin `Source/`·`Shaders/` 변화0을 확인했다.
+- AGENTS의 DTCore 정책을 사용자 결정으로 교체했다. 프로젝트/DTDevice로 해결 불가한 근거·최소 수정안을 보고하고 멈추며 승인 전 DTCore 수정/커밋/push/PR 머지/pin 변경을 하지 않는다. 승인 후 별도 PR·DTCore 단독/UE-DT-Project/DTDevice TestHost 검증과 pin/guard 명시 갱신이 필요하다. 다른 보호 규칙은 유지했다.
+- 세 저장소의 `Copyright (c) 2026 YonghoKwon`, 모든 권리 보유 LICENSE 추가 사실(2026-11-03 사용자 확인)을 설계/README에 반영했다. DTCore 기존 pin은 자동 변경하지 않았다. 별도 소스·LICENSE 파일 추가는 하지 않았다.
+- 설계4단계에 `TestHost/`·`Open_TestHost.bat`·10개 기본 필터가 선택하는 자동화17개·DTCore Source/Ref 우선순위(인자→개인 ini→환경 변수→공개 저장소/검증 SHA)를 반영했다. 로컬 DTCore는 링크만 하며 Ref checkout이 없다는 점과 host 자산 의존 회귀를 분리했다.
+- README는 recursive clone/기존 clone의 명시 init·두 guard 사용법과 현재 plugin 모듈/pin을 안내한다. r48 release498 Success/45 Skip/0 Fail·17단계 Success는 기존 증거로 병기하며 새 수행으로 세지 않는다.
+- 이번 작업은 문서/설정·static 대조뿐이며 Unreal/Editor/패키지/빌드/GPU/화면/측정은 실행하지 않았다. 개인 설정은 미조작, 보호 hash·DTCore gitlink/worktree·기존 Samples 상태는 보존한다. DTDevice RequireConnected/DTCore guard, 새 링크/경로와 diff 검증 결과는 `Saved/Reports/DEVICE-PLUGIN-01/prepare-r49/RESULT.md`·`result.json`·`merge-check.json`을 따른다. host push는 없다.
+
 ## 2026-11-03 DEVICE-PLUGIN-01 r47 — Runtime·공통 UI 이관
 
 - 기준 host `4442658`·DTCore `bc60f05`. DTDevice `main`의 LICENSE 추가 `30af5a2` 위에서 순수 이관 `bdc1336`을 커밋/push했고 host `778f09a4`와 짝으로 pin/include/API/Build.cs/redirect를 반영했다. 준비 `c6fd76f9`, 경계 도구 `310ecd8b`, 호환 테스트 `05e077d9`는 별도 커밋이다. host는 push하지 않았다.

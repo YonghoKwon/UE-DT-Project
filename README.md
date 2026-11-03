@@ -275,9 +275,28 @@ UXR-17 미리보기 카드는 새 Camera의 첫 영상까지 **영상 준비 중
 에셋 복구 재현: Editor 종료 후 `UnrealEditor-Cmd.exe <uproject> -run=RepairTestMapMonitorReference`로 점검하고, 대상 확인 후에만 `-Apply`를 추가한다. 전체 맵 재생성 스크립트는 실행하지 않는다.
 
 - Engine: **UE 5.3** / Editor target: `ma0t10_dtEditor Win64 Development`.
-- 모듈: `ma0t10_dt`, `ma0t10_dtEditor`, 조기 설정용 `ma0t10_dtBootstrap`.
-- DTCore는 필수 submodule이다. 이번 승인된 작업은 동기화본 `b22af0b`의 새 API를 유지하고 공통 안정화 커밋을 별도 생성한다. parent gitlink는 검증한 plugin 커밋으로 고정한다. enum 반환형 소비 코드는 이관이 필요하며 무수정 호환이라고 설명하지 않는다. [main 최소 수정 계약](Plugins/DTCore/docs/MINIMAL_MAIN_MIGRATION.md)를 따른다.
+- 프로젝트 모듈: `ma0t10_dt`, `ma0t10_dtEditor`, WebSockets 조기 정책용 `ma0t10_dtBootstrap`. 공통 장치는 DTDevice의 `DeviceRuntime`·`DeviceNative`·`DeviceUI`가 제공한다.
+- **DTCore와 DTDevice는 모두 필수 submodule**이다. `Plugins/DTCore`는 검증된 `bc60f05`, `Plugins/DTDevice`는 `Scripts/device_plugin_pin.txt`의 정확한 SHA(현재 `cf09a7c`)로 고정한다. `--remote`로 임의 최신 버전으로 바꾸지 않는다. DTCore 변경은 [사전 승인 절차](AGENTS.md#2-보호승인-규칙)를 따른다.
 - 기존 worktree의 DTCore·Game.ini·운영맵·PixelStreaming 변경은 보존한다.
+
+새 clone은 두 플러그인을 함께 받는다:
+
+```powershell
+git clone --recursive https://github.com/YonghoKwon/UE-DT-Project.git
+cd UE-DT-Project
+```
+
+이미 받은 clone에서 서브모듈이 비어 있으면 프로젝트 루트에서 실행한다. 기존 서브모듈에 변경이 있다면 먼저 보존하고 멈춘다:
+
+```powershell
+git submodule update --init Plugins/DTCore Plugins/DTDevice
+powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/validate_dtcore_submodule_guard.ps1 -FailOnViolation
+powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/validate_device_plugin_submodule_guard.ps1 -RequireConnected -FailOnViolation
+```
+
+플러그인만 확인하는 최소 프로젝트는 [DTDevice TestHost](Plugins/DTDevice/TestHost/DTDeviceTestHost.uproject)다. `Plugins/DTDevice/TestHost/Open_TestHost.bat`은 준비·빌드 후 Editor를 열므로 실행 권한이 있는 검증 단계에서만 사용한다. DTCore 소스 지정 우선순위와 측정17개 범위는 [독립 TestHost 절차](docs/DEVICE_PLUGIN_01_DESIGN.md#911-4단계--독립-testhost)를 따른다.
+
+UE-DT-Project·UE-DT-Core-Plugin·UE-DT-Device-Plugin 세 저장소에 `Copyright (c) 2026 YonghoKwon`, 모든 권리 보유 `LICENSE`를 추가했다(2026-11-03 사용자 확인). 이 사실만으로 기존 DTCore pin을 변경하지 않는다.
 
 Editor/Live Coding을 종료한 뒤 프로젝트 루트에서:
 
@@ -811,7 +830,7 @@ DTCore 소스와 gitlink는 `b2504d1`로 유지한다. 일반 PIE의 기존 `ws:
 
 ### 10.2 현재 위반 (2026-10-18, INSP-FIX-4·INSP-FIX-3·UXR-18·UXR-17·UXR-16· UI-02·UXR-10·UXR-11·UXR-12·PCD-RESUME·PCD-OPT·CAM-GT-01·ROS2-01·LIDAR-FID-01 적용)
 
-DEVICE-PLUGIN-01 2단계(r47, 2026-11-03)는 공통248개 파일을 DTDevice DeviceRuntime/DeviceUI로 옮겼다. 기존 UI/Coordinator UCLASS·WBP·SaveGame·과제 업무는 host façade로 유지하고 에셋은 이동/저장하지 않았다. plugin `bdc1336`은 main에 push했고 host 이동 짝 `778f09a4`는 로컬 pin만 갱신했다. Runtime147/UI4 반영 타입 선언151/151 동등성과 exact redirect151개·delegate2개, 기존 SensorTestMap/DataTable read-only load/hash를 확인했다. Editor/Development/Shipping·소유 모듈 non-unity365개별 compile·quick/layer0/DTCore+DTDevice guard·관련41Success/1Skip·native6Success·smoke36Success를 확인했다. release1회는 감시 신호로 중단되어 완료 판정이 없으며(당시 원인 PID 미기록), feature14Success·full 진행 로그135Success/0Fail 기록만 보존한다. 이전 r46 완료 결과를 대체 증거로 쓰지 않았다. 생산 맵 fallback 누적/직접 UI/성능 ABAB·장시간 메모리 수용은 별도다. [실제 이관·검증 경계](docs/DEVICE_PLUGIN_01_DESIGN.md#11-r47--runtime공통-ui-실제-이관-2026-11-03), 최종 증거 `Saved/Reports/DEVICE-PLUGIN-01/stage2-r47/RESULT.md`.
+DEVICE-PLUGIN-01 2단계(r47/r48, 2026-11-03)는 공통248개 파일을 DTDevice DeviceRuntime/DeviceUI로 옮기고 기존 UI/Coordinator UCLASS·WBP·SaveGame·과제 업무를 host façade로 유지했다. 에셋 이동/저장은 없다. 순수 이관 짝은 plugin `bdc1336`/host `778f09a4`이며 현재 plugin pin은 TestHost 준비를 반영한 `cf09a7c`다. Runtime147/UI4 반영 선언151/151 동등성·exact redirect151개/delegate2개·기존 map/DataTable 읽기 전용 load/hash를 확인했다. 빌드3종/non-unity365개별 compile·quick/layer0/양쪽 guard·관련41Success/1Skip·native6Success·smoke36Success 증거를 유지한다. r48의 별도 release1회는 **498Success/45Skip/0Fail·17단계Success**, 알려진 빈 Game.ini만 판정 전 제거해 manifest에 기록했다. r47 중단은 Claude TestHost 동시 Unreal 실행으로 확인됐으며 원문을 보존한다. r49는 pin/문서 정리만 수행했고 새 Unreal/빌드/측정은 없다. 직접 UI·생산 맵 fallback 누적·최종 성능/장시간 수용은 별도다. [실제 이관·검증 경계](docs/DEVICE_PLUGIN_01_DESIGN.md#11-r47--runtime공통-ui-실제-이관-2026-11-03), 누적 증거 `Saved/Reports/DEVICE-PLUGIN-01/stage2-r47/RESULT.md`, 재실행 `Saved/Reports/DEVICE-PLUGIN-01/release-r48/RESULT.md`.
 
 TRAIN-BATCH-01(2026-11-02 r41c)는 L0 중립 Job/경로 계약, L2 입력·20Hz sampled timeline·독립 게임 워커/lease·디스크 재개, L3 DTCore 학습 위젯을 추가한다. 기본 꺼짐·PCD/wire·DTCore pin 불변이며 L1은 학습/UI 타입을 참조하지 않는다. native M=2 생성→ZIP/tar.gz는 위젯과 같은 Delivery 경로 및 독립 Python 검증을 통과했다. Development/Shipping 패키지에서 기본 꺼짐과 M=1 생성(저장 맵의 GPU Depth Projection preset)을 검증했고, Shipping 워커는 쿠킹된 할당 맵으로 명시적으로 이동한다. M=4 요청은12GB 예산상 실제2로 제한됐으며 현장 Linux SFTP·직접 UI 수용은 별도다. [설계·검증 범위](docs/TRAIN_BATCH_01_DESIGN.md#13-r41c-공통-해시패키지-검증); 최종 gate·최초 실패·미수행은 `Saved/Reports/TRAIN-BATCH-01/r41c/RESULT.md`를 따른다.
 

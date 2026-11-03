@@ -816,15 +816,20 @@ UE-DT-Device-Plugin/
   Config/DefaultDTDevice.ini     # 비밀 없는 plugin 자산 설정만
   Docs/{Compatibility,Migration,Validation}.md
   Scripts/                      # 독립 static checks/test host 안내
+  TestHost/                     # DTCore + DTDevice만 쓰는 최소 검증 프로젝트
+    DTDeviceTestHost.uproject
+    Open_TestHost.bat            # 준비·Editor 빌드 후 열기; 실행은 검증 단계에서만
+    TestHost.local.ini.example   # 개인 설정은 TestHost.local.ini(git 제외)
+    Scripts/{setup_testhost,run_measurements}.ps1
   LICENSE                       # Copyright (c) 2026 YonghoKwon; all rights reserved
   .gitignore / .gitattributes
 ```
 
 - 구현 승인 후에만 `Plugins/DTDevice`에 서브모듈을 연결한다. DTCore는 형제 plugin이며 플러그인 repo 안의 submodule로 중첩하지 않는다. 0단계에서는 worktree 생성/checkout/submodule add/update/gitlink stage를 하지 않는다.
 - plugin 저장소의 독립 commit과 host의 검증된 gitlink pin은 두 단계다. 배포 project는 tag가 아닌 **정확한 commit SHA**를 고정한다. tag 제안은 `v0.1.0-ue5.3`(초기 이관), 안정 이후 SemVer. wire/API/저장 변경은 major/명시 migration이며 구조 이관에서 올리지 않는다.
-- `Docs/Compatibility.md`에 UE5.3, DTCore **bc60f05 exact SHA**, host 기준 SHA, 테스트 adapter/driver/native safety policy, asset 요구/Plugin content 여부를 적는다. plugin descriptor의 의존 Enabled만으로 DTCore 버전이 고정된다고 보지 않는다. DTCore update는 별도 승인·양쪽 검증이다.
+- `Docs/Compatibility.md`에 UE5.3, DTCore **bc60f05 exact SHA**, host 기준 SHA, 테스트 adapter/driver/native safety policy, asset 요구/Plugin content 여부를 적는다. plugin descriptor의 의존 Enabled만으로 DTCore 버전이 고정된다고 보지 않는다. DTCore는 프로젝트/DTDevice로 해결할 수 없는 근거·최소 수정안을 사용자에게 보고한 뒤 멈춘다. 승인 후 별도 PR·DTCore 단독/UE-DT-Project/DTDevice TestHost 검증을 거쳐 pin과 guard 기준을 명시적으로 갱신한다.
 - **장치 plugin pin guard 필요**: `validate_device_plugin_submodule_guard.ps1`에서 path/expected SHA/initialized/clean/staged gitlink/dirty·untracked source를 검사하는 기존 DTCore guard와 같은 fail-closed 정책을 제안한다. parent merge-check가 두 guard를 검사하게 한다. 단독 plugin 개발 repo의 소스 수정 자체를 dirty로 막는 검사는 소비 host 모드와 구분한다.
-- public repo에는 새 이관 파일만 넣고 프로젝트 전체 과거 이력을 복제하지 않는다. 자격증명·실설정·개인 SaveGame·Saved/Reports·패키지·dump·엔진 코드/Engine ThirdParty를 넣지 않는다. 라이선스는 저장소의 LICENSE(`Copyright (c) 2026 YonghoKwon`, 모든 권리 보유)를 따른다. r47에서 DTDevice origin/main 30af5a2의 LICENSE를 확인했으며, r46의 "LICENSE 없음" 결정은 이후 LICENSE 추가 사실로 대체한다. 에셋 원저작/엔진 재배포 조건 확인은 유지한다.
+- public repo에는 새 이관 파일만 넣고 프로젝트 전체 과거 이력을 복제하지 않는다. 자격증명·실설정·개인 SaveGame·Saved/Reports·패키지·dump·엔진 코드/Engine ThirdParty를 넣지 않는다. **UE-DT-Project·UE-DT-Core-Plugin·UE-DT-Device-Plugin 세 저장소에 `Copyright (c) 2026 YonghoKwon`, 모든 권리 보유 `LICENSE`를 추가했다(2026-11-03 사용자 확인).** 라이선스 추가 사실은 이전 결정을 대체하며 기존 고정 pin을 자동 변경하지 않는다. 에셋 원저작/엔진 재배포 조건 확인은 유지한다.
 
 ## 9. 단계별 구현·검증·추정
 
@@ -836,7 +841,7 @@ UE-DT-Device-Plugin/
 | 1 경계 준비 | host façade·Coordinator base·분석/identity/UI bridge 추출. **로직 준비 commit**, 원래 모듈에서 먼저 검증 | 4~7일 | BP pins/UPROPERTY/enum/golden unchanged, common tests, layer0, default-off |
 | 2 Runtime/Native | 저장소 scaffold/핀 연결(별도 승인), **순수 git mv+include/API/build/redirect commit**; UI 로직 변경 섞지 않음 | 3~5일 | non-unity 3종, native oracle/20Hz/fallback, clean maps |
 | 3 UI 공통화 | 기존 host façade+새 DeviceUI body/bridge, **추출 logic commit과 move commit 분리** | 4~7일 | 기존 Workspace/UMG binding/5Hz/숨김/GC/input·직접 UI |
-| 4 에셋/독립 host | 우선 host path 설정; 승인된 공통 에셋 이동은 **별도 asset+redirect commit**. 독립 최소 DTCore host 검증 | 2~4일 | plugin→host include 0, TC/간접 cook/Shipping, no map resave |
+| 4 에셋/독립 host | 우선 host path 설정; 승인된 공통 에셋 이동은 **별도 asset+redirect commit**. 플러그인 저장소 `TestHost/`·`Open_TestHost.bat`·측정17개를 독립 검증 기반으로 사용(§9.1.1) | 2~4일 | plugin→host include0, TestHost DTCore 소스 선택·별도 검증, TC/간접 cook/Shipping, no map resave |
 | 5 통합 gate | release/smoke/perf/장시간/워커/문서·guard·개인 설정 복원 | 2~4일 + 최소9시간 실측 | 동일 SHA 결과·skip·한계 구분, Claude 독립 검수 |
 
 총 **15~27작업일 + 장시간 실행/리뷰**로 잡는다. façade의 UPROPERTY 소유권·패키지 단독 host 테스트에서 추가 문제가 나오면 일정 재산정한다. 기존 272파일 이동량만으로 1~2일 구현으로 추정하지 않는다.
@@ -858,6 +863,19 @@ UE-DT-Device-Plugin/
 
 장시간 실행·성능은 한 번에 하나, detached supervisor로 실행하고 영상 디코딩·외부 Unreal/빌드 중첩은 기존 규칙대로 무효/재시도한다. 진행 polling은15분 이상 간격, 개인 SaveGame/Editor/UI 설정은 사전 backup→원본 집합/hash 복원. 알려진 빈 Game.ini 자동 생성도 기준 부재로 복원하고 raw gate 실패를 지우지 않는다. 결과는 `Saved/Reports/DEVICE-PLUGIN-01/<단계>/`에 남기고 원시 대용량은 요약/inventory 후 승인된 정리 규칙을 따른다.
 
+#### 9.1.1 4단계 — 독립 TestHost
+
+`UE-DT-Device-Plugin/TestHost/`는 UE-DT-Project 없이 **DTCore + DTDevice만** 사용하는 최소 프로젝트다. 현재 pin `cf09a7c`에는 launcher·DTCore 소스 설정·batch CRLF 정리가 포함되며 plugin `Source/`·`Shaders/` 변경은 없다. 호스트 façade나 과제 에셋의 자동 이관을 뜻하지 않는다.
+
+- `TestHost/Open_TestHost.bat`은 `Scripts/setup_testhost.ps1`로 DTCore 준비·DTDevice junction 연결·Editor 빌드를 수행한 뒤 `DTDeviceTestHost.uproject`를 연다. 기본 UE5.3 경로는 launcher의 `UE_ENGINE_ROOT`로 바꿀 수 있다. 문서/설정 단계에서는 이 파일을 실행하지 않는다.
+- **DTCore Source/Ref 선택 우선순위:** ① launcher 인자 `<source> [ref]`(setup의 `-DTCoreSource`/`-DTCoreRef`) → ② `TestHost/TestHost.local.ini`의 `[DTCore] Source=`, `Ref=` → ③ 환경 변수 `DTCORE_SOURCE`/`DTCORE_REF` → ④ 공개 UE-DT-Core-Plugin URL와 검증 SHA `bc60f05e2d1e64f4ffe1410cf3239fe24cb4d4c9`. Source와 Ref는 각각 비어 있는 값만 다음 우선순위로 보완한다.
+- Source는 Git URL 또는 `DTCore.uplugin`이 있는 로컬 폴더다. Git source는 `TestHost/Plugins/DTCore`에 받고 Ref를 checkout한다. **로컬 폴더는 junction으로 연결할 뿐 Ref로 checkout하지 않는다.** 이 경로에서도 DTCore 변경은 AGENTS의 사전 승인 절차를 따른다. 검증 SHA와 다르면 경고가 나오며 자동 검증 완료로 간주하지 않는다. `TestHost.local.ini`는 예제 파일을 복사해 개인 PC에서 만들고 커밋하지 않는다. 내부 주소·비밀을 문서나 로그에 넣지 않는다.
+- DTDevice 자체는 `TestHost/Plugins/DTDevice` junction으로 노출된다. 기존 실제 폴더를 임의 삭제하지 않고 setup 거절 사유를 확인한다. TestHost 준비를 위해 UE-DT-Project의 DTCore gitlink나 운영맵을 바꾸지 않는다.
+- `TestHost/Scripts/run_measurements.ps1`의 기본10개 필터는 현재 **자동화17개**를 선택한다. 범위는 wire golden/33-byte PCD·context 수명/값, LiDAR 형상·wall-clock/cadence/backpressure, D3D12 readback 재사용, PCD20Hz 진단, 주기 캡처, 카메라 intrinsics/mask boxes, native/RHI startup oracle·native 안전 정책·셰이더 경로다. 원본 `index.json`/`editor.log`와 `Saved/Measurements/<UTC>/summary.json`의 실제 실행 수·상태·측정값·skip을 함께 확인한다. `-NullRhi`는 RHI 통과 증거가 아니다.
+- semantic PSO는 프로젝트 재질/Slab label 등록이, SensorReplay는 프로젝트 Samples fixture가 필요하므로 UE-DT-Project 회귀에 남긴다. TestHost17개로 host release·직접 UI·Shipping·성능/메모리 전체 검증을 대체하지 않는다. 최종 장시간 검증은 기존 승인대로 세 맵3h를 최종 단계에서 한 번만 수행한다.
+
+r49에서는 launcher/setup/측정 스크립트와17개 정의·설정 우선순위를 **읽기 전용으로 확인**했다. TestHost·Unreal·빌드·GPU·측정은 실행하지 않았으며 다음 통합 검증 지시를 기다린다.
+
 ### 9.2 위험과 열린 결정
 
 | 항목 | 위험/대응 | 구현 전 결정 필요 |
@@ -868,10 +886,10 @@ UE-DT-Device-Plugin/
 | UI 사용 선택 | 기존 host façade 링크는 worker binary에 포함될 수 있음 | DeviceUI 모듈 None/명시 로드안, UI-free 최소 host 지원 범위 |
 | native/조기 초기화 | RT/global shader key·WebSockets 시작 시점 달라지면 품질/Hz 영향 | host 전역1ms 정책 보존, plugin에 숨겨 복제하지 않는 안 |
 | 의존/배포 | UE private/DX12 ABI와 DTCore pin, public repo asset/IP | 초기 UE5.3/Win64/D3D12 한정; LICENSE 추가/저작권 보유 확정, 저작 표시 유지 |
-| 외부 소비자 | 프로젝트 없어도 기본 센서/패널/TC 사용이 가능한지 | 별도 최소 DTCore host 검증을 출시 gate에 포함할지 |
+| 외부 소비자 | 프로젝트 없어도 기본 센서/패널/TC 사용이 가능한지 | TestHost17개를 독립 검증 기반으로 사용; host 자산 의존 회귀와 최종 gate는 별도 |
 | 장시간/일정 | 9시간 이상의 native 메모리 + 15~27작업일 | 세 맵3h는 최종 단계에 한 번만 수행(2026-11-03 확정); 중간 단계는 미수행 |
 
-**현재 미수행:** 실제 module/redirect 적용·소스/에셋 이동·독립 repo/submodule 연결·빌드·RHI/UI/패키지/메모리 실행 전부. 이 문서의 추정/제안은 현재 제품 완료 또는 현장 수용 증거가 아니다. 0단계는 이 문서와 static 검증 결과만 커밋하며 push하지 않는다.
+**0단계 당시 미수행:** 실제 module/redirect 적용·소스/에셋 이동·독립 repo/submodule 연결·빌드·RHI/UI/패키지/메모리 실행 전부. 이후 구현은 §10·§11, 독립 host 구성은 §9.1.1을 따른다. 이 문서의 추정/제안은 현재 제품 완료 또는 현장 수용 증거가 아니다. 0단계는 이 문서와 static 검증 결과만 커밋하며 push하지 않는다.
 
 ## 10. r46 — 1단계 경계 준비 구현 (2026-11-03)
 
