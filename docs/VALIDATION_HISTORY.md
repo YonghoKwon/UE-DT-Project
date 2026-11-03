@@ -11,6 +11,13 @@
 - CoreRedirects는 한 번만 적용된다(`FCoreRedirects::RedirectNameAndValues`는 원래 이름에 맞는 항목만 모음). 이전 이름(`VirtualSensorAct`, `LidarCsvReplaySourceComp` 등) 17개 class redirect가 이동 후 존재하지 않는 `/Script/ma0t10_dt.<신규 이름>`을 가리키던 것을 `/Script/DeviceRuntime.<신규 이름>`으로 직접 연결했다. PropertyRedirects는 package 변경이 불가해 기존 값을 유지했다. TestMap은 이미 신규 class 이름으로 저장되어 있어 변경 전후 모두 로드 경고 0건.
 - DTDevice `5e9b870`: `MA0T10.Architecture.WireGolden` fixture 경로를 `ProjectDir()/Plugins/DTDevice` 고정에서 `IPluginManager` base dir로 변경. TestHost 빌드·해당 테스트 Success. pin을 `5e9b870`으로 갱신.
 
+## 2026-11-04 DEVICE-PLUGIN-01 r50 이어서 — perf 준비 호환 보완·2% PASS
+
+- 사용자 승인 범위에서 archive/임시 include 경로만 보완했다(bfcd22ac·0d0f0cb7·c07767c6). revision별 DTDevice gitlink archive, 이동 전 baseline의10개 공용 include forwarder/Editor include 경로, unity/runtime 테스트가 공유하는 한 canonical fixture 연결이다. Runtime/Config/pin 변화0, 측정 instrument·shared fixture·PerfRelativeGate 및 전체 build/run/verdict 구간 동일성을 기록했다.
+- 최초 경로 준비 실패와 중간 unity/runtime include 빌드 실패는 보존한다. 실제 ABAB는12회 완료(3blocks,6A/6B)한1cohort다. baseline b522a4b3 대비 candidate c07767c6의 FPS46.826813→46.769765(감소0.121828%), engine p9529.535651→29.553000ms(증가0.058738%), GT7.172062→7.163318ms(증가-0.121915%)로 모두 원래2% gate PASS.1920×1080 Visible,D3D12,ProjectDefault RT,1Camera+1LiDAR MLX80Native,10초+60초다. waiver/측정 이상치 재시도/판정 완화는 없다. GPU 시간 null과 절대 FPS는 상대 gate와 구분했다.
+- hatch는 사용자 확인대로 기존 r37 준비 geometry 편집 후3대 지속 조건이며 연속 디깅 구현은 하지 않았다. 이미 통과한 release498/45/0과 native3h×3장면(+4.56596/+6.65843/+1.94083MiB/h)을 재실행하지 않았다. 제품 소스·설정·의존성이 동일해 이전 메모리/출력 증거를 유지한다.
+- 준비 fixture legacy/current archive·header 불변·single shared body·missing-header fail-closed PASS, quick PASS, 양쪽 guard PASS. 개인 설정6개/보호 hash는 새 실행에서도 미변경, 임시 perf checkouts 자동 정리, 새 trace/dump0이다. Host push/PR는 없다. 원문·이전 실패·scope proof와 최종 merge-check는 `Saved/Reports/DEVICE-PLUGIN-01/final-r50/`에 남겼다.
+
 ## 2026-11-03 DEVICE-PLUGIN-01 r50 — 최종 통합 검증, perf 준비 차단
 
 - 기준085ca5e2, DTCorebc60f05/DTDevice5e9b870. 제품 코드·기대값·맵·기본 정책 변경 없이 양쪽 guard/Editor build와 release1회498 Success/45 Skip/0 Fail·17단계 Success를 확인했다.
