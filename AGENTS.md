@@ -1,6 +1,6 @@
 # 작업 지침 — UE-DT-Project
 
-기준: UE 5.3, DTCore 브랜치 `main`·고정 `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71`(DTCORE-EXT-09 r54c main 전환 사용자 승인 2026-11-04; 이전 전환 기준 parent `d8048bf`). 작업 폴더는 `C:\Unreal Projects\ma0t10_dt` 하나다(`m7at10_dt`는 무관한 다른 프로젝트). 검증 범위와 제한은 README를 따른다.
+기준: UE 5.3, DTCore 브랜치 `feat/dtcore-data-channel`·고정 `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71`(DATA-IF-10 r55 채널 브랜치 pin 사용자 승인 2026-11-04; 이전 전환 기준 parent `d8048bf`). 작업 폴더는 `C:\Unreal Projects\ma0t10_dt` 하나다(`m7at10_dt`는 무관한 다른 프로젝트). 검증 범위와 제한은 README를 따른다.
 이 파일은 작업 규칙이다. 제품 사용법이나 전체 로드맵의 구현 승인을 대신하지 않는다.
 
 **현재 단계: ARCH-01~04 → UXR-01~07 → ARCH-05~08.** 동작·계약을 바꾸지 않는 구조 정리와 사용자 흐름 중심 UI 재정비가 최우선이며, 이번 버전에서는 **센서 플러그인 제작을 시작하지 않는다**(§5). UXR은 기능·API·저장값·기본 정책을 바꾸지 않고 화면 위치·문구·노출 수준만 바꾼다(IMPROVEMENTS 0-U절의 공통 규칙과 용어표).

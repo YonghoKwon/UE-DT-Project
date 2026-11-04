@@ -1,6 +1,6 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-기준: **DTCORE-EXT-09 r54c / `feat/dtcore-ext-09` / DTCore ?? ??? `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71` / DTDevice `67ec9d1`, 2026-11-04**. 기본 작업 폴더는 `C:\Unreal Projects\ma0t10_dt`이며, 명시적으로 승인된 worktree의 범위는 AGENTS와 작업 지시서를 따른다. 이번 검증은 `C:\Unreal Projects\wt_dtcore09`에서 수행했다. Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신과 Slab 등 과제별 시뮬레이션을 제공한다.
+기준: **DATA-IF-10 r55 구현 검증 중 / `feat/data-if-10` / DTCore `feat/dtcore-data-channel` `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71`, 2026-11-04**. 승인된 작업 위치는 `C:\Unreal Projects\wt_dataif`이며, 기존 동작·기본값과 별도 DTCore 저장소의 소스 불변을 유지한다. 완료 gate와 한계는 이번 단계 결과에 기록한다.
 
 공통 센서·카메라·전송·native RT·공통 UI body는 필수 submodule **DTDevice**의 DeviceRuntime/DeviceNative/DeviceUI에 있고, DTCore에 의존한다. 과제별 UI·업무와 호환 façade는 프로젝트에 남는다. 새 작업의 권한·보호 범위는 [AGENTS](AGENTS.md)를 따르며, 문서의 로드맵을 구현 승인으로 해석하지 않는다.
 
@@ -279,7 +279,7 @@ UXR-17 미리보기 카드는 새 Camera의 첫 영상까지 **영상 준비 중
 
 - Engine: **UE 5.3** / Editor target: `ma0t10_dtEditor Win64 Development`.
 - 프로젝트 모듈: `ma0t10_dt`, `ma0t10_dtEditor`, WebSockets 조기 정책용 `ma0t10_dtBootstrap`. 공통 장치는 DTDevice의 `DeviceRuntime`·`DeviceNative`·`DeviceUI`가 제공한다.
-- **DTCore와 DTDevice는 모두 필수 submodule**이다. `Plugins/DTCore`는 DTCORE-EXT-09 r54c에서 승인된 `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71`(`feat/dtcore-data-channel`), `Plugins/DTDevice`는 `Scripts/device_plugin_pin.txt`의 정확한 SHA로 고정한다. `--remote`로 임의 최신 버전으로 바꾸지 않는다. DTCore 변경은 [사전 승인 절차](AGENTS.md#2-보호승인-규칙)를 따른다. 이번 브랜치 pin 사용은 2026-11-04 사용자 승인 범위이며 DTCore 소스 변경 승인은 아니다. DTCore 기능 브랜치는 main에 머지됐으며, 호스트 PR·머지는 별도 검수를 따른다.
+- **DTCore와 DTDevice는 모두 필수 submodule**이다. `Plugins/DTCore`는 DTCORE-EXT-09 r54c에서 승인된 `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71`(`feat/dtcore-data-channel`), `Plugins/DTDevice`는 `Scripts/device_plugin_pin.txt`의 정확한 SHA로 고정한다. `--remote`로 임의 최신 버전으로 바꾸지 않는다. DTCore 변경은 [사전 승인 절차](AGENTS.md#2-보호승인-규칙)를 따른다. 이번 브랜치 pin 사용은 2026-11-04 사용자 승인 범위이며 DTCore 소스 변경 승인은 아니다. DATA-IF-10 채널 브랜치는 main 머지 전이며, 호스트 머지는 그 뒤 별도 검수를 따른다.
 - 기존 worktree의 DTCore·Game.ini·운영맵·PixelStreaming 변경은 보존한다.
 
 새 clone은 두 플러그인을 함께 받는다:
