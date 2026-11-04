@@ -17,6 +17,7 @@ class MA0T10_DT_API UDxWidgetVirtualSensorPanelBase : public UDxDeviceSensorPane
 	GENERATED_BODY()
 
 public:
+	virtual bool HandleNavigateTo_Implementation(FName SubTarget) override;
 	/** Presentation only: never persists dock rectangles into the legacy floating layout. */
 	bool SupportsOwnedDocking() const;
 	bool IsWorkspaceDocked() const { return bWorkspaceDocked; }

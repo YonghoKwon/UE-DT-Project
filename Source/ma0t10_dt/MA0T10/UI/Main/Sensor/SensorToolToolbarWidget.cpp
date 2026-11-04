@@ -218,6 +218,41 @@ bool USensorToolToolbarWidget::ToggleOwnedDestination(ESensorToolDestination D)
 		                false);
 	return true;
 }
+FName USensorToolToolbarWidget::NavigationSubTarget(ESensorToolDestination Destination)
+{
+	switch (Destination)
+	{
+		case ESensorToolDestination::Placement:
+			return TEXT("Placement");
+		case ESensorToolDestination::Preview:
+			return TEXT("Preview");
+		case ESensorToolDestination::Scenario:
+			return TEXT("Scenario");
+		case ESensorToolDestination::PcdTransfer:
+			return TEXT("Transfer");
+		case ESensorToolDestination::Results:
+			return TEXT("Results");
+		case ESensorToolDestination::SensorSettings:
+			return TEXT("EquipmentDetails");
+		case ESensorToolDestination::FileSave:
+			return TEXT("FileSave");
+		case ESensorToolDestination::ServerSettings:
+			return TEXT("ServerConnection");
+		case ESensorToolDestination::Diagnostics:
+			return TEXT("Diagnostics");
+		case ESensorToolDestination::Compatibility:
+			return TEXT("Compatibility");
+		case ESensorToolDestination::ScenarioCharts:
+			return TEXT("ScenarioCharts");
+		case ESensorToolDestination::MapCheck:
+			return TEXT("MapCheck");
+		case ESensorToolDestination::TestSet:
+			return TEXT("TestSet");
+		default:
+			return NAME_None;
+	}
+}
+
 bool USensorToolToolbarWidget::OpenOwnedDestination(ESensorToolDestination Destination)
 {
 	auto* W = Workspace();
@@ -243,6 +278,8 @@ bool USensorToolToolbarWidget::OpenOwnedDestination(ESensorToolDestination Desti
 		}
 		W->SetPanelOpen(ESensorToolPanelRole::SlabProgress, true);
 		W->ClearPanelBackTarget(ESensorToolPanelRole::SlabProgress);
+		if (auto* Panel = W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress))
+			Panel->NavigateTo(NavigationSubTarget(Destination));
 		if (W->IsSidebarMode())
 			return W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress) != nullptr;
 		W->SetPanelOpen(ESensorToolPanelRole::Replay, true);
@@ -262,16 +299,9 @@ bool USensorToolToolbarWidget::OpenOwnedDestination(ESensorToolDestination Desti
 		return false;
 	if (Panel->IsPanelCollapsed())
 		Panel->TogglePanelCollapsed();
-	if (auto* S = Cast<UDxWidgetVirtualSensorSettingsPanel>(Panel))
-		S->OpenOwnedSettingsSection(Destination == ESensorToolDestination::Compatibility);
-	if (auto* D = Cast<UDxWidgetVirtualSensorCaptureExportPanel>(Panel))
-	{
-		D->OpenOwnedTab(Destination == ESensorToolDestination::PcdTransfer ? ESensorOwnedDataTab::Transfer : Destination == ESensorToolDestination::Results      ? ESensorOwnedDataTab::Results
-		                                                                                                 : Destination == ESensorToolDestination::FileSave       ? ESensorOwnedDataTab::FileSave
-		                                                                                                 : Destination == ESensorToolDestination::ServerSettings ? ESensorOwnedDataTab::ServerConnection
-		                                                                                                                                                         : ESensorOwnedDataTab::Diagnostics);
-		D->ClearOwnedTabHistory();
-	}
+	Panel->NavigateTo(NavigationSubTarget(Destination));
+	if (auto* Data = Cast<UDxWidgetVirtualSensorCaptureExportPanel>(Panel))
+		Data->ClearOwnedTabHistory();
 	if (Destination == ESensorToolDestination::Placement || Destination == ESensorToolDestination::Preview || Destination == ESensorToolDestination::PcdTransfer || Destination == ESensorToolDestination::Results)
 		W->ClearPanelBackTarget(Role);
 	else

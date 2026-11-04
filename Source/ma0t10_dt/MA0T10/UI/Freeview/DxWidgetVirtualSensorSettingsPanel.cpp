@@ -832,6 +832,16 @@ FString UDxWidgetVirtualSensorSettingsPanel::GetControlStatusText() const
 	                       *BuildDeviceSpecText());
 }
 
+bool UDxWidgetVirtualSensorSettingsPanel::HandleNavigateTo_Implementation(FName SubTarget)
+{
+	if (SubTarget == TEXT("EquipmentDetails") || SubTarget == TEXT("Compatibility"))
+	{
+		OpenOwnedSettingsSection(SubTarget == TEXT("Compatibility"));
+		return true;
+	}
+	return Super::HandleNavigateTo_Implementation(SubTarget);
+}
+
 void UDxWidgetVirtualSensorSettingsPanel::OpenOwnedSettingsSection(bool bAdvanced)
 {
 	if (!IsWorkspaceOwned() || (WidgetTree && WidgetTree->RootWidget))

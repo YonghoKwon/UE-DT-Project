@@ -22,6 +22,7 @@ class MA0T10_DT_API UDxWidgetVirtualSensorSettingsPanel : public UDxWidgetVirtua
 #endif
 
 public:
+	virtual bool HandleNavigateTo_Implementation(FName SubTarget) override;
 	/** Presentation-only entry for the owned native toolbar; Designer and legacy opt out. */
 	void OpenOwnedSettingsSection(bool bAdvanced);
 	void SelectOwnedSettingsTab(int32 Tab);

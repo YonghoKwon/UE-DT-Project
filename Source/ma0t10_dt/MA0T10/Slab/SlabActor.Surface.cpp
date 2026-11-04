@@ -1,4 +1,6 @@
 #include "SlabActor.h"
+#include "Core/DxWidgetSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "SlabUiRegistry.h"
 #include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
 #include "Device/Sensor/VirtualLidarSurfaceResponseComp.h"
@@ -27,7 +29,14 @@ FString ASlabActor::SurfacePresetId(ESlabSurfacePreset P)
 }
 void ASlabActor::Click()
 {
-	Super::Click();
+	bool bFocusedExisting = false;
+	if (auto* World = GetWorld())
+		if (auto* Game = World->GetGameInstance())
+			if (auto* Widgets = Game->GetSubsystem<UDxWidgetSubsystem>())
+				if (Widgets->FindOpenWidget(this, WidgetFlag))
+					bFocusedExisting = Widgets->FocusOrOpenWidget(this, NAME_None) != nullptr;
+	if (!bFocusedExisting)
+		Super::Click();
 	SlabUiRegistry::Activate(this);
 }
 FSoftObjectPath ASlabActor::GetPresetSurfaceMaterialPath(ESlabSurfacePreset Preset) const

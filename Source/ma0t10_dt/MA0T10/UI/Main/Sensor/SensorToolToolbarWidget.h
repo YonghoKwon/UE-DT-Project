@@ -41,6 +41,7 @@ class MA0T10_DT_API USensorToolToolbarWidget : public UUserWidget
 public:
 	/** Owned native navigation; does not start measurement, transmission or file work. */
 	bool OpenOwnedDestination(ESensorToolDestination Destination);
+	static FName NavigationSubTarget(ESensorToolDestination Destination);
 	bool ToggleOwnedDestination(ESensorToolDestination Destination);
 	bool IsOwnedDestinationVisible(ESensorToolDestination Destination) const;
 	bool ShowOwnedToolsMenu();

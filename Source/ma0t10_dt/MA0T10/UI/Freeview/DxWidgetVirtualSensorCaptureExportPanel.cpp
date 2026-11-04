@@ -960,9 +960,11 @@ TSharedRef<SWidget> UDxWidgetVirtualSensorCaptureExportPanel::RebuildWidget()
 		InitializeOwnedEntryView(PreviousTab);
 		OwnedFileAction = ActiveTab == EVirtualSensorCaptureExportTab::Export ? 1 : 0;
 		BindFileService();
+		EnsureNavigationInitialized();
 		return BuildOwnedWidget();
 	}
 
+	EnsureNavigationInitialized();
 	return SNew(SBorder)
 	    .BorderImage(GetToolPanelBrush())
 	    .BorderBackgroundColor(GetToolPanelColor())
@@ -1014,7 +1016,62 @@ TSharedRef<SWidget> UDxWidgetVirtualSensorCaptureExportPanel::RebuildWidget()
 	                                 SVerticalBox::Slot().AutoHeight()[SAssignSensorTool(NativeStorageText, STextBlock).AutoWrapText(true).Text(FText::FromString(GetStorageSummaryText()))]]]];
 }
 
+namespace
+{
+FName CaptureNavigationTarget(EVirtualSensorCaptureExportTab Tab)
+{
+	switch (Tab)
+	{
+		case EVirtualSensorCaptureExportTab::LiveStream:
+			return TEXT("LiveStream");
+		case EVirtualSensorCaptureExportTab::Capture:
+			return TEXT("Capture");
+		case EVirtualSensorCaptureExportTab::Export:
+			return TEXT("Export");
+		case EVirtualSensorCaptureExportTab::ConnectionLog:
+			return TEXT("ConnectionLog");
+		default:
+			return NAME_None;
+	}
+}
+}
+void UDxWidgetVirtualSensorCaptureExportPanel::EnsureNavigationInitialized()
+{
+	if (!GetCurrentSubTarget().IsNone())
+		return;
+	TGuardValue<bool> Guard(bSeedingNavigation, true);
+	NavigateTo(IsWorkspaceOwned() ? OwnedNavigationTarget(OwnedTab) : CaptureNavigationTarget(ActiveTab), false);
+}
 void UDxWidgetVirtualSensorCaptureExportPanel::SetActiveTab(EVirtualSensorCaptureExportTab NewTab)
+{
+	EnsureNavigationInitialized();
+	const FName Target = CaptureNavigationTarget(NewTab);
+	if (GetCurrentSubTarget() == Target)
+		ApplyNavigationTab(NewTab);
+	else
+		NavigateTo(Target);
+}
+bool UDxWidgetVirtualSensorCaptureExportPanel::HandleNavigateTo_Implementation(FName SubTarget)
+{
+	for (auto Tab : {EVirtualSensorCaptureExportTab::LiveStream, EVirtualSensorCaptureExportTab::Capture, EVirtualSensorCaptureExportTab::Export, EVirtualSensorCaptureExportTab::ConnectionLog})
+		if (SubTarget == CaptureNavigationTarget(Tab))
+		{
+			if (!bSeedingNavigation)
+				ApplyNavigationTab(Tab);
+			return true;
+		}
+	if (IsWorkspaceOwned())
+		for (auto Tab : {ESensorOwnedDataTab::Transfer, ESensorOwnedDataTab::Results, ESensorOwnedDataTab::FileSave, ESensorOwnedDataTab::ServerConnection, ESensorOwnedDataTab::Diagnostics})
+			if (SubTarget == OwnedNavigationTarget(Tab))
+			{
+				if (!bSeedingNavigation)
+					ApplyOwnedNavigationTab(Tab);
+				return true;
+			}
+	return Super::HandleNavigateTo_Implementation(SubTarget);
+}
+
+void UDxWidgetVirtualSensorCaptureExportPanel::ApplyNavigationTab(EVirtualSensorCaptureExportTab NewTab)
 {
 	ActiveTab = NewTab;
 	if (IsWorkspaceOwned())
