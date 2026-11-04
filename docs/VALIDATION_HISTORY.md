@@ -6,6 +6,36 @@
 
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
+
+## 2026-11-04 — DTCORE-EXT-09 r54c (main 기준 통합)
+
+사용자 승인으로 DTCore main `1604ee72a52362c7e39d969ca1c3e631cfdaa3c3`을 고정했다. DTCore·엔진 소스 수정은 없고, DTDevice `67ec9d1` main을 사용한다. 전용 재연결 설정 기본 1/10/2, 캡처/사이드바 내비게이션(기존 uint8 0~3 유지), 공유 WebSocket 저빈도 JSON opt-in을 적용했다. PCD는 기존 전용 연결과 기본 정책을 유지한다. 공유 receipt 등록은 GameInstance당 16개로 제한하고 실제 receipt/연결 변경까지 슬롯을 유지한다.
+
+| 검증 | 결과 |
+|---|---|
+| main 기준 host/TestHost Editor | PASS |
+| Development build/cook/stage | PASS |
+| release | 500 Success / 45 Skip / 0 Fail, 고유 541개 = #102 531 + 프로젝트 신규 6 + DTCore 신규 4, 누락 0 |
+| DTCore 신규 | Publish / WidgetNavigation / FocusOrOpenWidget / ReconnectDelay 모두 Success |
+| TestHost | 26경로: 25 Success / 1 기존 opt-in Skip / 0 Fail |
+| 테스트 맵 | 10개 읽기 전용 로드, 해시 불변, LogLinker/LogCoreRedirects 경고·오류 0 |
+| quick / layer / guards | PASS, allowlist 0 |
+| QA-02 RT-on ABAB | 최초 GT +2.682% FAIL 보존. 외부 cl.exe 중첩 재확인 1회는 무효. clean 10분 후 같은 조건의 유효 재확인: FPS +0.0827%, p95 −0.1236%, GT +0.1703% → 2% PASS. 임계·워크로드·판정 변경/waiver 없음 |
+| 직접 UI | Standalone -game에서 링크/뒤로 가기/탭/공유 opt-in·원복 6항목 확인, 1920×1080 캡처·폰트 표시 100%, DPI 도구 미노출. PIE·실제 Slab focus·실서버 송신은 직접 확인 범위 밖 |
+
+hatch 1시간은 r50과 같은 센서 3대, 기본 17회 준비 편집, native 기본, LLM read-only/project tags off, PCD·미리보기 기본 조건이다. 실제 3604.04초·721행, fallback 0, 19.9971~19.9981Hz, PCD/semantic 218,645프레임 검증(33-byte), invalid 0이다.
+
+| 10~60분 진단 OLS | r50 hatch180 같은 구간 | r54c hatch60 |
+|---|---:|---:|
+| runtime OS Commit (MiB/h) | +15.7676 | +5.9911 |
+| 외부 OS observer Commit (MiB/h) | +15.8343 | 미수집 |
+
+runtime `commit_bytes`는 `FPlatformMemory.UsedVirtual`이며 UE5.3 Windows 구현의 `PROCESS_MEMORY_COUNTERS.PagefileUsage`(OS commit charge)다. 양쪽 동일 runtime 카운터/시간축을 비교했고 보조 observer가 빠졌다는 제한을 숨기지 않는다. 메모리 PASS/FAIL을 부여하지 않으며 **3시간×3장면은 사용자 r54c 결정으로 데이터 I/F 통합 뒤로 연기**한다.
+
+패키징 Pak에는 loose .uproject가 없어 첫 준비 검사가 게임 시작 전에 중단됐다. 기존 r50 방식대로 소유 stage에 exact-source descriptor/빈 전송 템플릿을 보완하고 hash를 검증했다. 패키지 재빌드·guard 완화는 없었다. 최초 fixture의 abstract UObject 및 Future API 컴파일 준비 오류는 수정/원본 증거를 보존했다. read-only 맵과 원본 설정은 보존했고, 개인 설정 87개 해시 동일을 확인했다.
+
+성능 하네스는 각 ref의 DTCore gitlink를 그대로 archive하도록 준비만 보정했다(A bc60f05/B 1604ee7). 원래 workload·측정·2% 판정은 동일하다. 상세·원문·한계: `Saved/Reports/DTCORE-EXT-09/r54/RESULT.md`, `result.json`, `merge-check.json`. 승인된 DTCore gitlink 변경은 자동 보호 검사와 별도로 Claude가 검수한다. 호스트 PR/merge는 수행하지 않는다.
+
 ## 2026-11-03 DEVICE-PLUGIN-01 리뷰 수정 — redirect 1-hop·fixture 경로
 
 - CoreRedirects는 한 번만 적용된다(`FCoreRedirects::RedirectNameAndValues`는 원래 이름에 맞는 항목만 모음). 이전 이름(`VirtualSensorAct`, `LidarCsvReplaySourceComp` 등) 17개 class redirect가 이동 후 존재하지 않는 `/Script/ma0t10_dt.<신규 이름>`을 가리키던 것을 `/Script/DeviceRuntime.<신규 이름>`으로 직접 연결했다. PropertyRedirects는 package 변경이 불가해 기존 값을 유지했다. TestMap은 이미 신규 class 이름으로 저장되어 있어 변경 전후 모두 로드 경고 0건.
