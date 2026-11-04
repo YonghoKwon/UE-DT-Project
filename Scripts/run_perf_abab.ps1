@@ -49,6 +49,22 @@ function Get-Git([string[]]$Arguments, [string]$Repo = $root) {
 }
 function Get-Sha256([string]$Path) { return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
 
+function Get-DTCorePerfCommit([string]$Revision) {
+    $entry = Get-Git @('ls-tree', $Revision, '--', 'Plugins/DTCore')
+    if ($entry -notmatch '^160000 commit ([0-9a-f]{40})\s+Plugins/DTCore$') { throw "Missing/invalid DTCore gitlink in $Revision" }
+    return $Matches[1]
+}
+function Prepare-DTCorePerfArchive([string]$Target, [string]$Revision, [string]$Label) {
+    $commit = Get-DTCorePerfCommit -Revision $Revision
+    $zip = Join-Path $owned "$Label-DTCore.zip"
+    & git.exe -C (Join-Path $root 'Plugins/DTCore') archive --format=zip "--output=$zip" $commit
+    if ($LASTEXITCODE -ne 0) { throw "DTCore archive $Label failed ($commit)" }
+    $destination = Join-Path $Target 'Plugins/DTCore'
+    Expand-Archive -LiteralPath $zip -DestinationPath $destination
+    if (-not (Test-Path -LiteralPath (Join-Path $destination 'DTCore.uplugin'))) { throw "DTCore descriptor missing for $Label" }
+    return [ordered]@{ DTCore = $commit; Revision = $Revision; ArchiveSha256 = (Get-Sha256 $zip) }
+}
+
 function Prepare-DevicePerfArchive([string]$Target, [string]$Revision, [string]$Label) {
     $entry = Get-Git @('ls-tree', $Revision, '--', 'Plugins/DTDevice')
     if ($entry) {
@@ -143,7 +159,7 @@ $runs = Join-Path $ReportRoot 'runs'
 New-Item -ItemType Directory -Force -Path $runs | Out-Null
 
 $refs = [ordered]@{ A = (Get-Git @('rev-parse', $Baseline)); B = (Get-Git @('rev-parse', $Candidate)) }
-$dtcore = Get-Git @('-C', 'Plugins/DTCore', 'rev-parse', 'HEAD')
+$dtcore = Get-DTCorePerfCommit -Revision $refs.B
 $instrumentSource = Join-Path $root $instrument
 if (-not (Test-Path -LiteralPath $instrumentSource)) { throw "Missing instrument $instrument" }
 $gpu = @(Get-CimInstance Win32_VideoController | ForEach-Object { [ordered]@{ Name = $_.Name; Driver = $_.DriverVersion; Mode = "$($_.CurrentHorizontalResolution)x$($_.CurrentVerticalResolution)" } })
@@ -151,7 +167,7 @@ $displays = switch ($Display) { 'Visible' { @($false) } 'Offscreen' { @($true) }
 $manifest = [ordered]@{
     SchemaVersion = 1; Gate = 'QA-02 perf ABAB'; StartedUtc = $started.ToString('o')
     Baseline = [ordered]@{ Ref = $Baseline; Commit = $refs.A }; Candidate = [ordered]@{ Ref = $Candidate; Commit = $refs.B }
-    DTCore = $dtcore; DevicePreparation = [ordered]@{}; NamingPreparation = [ordered]@{}; Instrument = [ordered]@{ Path = $instrument; Sha256 = (Get-Sha256 $instrumentSource) }
+    DTCore = $dtcore; DTCorePreparation = [ordered]@{}; DevicePreparation = [ordered]@{}; NamingPreparation = [ordered]@{}; Instrument = [ordered]@{ Path = $instrument; Sha256 = (Get-Sha256 $instrumentSource) }
     SessionInstrument = [ordered]@{ Path = $sessionInstrument; Sha256 = (Get-Sha256 (Join-Path $root $sessionInstrument)) }
     Workload = $Workload; ScheduledBackend = $ScheduledBackend; ScheduledPcdLoopbackPort = $ScheduledPcdLoopbackPort; ScheduledDivisor = $ScheduledDivisor
     CameraGroundTruth = [bool]$CameraGroundTruth; LidarProfile = $LidarProfile; RequireGpu = [bool]$RequireGpu
@@ -180,9 +196,7 @@ try {
         $zip = Join-Path $owned "$label.zip"
         & git.exe -C $root archive --format=zip "--output=$zip" $refs[$label]; if ($LASTEXITCODE -ne 0) { throw "archive $label failed" }
         Expand-Archive -LiteralPath $zip -DestinationPath $target
-        $pluginZip = Join-Path $owned "$label-DTCore.zip"
-        & git.exe -C (Join-Path $root 'Plugins/DTCore') archive --format=zip "--output=$pluginZip" $dtcore; if ($LASTEXITCODE -ne 0) { throw "DTCore archive $label failed" }
-        Expand-Archive -LiteralPath $pluginZip -DestinationPath (Join-Path $target 'Plugins/DTCore')
+        $manifest.DTCorePreparation[$label] = Prepare-DTCorePerfArchive -Target $target -Revision $refs[$label] -Label $label
         $manifest.DevicePreparation[$label] = Prepare-DevicePerfArchive -Target $target -Revision $refs[$label] -Label $label
         Copy-Item -LiteralPath $instrumentSource -Destination (Join-Path $target $instrument) -Force
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent (Join-Path $target $sessionInstrument)) | Out-Null
