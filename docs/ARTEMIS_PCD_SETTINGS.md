@@ -1,6 +1,6 @@
 # DATA-IF-10 — Artemis PCD 서버 설정안
 
-이 문서는 서버 담당자 검토용이다. 운영 적용·무중단 HA·외부 소비자 수용 완료를 뜻하지 않는다. 실제 로컬 검수 결과는 `Saved/Reports/DATA-IF-10/r55/RESULT.md`에 별도로 기록한다. DTCore 채널 브랜치 `dd7bae7`을 사용하며 DTCore main 머지 전에 host를 머지하지 않는다.
+이 문서는 서버 담당자 검토용이다. 운영 적용·무중단 HA·외부 소비자 수용 완료를 뜻하지 않는다. 실제 로컬 검수 결과는 `Saved/Reports/DATA-IF-10/r55/RESULT.md`에 별도로 기록한다. DTCore 채널 브랜치 `cb9788a`을 사용하며 DTCore main 머지 전에 host를 머지하지 않는다.
 
 ## 유지하는 계약과 연결
 
@@ -98,8 +98,8 @@ DTCore는 연결·등록·재연결·상태를 담당한다. 토픽 정책은 �
 
 공통 파일은 `Config/DefaultGame.ini`, 플랫폼 파일은
 `Config/Windows/WindowsGame.ini` 또는 `Config/Linux/LinuxGame.ini`다.
-플랫폼 파일에서 배열을 교체할 때는 `!…=ClearArray` 다음에 **전체 목록**을 쓴다.
-일부 항목을 덧붙이면 같은 채널 이름이 중복될 수 있다.
+패키지의 `DefaultGame.ini`에 목록을 적으면 **패키지에 포함된 목록을 대신**한다(행을 고치거나 지우면 그대로 반영).
+플랫폼 파일의 `+` 행은 같은 이름의 채널을 고치거나 새 채널을 추가한다. 목록 전체를 바꾸려면 `!…=ClearArray` 다음에 전체 목록을 쓴다.
 
 ```ini
 [/Script/DTCore.DTCoreSettings]
