@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "DeviceUI/DeviceSensorPanelTypes.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualSensorEditableTypes.h"
 #include "VirtualSensorControlTypes.generated.h"

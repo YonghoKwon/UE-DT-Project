@@ -30,7 +30,7 @@ def build_plan():
         if re.fullmatch(r'U\w+',old) and re.fullmatch(r'U\w+',new) and new!='UDxWidget':
             names[old]=new; owners[old]=cells[0]
     spec={'names':names,'owners':owners}
-    if len(names)!=46: raise RuntimeError('Confirmed inventory must contain 46 renamed classes')
+    if len(names)!=48: raise RuntimeError('Confirmed inventory must contain 48 renamed classes')
     rows = json.loads((ROOT / 'Tools/NamingPlan/inventory-7aefff54.json').read_text())['Rows']
     stems = {a[1:]: b[1:] for a, b in names.items()}
     moves = {'host': {}, 'plugin': {}}

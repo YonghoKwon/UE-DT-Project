@@ -5,7 +5,7 @@
 #include "Uxr15ToggleTestHelpers.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Camera/VirtualCameraGroundTruthComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualSensorRecorderComp.h"

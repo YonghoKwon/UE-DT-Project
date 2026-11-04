@@ -11,7 +11,7 @@
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualSensorEditableTypes.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Async/Async.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"

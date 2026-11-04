@@ -6,7 +6,7 @@
 #include "Core/DTCoreSettings.h"
 #include "Engine/GameInstance.h"
 #include "UObject/StrongObjectPtr.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
@@ -61,7 +61,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorCameraCoherenceUnitTest,"MA0T10.SensorFi
     EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorCameraCoherenceUnitTest::RunTest(const FString&)
 {
-    auto Camera=MakeShared<TStrongObjectPtr<UVirtualCameraCaptureComponent>>(NewObject<UVirtualCameraCaptureComponent>());
+    auto Camera=MakeShared<TStrongObjectPtr<UVirtualCameraCaptureComp>>(NewObject<UVirtualCameraCaptureComp>());
     auto* C=Camera->Get(); C->CaptureMode=EVirtualCameraCaptureMode::Payload; C->OutputMode=EVirtualCameraOutputMode::None;
     FVirtualCameraPayloadSnapshot Snapshot; Snapshot.FrameId=17;Snapshot.SensorId=TEXT("snapshot-fixture");
     Snapshot.Width=8;Snapshot.Height=8;Snapshot.Location=FVector(10,20,30);Snapshot.TimestampUtc=FDateTime(2026,10,2,12,0,0);
@@ -78,7 +78,7 @@ bool FSensorCameraCoherenceUnitTest::RunTest(const FString&)
         TestEqual(TEXT("encode retains acquisition pose rather than current pose"),Result.Location,Snapshot.Location);
         TestEqual(TEXT("acquisition UTC survives encode"),Camera->Get()->GetRuntimeStatus().LastUpdateUtc,Snapshot.TimestampUtc);
         TestEqual(TEXT("acquisition frame id survives encode"),Camera->Get()->GetRuntimeStatus().FrameId,int64(17));
-        UVirtualCameraCaptureComponent::FPendingReadbackRequest Missing;Missing.FrameId=18;
+        UVirtualCameraCaptureComp::FPendingReadbackRequest Missing;Missing.FrameId=18;
         Camera->Get()->PendingReadbackRequests.Add(Missing);Camera->Get()->EncodeOrder.Add(18);
         Camera->Get()->LastFileAcquisition.FrameId=19;
         Camera->Get()->QueuePendingGpuReadbacks();

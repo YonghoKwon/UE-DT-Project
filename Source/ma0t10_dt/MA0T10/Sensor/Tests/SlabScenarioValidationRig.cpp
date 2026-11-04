@@ -12,14 +12,14 @@ void ASlabScenarioValidationRig::SetValidationControlsVisibleForTests(bool Visib
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/Scenario/SlabScenarioReplaySubsystem.h"
 #include "Device/Core/VirtualSensorStreamPublisherComp.h"
-#include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
+#include "Device/Sensor/VirtualLidarGpuDepthProjectionComp.h"
 #include "Device/Sensor/VirtualLidarVisualizationComp.h"
 #include "Core/DxDataSubsystem.h"
 #include "Engine/GameInstance.h"
@@ -249,7 +249,7 @@ void ASlabScenarioValidationRig::SaveResourceEvidence(const FString& Phase,int32
         auto Map=[&](const TCHAR* Key,const TMap<FString,int64>& Values){auto Object=MakeShared<FJsonObject>();for(const auto& P:Values)Object->SetNumberField(P.Key,P.Value);Item->SetObjectField(Key,Object);};
         Map(TEXT("counts"),S.Counts);Map(TEXT("owned_cpu_bytes"),S.OwnedCpuBytes);Map(TEXT("shared_cpu_bytes"),S.SharedCpuBytes);Map(TEXT("estimated_gpu_bytes"),S.EstimatedGpuBytes);Items.Add(MakeShared<FJsonValueObject>(Item));};
     if(Camera)Add(Camera->CaptureComp->GetResourceSnapshot());
-    if(Lidar){Add(Lidar->ScanComp->GetResourceSnapshot());if(Lidar->GpuDepthProjectionComponent)Add(Lidar->GpuDepthProjectionComponent->GetResourceSnapshot());if(Lidar->VisualizationComp)Add(Lidar->VisualizationComp->GetResourceSnapshot());}
+    if(Lidar){Add(Lidar->ScanComp->GetResourceSnapshot());if(Lidar->GpuDepthProjectionComp)Add(Lidar->GpuDepthProjectionComp->GetResourceSnapshot());if(Lidar->VisualizationComp)Add(Lidar->VisualizationComp->GetResourceSnapshot());}
     TInlineComponentArray<UVirtualSensorStreamPublisherComp*> Publishers;Coordinator->GetComponents(Publishers);
     for(auto* Publisher:Publishers)Add(Publisher->GetResourceSnapshot());
     Add(GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->GetResourceSnapshotForTesting());

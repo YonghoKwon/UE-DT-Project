@@ -15,8 +15,8 @@ python -X utf8 -I Tools/NamingPlan/movemap.py <host>
 | 항목 | 수 |
 |---|---|
 | 분석한 reflected 타입 (UCLASS/USTRUCT/UENUM, 3개 저장소) | 341 |
-| ActorComponent 계열 클래스 | 31 (DTDevice 22, 과제 9) |
-| 이름 변경 대상 (`…Component` → `…Comp`, 접미사 없음 → `Comp`) | 28 |
+| ActorComponent 계열 클래스 | 33 (DTDevice 24, 과제 9; r52b 보완) |
+| 이름 변경 대상 (`…Component` → `…Comp`, 접미사 없음 → `Comp`) | 30 (r52b 2개 포함) |
 | 이미 `Comp`라 변경 없음 | 3 (Crane 3종) |
 | Dx 클래스 상속 | 24 (6개는 이미 Dx 형태, 과제 위젯 16개 → `UDxWidget<기능>`, DTDevice 2개 → `UDxDevice…`) |
 | `UI/`, `Scenario/` 아래 옮길 파일 | 206 |
@@ -31,6 +31,8 @@ python -X utf8 -I Tools/NamingPlan/movemap.py <host>
 
 | 소유 | 현재 | 변경 후 | 상속 | 참조 에셋 수 | 기존 redirect 갱신 |
 |---|---|---|---|---|---|
+| DTDevice | `UVirtualCameraCaptureComponent` | `UVirtualCameraCaptureComp` | USceneCaptureComponent2D > USceneComponent > UActorComponent | r52b 보완 | 최종 이름 직접 연결 |
+| DTDevice | `UVirtualLidarGpuDepthProjectionComponent` | `UVirtualLidarGpuDepthProjectionComp` | USceneCaptureComponent2D > USceneComponent > UActorComponent | r52b 보완 | 최종 이름 직접 연결 |
 | DTDevice | `UVirtualCameraGroundTruth` | `UVirtualCameraGroundTruthComp` | UActorComponent | 0 | 1 |
 | DTDevice | `UVirtualSensorStreamPublisherComponent` | `UVirtualSensorStreamPublisherComp` | UActorComponent | 5 | 1 |
 | DTDevice | `UCameraJsonLiveSourceComponent` | `UCameraJsonLiveSourceComp` | URealSensorSourceComponent > USceneComponent | 2 | 2 |
@@ -335,3 +337,7 @@ python -X utf8 -I Tools/NamingPlan/movemap.py <host>
 ## 7. 실행 결과 (r52, 2026-11-04)
 
 이 표는 이동 전 경로/이름을 고정한 계획 근거로 유지한다. 실제206개 항목에는 위치 유지21개가 포함된다. 타입 파일명까지 합쳐 host196개, DTDevice49개 경로를 git mv했다. 46개 reflected 타입과45개 컴포넌트 속성의 직접 alias를 확인했다. 테스트530개 경로 누락0, 호환 테스트1개 추가. 세부/검증은 `Saved/Reports/NAMING-01/RESULT.md`.
+
+## 8. r52b SceneCaptureComponent2D 판별 보완
+
+엔진 기반 이름에 Component가 포함되면 ActorComponent로 분류하도록 수정했다. 누락된 CameraCapture/GpuDepthProjection을 Comp로 통일했다. `Tools/NamingPlan/inventory-r52b.json` 재생성 결과 reflected341, class135, component33, 남은 rename 후보0이다. 앞선 r52의 명단 밖 유지 판단은 이 보완으로 해소한다.

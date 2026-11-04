@@ -7,7 +7,7 @@ import json, os, re, sys
 host, device, core, out = sys.argv[1:5]
 ROOTS = {"Project": os.path.join(host, "Source"), "DTDevice": os.path.join(device, "Source"), "DTCore": os.path.join(core, "Source")}
 DECL = re.compile(r"U(CLASS|STRUCT|ENUM|INTERFACE)\s*\((?:[^()]|\([^()]*\))*\)\s*(?:class|struct|enum class|enum)\s+(?:\w+_API\s+)?(\w+)(?:\s*:\s*(?:public\s+)?([\w:]+))?", re.S)
-# Engine component bases (anything ending in Component that is not ours is treated as engine).
+# 엔진 기반 이름에 Component가 있으면 Component2D 등도 컴포넌트로 분류한다.
 ENGINE_COMPONENT_ROOT = "UActorComponent"
 
 types = {}
@@ -34,7 +34,7 @@ def chain(name):
 def is_component(name):
     c = chain(name)
     last = c[-1]
-    return ENGINE_COMPONENT_ROOT in c or (last.startswith("U") and last.endswith("Component"))
+    return ENGINE_COMPONENT_ROOT in c or (last.startswith("U") and "Component" in last)
 
 def dx_root(name):
     for n in chain(name)[1:]:

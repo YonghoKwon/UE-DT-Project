@@ -47,7 +47,7 @@
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/RealSensorSourceComp.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"

@@ -18,7 +18,7 @@ void AVirtualSensorCoordinator::DiscoverSensorsInLevel()
     Super::DiscoverSensorsInLevel();
 }
 
-void AVirtualSensorCoordinator::RegisterCamera(UVirtualCameraCaptureComponent* CameraComp)
+void AVirtualSensorCoordinator::RegisterCamera(UVirtualCameraCaptureComp* CameraComp)
 {
     Super::RegisterCamera(CameraComp);
 }
@@ -143,12 +143,12 @@ void AVirtualSensorCoordinator::AdjustSelectedLidarPreviewBudget(int32 StrideDel
     Super::AdjustSelectedLidarPreviewBudget(StrideDelta, MaxPointsDelta);
 }
 
-UVirtualCameraCaptureComponent* AVirtualSensorCoordinator::GetSelectedCamera() const
+UVirtualCameraCaptureComp* AVirtualSensorCoordinator::GetSelectedCamera() const
 {
     return Super::GetSelectedCamera();
 }
 
-UVirtualCameraCaptureComponent* AVirtualSensorCoordinator::GetCameraByIndex(int32 Index) const
+UVirtualCameraCaptureComp* AVirtualSensorCoordinator::GetCameraByIndex(int32 Index) const
 {
     return Super::GetCameraByIndex(Index);
 }

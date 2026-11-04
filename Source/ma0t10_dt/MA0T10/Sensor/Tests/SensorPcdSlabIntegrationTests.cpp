@@ -8,7 +8,7 @@
 #include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "Device/Core/VirtualSensorCaptureRendering.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorWssFallbackTest, "MA0T10.SensorStream.WssCompatibilityRouting", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FSensorWssFallbackTest::RunTest(const FString& Parameters)

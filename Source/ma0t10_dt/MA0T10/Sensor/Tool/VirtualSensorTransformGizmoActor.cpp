@@ -20,7 +20,7 @@
 #include "UnrealClient.h"
 #include "Player/DxPlayerControllerBase.h"
 #include "Core/DxWidgetSubsystem.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Player/DxPlayerControllerTest.h"
@@ -807,13 +807,13 @@ void AVirtualSensorTransformGizmoActor::DrawGizmo() const
 void AVirtualSensorTransformGizmoActor::DrawProjectionDebug() const
 {
     if (!bProjectionDebugEnabled || !TargetActor || !GetWorld()) return;
-    if (TargetActor->FindComponentByClass<UVirtualCameraCaptureComponent>()) DrawCameraProjectionDebug();
+    if (TargetActor->FindComponentByClass<UVirtualCameraCaptureComp>()) DrawCameraProjectionDebug();
     else if (TargetActor->FindComponentByClass<UVirtualLidarScanComp>()) DrawLidarProjectionDebug();
 }
 
 void AVirtualSensorTransformGizmoActor::DrawCameraProjectionDebug() const
 {
-    const UVirtualCameraCaptureComponent* Camera = TargetActor ? TargetActor->FindComponentByClass<UVirtualCameraCaptureComponent>() : nullptr;
+    const UVirtualCameraCaptureComp* Camera = TargetActor ? TargetActor->FindComponentByClass<UVirtualCameraCaptureComp>() : nullptr;
     if (!Camera) return;
     const FTransform Transform = Camera->GetComponentTransform();
     const FVector Origin = Transform.GetLocation();

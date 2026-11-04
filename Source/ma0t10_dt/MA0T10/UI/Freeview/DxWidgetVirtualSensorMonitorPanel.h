@@ -21,7 +21,7 @@ class UImage;
 class UTextBlock;
 class UTexture2D;
 class URealSensorSourceComp;
-class UVirtualCameraCaptureComponent;
+class UVirtualCameraCaptureComp;
 class UVirtualLidarScanComp;
 class UVirtualLidarVisualizationComp;
 struct FVirtualSensorRateDiagnostic;
@@ -101,7 +101,7 @@ class MA0T10_DT_API UDxWidgetVirtualSensorMonitorPanel : public UDxWidgetVirtual
     friend struct FDeviceSensorMonitorBody;
 
 public:
-    virtual void BindMonitorCamera(UVirtualCameraCaptureComponent* Camera) override { BindVirtualCamera(Camera); }
+    virtual void BindMonitorCamera(UVirtualCameraCaptureComp* Camera) override { BindVirtualCamera(Camera); }
     virtual void BindMonitorLidar(UVirtualLidarScanComp* Lidar) override { BindVirtualLidar(Lidar); }
     virtual void BindMonitorExternalSource(URealSensorSourceComp* Source) override { BindRealSensorSource(Source); }
     virtual void ShowMonitorCamera() override { ShowCameraView(); }
@@ -122,7 +122,7 @@ public:
 	void PumpPendingCaptureWork();
 	bool IsConfiguredCapturePending() const { return bConfiguredOneShotPending; }
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
-    void BindVirtualCamera(UVirtualCameraCaptureComponent* InCameraComp);
+    void BindVirtualCamera(UVirtualCameraCaptureComp* InCameraComp);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorMonitor")
     void BindVirtualLidar(UVirtualLidarScanComp* InLidarComp);
@@ -415,7 +415,7 @@ private:
 
 private:
     UPROPERTY(Transient)
-    TObjectPtr<UVirtualCameraCaptureComponent> CameraComp;
+    TObjectPtr<UVirtualCameraCaptureComp> CameraComp;
 
     UPROPERTY(Transient)
     TObjectPtr<UVirtualLidarScanComp> LidarComp;
@@ -591,7 +591,7 @@ private:
     bool bMonitorDetailsExpanded = false;
     bool bLocalSensorCaptureActive = false;
 	FVirtualSensorCaptureSelection LocalCaptureSelection;
-	UPROPERTY(Transient) TObjectPtr<UVirtualCameraCaptureComponent> SecondaryCameraComp;
+	UPROPERTY(Transient) TObjectPtr<UVirtualCameraCaptureComp> SecondaryCameraComp;
 	FString PreferredPrimaryCameraId;
 	FString PreferredSecondaryCameraId;
 	int64 LastPrimaryCameraDisplayFrameId = INDEX_NONE;
@@ -630,7 +630,7 @@ private:
 	FText OwnedPreparingText,OwnedTimeoutText,OwnedProgressText;
 	bool bOwnedPreviewWaiting=false,bOwnedPreviewTimedOut=false;
 	uint8 OwnedCameraMode=0;
-	TWeakObjectPtr<UVirtualCameraCaptureComponent> OwnedWaitingCamera;
+	TWeakObjectPtr<UVirtualCameraCaptureComp> OwnedWaitingCamera;
 	uint8 OwnedWaitingMode=0;
 	double OwnedPreviewWaitStarted=0;
 	void RefreshOwnedPreviewReadiness(UObject* Resource);

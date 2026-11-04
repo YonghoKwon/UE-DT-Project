@@ -16,17 +16,17 @@
 #include "RenderingThread.h"
 #include "RHIGlobals.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
-#include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
+#include "Device/Sensor/VirtualLidarGpuDepthProjectionComp.h"
 
 class FDepthPreviewIsolationCheck : public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;UWorld* World;AVirtualCameraSensorActor* Camera;AVirtualLidarSensorActor* Markers;AVirtualLidarSensorActor* DepthSensor;AStaticMeshActor* Wall;UInstancedStaticMeshComponent* Preview;
     FVirtualLidarDepthAcquisitionFrame Off;int32 Stage=0;double Started=FPlatformTime::Seconds();
-    void Cleanup(){DepthSensor->GpuDepthProjectionComponent->CancelAcquisition();Camera->Destroy();Markers->Destroy();DepthSensor->Destroy();Wall->Destroy();}
-    bool Begin(int64 Id){World->SendAllEndOfFrameUpdates();FVirtualLidarDepthAcquisitionRequest Q;Q.FrameId=Id;Q.AcquisitionTransform=Camera->CaptureComp->GetComponentTransform();Q.HorizontalSamples=64;Q.VerticalChannels=16;Q.HorizontalFovDegrees=90;Q.MaxDistanceCm=1000;return DepthSensor->GpuDepthProjectionComponent->BeginAcquisition(Q);}
+    void Cleanup(){DepthSensor->GpuDepthProjectionComp->CancelAcquisition();Camera->Destroy();Markers->Destroy();DepthSensor->Destroy();Wall->Destroy();}
+    bool Begin(int64 Id){World->SendAllEndOfFrameUpdates();FVirtualLidarDepthAcquisitionRequest Q;Q.FrameId=Id;Q.AcquisitionTransform=Camera->CaptureComp->GetComponentTransform();Q.HorizontalSamples=64;Q.VerticalChannels=16;Q.HorizontalFovDegrees=90;Q.MaxDistanceCm=1000;return DepthSensor->GpuDepthProjectionComp->BeginAcquisition(Q);}
 public:
     FDepthPreviewIsolationCheck(FAutomationTestBase* T,UWorld* W,AVirtualCameraSensorActor* C,AVirtualLidarSensorActor* M,AStaticMeshActor* A,UInstancedStaticMeshComponent* P):Test(T),World(W),Camera(C),Markers(M),Wall(A),Preview(P)
     {DepthSensor=World->SpawnActor<AVirtualLidarSensorActor>();DepthSensor->StopSensor();}
@@ -34,9 +34,9 @@ public:
     {
         if(FPlatformTime::Seconds()-Started>20){Test->AddError(TEXT("GPU capture isolation fixture timeout"));Cleanup();return true;}
         if(Stage==0){Preview->SetVisibility(false);if(!Begin(1)){Test->AddError(TEXT("GPU fixture failed to begin"));Cleanup();return true;}Stage=1;return false;}
-        FVirtualLidarDepthAcquisitionFrame Frame;const auto Poll=DepthSensor->GpuDepthProjectionComponent->PollAcquisition(Frame);
+        FVirtualLidarDepthAcquisitionFrame Frame;const auto Poll=DepthSensor->GpuDepthProjectionComp->PollAcquisition(Frame);
         if(Poll==EVirtualSensorBackendPollResult::Pending)return false;
-        if(Poll!=EVirtualSensorBackendPollResult::Completed){Test->AddError(DepthSensor->GpuDepthProjectionComponent->GetBackendStatusMessage());Cleanup();return true;}
+        if(Poll!=EVirtualSensorBackendPollResult::Completed){Test->AddError(DepthSensor->GpuDepthProjectionComp->GetBackendStatusMessage());Cleanup();return true;}
         if(Stage==1){Off=MoveTemp(Frame);Preview->SetVisibility(true);Begin(2);Stage=2;return false;}
         const int32 Center=(Off.CaptureHeight/2)*Off.CaptureWidth+Off.CaptureWidth/2;
         if(!Off.ForwardDepthCentimeters.IsValidIndex(Center)||!Frame.ForwardDepthCentimeters.IsValidIndex(Center)){Test->AddError(TEXT("GPU fixture has no center sample"));Cleanup();return true;}

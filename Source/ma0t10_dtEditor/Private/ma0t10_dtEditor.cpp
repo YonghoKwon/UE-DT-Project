@@ -8,7 +8,7 @@
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiHostActor.h"
@@ -37,7 +37,7 @@ bool ApplyStateToEditorActor(AActor* Actor, const FVirtualSensorEditableState& S
     if (State.TargetKind == EVirtualSensorTargetKind::Camera)
     {
         AVirtualCameraSensorActor* CameraActor = Cast<AVirtualCameraSensorActor>(Actor);
-        UVirtualCameraCaptureComponent* Camera = CameraActor ? CameraActor->CaptureComp : nullptr;
+        UVirtualCameraCaptureComp* Camera = CameraActor ? CameraActor->CaptureComp : nullptr;
         if (!Camera) return false;
         Camera->Modify();
         Camera->ApplyDeviceProfile(State.CameraProfile);

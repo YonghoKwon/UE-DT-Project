@@ -22,7 +22,7 @@
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
-#include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
+#include "Device/Sensor/VirtualLidarGpuDepthProjectionComp.h"
 #include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
 
@@ -120,7 +120,7 @@ private:
     {IFileManager::Get().MakeDirectory(*Directory(),true);TArray64<uint8> Png;FImageUtils::PNGCompressImageArray(512,512,TArrayView64<const FColor>(Pixels.GetData(),Pixels.Num()),Png);FFileHelper::SaveArrayToFile(Png,*(Directory()/FString::Printf(TEXT("%s-phase%d.png"),Backend?TEXT("gpu"):TEXT("cpu"),Phase)));}
     bool Finish()
     {Report->SetBoolField(TEXT("passed"),!Test->HasAnyErrors());Report->SetStringField(TEXT("scope"),TEXT("D3D12 deterministic BaseColor SceneCapture pixels + actual CPU/GPU LiDAR snapshots; existing semantic capture enabled; fixed envelope identity for binary PCD; no production FinalColor/manual claim"));FString Text;FJsonSerializer::Serialize(Report.ToSharedRef(),TJsonWriterFactory<>::Create(&Text));IFileManager::Get().MakeDirectory(*Directory(),true);FFileHelper::SaveStringToFile(Text,*(Directory()/TEXT("result.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);Cleanup();return true;}
-    void Cleanup(){if(!World)return;if(Sensor){Sensor->ScanComp->StopScan();Sensor->GpuDepthProjectionComponent->CancelAcquisition();Sensor->GpuDepthProjectionComponent->UnregisterComponent();}if(Capture){Capture->DestroyComponent();Capture=nullptr;}for(AActor* A:{static_cast<AActor*>(Sensor),static_cast<AActor*>(Slab),Floor,CaptureOwner,static_cast<AActor*>(Light)})if(IsValid(A))A->Destroy();Sensor=nullptr;Slab=nullptr;World=nullptr;}
+    void Cleanup(){if(!World)return;if(Sensor){Sensor->ScanComp->StopScan();Sensor->GpuDepthProjectionComp->CancelAcquisition();Sensor->GpuDepthProjectionComp->UnregisterComponent();}if(Capture){Capture->DestroyComponent();Capture=nullptr;}for(AActor* A:{static_cast<AActor*>(Sensor),static_cast<AActor*>(Slab),Floor,CaptureOwner,static_cast<AActor*>(Light)})if(IsValid(A))A->Destroy();Sensor=nullptr;Slab=nullptr;World=nullptr;}
 };
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabSurfaceRhiTest,"MA0T10.UXR08.DefaultCameraIntensityPcdAndLinkedResponseRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabSurfaceRhiTest::RunTest(const FString&)

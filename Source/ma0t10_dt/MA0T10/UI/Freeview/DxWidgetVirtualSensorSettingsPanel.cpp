@@ -31,7 +31,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
@@ -1151,12 +1151,12 @@ bool UDxWidgetVirtualSensorSettingsPanel::ApplyStateToRuntime(const FVirtualSens
 bool UDxWidgetVirtualSensorSettingsPanel::ValidateState(const FVirtualSensorEditableState& State, FString& OutError) const
 {
     if (!GetWorld()) { OutError = TEXT("World를 사용할 수 없습니다"); return false; }
-    const UVirtualCameraCaptureComponent* SelectedCamera = State.TargetKind == EVirtualSensorTargetKind::Camera && SensorManager ? SensorManager->GetSelectedCamera() : nullptr;
+    const UVirtualCameraCaptureComp* SelectedCamera = State.TargetKind == EVirtualSensorTargetKind::Camera && SensorManager ? SensorManager->GetSelectedCamera() : nullptr;
     const UVirtualLidarScanComp* SelectedLidar = State.TargetKind == EVirtualSensorTargetKind::Lidar && SensorManager ? SensorManager->GetSelectedLidar() : nullptr;
     TArray<FString> OtherSensorIds;
     for (TActorIterator<AVirtualCameraSensorActor> It(GetWorld()); It; ++It)
     {
-        const UVirtualCameraCaptureComponent* Comp = It->CaptureComp;
+        const UVirtualCameraCaptureComp* Comp = It->CaptureComp;
         if (Comp && Comp != SelectedCamera) OtherSensorIds.Add(Comp->SensorId);
     }
     for (TActorIterator<AVirtualLidarSensorActor> It(GetWorld()); It; ++It)
@@ -1448,7 +1448,7 @@ FString UDxWidgetVirtualSensorSettingsPanel::BuildDeviceSpecText() const
     if (!SensorManager) return TEXT("장비 사양을 불러올 수 없습니다");
     if (PendingState.TargetKind == EVirtualSensorTargetKind::Camera)
     {
-        const UVirtualCameraCaptureComponent* Camera = SensorManager->GetSelectedCamera();
+        const UVirtualCameraCaptureComp* Camera = SensorManager->GetSelectedCamera();
         if (!Camera) return TEXT("D455를 사용할 수 없습니다");
         const FVirtualSensorDeviceSpec& Spec = Camera->GetDeviceSpec();
         return FString::Printf(TEXT("%s %s | Depth FOV %.0fx%.0f | 권장 %.2f-%.1fm | %dx%d @ %.0fHz\n주의: SceneCapture 미리보기는 보정된 Depth Stream이 아닙니다."), *Spec.Manufacturer, *Spec.Model, Spec.HorizontalFovDegrees, Spec.VerticalFovDegrees, Spec.MinRangeCm / 100.0f, Spec.MaxRangeCm / 100.0f, Spec.Width, Spec.Height, Spec.FrameRateHz);

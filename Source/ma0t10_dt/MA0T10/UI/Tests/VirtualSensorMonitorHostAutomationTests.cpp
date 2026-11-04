@@ -4,7 +4,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/LidarCsvReplaySourceComp.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiHostActor.h"
@@ -37,7 +37,7 @@ bool FVirtualSensorMonitorHostFallbackTest::RunTest(const FString& Parameters)
 
 bool FVirtualSensorMonitorCameraStatusTextTest::RunTest(const FString& Parameters)
 {
-    UVirtualCameraCaptureComponent* CameraComp = NewObject<UVirtualCameraCaptureComponent>();
+    UVirtualCameraCaptureComp* CameraComp = NewObject<UVirtualCameraCaptureComp>();
     UDxWidgetVirtualSensorMonitorPanel* MonitorWidget = NewObject<UDxWidgetVirtualSensorMonitorPanel>();
     TestNotNull(TEXT("camera component"), CameraComp);
     TestNotNull(TEXT("monitor widget"), MonitorWidget);

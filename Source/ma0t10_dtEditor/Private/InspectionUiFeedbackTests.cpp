@@ -14,7 +14,7 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/VirtualImuComp.h"
 #include "Device/Sensor/VirtualSensorRecorderComp.h"
 #include "Device/Core/VirtualSensorFileSaveSubsystem.h"

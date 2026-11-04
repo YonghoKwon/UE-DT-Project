@@ -10,7 +10,7 @@
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualSensorEditableTypes.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Core/DxWebSocketSubsystem.h"
 #include "SensorOwnedRayTracing.h"
 #include "SensorNativeSafetyStatus.h"

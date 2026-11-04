@@ -9,7 +9,7 @@
 #include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Misc/Paths.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunComparison.h"
 #include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"

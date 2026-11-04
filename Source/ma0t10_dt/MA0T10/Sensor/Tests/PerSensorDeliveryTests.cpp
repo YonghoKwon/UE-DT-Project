@@ -6,7 +6,7 @@
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Json.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabPerSensorDeliveryTest,"MA0T10.SlabReliability.PerSensorLedger",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

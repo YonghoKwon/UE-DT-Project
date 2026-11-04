@@ -6,6 +6,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNaming01Compatibility,"MA0T10.Naming01.Redirec
 bool FNaming01Compatibility::RunTest(const FString&)
 {
     const TPair<const TCHAR*,const TCHAR*> Classes[]={
+        {TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComponent"),TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComp")},
+        {TEXT("/Script/DeviceRuntime.VirtualLidarGpuDepthProjectionComponent"),TEXT("/Script/DeviceRuntime.VirtualLidarGpuDepthProjectionComp")},
         {TEXT("/Script/DeviceRuntime.VirtualCameraGroundTruth"),TEXT("/Script/DeviceRuntime.VirtualCameraGroundTruthComp")},
         {TEXT("/Script/DeviceRuntime.VirtualSensorStreamPublisherComponent"),TEXT("/Script/DeviceRuntime.VirtualSensorStreamPublisherComp")},
         {TEXT("/Script/DeviceRuntime.CameraJsonLiveSourceComponent"),TEXT("/Script/DeviceRuntime.CameraJsonLiveSourceComp")},
@@ -61,6 +63,8 @@ bool FNaming01Compatibility::RunTest(const FString&)
         TestEqual(TEXT("class target is terminal"),FCoreRedirects::GetRedirectedName(ECoreRedirectFlags::Type_Class,FCoreRedirectObjectName(Pair.Value)).ToString(),FString(Pair.Value));
     }
     const TPair<const TCHAR*,const TCHAR*> Properties[]={
+        {TEXT("/Script/DeviceRuntime.CameraJsonLiveSourceComp.TargetCamera"),TEXT("/Script/DeviceRuntime.CameraJsonLiveSourceComp.TargetCameraComp")},
+        {TEXT("/Script/DeviceRuntime.VirtualLidarSensorActor.GpuDepthProjectionComponent"),TEXT("/Script/DeviceRuntime.VirtualLidarSensorActor.GpuDepthProjectionComp")},
         {TEXT("/Script/ma0t10_dt.VirtualDatasetSubsystem.Truth"),TEXT("/Script/ma0t10_dt.VirtualDatasetSubsystem.TruthComp")},
         {TEXT("/Script/ma0t10_dt.ShipHatchPart.Optical"),TEXT("/Script/ma0t10_dt.ShipHatchPart.OpticalComp")},
         {TEXT("/Script/ma0t10_dt.ShipHatchVessel.Optical"),TEXT("/Script/ma0t10_dt.ShipHatchVessel.OpticalComp")},
@@ -69,7 +73,7 @@ bool FNaming01Compatibility::RunTest(const FString&)
         {TEXT("/Script/ma0t10_dt.DxWidgetShipHatchMonitor.SiteModel"),TEXT("/Script/ma0t10_dt.DxWidgetShipHatchMonitor.SiteModelComp")},
         {TEXT("/Script/ma0t10_dt.SlabScenarioReplayUiHostActor.PanelHost"),TEXT("/Script/ma0t10_dt.SlabScenarioReplayUiHostActor.PanelHostComp")},
         {TEXT("/Script/ma0t10_dt.SlabSimulationUiHostActor.PanelHost"),TEXT("/Script/ma0t10_dt.SlabSimulationUiHostActor.PanelHostComp")},
-        {TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComponent.GroundTruth"),TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComponent.GroundTruthComp")},
+        {TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComponent.GroundTruth"),TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComp.GroundTruthComp")},
         {TEXT("/Script/DeviceRuntime.RealSensorSourceComp.TargetLidar"),TEXT("/Script/DeviceRuntime.RealSensorSourceComp.TargetLidarComp")},
         {TEXT("/Script/DeviceRuntime.VirtualImuComp.Recorder"),TEXT("/Script/DeviceRuntime.VirtualImuComp.RecorderComp")},
         {TEXT("/Script/DeviceRuntime.VirtualImuComp.Publisher"),TEXT("/Script/DeviceRuntime.VirtualImuComp.PublisherComp")},
@@ -89,8 +93,8 @@ bool FNaming01Compatibility::RunTest(const FString&)
         {TEXT("/Script/ma0t10_dt.VirtualSensorMonitorPanelWidget.RealSensorSourceComponent"),TEXT("/Script/ma0t10_dt.DxWidgetVirtualSensorMonitorPanel.RealSensorSourceComp")},
         {TEXT("/Script/ma0t10_dt.VirtualSensorPanelWidgetBase.PanelHostComponent"),TEXT("/Script/ma0t10_dt.DxWidgetVirtualSensorPanelBase.PanelHostComp")},
         {TEXT("/Script/ma0t10_dt.VirtualSensorUiHostActor.PanelHostComponent"),TEXT("/Script/ma0t10_dt.VirtualSensorUiHostActor.PanelHostComp")},
-        {TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComponent.TransportComponent"),TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComponent.TransportComp")},
-        {TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComponent.RecorderComponent"),TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComponent.RecorderComp")},
+        {TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComponent.TransportComponent"),TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComp.TransportComp")},
+        {TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComponent.RecorderComponent"),TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComp.RecorderComp")},
         {TEXT("/Script/DeviceRuntime.VirtualSensorStreamPublisherComponent.TransportComponent"),TEXT("/Script/DeviceRuntime.VirtualSensorStreamPublisherComp.TransportComp")},
         {TEXT("/Script/DeviceRuntime.VirtualLidarAnalysisComponent.ScanComponent"),TEXT("/Script/DeviceRuntime.VirtualLidarAnalysisComp.ScanComp")},
         {TEXT("/Script/DeviceRuntime.VirtualLidarExportComponent.ScanComponent"),TEXT("/Script/DeviceRuntime.VirtualLidarExportComp.ScanComp")},

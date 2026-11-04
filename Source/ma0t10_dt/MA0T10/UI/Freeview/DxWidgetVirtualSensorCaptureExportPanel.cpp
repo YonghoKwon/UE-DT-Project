@@ -29,7 +29,7 @@
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualSensorExternalSourceHostActor.h"
@@ -360,7 +360,7 @@ void UDxWidgetVirtualSensorCaptureExportPanel::UseSelectedSensorCaptureInterval(
 	{
 		if (const UVirtualLidarScanComp* Lidar = SensorManager ? SensorManager->GetSelectedLidar() : nullptr) Interval = Lidar->ScanInterval;
 	}
-	else if (const UVirtualCameraCaptureComponent* Camera = SensorManager ? SensorManager->GetSelectedCamera() : nullptr)
+	else if (const UVirtualCameraCaptureComp* Camera = SensorManager ? SensorManager->GetSelectedCamera() : nullptr)
 	{
 		Interval = Camera->CaptureInterval;
 	}
@@ -391,7 +391,7 @@ void UDxWidgetVirtualSensorCaptureExportPanel::ApplyCaptureSelectionToMonitor()
 		{
 			if (const UVirtualLidarScanComp* Lidar = SensorManager->GetSelectedLidar()) CaptureSelection.IntervalSeconds = FMath::Clamp(Lidar->ScanInterval, 0.05f, 3600.0f);
 		}
-		else if (const UVirtualCameraCaptureComponent* Camera = SensorManager->GetSelectedCamera())
+		else if (const UVirtualCameraCaptureComp* Camera = SensorManager->GetSelectedCamera())
 		{
 			CaptureSelection.IntervalSeconds = FMath::Clamp(Camera->CaptureInterval, 0.05f, 3600.0f);
 		}
@@ -534,7 +534,7 @@ bool UDxWidgetVirtualSensorCaptureExportPanel::SendSelectedPayloadToServer()
             SensorType=TEXT("lidar");FrameId=Completed.FrameId;PayloadSensorId=Completed.SensorId;
 		}
 	}
-	else if (const UVirtualCameraCaptureComponent* Camera = SensorManager ? SensorManager->GetSelectedCamera() : nullptr)
+	else if (const UVirtualCameraCaptureComp* Camera = SensorManager ? SensorManager->GetSelectedCamera() : nullptr)
 	{
         Payload = Camera->GetLastJsonPayload(); SensorType = TEXT("camera"); FrameId = Camera->GetLastJsonPayloadFrameId();PayloadSensorId=Camera->GetLastJsonPayloadSensorId();
 	}
@@ -784,7 +784,7 @@ FString UDxWidgetVirtualSensorCaptureExportPanel::GetSelectedSensorIdForStream(E
 	if (!SensorManager) return FString();
 	if (StreamKind == EVirtualSensorStreamKind::CameraImage)
 	{
-		const UVirtualCameraCaptureComponent* Camera = SensorManager->GetSelectedCamera();
+		const UVirtualCameraCaptureComp* Camera = SensorManager->GetSelectedCamera();
 		return Camera ? Camera->SensorId : FString();
 	}
 	const UVirtualLidarScanComp* Lidar = SensorManager->GetSelectedLidar();
@@ -1311,7 +1311,7 @@ FString UDxWidgetVirtualSensorCaptureExportPanel::GetSelectedSensorId() const
         const UVirtualLidarScanComp* Lidar = SensorManager->GetSelectedLidar();
         return Lidar ? Lidar->SensorId : FString();
     }
-    const UVirtualCameraCaptureComponent* Camera = SensorManager->GetSelectedCamera();
+    const UVirtualCameraCaptureComp* Camera = SensorManager->GetSelectedCamera();
     return Camera ? Camera->SensorId : FString();
 }
 

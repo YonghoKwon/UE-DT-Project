@@ -17,7 +17,7 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "UnrealClient.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
+#include "Device/Sensor/VirtualLidarGpuDepthProjectionComp.h"
 #include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Core/VirtualSensorLayoutSubsystem.h"
 #include "PcdDemandAcceptanceFixture.h"
@@ -602,7 +602,7 @@ public:
         }
 		if (StreamElapsedSeconds >= WarmupSeconds && !bAcquisitionStopped && StreamElapsedSeconds < WarmupSeconds+MeasurementSeconds)
 		{
-			auto* DepthCapture = Lidar->FindComponentByClass<UVirtualLidarGpuDepthProjectionComponent>();
+			auto* DepthCapture = Lidar->FindComponentByClass<UVirtualLidarGpuDepthProjectionComp>();
 			if (!bCaptureViewStatesChecked)
 			{
 				bCaptureViewStatesChecked = true;

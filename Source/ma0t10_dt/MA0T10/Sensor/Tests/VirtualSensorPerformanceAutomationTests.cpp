@@ -1,7 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Core/VirtualSensorSchedulerSubsystem.h"
 #include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
@@ -104,7 +104,7 @@ bool FVirtualSensorPerformanceTierTest::RunTest(const FString& Parameters)
 
 bool FVirtualSensorPerformanceFullSpecContractTest::RunTest(const FString& Parameters)
 {
-    UVirtualCameraCaptureComponent* Camera = NewObject<UVirtualCameraCaptureComponent>();
+    UVirtualCameraCaptureComp* Camera = NewObject<UVirtualCameraCaptureComp>();
     UVirtualLidarScanComp* Lidar = NewObject<UVirtualLidarScanComp>();
     Camera->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
     Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);

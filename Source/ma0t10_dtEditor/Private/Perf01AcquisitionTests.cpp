@@ -16,7 +16,7 @@
 #include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "Device/Sensor/VirtualSensorRecorderComp.h"
 #include "Device/Core/VirtualSensorStreamPublisherComp.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #if __has_include("ma0t10_dt/MA0T10/Camera/VirtualCameraGroundTruth.h")
 #include "Device/Camera/VirtualCameraGroundTruthComp.h"
 #define CAM_GT_PERF_AVAILABLE 1

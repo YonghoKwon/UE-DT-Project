@@ -40,7 +40,7 @@
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/RealSensorSourceComp.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
@@ -263,7 +263,7 @@ void UDxWidgetVirtualSensorMonitorPanel::NativeTick(const FGeometry& MyGeometry,
     }
 }
 
-void UDxWidgetVirtualSensorMonitorPanel::BindVirtualCamera(UVirtualCameraCaptureComponent* InCameraComp)
+void UDxWidgetVirtualSensorMonitorPanel::BindVirtualCamera(UVirtualCameraCaptureComp* InCameraComp)
 {
     CameraComp = InCameraComp;
 	if (CameraComp) PreferredPrimaryCameraId = CameraComp->SensorId;
@@ -296,7 +296,7 @@ void UDxWidgetVirtualSensorMonitorPanel::RefreshCameraSelectionOptions()
 	{
 		for (int32 Index = 0; Index < SensorManager->GetCameraCount(); ++Index)
 		{
-			if (const UVirtualCameraCaptureComponent* Camera = SensorManager->GetCameraByIndex(Index)) NativeCameraOptions.Add(MakeShared<FString>(Camera->SensorId));
+			if (const UVirtualCameraCaptureComp* Camera = SensorManager->GetCameraByIndex(Index)) NativeCameraOptions.Add(MakeShared<FString>(Camera->SensorId));
 		}
 	}
 	if (NativePrimaryCameraCombo.IsValid()) NativePrimaryCameraCombo->RefreshOptions();
@@ -311,7 +311,7 @@ void UDxWidgetVirtualSensorMonitorPanel::ResolveDualCameraSelection()
 		const int32 PrimaryIndex = SensorManager->FindCameraIndexBySensorId(PreferredPrimaryCameraId);
 		if (PrimaryIndex != INDEX_NONE && SensorManager->GetSelectedCamera() != SensorManager->GetCameraByIndex(PrimaryIndex)) SensorManager->SelectCameraByIndex(PrimaryIndex);
 	}
-	UVirtualCameraCaptureComponent* Primary = SensorManager->GetSelectedCamera();
+	UVirtualCameraCaptureComp* Primary = SensorManager->GetSelectedCamera();
 	if (Primary) PreferredPrimaryCameraId = Primary->SensorId;
 	SecondaryCameraComp = nullptr;
 	if (!PreferredSecondaryCameraId.IsEmpty())
@@ -323,7 +323,7 @@ void UDxWidgetVirtualSensorMonitorPanel::ResolveDualCameraSelection()
 	{
 		for (int32 Index = 0; Index < SensorManager->GetCameraCount(); ++Index)
 		{
-			UVirtualCameraCaptureComponent* Candidate = SensorManager->GetCameraByIndex(Index);
+			UVirtualCameraCaptureComp* Candidate = SensorManager->GetCameraByIndex(Index);
 			if (Candidate && Candidate != Primary) { SecondaryCameraComp = Candidate; break; }
 		}
 	}
@@ -362,7 +362,7 @@ bool UDxWidgetVirtualSensorMonitorPanel::SelectPrimaryCameraBySensorId(const FSt
 bool UDxWidgetVirtualSensorMonitorPanel::SelectSecondaryCameraBySensorId(const FString& SensorId)
 {
 	if (!SensorManager) return false;
-	UVirtualCameraCaptureComponent* Candidate = SensorManager->GetCameraByIndex(SensorManager->FindCameraIndexBySensorId(SensorId));
+	UVirtualCameraCaptureComp* Candidate = SensorManager->GetCameraByIndex(SensorManager->FindCameraIndexBySensorId(SensorId));
 	if (!Candidate || Candidate == CameraComp) return false;
 	SecondaryCameraComp = Candidate;
 	PreferredSecondaryCameraId = SensorId;

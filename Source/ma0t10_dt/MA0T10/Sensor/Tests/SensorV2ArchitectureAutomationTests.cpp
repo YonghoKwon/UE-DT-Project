@@ -7,7 +7,7 @@
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Sensor/VirtualLidarAnalysisComp.h"
 #include "Device/Sensor/VirtualLidarExportComp.h"
-#include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
+#include "Device/Sensor/VirtualLidarGpuDepthProjectionComp.h"
 #include "Device/Sensor/VirtualLidarVisualizationComp.h"
 #include "Device/Sensor/VirtualSensorOutputComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
@@ -94,7 +94,7 @@ bool FSensorV2ActorCompositionTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("LiDAR V2 analysis component"), Lidar->AnalysisComp.Get());
 	TestNotNull(TEXT("LiDAR V2 visualization component"), Lidar->VisualizationComp.Get());
 	TestNotNull(TEXT("LiDAR V2 export component"), Lidar->ExportComp.Get());
-	TestNotNull(TEXT("LiDAR V2 GPU depth acquisition component"), Lidar->GpuDepthProjectionComponent.Get());
+	TestNotNull(TEXT("LiDAR V2 GPU depth acquisition component"), Lidar->GpuDepthProjectionComp.Get());
 	TestNotNull(TEXT("LiDAR V2 output component"), Lidar->OutputComp.Get());
 	TestEqual(TEXT("LiDAR V2 kind"), Lidar->GetSensorKind(), EVirtualSensorKind::Lidar);
 	const AVirtualSensorStressSceneActor* StressScene = NewObject<AVirtualSensorStressSceneActor>();

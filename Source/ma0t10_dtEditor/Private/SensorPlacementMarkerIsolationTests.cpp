@@ -20,7 +20,7 @@
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualLidarVisualizationComp.h"
-#include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
+#include "Device/Sensor/VirtualLidarGpuDepthProjectionComp.h"
 #include "Device/Core/VirtualSensorStreamPublisherComp.h"
 
 /** Disposable scene: the real workspace pick marker is placed between sensors and a wall. */

@@ -2,7 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include <limits>
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
 #include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
@@ -60,7 +60,7 @@ bool FVirtualSensorMapApplyQueueTest::RunTest(const FString& Parameters)
 
 bool FVirtualSensorRealisticProfileTest::RunTest(const FString& Parameters)
 {
-    UVirtualCameraCaptureComponent* Camera = NewObject<UVirtualCameraCaptureComponent>();
+    UVirtualCameraCaptureComp* Camera = NewObject<UVirtualCameraCaptureComp>();
     UVirtualLidarScanComp* Lidar = NewObject<UVirtualLidarScanComp>();
     Camera->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);
     Lidar->ApplyDeviceProfile(EVirtualLidarDeviceProfile::LivoxMid360S);

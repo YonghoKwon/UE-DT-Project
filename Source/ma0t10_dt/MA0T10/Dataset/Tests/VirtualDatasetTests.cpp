@@ -5,7 +5,7 @@
 #include "ma0t10_dt/MA0T10/Dataset/VirtualDatasetSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Engine/Engine.h"
@@ -27,7 +27,7 @@
 #include "HAL/MemoryMisc.h"
 #include "UObject/UObjectArray.h"
 #include "Engine/StaticMesh.h"
-#include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
+#include "Device/Sensor/VirtualLidarGpuDepthProjectionComp.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDatasetRandomTest,"MA0T10.Dataset.SeedRangesAndAdmission",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FDatasetRandomTest::RunTest(const FString&)
@@ -159,7 +159,7 @@ private:
             O->SetNumberField(TEXT("engine_frame_mean_ms"),Sum/FrameMs.Num());O->SetNumberField(TEXT("engine_frame_p95_ms"),Sorted[FMath::Min(Sorted.Num()-1,FMath::FloorToInt((Sorted.Num()-1)*.95))]);O->SetNumberField(TEXT("engine_frame_max_ms"),Sorted.Last());O->SetNumberField(TEXT("game_thread_mean_ms"),Game/GameMs.Num());
         }
         auto Wall=WallMs;Wall.Sort();if(!Wall.IsEmpty()){O->SetNumberField(TEXT("callback_wall_p95_ms"),Wall[FMath::FloorToInt((Wall.Num()-1)*.95)]);O->SetNumberField(TEXT("callback_wall_max_ms"),Wall.Last());}
-        O->SetNumberField(TEXT("truth_readback_allocations"),Service->GetReadbackAllocationsForTests());O->SetNumberField(TEXT("lidar_readback_allocations"),Lidar->GpuDepthProjectionComponent->GetResourceSnapshot().Counts.FindRef(TEXT("readback_allocations")));
+        O->SetNumberField(TEXT("truth_readback_allocations"),Service->GetReadbackAllocationsForTests());O->SetNumberField(TEXT("lidar_readback_allocations"),Lidar->GpuDepthProjectionComp->GetResourceSnapshot().Counts.FindRef(TEXT("readback_allocations")));
         O->SetNumberField(TEXT("resident_mib_before_gc"),FPlatformMemory::GetStats().UsedPhysical/1048576.);O->SetNumberField(TEXT("objects_before_gc"),GUObjectArray.GetObjectArrayNumMinusAvailable());
         FlushRenderingCommands();CollectGarbage(RF_NoFlags);CollectGarbage(RF_NoFlags);FlushRenderingCommands();
         O->SetNumberField(TEXT("resident_mib_after_gc"),FPlatformMemory::GetStats().UsedPhysical/1048576.);O->SetNumberField(TEXT("objects_after_gc"),GUObjectArray.GetObjectArrayNumMinusAvailable());

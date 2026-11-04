@@ -2,7 +2,7 @@
 #include "DxWidgetArchitectureMonitorProbe.h"
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/LidarJsonLiveSourceComp.h"
 #include "UObject/UnrealType.h"
@@ -18,12 +18,12 @@ bool FArchitectureMonitorTest::RunTest(const FString&)
     C->OnViewModeChanged.AddDynamic(Probe,&UDxWidgetArchitectureMonitorProbe::ModeChanged);
     C->BindMonitorWidget(Probe);
     TestEqual(TEXT("initial binding order unchanged"),FString::Join(Probe->Calls,TEXT(",")),FString(TEXT("Camera,Lidar,External,ShowCamera,Event")));
-    auto* Camera=NewObject<UVirtualCameraCaptureComponent>(C);
+    auto* Camera=NewObject<UVirtualCameraCaptureComp>(C);
     auto* Lidar=NewObject<UVirtualLidarScanComp>(C);
     auto* Source=NewObject<ULidarJsonLiveSourceComp>(C);
     C->RegisterCamera(Camera); C->RegisterLidar(Lidar); C->RegisterRealSensorSource(Source);
     TestTrue(TEXT("selected components reach presentation interface"),Probe->LastCamera==Camera&&Probe->LastLidar==Lidar&&Probe->LastSource==Source);
-    auto* SecondCamera=NewObject<UVirtualCameraCaptureComponent>(C); C->RegisterCamera(SecondCamera);
+    auto* SecondCamera=NewObject<UVirtualCameraCaptureComp>(C); C->RegisterCamera(SecondCamera);
     Probe->Calls.Reset(); C->SelectCameraByIndex(1);
     TestEqual(TEXT("camera selection follows through bridge"),Probe->LastCamera,SecondCamera);
     TestEqual(TEXT("selection preserves bind/view/event order"),FString::Join(Probe->Calls,TEXT(",")),FString(TEXT("Camera,Lidar,External,ShowCamera,Event")));

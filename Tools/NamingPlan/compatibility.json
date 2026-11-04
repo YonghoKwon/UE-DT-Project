@@ -45,7 +45,9 @@
     "UVirtualSensorPlacementPanelWidget": "UDxWidgetVirtualSensorPlacementPanel",
     "UVirtualSensorSettingsPanelWidget": "UDxWidgetVirtualSensorSettingsPanel",
     "UArchitectureMonitorProbe": "UDxWidgetArchitectureMonitorProbe",
-    "UDTCoreMainAcceptanceWidget": "UDxWidgetDTCoreMainAcceptance"
+    "UDTCoreMainAcceptanceWidget": "UDxWidgetDTCoreMainAcceptance",
+    "UVirtualCameraCaptureComponent": "UVirtualCameraCaptureComp",
+    "UVirtualLidarGpuDepthProjectionComponent": "UVirtualLidarGpuDepthProjectionComp"
   },
   "members": {
     "SharedTransportComponent": "SharedTransportComp",
@@ -63,7 +65,8 @@
     "AnalysisComponent": "AnalysisComp",
     "ExportComponent": "ExportComp",
     "OutputComponent": "OutputComp",
-    "CaptureComponent": "CaptureComp"
+    "CaptureComponent": "CaptureComp",
+    "GpuDepthProjectionComponent": "GpuDepthProjectionComp"
   },
   "moves": {
     "host": {
@@ -334,7 +337,11 @@
       "Source/DeviceUI/Private/DeviceSensorMonitorPanel.cpp": "Source/DeviceUI/Private/DxDeviceSensorMonitorPanel.cpp",
       "Source/DeviceUI/Private/DeviceSensorPanelBase.cpp": "Source/DeviceUI/Private/DxDeviceSensorPanelBase.cpp",
       "Source/DeviceUI/Public/DeviceUI/DeviceSensorMonitorPanel.h": "Source/DeviceUI/Public/DeviceUI/DxDeviceSensorMonitorPanel.h",
-      "Source/DeviceUI/Public/DeviceUI/DeviceSensorPanelBase.h": "Source/DeviceUI/Public/DeviceUI/DxDeviceSensorPanelBase.h"
+      "Source/DeviceUI/Public/DeviceUI/DeviceSensorPanelBase.h": "Source/DeviceUI/Public/DeviceUI/DxDeviceSensorPanelBase.h",
+      "Source/DeviceRuntime/Private/Camera/VirtualCameraCaptureComponent.cpp": "Source/DeviceRuntime/Private/Camera/VirtualCameraCaptureComp.cpp",
+      "Source/DeviceRuntime/Private/Sensor/VirtualLidarGpuDepthProjectionComponent.cpp": "Source/DeviceRuntime/Private/Sensor/VirtualLidarGpuDepthProjectionComp.cpp",
+      "Source/DeviceRuntime/Public/Device/Camera/VirtualCameraCaptureComponent.h": "Source/DeviceRuntime/Public/Device/Camera/VirtualCameraCaptureComp.h",
+      "Source/DeviceRuntime/Public/Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h": "Source/DeviceRuntime/Public/Device/Sensor/VirtualLidarGpuDepthProjectionComp.h"
     }
   },
   "scoped_members": [
@@ -463,6 +470,13 @@
       "old": "CameraBufferedJson",
       "new": "CameraBufferedJsonComp",
       "file": "Source/DeviceRuntime/Public/Device/Sensor/VirtualSensorExternalSourceHostActor.h"
+    },
+    {
+      "module": "DeviceRuntime",
+      "owner": "CameraJsonLiveSourceComp",
+      "old": "TargetCamera",
+      "new": "TargetCameraComp",
+      "file": "Source/DeviceRuntime/Public/Device/Sensor/CameraJsonLiveSourceComp.h"
     }
   ]
 }

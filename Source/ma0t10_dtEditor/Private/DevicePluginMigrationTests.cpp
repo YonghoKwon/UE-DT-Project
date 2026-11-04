@@ -21,7 +21,7 @@ bool FDeviceLegacyNativeTypeRedirects::RunTest(const FString&)
     const FEntry Entries[]={
     {TEXT("/Script/ma0t10_dt.EVirtualCameraOutputMode"),TEXT("/Script/DeviceRuntime.EVirtualCameraOutputMode"),UEnum::StaticClass()},
     {TEXT("/Script/ma0t10_dt.EVirtualCameraCaptureMode"),TEXT("/Script/DeviceRuntime.EVirtualCameraCaptureMode"),UEnum::StaticClass()},
-    {TEXT("/Script/ma0t10_dt.VirtualCameraCaptureComponent"),TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComponent"),UClass::StaticClass()},
+    {TEXT("/Script/ma0t10_dt.VirtualCameraCaptureComponent"),TEXT("/Script/DeviceRuntime.VirtualCameraCaptureComp"),UClass::StaticClass()},
     {TEXT("/Script/ma0t10_dt.VirtualCameraGroundTruth"),TEXT("/Script/DeviceRuntime.VirtualCameraGroundTruthComp"),UClass::StaticClass()},
     {TEXT("/Script/ma0t10_dt.VirtualCameraSensorActor"),TEXT("/Script/DeviceRuntime.VirtualCameraSensorActor"),UClass::StaticClass()},
     {TEXT("/Script/ma0t10_dt.VirtualSensorMotionProvider"),TEXT("/Script/DeviceRuntime.VirtualSensorMotionProvider"),UClass::StaticClass()},
@@ -91,7 +91,7 @@ bool FDeviceLegacyNativeTypeRedirects::RunTest(const FString&)
     {TEXT("/Script/ma0t10_dt.VirtualImuSample"),TEXT("/Script/DeviceRuntime.VirtualImuSample"),UScriptStruct::StaticClass()},
     {TEXT("/Script/ma0t10_dt.VirtualLidarAnalysisComponent"),TEXT("/Script/DeviceRuntime.VirtualLidarAnalysisComp"),UClass::StaticClass()},
     {TEXT("/Script/ma0t10_dt.VirtualLidarExportComponent"),TEXT("/Script/DeviceRuntime.VirtualLidarExportComp"),UClass::StaticClass()},
-    {TEXT("/Script/ma0t10_dt.VirtualLidarGpuDepthProjectionComponent"),TEXT("/Script/DeviceRuntime.VirtualLidarGpuDepthProjectionComponent"),UClass::StaticClass()},
+    {TEXT("/Script/ma0t10_dt.VirtualLidarGpuDepthProjectionComponent"),TEXT("/Script/DeviceRuntime.VirtualLidarGpuDepthProjectionComp"),UClass::StaticClass()},
     {TEXT("/Script/ma0t10_dt.VirtualLidarPayloadDescriptor"),TEXT("/Script/DeviceRuntime.VirtualLidarPayloadDescriptor"),UScriptStruct::StaticClass()},
     {TEXT("/Script/ma0t10_dt.VirtualLidarV2EncodeOptions"),TEXT("/Script/DeviceRuntime.VirtualLidarV2EncodeOptions"),UScriptStruct::StaticClass()},
     {TEXT("/Script/ma0t10_dt.EVirtualLidarCompatibilityOutputPolicy"),TEXT("/Script/DeviceRuntime.EVirtualLidarCompatibilityOutputPolicy"),UEnum::StaticClass()},

@@ -10,11 +10,11 @@ class UDxWidgetArchitectureMonitorProbe : public UDxWidgetVirtualSensorMonitorPa
     GENERATED_BODY()
 public:
     mutable TArray<FString> Calls;
-    UVirtualCameraCaptureComponent* LastCamera = nullptr;
+    UVirtualCameraCaptureComp* LastCamera = nullptr;
     UVirtualLidarScanComp* LastLidar = nullptr;
     URealSensorSourceComp* LastSource = nullptr;
     APlayerController* ViewController = nullptr;
-    virtual void BindMonitorCamera(UVirtualCameraCaptureComponent* Camera) override { Calls.Add(TEXT("Camera")); LastCamera=Camera; }
+    virtual void BindMonitorCamera(UVirtualCameraCaptureComp* Camera) override { Calls.Add(TEXT("Camera")); LastCamera=Camera; }
     virtual void BindMonitorLidar(UVirtualLidarScanComp* Lidar) override { Calls.Add(TEXT("Lidar")); LastLidar=Lidar; }
     virtual void BindMonitorExternalSource(URealSensorSourceComp* Source) override { Calls.Add(TEXT("External")); LastSource=Source; }
     virtual void ShowMonitorCamera() override { Calls.Add(TEXT("ShowCamera")); }

@@ -21,7 +21,7 @@
 #include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
-#include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
+#include "Device/Sensor/VirtualLidarGpuDepthProjectionComp.h"
 
 /** Transient render-world test. No map load/save, subscriptions, extra production captures or credentials. */
 class FSlabAnalysisRhiCommand : public IAutomationLatentCommand
@@ -184,7 +184,7 @@ private:
 	void Cleanup()
 	{
 		if(!Scene) return;
-		if(Sensor) {Sensor->ScanComp->StopScan();Sensor->GpuDepthProjectionComponent->CancelAcquisition();Sensor->GpuDepthProjectionComponent->UnregisterComponent();}
+		if(Sensor) {Sensor->ScanComp->StopScan();Sensor->GpuDepthProjectionComp->CancelAcquisition();Sensor->GpuDepthProjectionComp->UnregisterComponent();}
 		if(Capture) {Scene->RemoveComponent(Capture);Capture=nullptr;}
 		DepthBaseline.Reset();Slab=nullptr;Sensor=nullptr;Scene.Reset();
 	}

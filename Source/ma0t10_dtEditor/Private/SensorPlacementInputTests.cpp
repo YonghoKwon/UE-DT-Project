@@ -21,7 +21,7 @@
 #include "ma0t10_dt/MA0T10/Player/DxPlayerTest.h"
 #include "Device/Core/VirtualSensorPlacementSubsystem.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 
 namespace
 {

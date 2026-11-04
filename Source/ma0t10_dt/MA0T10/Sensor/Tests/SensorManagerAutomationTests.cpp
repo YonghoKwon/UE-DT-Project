@@ -5,7 +5,7 @@
 #include "GameFramework/Actor.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/LidarCsvReplaySourceComp.h"
 #include "Device/Sensor/RealSensorSourceComp.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
@@ -200,7 +200,7 @@ bool FSensorManagerSharedServicesTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    UVirtualCameraCaptureComponent* CameraComp = NewObject<UVirtualCameraCaptureComponent>(CameraOwner);
+    UVirtualCameraCaptureComp* CameraComp = NewObject<UVirtualCameraCaptureComp>(CameraOwner);
     UVirtualLidarScanComp* LidarComp = NewObject<UVirtualLidarScanComp>(LidarOwner);
     ULidarCsvReplaySourceComp* RealSourceComp = NewObject<ULidarCsvReplaySourceComp>(LidarOwner);
     TestNotNull(TEXT("camera component"), CameraComp);

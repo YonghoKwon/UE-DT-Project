@@ -38,7 +38,7 @@
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/RealSensorSourceComp.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
@@ -79,7 +79,7 @@ FString BuildServerPayloadExportDirectory(const UVirtualLidarScanComp* LidarComp
     return Directory;
 }
 
-FString BuildCameraPayloadExportDirectory(const UVirtualCameraCaptureComponent* CameraComp)
+FString BuildCameraPayloadExportDirectory(const UVirtualCameraCaptureComp* CameraComp)
 {
     const FString SensorId = CameraComp ? CameraComp->SensorId : TEXT("CAMERA");
     const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, SensorId, VirtualSensorDefaults::ServerPayloadSubdirectory);

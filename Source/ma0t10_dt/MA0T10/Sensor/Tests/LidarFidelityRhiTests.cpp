@@ -7,7 +7,7 @@
 #include "RHIGlobals.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
-#include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
+#include "Device/Sensor/VirtualLidarGpuDepthProjectionComp.h"
 #include "Device/Sensor/VirtualLidarSurfaceResponseComp.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabMotionComp.h"
 
@@ -63,7 +63,7 @@ public:
     }
 private:
     void Request(){Scan->StartScan();Scan->RequestImmediateScheduledScan();Scan->PrepareScheduledScan(0.0);}
-    bool Finish(){if(Scan)Scan->StopScan();if(Motion)Motion->StopPlayback();if(Sensor)Sensor->GpuDepthProjectionComponent->UnregisterComponent();Scene.Reset();return true;}
+    bool Finish(){if(Scan)Scan->StopScan();if(Motion)Motion->StopPlayback();if(Sensor)Sensor->GpuDepthProjectionComp->UnregisterComponent();Scene.Reset();return true;}
     FAutomationTestBase* Test;TUniquePtr<FPreviewScene> Scene;AStaticMeshActor* Wall=nullptr;AVirtualLidarSensorActor* Sensor=nullptr;
     UVirtualLidarScanComp* Scan=nullptr;USlabMotionComp* Motion=nullptr;UVirtualLidarSurfaceResponseComp* Response=nullptr;
     double Started=0,Bright=0;int64 LastFrame=-1;int32 Phase=0;

@@ -11,7 +11,7 @@ class APlayerController;
 class AVirtualSensorActorBase;
 class UPrimitiveComponent;
 class URealSensorSourceComp;
-class UVirtualCameraCaptureComponent;
+class UVirtualCameraCaptureComp;
 class UVirtualLidarScanComp;
 class UDxWidgetVirtualSensorMonitorPanel;
 class UVirtualSensorTransportComp;
@@ -43,7 +43,7 @@ public:
     UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorCoordinator") bool SelectSensorActor(AVirtualSensorActorBase* SensorActor);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
-    void RegisterCamera(UVirtualCameraCaptureComponent* CameraComp);
+    void RegisterCamera(UVirtualCameraCaptureComp* CameraComp);
 
     UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorManager")
     void RegisterLidar(UVirtualLidarScanComp* LidarComp);
@@ -115,13 +115,13 @@ public:
     void AdjustSelectedLidarPreviewBudget(int32 StrideDelta, int32 MaxPointsDelta);
 
     UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
-    UVirtualCameraCaptureComponent* GetSelectedCamera() const;
+    UVirtualCameraCaptureComp* GetSelectedCamera() const;
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
 	int32 GetCameraCount() const { return Super::GetCameraCount(); }
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
-	UVirtualCameraCaptureComponent* GetCameraByIndex(int32 Index) const;
+	UVirtualCameraCaptureComp* GetCameraByIndex(int32 Index) const;
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorManager")
 	int32 FindCameraIndexBySensorId(const FString& SensorId) const;

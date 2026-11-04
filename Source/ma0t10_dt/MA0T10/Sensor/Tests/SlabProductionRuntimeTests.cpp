@@ -16,7 +16,7 @@
 #include "Editor/EditorPerformanceSettings.h"
 #include "Components/StaticMeshComponent.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualLidarVisualizationComp.h"
@@ -39,7 +39,7 @@ public:
     {
         for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)return false;
         if(Started<0)Started=FPlatformTime::Seconds();
-        if(FPlatformTime::Seconds()-Started<2||UVirtualCameraCaptureComponent::GetGlobalPendingWorkCountForDiagnostics()>0)
+        if(FPlatformTime::Seconds()-Started<2||UVirtualCameraCaptureComp::GetGlobalPendingWorkCountForDiagnostics()>0)
         {if(FPlatformTime::Seconds()-Started>10){Test->AddError(TEXT("Camera encode jobs did not return after PIE shutdown"));return true;}return false;}
         // Post-performance diagnostic only: never force GC between scenario runs.
         CollectGarbage(RF_NoFlags);
