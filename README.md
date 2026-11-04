@@ -1,8 +1,8 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-기준: **`feat/uxr-16` (통합 기준 `5dd9327`, UI `b6f2dc8`) / DTCore `b2504d1`, 2026-10-16**. 작업·빌드·검수·Editor 실행은 **`C:\Unreal Projects\ma0t10_dt`** 하나에서 한다(`m7at10_dt`는 무관한 다른 프로젝트). Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신,명시적 IMU 부착과 Slab 벌크 시나리오의 보간 이동·분석 표시·차트·재실행을 제공한다.
+기준: **DTCORE-EXT-09 r54c / `feat/dtcore-ext-09` / DTCore main `1604ee72a52362c7e39d969ca1c3e631cfdaa3c3` / DTDevice `67ec9d1`, 2026-11-04**. 기본 작업 폴더는 `C:\Unreal Projects\ma0t10_dt`이며, 명시적으로 승인된 worktree의 범위는 AGENTS와 작업 지시서를 따른다. 이번 검증은 `C:\Unreal Projects\wt_dtcore09`에서 수행했다. Unreal Engine 5.3 C++ 프로젝트로 Camera·LiDAR 측정/미리보기/송신과 Slab 등 과제별 시뮬레이션을 제공한다.
 
-**아직 독립 센서 플러그인이 아니며, 이번 버전에서는 플러그인 제작을 시작하지 않는다.** 현재 개발은 기능 추가보다 **프로젝트 안의 아키텍처 뼈대 재정비(ARCH 단계)**가 우선이다. 동작·wire 계약·Blueprint API를 바꾸지 않고 레이어 경계·폴더 책임·검증 진입점을 정리한다. 상세 순서는 [로드맵 A단계](docs/ROADMAP.md#a단계--아키텍처-뼈대-재정비-현재-진행)와 [개선 목록 ARCH 항목](docs/IMPROVEMENTS.md#0-arch--아키텍처-뼈대-재정비-현재-최우선)을 따른다.
+공통 센서·카메라·전송·native RT·공통 UI body는 필수 submodule **DTDevice**의 DeviceRuntime/DeviceNative/DeviceUI에 있고, DTCore에 의존한다. 과제별 UI·업무와 호환 façade는 프로젝트에 남는다. 새 작업의 권한·보호 범위는 [AGENTS](AGENTS.md)를 따르며, 문서의 로드맵을 구현 승인으로 해석하지 않는다.
 
 ## 관리 문서
 
@@ -17,6 +17,9 @@
 그 밖의 `docs/` 문서는 경로를 보존한 **고정 참고자료**다(맨 아래 목록). 오래된 UI/성능 설명보다 현재 코드와 이 README를 우선한다. 과거 기록을 현재 보장으로 읽지 않는다.
 
 ## 1. 현재 상태 한눈에 보기
+
+DTCORE-EXT-09(r54c): DTCore main 1604ee7 기준으로 전용 센서 재연결 설정(기본 1/10/2), 패널 내부 내비게이션, 공유 연결의 저빈도 JSON opt-in을 적용했다. 기존 PCD 기본·전용 binary 경로·탭 uint8 저장값은 유지한다. release 500 Success/45 Skip/0 Fail, 고유 541개(기존 531+신규 10), DTCore 신규 4개와 TestHost 26경로 실패 0을 확인했다. 성능 재확인은 GT +0.17%로 2% 이내이며 최초 +2.68% 실패도 보존한다. hatch 1시간은 OS-backed runtime Commit의 같은 10~60분 구간에서 r50 +15.77 → 현재 +5.99 MiB/h, fallback 0·약 20Hz를 관측한 **진단 결과**다. 보조 외부 OS 수집 누락을 명시하고, 3시간×3장면 메모리 gate는 데이터 I/F 통합 후로 연기한다. [계획·범위](docs/DTCORE_EXT_09_PLAN.md), [검증 이력](docs/VALIDATION_HISTORY.md), [로컬 결과](Saved/Reports/DTCORE-EXT-09/r54/RESULT.md).
+
 
 ### ANALYSIS-24 — 게임 실행의 Slab 의미 분류
 
@@ -276,7 +279,7 @@ UXR-17 미리보기 카드는 새 Camera의 첫 영상까지 **영상 준비 중
 
 - Engine: **UE 5.3** / Editor target: `ma0t10_dtEditor Win64 Development`.
 - 프로젝트 모듈: `ma0t10_dt`, `ma0t10_dtEditor`, WebSockets 조기 정책용 `ma0t10_dtBootstrap`. 공통 장치는 DTDevice의 `DeviceRuntime`·`DeviceNative`·`DeviceUI`가 제공한다.
-- **DTCore와 DTDevice는 모두 필수 submodule**이다. `Plugins/DTCore`는 검증된 `bc60f05`, `Plugins/DTDevice`는 `Scripts/device_plugin_pin.txt`의 정확한 SHA(현재 `5e9b870`)로 고정한다. `--remote`로 임의 최신 버전으로 바꾸지 않는다. DTCore 변경은 [사전 승인 절차](AGENTS.md#2-보호승인-규칙)를 따른다.
+- **DTCore와 DTDevice는 모두 필수 submodule**이다. `Plugins/DTCore`는 DTCORE-EXT-09 r54c에서 승인된 `1604ee72a52362c7e39d969ca1c3e631cfdaa3c3`(`main`), `Plugins/DTDevice`는 `Scripts/device_plugin_pin.txt`의 정확한 SHA로 고정한다. `--remote`로 임의 최신 버전으로 바꾸지 않는다. DTCore 변경은 [사전 승인 절차](AGENTS.md#2-보호승인-규칙)를 따른다. 이번 브랜치 pin 사용은 2026-11-04 사용자 승인 범위이며 DTCore 소스 변경 승인은 아니다. DTCore 기능 브랜치는 main에 머지됐으며, 호스트 PR·머지는 별도 검수를 따른다.
 - 기존 worktree의 DTCore·Game.ini·운영맵·PixelStreaming 변경은 보존한다.
 
 새 clone은 두 플러그인을 함께 받는다:

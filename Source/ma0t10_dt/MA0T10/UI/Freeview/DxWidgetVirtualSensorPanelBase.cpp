@@ -1,4 +1,6 @@
 #include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPanelBase.h"
+#include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
+#include "Device/Sensor/VirtualSensorActorBase.h"
 
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Components/CanvasPanelSlot.h"
@@ -39,7 +41,33 @@ public:
 	float PixelScale() const override { return Workspace.IsValid() ? Workspace->GetOwnedPixelScale() : 1.f; }
 	bool NavigateBack() override { return Panel.IsValid() && Panel->NavigatePanelBack(); }
 	FText BackLabel() const override { return Panel.IsValid() ? Panel->GetPanelBackLabel() : FText::GetEmpty(); }
+	bool NavigateToSensor(FName SensorId) const override
+	{
+		auto* Owner = Workspace.Get();
+		auto* Coordinator = Owner ? Owner->GetCoordinator() : nullptr;
+		if (!Coordinator || !Panel.IsValid())
+			return false;
+		for (auto* Sensor : Coordinator->GetSensorActors())
+			if (IsValid(Sensor) && FName(*Sensor->GetSensorId()) == SensorId)
+			{
+				const bool bSelected = Coordinator->SelectSensorActor(Sensor);
+				if (bSelected)
+					Owner->SynchronizeOwnedSelection();
+				return bSelected;
+			}
+		return false;
+	}
 };
+}
+
+bool UDxWidgetVirtualSensorPanelBase::HandleNavigateTo_Implementation(FName SubTarget)
+{
+	if ((SubTarget == TEXT("Placement") && ToolRole == ESensorToolPanelRole::Placement) ||
+	    (SubTarget == TEXT("Preview") && ToolRole == ESensorToolPanelRole::Monitor) ||
+	    (SubTarget == TEXT("Scenario") && ToolRole == ESensorToolPanelRole::SlabProgress) ||
+	    (SubTarget == TEXT("ScenarioCharts") && ToolRole == ESensorToolPanelRole::SlabCharts))
+		return true;
+	return Super::HandleNavigateTo_Implementation(SubTarget);
 }
 
 bool UDxWidgetVirtualSensorPanelBase::SupportsOwnedDocking() const

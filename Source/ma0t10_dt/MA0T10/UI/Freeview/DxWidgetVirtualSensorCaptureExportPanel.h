@@ -55,7 +55,7 @@ public:
 	bool OpenOwnedDatasetSettings();
 	int32 GetOwnedDatasetEnabledCount() const;
 	void OpenOwnedTab(ESensorOwnedDataTab Tab);
-	void ClearOwnedTabHistory() { OwnedTabHistory.Reset(); }
+	void ClearOwnedTabHistory() { ClearNavigationHistory(); }
 	virtual FText GetPanelBackLabel() const override;
 	virtual bool CanNavigatePanelBack() const override;
 	virtual bool NavigatePanelBack() override;
@@ -176,6 +176,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Stream")
 	void SetActiveTab(EVirtualSensorCaptureExportTab NewTab);
+	virtual bool HandleNavigateTo_Implementation(FName SubTarget) override;
 
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Stream")
 	EVirtualSensorCaptureExportTab GetActiveTab() const { return ActiveTab; }
@@ -257,8 +258,11 @@ private:
 	FString RunResultsText, SelectedScenarioRunId, RunSelectionNotice, RunRetryReason;
 	FString OwnedRunResultsText, OwnedRunComparisonText;
 	ESensorOwnedDataTab OwnedTab = ESensorOwnedDataTab::Transfer;
-	TArray<ESensorOwnedDataTab> OwnedTabHistory;
-	bool bReturningOwnedTab = false;
+	bool bSeedingNavigation = false;
+	void EnsureNavigationInitialized();
+	void ApplyNavigationTab(EVirtualSensorCaptureExportTab NewTab);
+	void ApplyOwnedNavigationTab(ESensorOwnedDataTab Tab);
+	static FName OwnedNavigationTarget(ESensorOwnedDataTab Tab);
 	TSharedPtr<SCheckBox> OwnedReplayPcdControl;
 	TSharedPtr<SCheckBox> OwnedLivePcdControl;
 	void FocusOwnedOutputSettings(bool bReplay);
@@ -392,6 +396,8 @@ private:
 	FString SessionBearerToken;
 	FString DraftHttpEndpoint;
 	bool bUseStompTransport = true;
+	bool bUseDTCoreWebSocket = false;
+	TSharedRef<SWidget> BuildDTCoreTransportToggle();
 	EVirtualSensorCaptureExportTab ActiveTab = EVirtualSensorCaptureExportTab::LiveStream;
 	int32 StreamFrameStride = 1;
 	int32 StreamReceiptInterval = 10;

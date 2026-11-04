@@ -71,19 +71,42 @@ void UDxWidgetVirtualSensorCaptureExportPanel::InitializeOwnedEntryView(EVirtual
 		ActiveTab = PreviousTab;
 }
 
+FName UDxWidgetVirtualSensorCaptureExportPanel::OwnedNavigationTarget(ESensorOwnedDataTab Tab)
+{
+	switch (Tab)
+	{
+		case ESensorOwnedDataTab::Transfer:
+			return TEXT("Transfer");
+		case ESensorOwnedDataTab::Results:
+			return TEXT("Results");
+		case ESensorOwnedDataTab::FileSave:
+			return TEXT("FileSave");
+		case ESensorOwnedDataTab::ServerConnection:
+			return TEXT("ServerConnection");
+		case ESensorOwnedDataTab::Diagnostics:
+			return TEXT("Diagnostics");
+		default:
+			return NAME_None;
+	}
+}
 void UDxWidgetVirtualSensorCaptureExportPanel::OpenOwnedTab(ESensorOwnedDataTab Tab)
 {
 	if (!IsWorkspaceOwned())
 		return;
-	if (SupportsOwnedDocking() && GetToolWorkspace()->IsSidebarMode() && !bReturningOwnedTab && OwnedTab != Tab)
-	{
-		if (OwnedTabHistory.Num() == 5)
-			OwnedTabHistory.RemoveAt(0);
-		OwnedTabHistory.Add(OwnedTab);
-	}
+	EnsureNavigationInitialized();
+	const FName Target = OwnedNavigationTarget(Tab);
+	if (GetCurrentSubTarget() == Target)
+		ApplyOwnedNavigationTab(Tab);
+	else
+		NavigateTo(Target);
+}
+void UDxWidgetVirtualSensorCaptureExportPanel::ApplyOwnedNavigationTab(ESensorOwnedDataTab Tab)
+{
+	if (!IsWorkspaceOwned())
+		return;
 	// Persist only the original enum values. Results/diagnostics have no new saved policy.
-	SetActiveTab(Tab == ESensorOwnedDataTab::Transfer ? EVirtualSensorCaptureExportTab::LiveStream : Tab == ESensorOwnedDataTab::FileSave ? EVirtualSensorCaptureExportTab::Capture
-	                                                                                                                                      : EVirtualSensorCaptureExportTab::ConnectionLog);
+	ApplyNavigationTab(Tab == ESensorOwnedDataTab::Transfer ? EVirtualSensorCaptureExportTab::LiveStream : Tab == ESensorOwnedDataTab::FileSave ? EVirtualSensorCaptureExportTab::Capture
+	                                                                                                                                            : EVirtualSensorCaptureExportTab::ConnectionLog);
 	OwnedTab = Tab;
 	if (Tab == ESensorOwnedDataTab::Transfer && AreOwnedSlabToolsEnabled())
 		if (auto* W = GetToolWorkspace())
@@ -99,36 +122,15 @@ void UDxWidgetVirtualSensorCaptureExportPanel::OpenOwnedTab(ESensorOwnedDataTab 
 }
 FText UDxWidgetVirtualSensorCaptureExportPanel::GetPanelBackLabel() const
 {
-	if (!SupportsOwnedDocking() || !GetToolWorkspace()->IsSidebarMode() || OwnedTabHistory.IsEmpty())
-		return Super::GetPanelBackLabel();
-	switch (OwnedTabHistory.Last())
-	{
-		case ESensorOwnedDataTab::Transfer:
-			return SensorToolUiText::BackTransfer();
-		case ESensorOwnedDataTab::Results:
-			return SensorToolUiText::BackResults();
-		case ESensorOwnedDataTab::FileSave:
-			return SensorToolUiText::BackFile();
-		case ESensorOwnedDataTab::ServerConnection:
-			return SensorToolUiText::BackServer();
-		default:
-			return SensorToolUiText::BackDiagnostics();
-	}
+	return CanNavigateBack() ? LOCTEXT("PreviousDataView", "이전 화면") : Super::GetPanelBackLabel();
 }
 bool UDxWidgetVirtualSensorCaptureExportPanel::CanNavigatePanelBack() const
 {
-	return SupportsOwnedDocking() && GetToolWorkspace()->IsSidebarMode() && !OwnedTabHistory.IsEmpty() ? true : Super::CanNavigatePanelBack();
+	return CanNavigateBack() || Super::CanNavigatePanelBack();
 }
 bool UDxWidgetVirtualSensorCaptureExportPanel::NavigatePanelBack()
 {
-	if (SupportsOwnedDocking() && GetToolWorkspace()->IsSidebarMode() && !OwnedTabHistory.IsEmpty())
-	{
-		const auto Tab = OwnedTabHistory.Pop();
-		TGuardValue<bool> Guard(bReturningOwnedTab, true);
-		OpenOwnedTab(Tab);
-		return true;
-	}
-	return Super::NavigatePanelBack();
+	return CanNavigateBack() ? NavigateBack() : Super::NavigatePanelBack();
 }
 UDxWidgetSlabScenarioReplayPanel* UDxWidgetVirtualSensorCaptureExportPanel::ResolveOwnedReplayPanel() const
 {
@@ -690,10 +692,12 @@ TSharedRef<SWidget> UDxWidgetVirtualSensorCaptureExportPanel::BuildOwnedResultsT
 TSharedRef<SWidget> UDxWidgetVirtualSensorCaptureExportPanel::BuildOwnedConnectionTab()
 {
 	auto Server = SNew(SVerticalBox);
+	Server->AddSlot().AutoHeight().Padding(0, 4)[BuildDTCoreTransportToggle()];
 	Server->AddSlot().AutoHeight().Padding(0, 8)[SNewSensorTool(SButton).Text_Lambda([this]()
-	                                                                                 { return bUseStompTransport ? SensorToolUiText::RealtimeConnection() : LOCTEXT("Http", "방식: HTTP POST"); })
+	                                                                                 { return bUseDTCoreWebSocket ? LOCTEXT("SharedTransportMode", "방식: 공유 연결 (PCD는 센서 연결)") : bUseStompTransport ? SensorToolUiText::RealtimeConnection()
+		                                                                                                                                                                                                     : LOCTEXT("Http", "방식: HTTP POST"); })
 	                                                 .OnClicked_Lambda([this]()
-	                                                                   {bUseStompTransport=!bUseStompTransport;return FReply::Handled(); })];
+	                                                                   {bUseDTCoreWebSocket=false;bUseStompTransport=!bUseStompTransport;return FReply::Handled(); })];
 	auto Field = [this, Server](FText Label, FString* Value, bool Secret, bool StompOnly, bool HttpOnly)
 	{
 		Server->AddSlot().AutoHeight().Padding(0, 4)[SNew(SVerticalBox).Visibility_Lambda([this, StompOnly, HttpOnly]()

@@ -459,6 +459,7 @@ void UDxWidgetVirtualSensorCaptureExportPanel::BindSensorManager(AVirtualSensorC
 		{
 			const UVirtualSensorTransportComp* Transport = SensorManager->SharedTransportComp;
 			bUseStompTransport = Transport->TransportMode != EVirtualSensorTransportMode::HttpPost;
+			bUseDTCoreWebSocket = Transport->TransportMode == EVirtualSensorTransportMode::DTCoreWebSocket;
 			if (SessionPasscode.IsEmpty())
 				SessionPasscode = Transport->GetSessionPasscodeForHighThroughput();
 		}
@@ -694,7 +695,8 @@ bool UDxWidgetVirtualSensorCaptureExportPanel::ApplyTransportProfile()
 	Profile.HttpEndpoint = DraftHttpEndpoint.TrimStartAndEnd();
 	Transport->ConfigureTransportProfile(Profile);
 	Transport->SetSessionCredentials(SessionPasscode, SessionBearerToken);
-	Transport->TransportMode = bUseStompTransport ? EVirtualSensorTransportMode::StompWebSocket : EVirtualSensorTransportMode::HttpPost;
+	Transport->TransportMode = bUseDTCoreWebSocket ? EVirtualSensorTransportMode::DTCoreWebSocket : bUseStompTransport ? EVirtualSensorTransportMode::StompWebSocket
+	                                                                                                                   : EVirtualSensorTransportMode::HttpPost;
 	if (TopicReceiverHost)
 	{
 		TopicReceiverHost->ConfigureReceiverTopics(Profile.LidarTopic, Profile.CameraTopic, Profile.ExportTopic);
@@ -960,9 +962,11 @@ TSharedRef<SWidget> UDxWidgetVirtualSensorCaptureExportPanel::RebuildWidget()
 		InitializeOwnedEntryView(PreviousTab);
 		OwnedFileAction = ActiveTab == EVirtualSensorCaptureExportTab::Export ? 1 : 0;
 		BindFileService();
+		EnsureNavigationInitialized();
 		return BuildOwnedWidget();
 	}
 
+	EnsureNavigationInitialized();
 	return SNew(SBorder)
 	    .BorderImage(GetToolPanelBrush())
 	    .BorderBackgroundColor(GetToolPanelColor())
@@ -1014,7 +1018,62 @@ TSharedRef<SWidget> UDxWidgetVirtualSensorCaptureExportPanel::RebuildWidget()
 	                                 SVerticalBox::Slot().AutoHeight()[SAssignSensorTool(NativeStorageText, STextBlock).AutoWrapText(true).Text(FText::FromString(GetStorageSummaryText()))]]]];
 }
 
+namespace
+{
+FName CaptureNavigationTarget(EVirtualSensorCaptureExportTab Tab)
+{
+	switch (Tab)
+	{
+		case EVirtualSensorCaptureExportTab::LiveStream:
+			return TEXT("LiveStream");
+		case EVirtualSensorCaptureExportTab::Capture:
+			return TEXT("Capture");
+		case EVirtualSensorCaptureExportTab::Export:
+			return TEXT("Export");
+		case EVirtualSensorCaptureExportTab::ConnectionLog:
+			return TEXT("ConnectionLog");
+		default:
+			return NAME_None;
+	}
+}
+}
+void UDxWidgetVirtualSensorCaptureExportPanel::EnsureNavigationInitialized()
+{
+	if (!GetCurrentSubTarget().IsNone())
+		return;
+	TGuardValue<bool> Guard(bSeedingNavigation, true);
+	NavigateTo(IsWorkspaceOwned() ? OwnedNavigationTarget(OwnedTab) : CaptureNavigationTarget(ActiveTab), false);
+}
 void UDxWidgetVirtualSensorCaptureExportPanel::SetActiveTab(EVirtualSensorCaptureExportTab NewTab)
+{
+	EnsureNavigationInitialized();
+	const FName Target = CaptureNavigationTarget(NewTab);
+	if (GetCurrentSubTarget() == Target)
+		ApplyNavigationTab(NewTab);
+	else
+		NavigateTo(Target);
+}
+bool UDxWidgetVirtualSensorCaptureExportPanel::HandleNavigateTo_Implementation(FName SubTarget)
+{
+	for (auto Tab : {EVirtualSensorCaptureExportTab::LiveStream, EVirtualSensorCaptureExportTab::Capture, EVirtualSensorCaptureExportTab::Export, EVirtualSensorCaptureExportTab::ConnectionLog})
+		if (SubTarget == CaptureNavigationTarget(Tab))
+		{
+			if (!bSeedingNavigation)
+				ApplyNavigationTab(Tab);
+			return true;
+		}
+	if (IsWorkspaceOwned())
+		for (auto Tab : {ESensorOwnedDataTab::Transfer, ESensorOwnedDataTab::Results, ESensorOwnedDataTab::FileSave, ESensorOwnedDataTab::ServerConnection, ESensorOwnedDataTab::Diagnostics})
+			if (SubTarget == OwnedNavigationTarget(Tab))
+			{
+				if (!bSeedingNavigation)
+					ApplyOwnedNavigationTab(Tab);
+				return true;
+			}
+	return Super::HandleNavigateTo_Implementation(SubTarget);
+}
+
+void UDxWidgetVirtualSensorCaptureExportPanel::ApplyNavigationTab(EVirtualSensorCaptureExportTab NewTab)
 {
 	ActiveTab = NewTab;
 	if (IsWorkspaceOwned())
@@ -1291,6 +1350,8 @@ FString UDxWidgetVirtualSensorCaptureExportPanel::BuildTransportLogText() const
 	if (!Publisher)
 		return TEXT("전송 로그 없음");
 	FString Text = TEXT("최근 전송 이벤트 (최대 200개, 화면에는 최근 40개 표시)\n");
+	if (SensorManager && SensorManager->SharedTransportComp && SensorManager->SharedTransportComp->TransportMode == EVirtualSensorTransportMode::DTCoreWebSocket)
+		Text += FString::Printf(TEXT("공유 연결 전송 거절: %d · PCD는 별도 센서 연결\n"), SensorManager->SharedTransportComp->GetDTCorePublishDroppedCount());
 	const TArray<FVirtualSensorTransportLogEntry> Entries = Publisher->GetRecentLogEntries();
 	for (int32 Index = 0; Index < FMath::Min(40, Entries.Num()); ++Index)
 	{
@@ -1542,17 +1603,28 @@ TSharedRef<SWidget> UDxWidgetVirtualSensorCaptureExportPanel::BuildExportTab(TSh
 	                                                                                                                                                                                                                                                                                                                                                                                                                              { SendLastExportToServer(); return FReply::Handled(); })]]];
 }
 
+TSharedRef<SWidget> UDxWidgetVirtualSensorCaptureExportPanel::BuildDTCoreTransportToggle()
+{
+	return SNew(SCheckBox)
+	    .ToolTipText(LOCTEXT("SharedTransportHint", "공유 연결의 서버 설정을 사용합니다. PCD는 기존 센서 연결을 유지합니다."))
+	    .IsChecked_Lambda([this]()
+	                      { return bUseDTCoreWebSocket ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+	    .OnCheckStateChanged_Lambda([this](ECheckBoxState State)
+	                                { bUseDTCoreWebSocket = State == ECheckBoxState::Checked; if (bUseDTCoreWebSocket) bUseStompTransport = true; })
+	        [SNewSensorTool(STextBlock).Text(LOCTEXT("SharedLowRateTransport", "공유 연결로 상태·수동 1회·결과 보내기"))];
+}
+
 TSharedRef<SWidget> UDxWidgetVirtualSensorCaptureExportPanel::BuildConnectionLogTab()
 {
 	return SNew(SScrollBox) + SScrollBox::Slot()
-	                              [SNew(SVerticalBox) + SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("ConnectionTitle", "Artemis STOMP / HTTP 연결 및 상세 로그"))] + SVerticalBox::Slot().AutoHeight()[SAssignNew(RunResultsArea, SExpandableArea).InitiallyCollapsed(!bRunResultsExpanded).OnAreaExpansionChanged_Lambda([this](bool Open)
-	                                                                                                                                                                                                                                                                                                                                                                                          {bRunResultsExpanded=Open;RefreshNativeText(); })
-	                                                                                                                                                                                                                                                                           .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("RunResults", "실행별 전송 결과 · 최근 20개"))]
-	                                                                                                                                                                                                                                                                           .BodyContent()[BuildRunResultsContent()]] +
+	                              [SNew(SVerticalBox) + SVerticalBox::Slot().AutoHeight()[BuildDTCoreTransportToggle()] + SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("ConnectionTitle", "Artemis STOMP / HTTP 연결 및 상세 로그"))] + SVerticalBox::Slot().AutoHeight()[SAssignNew(RunResultsArea, SExpandableArea).InitiallyCollapsed(!bRunResultsExpanded).OnAreaExpansionChanged_Lambda([this](bool Open)
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                            {bRunResultsExpanded=Open;RefreshNativeText(); })
+	                                                                                                                                                                                                                                                                                                                                             .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("RunResults", "실행별 전송 결과 · 최근 20개"))]
+	                                                                                                                                                                                                                                                                                                                                             .BodyContent()[BuildRunResultsContent()]] +
 	                               SVerticalBox::Slot().AutoHeight().Padding(0, 4)[SNew(SHorizontalBox) + SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text_Lambda([this]()
 	                                                                                                                                                                                                                { return FText::FromString(bUseStompTransport ? TEXT("방식: Artemis STOMP") : TEXT("방식: HTTP POST")); })
 	                                                                                                                                             .OnClicked_Lambda([this]()
-	                                                                                                                                                               { bUseStompTransport = !bUseStompTransport; return FReply::Handled(); })] +
+	                                                                                                                                                               { bUseDTCoreWebSocket = false; bUseStompTransport = !bUseStompTransport; return FReply::Handled(); })] +
 	                                                                               SHorizontalBox::Slot().AutoWidth().Padding(4, 0)[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text(LOCTEXT("ApplyConnectionV2", "설정 적용")).OnClicked_Lambda([this]()
 	                                                                                                                                                                                                                                                            { ApplyTransportProfile(); return FReply::Handled(); })] +
 	                                                                               SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).Text(LOCTEXT("TestConnectionV2", "연결 시험")).OnClicked_Lambda([this]()

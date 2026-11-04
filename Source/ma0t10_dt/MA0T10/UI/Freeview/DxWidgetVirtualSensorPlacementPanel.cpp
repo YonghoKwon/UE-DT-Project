@@ -510,7 +510,14 @@ TSharedRef<SWidget> UDxWidgetVirtualSensorPlacementPanel::BuildSelectedSection()
 		                                                                                                               {if(!Selected()||!Interaction()||!FMath::IsFinite(V))return;auto Pose=Selected()->GetActorTransform();if(Axis<3){auto L=Pose.GetLocation();L[Axis]=V;Pose.SetLocation(L);}else{auto R=Pose.Rotator();if(Axis==3)R.Pitch=V;else if(Axis==4)R.Yaw=V;else R.Roll=V;Pose.SetRotation(R.Quaternion());}if(Interaction()->ApplyPose(Pose,Status))Status=TEXT("위치 적용 완료 · 미리보기를 확인하세요."); })]];
 	Box->AddSlot().AutoHeight().Padding(0, 8)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("Numeric", "입력 방식·숫자 입력"))].BodyContent()[Numeric]];
 	Box->AddSlot().AutoHeight()[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton()).Text(LOCTEXT("Details", "장비 상세 설정 →")).OnClicked_Lambda([this]()
-	                                                                                                                                                                             {if(GetToolWorkspace())GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Settings,true);return FReply::Handled(); })];
+	                                                                                                                                                                             {
+    if (auto* Workspace = GetToolWorkspace())
+    {
+        Workspace->SetPanelOpen(ESensorToolPanelRole::Settings, true);
+        if (auto* Panel = Workspace->GetOwnedPanel(ESensorToolPanelRole::Settings))
+            Panel->NavigateTo(TEXT("EquipmentDetails"));
+    }
+    return FReply::Handled(); })];
 	return SNew(SBorder).BorderImage(GetToolSectionBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(12)[Box];
 }
 TSharedRef<SWidget> UDxWidgetVirtualSensorPlacementPanel::BuildPoseSection()
