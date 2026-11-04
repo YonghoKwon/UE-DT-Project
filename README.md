@@ -1,6 +1,6 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-기준: **DATA-IF-10 r55 구현 검증 중 / `feat/data-if-10` / DTCore `feat/dtcore-data-channel` `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71`, 2026-11-04**. 승인된 작업 위치는 `C:\Unreal Projects\wt_dataif`이며, 기존 동작·기본값과 별도 DTCore 저장소의 소스 불변을 유지한다. 완료 gate와 한계는 이번 단계 결과에 기록한다.
+기준: **DATA-IF-10 r55/r55c/r55d / `feat/data-if-10` / DTCore `feat/dtcore-data-channel` `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71` / DTDevice `8f6a8cd`, 2026-11-05**. 승인된 작업 위치는 `C:\Unreal Projects\wt_dataif`다. 통합·release·성능 검증은 통과했으나 해치 메모리 gate는 FAIL이며, 머지 가능한 상태로 표시하지 않는다. DTCore 소스는 변경하지 않았다.
 
 공통 센서·카메라·전송·native RT·공통 UI body는 필수 submodule **DTDevice**의 DeviceRuntime/DeviceNative/DeviceUI에 있고, DTCore에 의존한다. 과제별 UI·업무와 호환 façade는 프로젝트에 남는다. 새 작업의 권한·보호 범위는 [AGENTS](AGENTS.md)를 따르며, 문서의 로드맵을 구현 승인으로 해석하지 않는다.
 
@@ -18,7 +18,9 @@
 
 ## 1. 현재 상태 한눈에 보기
 
-DTCORE-EXT-09(r54c): DTCore main 1604ee7 기준으로 전용 센서 재연결 설정(기본 1/10/2), 패널 내부 내비게이션, 공유 연결의 저빈도 JSON opt-in을 적용했다. 기존 PCD 기본·전용 binary 경로·탭 uint8 저장값은 유지한다. release 500 Success/45 Skip/0 Fail, 고유 541개(기존 531+신규 10), DTCore 신규 4개와 TestHost 26경로 실패 0을 확인했다. 성능 재확인은 GT +0.17%로 2% 이내이며 최초 +2.68% 실패도 보존한다. hatch 1시간은 OS-backed runtime Commit의 같은 10~60분 구간에서 r50 +15.77 → 현재 +5.99 MiB/h, fallback 0·약 20Hz를 관측한 **진단 결과**다. 보조 외부 OS 수집 누락을 명시하고, 3시간×3장면 메모리 gate는 데이터 I/F 통합 후로 연기한다. [계획·범위](docs/DTCORE_EXT_09_PLAN.md), [검증 이력](docs/VALIDATION_HISTORY.md), [로컬 결과](Saved/Reports/DTCORE-EXT-09/r54/RESULT.md).
+DATA-IF-10은 기존 전송을 같은 동작의 DTCore 채널 구현으로 옮겼다. `sensor-bulk`는 기존 Raw TCP worker에 위임하고 `sensor`는 STOMP 파생 채널, 9단계 공유 JSON은 `Default`를 사용한다. 기본 PCD/wire/상한·FIFO·설정 하위 호환은 유지한다. release **529 Success/46 Skip/0 Fail·고유571·이전541 누락0**, DTCore29/29, TestHost37경로 실패0, 맵10개 경고0, RT ABAB GT+0.10%로2% 이내다. 메모리는 원료 하역3h **+0.81**, Slab2h **+2.06 PASS**지만 해치2h **+10.53**, 승인된3h 재측정 **+9.78MiB/h FAIL**이다(모두 warm-up30분 제외 OS Commit OLS≤8, fallback0·약20Hz). 원시 FAIL과 old gate를 보존한다. 실제 채널을 쓰는 로컬4-broker/VIP 합성 PCD 검수와 운영 적용안은 [Artemis 설정안](docs/ARTEMIS_PCD_SETTINGS.md), 상세 증거는 [r55 결과](Saved/Reports/DATA-IF-10/r55/RESULT.md)를 따른다. DTCore 브랜치 main 머지와 독립 검수가 host 머지의 선행 조건이다.
+
+이전 단계 DTCORE-EXT-09(r54c)는 DTCore main 1604ee7에서 전용 센서 재연결 설정(기본1/10/2), 패널 내비게이션, 공유 저빈도 JSON opt-in을 적용했다. 당시 release500 Success/45 Skip/0 Fail·고유541, 성능 재확인 GT+0.17%(최초+2.68% 실패 보존), 해치1h 진단+5.99MiB/h였다. 당시 연기했던 장시간 검증은 위 DATA-IF-10 결과로 별도 보고한다. [당시 범위](docs/DTCORE_EXT_09_PLAN.md), [검증 이력](docs/VALIDATION_HISTORY.md).
 
 
 ### ANALYSIS-24 — 게임 실행의 Slab 의미 분류
