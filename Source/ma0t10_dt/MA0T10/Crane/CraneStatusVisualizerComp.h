@@ -6,8 +6,7 @@
 #include "ActorComponent/StatusVisualizerCompBase.h"
 #include "CraneStatusVisualizerComp.generated.h"
 
-
-UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class MA0T10_DT_API UCraneStatusVisualizerComp : public UStatusVisualizerCompBase
 {
 	GENERATED_BODY()
@@ -29,9 +28,9 @@ public:
 public:
 	UFUNCTION()
 	void OnColorChanged(const FLinearColor& NewColor);
+
 private:
 protected:
-
 	// Variable
 public:
 private:

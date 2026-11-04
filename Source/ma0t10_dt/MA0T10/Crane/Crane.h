@@ -34,11 +34,11 @@ public:
 public:
 private:
 protected:
-
 	// Variable
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Crane")
 	FString CraneId;
+
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UPoseableMeshComponent> MainMesh;

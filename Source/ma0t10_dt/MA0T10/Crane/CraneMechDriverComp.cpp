@@ -6,7 +6,6 @@
 #include "ma0t10_dt/MA0T10/Crane/CraneDataSyncComp.h"
 #include "ma0t10_dt/ma0t10_dt.h"
 
-
 // Sets default values for this component's properties
 UCraneMechDriverComp::UCraneMechDriverComp()
 {
@@ -16,7 +15,6 @@ UCraneMechDriverComp::UCraneMechDriverComp()
 	PrimaryComponentTick.bStartWithTickEnabled = true;
 	// ...
 }
-
 
 // Called when the game starts
 void UCraneMechDriverComp::BeginPlay()
@@ -34,8 +32,10 @@ void UCraneMechDriverComp::BeginPlay()
 
 		if (TargetMesh)
 		{
-			auto CacheTransform = [&](FName Name) {
-				if (Name != NAME_None) {
+			auto CacheTransform = [&](FName Name)
+			{
+				if (Name != NAME_None)
+				{
 					// 위치 저장
 					FVector Pos = TargetMesh->GetBoneLocationByName(Name, EBoneSpaces::ComponentSpace);
 					InitialComponentLocations.Add(Name, Pos);
@@ -75,7 +75,6 @@ void UCraneMechDriverComp::BeginPlay()
 		}
 	}
 }
-
 
 // Called every frame
 void UCraneMechDriverComp::TickComponent(float DeltaTime, ELevelTick TickType,
@@ -152,21 +151,24 @@ void UCraneMechDriverComp::UpdateTrolleyMovement(float DeltaTime)
 
 void UCraneMechDriverComp::UpdateBoneMovement(float DeltaTime)
 {
-	if (!TargetMesh) return;
+	if (!TargetMesh)
+		return;
 
 	// 1. 값 보간
 	CurrentPosition.AnchorPosition = FMath::FInterpTo(CurrentPosition.AnchorPosition, TargetPosition.AnchorPosition, DeltaTime, InterpSpeed);
 	CurrentPosition.HookRopeHeight = FMath::FInterpTo(CurrentPosition.HookRopeHeight, TargetPosition.HookRopeHeight, DeltaTime, InterpSpeed);
 	CurrentPosition.ControlRopeHeight = FMath::FInterpTo(CurrentPosition.ControlRopeHeight, TargetPosition.ControlRopeHeight, DeltaTime, InterpSpeed);
 
-	if (bEnableSway) SwayTime += DeltaTime * SwaySpeed;
+	if (bEnableSway)
+		SwayTime += DeltaTime * SwaySpeed;
 
 	// -------------------------------------------------------------------------
 	// [함수 1] 줄(Rope)은 오직 '위치(길이)'만 변경합니다. (회전 X)
 	// -------------------------------------------------------------------------
 	auto ApplyRopeMovement = [&](FName BoneName, FVector MoveAxis, float Value)
 	{
-		if (BoneName == NAME_None || !InitialComponentLocations.Contains(BoneName)) return;
+		if (BoneName == NAME_None || !InitialComponentLocations.Contains(BoneName))
+			return;
 
 		// 초기 위치 + 길이 연장
 		FVector StartPos = InitialComponentLocations[BoneName];
@@ -181,7 +183,8 @@ void UCraneMechDriverComp::UpdateBoneMovement(float DeltaTime)
 	// -------------------------------------------------------------------------
 	auto ApplySwayRotation = [&](FName BoneName)
 	{
-		if (BoneName == NAME_None || !InitialComponentRotations.Contains(BoneName)) return;
+		if (BoneName == NAME_None || !InitialComponentRotations.Contains(BoneName))
+			return;
 
 		FQuat FinalRot;
 

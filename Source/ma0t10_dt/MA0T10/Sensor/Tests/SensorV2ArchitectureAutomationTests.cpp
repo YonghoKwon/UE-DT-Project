@@ -17,62 +17,62 @@
 #include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorControlTypes.h"
 #include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorAcquisitionUtcTest,"MA0T10.SensorV2.Frame.AcquisitionUtc",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorAcquisitionUtcTest, "MA0T10.SensorV2.Frame.AcquisitionUtc", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FSensorAcquisitionUtcTest::RunTest(const FString&)
 {
 	FVirtualLidarFrameSnapshot Frame;
-	const FDateTime Expected(2026,10,3,0,0,1,123);
-	Frame.AcquisitionStartUnixNanoseconds=(Expected-FDateTime(1970,1,1)).GetTicks()*100;
-	TestEqual(TEXT("snapshot UTC uses acquisition start, not later processing time"),Frame.GetAcquisitionStartUtc(),Expected);
-	Frame.AcquisitionStartUnixNanoseconds=0;
-	TestEqual(TEXT("missing acquisition is explicitly unset"),Frame.GetAcquisitionStartUtc().GetTicks(),int64(0));
+	const FDateTime Expected(2026, 10, 3, 0, 0, 1, 123);
+	Frame.AcquisitionStartUnixNanoseconds = (Expected - FDateTime(1970, 1, 1)).GetTicks() * 100;
+	TestEqual(TEXT("snapshot UTC uses acquisition start, not later processing time"), Frame.GetAcquisitionStartUtc(), Expected);
+	Frame.AcquisitionStartUnixNanoseconds = 0;
+	TestEqual(TEXT("missing acquisition is explicitly unset"), Frame.GetAcquisitionStartUtc().GetTicks(), int64(0));
 	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FSensorV2ActorCompositionTest,
-	"MA0T10.SensorV2.Architecture.ActorComposition",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+    FSensorV2ActorCompositionTest,
+    "MA0T10.SensorV2.Architecture.ActorComposition",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FSensorV2OutputDeduplicationTest,
-	"MA0T10.SensorV2.Architecture.OutputDeduplication",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+    FSensorV2OutputDeduplicationTest,
+    "MA0T10.SensorV2.Architecture.OutputDeduplication",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FSensorV2EditableStateValidationTest,
-	"MA0T10.SensorV2.Architecture.EditableStateValidation",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+    FSensorV2EditableStateValidationTest,
+    "MA0T10.SensorV2.Architecture.EditableStateValidation",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FSensorV2SelectionIndependenceTest,
-	"MA0T10.SensorV2.Architecture.SelectionIndependentFromMonitorView",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+    FSensorV2SelectionIndependenceTest,
+    "MA0T10.SensorV2.Architecture.SelectionIndependentFromMonitorView",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FSensorV2KindSpecificSelectionTest,
-	"MA0T10.SensorV2.UI.SelectionCyclesWithinSensorKind",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+    FSensorV2KindSpecificSelectionTest,
+    "MA0T10.SensorV2.UI.SelectionCyclesWithinSensorKind",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FSensorV2InteractionBudgetTest,
-	"MA0T10.SensorV2.Architecture.InteractionBudgetRestoresFullSpec",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+    FSensorV2InteractionBudgetTest,
+    "MA0T10.SensorV2.Architecture.InteractionBudgetRestoresFullSpec",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FSensorV2ExternalSourceHostTest,
-	"MA0T10.SensorV2.Architecture.ExternalSourceHostDefaultsStopped",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+    FSensorV2ExternalSourceHostTest,
+    "MA0T10.SensorV2.Architecture.ExternalSourceHostDefaultsStopped",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FSensorV2ManipulationMonitorFollowTest,
-	"MA0T10.SensorV2.UI.ManipulationMonitorFollow",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+    FSensorV2ManipulationMonitorFollowTest,
+    "MA0T10.SensorV2.UI.ManipulationMonitorFollow",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FSensorV2ManipulationLifecycleTest,
-	"MA0T10.SensorV2.UI.ManipulationLifecycle",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+    FSensorV2ManipulationLifecycleTest,
+    "MA0T10.SensorV2.UI.ManipulationLifecycle",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FSensorV2ActorCompositionTest::RunTest(const FString& Parameters)
 {
@@ -80,11 +80,11 @@ bool FSensorV2ActorCompositionTest::RunTest(const FString& Parameters)
 	AVirtualLidarSensorActor* Lidar = NewObject<AVirtualLidarSensorActor>();
 
 	TestTrue(TEXT("Virtual sensor base derives from DTCore interactable actor"),
-		AVirtualSensorActorBase::StaticClass()->IsChildOf(AInteractableActor::StaticClass()));
+	         AVirtualSensorActorBase::StaticClass()->IsChildOf(AInteractableActor::StaticClass()));
 	TestTrue(TEXT("Camera derives through the virtual sensor base"),
-		AVirtualCameraSensorActor::StaticClass()->IsChildOf(AVirtualSensorActorBase::StaticClass()));
+	         AVirtualCameraSensorActor::StaticClass()->IsChildOf(AVirtualSensorActorBase::StaticClass()));
 	TestTrue(TEXT("LiDAR derives through the virtual sensor base"),
-		AVirtualLidarSensorActor::StaticClass()->IsChildOf(AVirtualSensorActorBase::StaticClass()));
+	         AVirtualLidarSensorActor::StaticClass()->IsChildOf(AVirtualSensorActorBase::StaticClass()));
 
 	TestNotNull(TEXT("Camera V2 capture component"), Camera->CaptureComp.Get());
 	TestNotNull(TEXT("Camera V2 output component"), Camera->OutputComp.Get());
@@ -190,7 +190,7 @@ bool FSensorV2KindSpecificSelectionTest::RunTest(const FString& Parameters)
 	CameraB->CaptureComp->SensorId = TEXT("CAM-B");
 	LidarA->ScanComp->SensorId = TEXT("LIDAR-A");
 	LidarB->ScanComp->SensorId = TEXT("LIDAR-B");
-	for (AVirtualSensorActorBase* Sensor : { static_cast<AVirtualSensorActorBase*>(CameraA), static_cast<AVirtualSensorActorBase*>(CameraB), static_cast<AVirtualSensorActorBase*>(LidarA), static_cast<AVirtualSensorActorBase*>(LidarB) })
+	for (AVirtualSensorActorBase* Sensor : {static_cast<AVirtualSensorActorBase*>(CameraA), static_cast<AVirtualSensorActorBase*>(CameraB), static_cast<AVirtualSensorActorBase*>(LidarA), static_cast<AVirtualSensorActorBase*>(LidarB)})
 	{
 		Coordinator->RegisterSensorActor(Sensor);
 	}
@@ -271,11 +271,11 @@ bool FSensorV2ManipulationLifecycleTest::RunTest(const FString& Parameters)
 	const float OriginalInterval = Camera->CaptureComp->CaptureInterval;
 	Settings->SetSensorManipulationEnabled(true);
 	TestTrue(TEXT("camera enters interaction"), Camera->IsInteractiveManipulationActive());
-	Settings->PendingState.ActorTransform.SetLocation(FVector(10,20,30));
+	Settings->PendingState.ActorTransform.SetLocation(FVector(10, 20, 30));
 	TestTrue(TEXT("camera numeric transform applies without acquisition reset"), Settings->ApplyPendingTransform());
 	TestEqual(TEXT("numeric commit keeps lightweight camera resolution"), Camera->CaptureComp->CaptureResolution.X, 640);
 	TestEqual(TEXT("numeric commit keeps lightweight camera interval"), Camera->CaptureComp->CaptureInterval, 0.2f);
-	TestTrue(TEXT("camera transform changed through actor API"), Camera->GetActorLocation().Equals(FVector(10,20,30)));
+	TestTrue(TEXT("camera transform changed through actor API"), Camera->GetActorLocation().Equals(FVector(10, 20, 30)));
 	Coordinator->SelectNextCamera(); // Selection can change before the widget's next tick.
 	Settings->SetSensorManipulationEnabled(false);
 	TestFalse(TEXT("widget exit state is synchronized"), Settings->bManipulationEnabled);
@@ -289,11 +289,11 @@ bool FSensorV2ManipulationLifecycleTest::RunTest(const FString& Parameters)
 	Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
 	Lidar->ScanComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
 	Settings->SetSensorManipulationEnabled(true);
-	Settings->PendingState.ActorTransform.SetLocation(FVector(20,30,40));
+	Settings->PendingState.ActorTransform.SetLocation(FVector(20, 30, 40));
 	TestTrue(TEXT("LiDAR numeric transform applies without restoring full scan"), Settings->ApplyPendingTransform());
 	TestEqual(TEXT("numeric commit keeps lightweight LiDAR samples"), Lidar->ScanComp->HorizontalSamples, 120);
 	TestEqual(TEXT("numeric commit keeps lightweight LiDAR interval"), Lidar->ScanComp->ScanInterval, 0.25f);
-	TestTrue(TEXT("LiDAR transform changed through actor API"), Lidar->GetActorLocation().Equals(FVector(20,30,40)));
+	TestTrue(TEXT("LiDAR transform changed through actor API"), Lidar->GetActorLocation().Equals(FVector(20, 30, 40)));
 	Settings->SelectTargetKind(EVirtualSensorTargetKind::Camera);
 	TestFalse(TEXT("kind selection ends original LiDAR interaction"), Lidar->IsInteractiveManipulationActive());
 	TestFalse(TEXT("kind selection does not implicitly manipulate new camera"), OtherCamera->IsInteractiveManipulationActive());
