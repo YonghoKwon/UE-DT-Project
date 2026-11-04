@@ -692,10 +692,12 @@ TSharedRef<SWidget> UDxWidgetVirtualSensorCaptureExportPanel::BuildOwnedResultsT
 TSharedRef<SWidget> UDxWidgetVirtualSensorCaptureExportPanel::BuildOwnedConnectionTab()
 {
 	auto Server = SNew(SVerticalBox);
+	Server->AddSlot().AutoHeight().Padding(0, 4)[BuildDTCoreTransportToggle()];
 	Server->AddSlot().AutoHeight().Padding(0, 8)[SNewSensorTool(SButton).Text_Lambda([this]()
-	                                                                                 { return bUseStompTransport ? SensorToolUiText::RealtimeConnection() : LOCTEXT("Http", "방식: HTTP POST"); })
+	                                                                                 { return bUseDTCoreWebSocket ? LOCTEXT("SharedTransportMode", "방식: 공유 연결 (PCD는 센서 연결)") : bUseStompTransport ? SensorToolUiText::RealtimeConnection()
+		                                                                                                                                                                                                     : LOCTEXT("Http", "방식: HTTP POST"); })
 	                                                 .OnClicked_Lambda([this]()
-	                                                                   {bUseStompTransport=!bUseStompTransport;return FReply::Handled(); })];
+	                                                                   {bUseDTCoreWebSocket=false;bUseStompTransport=!bUseStompTransport;return FReply::Handled(); })];
 	auto Field = [this, Server](FText Label, FString* Value, bool Secret, bool StompOnly, bool HttpOnly)
 	{
 		Server->AddSlot().AutoHeight().Padding(0, 4)[SNew(SVerticalBox).Visibility_Lambda([this, StompOnly, HttpOnly]()

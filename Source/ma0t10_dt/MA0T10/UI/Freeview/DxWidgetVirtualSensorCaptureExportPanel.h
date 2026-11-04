@@ -396,6 +396,8 @@ private:
 	FString SessionBearerToken;
 	FString DraftHttpEndpoint;
 	bool bUseStompTransport = true;
+	bool bUseDTCoreWebSocket = false;
+	TSharedRef<SWidget> BuildDTCoreTransportToggle();
 	EVirtualSensorCaptureExportTab ActiveTab = EVirtualSensorCaptureExportTab::LiveStream;
 	int32 StreamFrameStride = 1;
 	int32 StreamReceiptInterval = 10;
