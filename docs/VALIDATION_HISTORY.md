@@ -7,6 +7,24 @@
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
 
+## 2026-11-05 — DATA-IF-10 r55b (프로젝트 토픽 정책·loose 배포)
+
+검증 코드 기준 host `79ff131d`, DTDevice `e68282d`, DTCore `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71`이다. DTCore 소스·pin은 이번 보완에서 바꾸지 않았다. 연결은 DTCore, destination 별칭·구독 정책은 프로젝트 Game 설정으로 분리했다. 빈 새 설정은 기존 INI/맵/UI profile을 유지한다. 기본 자동 재수신은 꺼져 있고 PCD SEND·wire·FIFO·예산·native 코드는 그대로다.
+
+| 검증 | 결과 |
+|---|---|
+| host Editor / Development / TestHost Editor 빌드 | PASS |
+| 관련 자동화 | 17 실제 Success / 1 환경 의존 Skip, 신규 6개 포함 |
+| release | **535 Success / 46 Skip / 0 Fail**, 고유 577, r55의 571개 누락 0 |
+| Development 패키지·설정 | common → Windows override → 같은 UserDir에서 common 수정 후 재시작, **3/3 PASS** (NullRHI 설정 검증) |
+| quick / layer / 두 submodule guard | PASS, allowlist 0 |
+| 성능·메모리 | 사용자 r55b 지시에 따라 재실행 생략; 송신 알고리즘·native diff 없음 |
+| 설정 복원 | 개인 설정 원본 집합·해시, 보호 파일 183개 일치 |
+
+pak 설정이 현장 loose 파일을 가려 DTDevice 시작 시 두 물리 파일의 허용 속성만 읽도록 보완했다. 전역 config 캐시는 복사·수정·저장하지 않는다. 초기 임시 캐시 복사 방식의 패키지 crash, URL 따옴표 누락, 단위 fixture Outer 오류 등 초기 실패는 증거와 함께 보존했다. 기본 이름·로그/wire 계약·테스트 기준은 바꾸지 않았다. 환경 관측 52회에서 decode·외부 Unreal/build 중첩 0, 추가 1회는 카운터 수집 불가로 기록했다.
+
+기존 r55 해치 메모리 **2h +10.53 / 3h +9.78 MiB/h FAIL**은 해결·재판정하지 않았다. 직접 화면 확인과 Linux 패키지 실행은 미수행이다. 상세: `Saved/Reports/DATA-IF-10/r55b/RESULT.md`, `result.json`, `merge-check.json`; 현장 설정은 [Artemis 가이드](ARTEMIS_PCD_SETTINGS.md).
+
 ## 2026-11-04 — DTCORE-EXT-09 r54c (main 기준 통합)
 
 사용자 승인으로 DTCore main `1604ee72a52362c7e39d969ca1c3e631cfdaa3c3`을 고정했다. DTCore·엔진 소스 수정은 없고, DTDevice `67ec9d1` main을 사용한다. 전용 재연결 설정 기본 1/10/2, 캡처/사이드바 내비게이션(기존 uint8 0~3 유지), 공유 WebSocket 저빈도 JSON opt-in을 적용했다. PCD는 기존 전용 연결과 기본 정책을 유지한다. 공유 receipt 등록은 GameInstance당 16개로 제한하고 실제 receipt/연결 변경까지 슬롯을 유지한다.

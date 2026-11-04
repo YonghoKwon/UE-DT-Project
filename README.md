@@ -1,6 +1,6 @@
 # UE-DT-Project — 가상 센서와 Slab 시뮬레이션
 
-기준: **DATA-IF-10 r55/r55c/r55d / `feat/data-if-10` / DTCore `feat/dtcore-data-channel` `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71` / DTDevice `8f6a8cd`, 2026-11-05**. 승인된 작업 위치는 `C:\Unreal Projects\wt_dataif`다. 통합·release·성능 검증은 통과했으나 해치 메모리 gate는 FAIL이며, 머지 가능한 상태로 표시하지 않는다. DTCore 소스는 변경하지 않았다.
+기준: **DATA-IF-10 r55b / `feat/data-if-10` / DTCore `feat/dtcore-data-channel` `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71` / DTDevice `e68282d`, 2026-11-05**. 승인된 작업 위치는 `C:\Unreal Projects\wt_dataif`다. r55b release·설정 배포 검증은 통과했으나 기존 r55 해치 메모리 gate는 FAIL이며, 전체 브랜치를 머지 가능한 상태로 표시하지 않는다. DTCore 소스는 변경하지 않았다.
 
 공통 센서·카메라·전송·native RT·공통 UI body는 필수 submodule **DTDevice**의 DeviceRuntime/DeviceNative/DeviceUI에 있고, DTCore에 의존한다. 과제별 UI·업무와 호환 façade는 프로젝트에 남는다. 새 작업의 권한·보호 범위는 [AGENTS](AGENTS.md)를 따르며, 문서의 로드맵을 구현 승인으로 해석하지 않는다.
 
@@ -19,6 +19,8 @@
 ## 1. 현재 상태 한눈에 보기
 
 DATA-IF-10은 기존 전송을 같은 동작의 DTCore 채널 구현으로 옮겼다. `sensor-bulk`는 기존 Raw TCP worker에 위임하고 `sensor`는 STOMP 파생 채널, 9단계 공유 JSON은 `Default`를 사용한다. 기본 PCD/wire/상한·FIFO·설정 하위 호환은 유지한다. release **529 Success/46 Skip/0 Fail·고유571·이전541 누락0**, DTCore29/29, TestHost37경로 실패0, 맵10개 경고0, RT ABAB GT+0.10%로2% 이내다. 메모리는 원료 하역3h **+0.81**, Slab2h **+2.06 PASS**지만 해치2h **+10.53**, 승인된3h 재측정 **+9.78MiB/h FAIL**이다(모두 warm-up30분 제외 OS Commit OLS≤8, fallback0·약20Hz). 원시 FAIL과 old gate를 보존한다. 실제 채널을 쓰는 로컬4-broker/VIP 합성 PCD 검수와 운영 적용안은 [Artemis 설정안](docs/ARTEMIS_PCD_SETTINGS.md), 상세 증거는 [r55 결과](Saved/Reports/DATA-IF-10/r55/RESULT.md)를 따른다. DTCore 브랜치 main 머지와 독립 검수가 host 머지의 선행 조건이다.
+
+r55b는 `UDeviceDataChannelSettings`에 채널별 destination 별칭·구독 목록을 두며, 연결 설정은 `DTCoreSettings.DataChannels`에 유지한다. `sensor`/`sensor-bulk`/`Default`의 다중 구독·재구독과 중복 경고를 지원한다. common/Windows loose 파일 및 같은 UserDir 재시작 반영을 Development 패키지에서 3/3 확인했고, release는 **535 Success/46 Skip/0 Fail·고유577·r55 누락0·신규6**이다. 설정 예시와 이전 방법은 [Artemis 가이드](docs/ARTEMIS_PCD_SETTINGS.md), 증거는 [r55b 결과](Saved/Reports/DATA-IF-10/r55b/RESULT.md)를 따른다. r55의 성능·메모리 수치를 새 SHA에서 재측정한 것으로 표시하지 않는다.
 
 이전 단계 DTCORE-EXT-09(r54c)는 DTCore main 1604ee7에서 전용 센서 재연결 설정(기본1/10/2), 패널 내비게이션, 공유 저빈도 JSON opt-in을 적용했다. 당시 release500 Success/45 Skip/0 Fail·고유541, 성능 재확인 GT+0.17%(최초+2.68% 실패 보존), 해치1h 진단+5.99MiB/h였다. 당시 연기했던 장시간 검증은 위 DATA-IF-10 결과로 별도 보고한다. [당시 범위](docs/DTCORE_EXT_09_PLAN.md), [검증 이력](docs/VALIDATION_HISTORY.md).
 
@@ -281,7 +283,7 @@ UXR-17 미리보기 카드는 새 Camera의 첫 영상까지 **영상 준비 중
 
 - Engine: **UE 5.3** / Editor target: `ma0t10_dtEditor Win64 Development`.
 - 프로젝트 모듈: `ma0t10_dt`, `ma0t10_dtEditor`, WebSockets 조기 정책용 `ma0t10_dtBootstrap`. 공통 장치는 DTDevice의 `DeviceRuntime`·`DeviceNative`·`DeviceUI`가 제공한다.
-- **DTCore와 DTDevice는 모두 필수 submodule**이다. `Plugins/DTCore`는 DTCORE-EXT-09 r54c에서 승인된 `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71`(`feat/dtcore-data-channel`), `Plugins/DTDevice`는 `Scripts/device_plugin_pin.txt`의 정확한 SHA로 고정한다. `--remote`로 임의 최신 버전으로 바꾸지 않는다. DTCore 변경은 [사전 승인 절차](AGENTS.md#2-보호승인-규칙)를 따른다. 이번 브랜치 pin 사용은 2026-11-04 사용자 승인 범위이며 DTCore 소스 변경 승인은 아니다. DATA-IF-10 채널 브랜치는 main 머지 전이며, 호스트 머지는 그 뒤 별도 검수를 따른다.
+- **DTCore와 DTDevice는 모두 필수 submodule**이다. `Plugins/DTCore`는 DATA-IF-10 r55에서 승인된 `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71`(`feat/dtcore-data-channel`), `Plugins/DTDevice`는 `Scripts/device_plugin_pin.txt`의 정확한 SHA로 고정한다. `--remote`로 임의 최신 버전으로 바꾸지 않는다. DTCore 변경은 [사전 승인 절차](AGENTS.md#2-보호승인-규칙)를 따른다. 이번 브랜치 pin 사용은 2026-11-04 사용자 승인 범위이며 DTCore 소스 변경 승인은 아니다. DATA-IF-10 채널 브랜치는 main 머지 전이며, 호스트 머지는 그 뒤 별도 검수를 따른다.
 - 기존 worktree의 DTCore·Game.ini·운영맵·PixelStreaming 변경은 보존한다.
 
 새 clone은 두 플러그인을 함께 받는다:
