@@ -276,7 +276,7 @@ UXR-17 미리보기 카드는 새 Camera의 첫 영상까지 **영상 준비 중
 
 - Engine: **UE 5.3** / Editor target: `ma0t10_dtEditor Win64 Development`.
 - 프로젝트 모듈: `ma0t10_dt`, `ma0t10_dtEditor`, WebSockets 조기 정책용 `ma0t10_dtBootstrap`. 공통 장치는 DTDevice의 `DeviceRuntime`·`DeviceNative`·`DeviceUI`가 제공한다.
-- **DTCore와 DTDevice는 모두 필수 submodule**이다. `Plugins/DTCore`는 DTCORE-EXT-09 B안으로 승인된 `660740f11cd722eea858cb44ae0ec0bb53953fbb`(`feat/dtcore-functional-ext`), `Plugins/DTDevice`는 `Scripts/device_plugin_pin.txt`의 정확한 SHA로 고정한다. `--remote`로 임의 최신 버전으로 바꾸지 않는다. DTCore 변경은 [사전 승인 절차](AGENTS.md#2-보호승인-규칙)를 따른다. 이번 브랜치 pin 사용은 2026-11-04 사용자 승인 범위이며 DTCore 소스 변경 승인은 아니다. 호스트 머지는 DTCore 브랜치 머지 후 별도로 진행한다.
+- **DTCore와 DTDevice는 모두 필수 submodule**이다. `Plugins/DTCore`는 DTCORE-EXT-09 r54c에서 승인된 `1604ee72a52362c7e39d969ca1c3e631cfdaa3c3`(`main`), `Plugins/DTDevice`는 `Scripts/device_plugin_pin.txt`의 정확한 SHA로 고정한다. `--remote`로 임의 최신 버전으로 바꾸지 않는다. DTCore 변경은 [사전 승인 절차](AGENTS.md#2-보호승인-규칙)를 따른다. 이번 브랜치 pin 사용은 2026-11-04 사용자 승인 범위이며 DTCore 소스 변경 승인은 아니다. DTCore 기능 브랜치는 main에 머지됐으며, 호스트 PR·머지는 별도 검수를 따른다.
 - 기존 worktree의 DTCore·Game.ini·운영맵·PixelStreaming 변경은 보존한다.
 
 새 clone은 두 플러그인을 함께 받는다:
