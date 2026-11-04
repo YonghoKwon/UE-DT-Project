@@ -66,12 +66,55 @@ def evaluate(rows, end, *, complete):
                              Note="Reported only; legacy analyzer functions were not changed"))
 
 
-def analyze(directory):
+def approved_duration_end(directory, metadata, summary, points, warnings, manifest, approval):
+    """r55c explicit 2h stop of an already-running 3h diagnostic.
+
+    Preserve raw incomplete footer/exit2; only the user-selected observation
+    endpoint changes. This is never an implicit acceptance of arbitrary partials.
+    """
+    directory = Path(directory)
+    if (approval.get("ApprovalId") != "r55c-2026-11-04"
+            or approval.get("Action") != "authorized-duration-stop"
+            or approval.get("TargetSeconds") != 7200
+            or metadata.get("requested_seconds") != 10800):
+        raise ValueError("Unrecognized duration adjustment")
+    if not directory.name.startswith(("hatch180-a", "slab-native180-a")):
+        raise ValueError("Duration adjustment is not authorized for this scene")
+    if warnings or not points or summary.get("sample_count") != len(points):
+        raise ValueError("Adjusted run has incomplete/corrupt sample records")
+    if (summary.get("complete") is not False
+            or summary.get("reason") != "environment cancelled"
+            or not 7200 <= summary.get("measurement_seconds", 0) <= 7230
+            or points[-1]["seconds"] < 7200):
+        raise ValueError("Adjusted run did not reach its approved endpoint normally")
+    expected_cancellation = (manifest.get("GameExit"), manifest.get("Failure")) in (
+        (2, "Packaged game exited 2"), (2, "Game exited 2"),
+        # UE's orderly shutdown can return0 despite RequestExitWithStatus(2).
+        # The old runner then rejects only the original10800s completion footer.
+        (0, "No complete runtime memory summary"), (0, "No complete map footer"))
+    if not expected_cancellation or manifest.get("VideoDecodeDetected"):
+        raise ValueError("Adjusted run has a failure beyond the expected cancellation exit")
+    owned = json.loads((directory / "owned-process.json").read_text(encoding="utf-8-sig"))
+    if approval.get("OwnedPid") != owned.get("Pid"):
+        raise ValueError("Adjusted stop process ownership mismatch")
+    if (directory / "cancel.request").read_text(encoding="utf-8-sig").strip() != "r55c-approved-duration:7200":
+        raise ValueError("Adjusted stop lacks its explicit cancellation token")
+    if (directory / "probe-error.json").exists():
+        raise ValueError("Probe write/validation error is not a duration adjustment")
+    return 7200.0
+
+
+def analyze(directory, approved_duration_file=None):
     directory = Path(directory)
     points, context, warnings = load_curve(directory / "memory-trend.jsonl")
     metadata, summary = context["metadata"], context["summary"]
     end = number(metadata.get("requested_seconds"), "requested_seconds")
-    if (not context["complete"] or not points or summary.get("measurement_seconds", 0) < end
+    manifest = json.loads((directory / "run-manifest.json").read_text(encoding="utf-8-sig"))
+    adjustment = None
+    if approved_duration_file is not None:
+        adjustment = json.loads(Path(approved_duration_file).read_text(encoding="utf-8-sig"))
+        end = approved_duration_end(directory, metadata, summary, points, warnings, manifest, adjustment)
+    if ((not context["complete"] and adjustment is None) or not points or summary.get("measurement_seconds", 0) < end
             or points[-1]["seconds"] < end):
         raise ValueError("Incomplete runtime measurement")
     if metadata.get("commit_diagnostics") is True or metadata.get("investigation") is True:
@@ -115,8 +158,7 @@ def analyze(directory):
         reasons.append("Sensor rate outside unchanged approximately20Hz band19..21")
     if any(not p["sensors"][key].get("running", True) for p in post for key in ids):
         reasons.append("Sensor stopped during observation")
-    manifest = json.loads((directory / "run-manifest.json").read_text(encoding="utf-8-sig"))
-    if not manifest.get("Valid"):
+    if not manifest.get("Valid") and adjustment is None:
         reasons.append("Run manifest invalid")
     watch = [json.loads(line) for line in (directory / "slot-watch.jsonl").read_text(
         encoding="utf-8-sig").splitlines() if line.strip()]
@@ -146,6 +188,10 @@ def analyze(directory):
                   RuntimeMetadata=metadata, RuntimeSummary=summary, Warnings=warnings,
                   Source=str(directory.resolve()), RequestedSeconds=end,
                   Scope="r37 memory revalidation only; original#26 absolute5pair, byte oracle and ABAB unchanged")
+    if adjustment is not None:
+        result["DurationAdjustment"] = dict(adjustment, OriginalRequestedSeconds=metadata["requested_seconds"],
+            OriginalRuntimeComplete=summary["complete"], OriginalRunManifestValid=manifest.get("Valid"),
+            OriginalGameExit=manifest["GameExit"], Note="User r55c selected 30..120min; raw footer/manifest retained unchanged. All coverage, environment, native, PCD and 8MiB/h checks remain.")
     result["Status"] = "PASS" if result["Pass"] else "FAIL"
     return result
 
@@ -153,9 +199,11 @@ def analyze(directory):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
+    parser.add_argument("--approved-duration-file", type=Path,
+                        help="Explicit r55c planned-stop proof; does not accept other incomplete runs")
     args = parser.parse_args()
     try:
-        result = analyze(args.directory)
+        result = analyze(args.directory, args.approved_duration_file)
     except (OSError, ValueError, KeyError) as error:
         result = dict(Policy=POLICY, Valid=False, Pass=False, Status="INVALID", Reasons=[str(error)])
     (args.directory / "acceptance-r37.json").write_text(json.dumps(result, indent=2,
