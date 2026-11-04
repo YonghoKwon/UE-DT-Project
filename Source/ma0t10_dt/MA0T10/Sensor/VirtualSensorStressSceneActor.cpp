@@ -43,7 +43,8 @@ void AVirtualSensorStressSceneActor::OnConstruction(const FTransform& Transform)
 
 void AVirtualSensorStressSceneActor::GenerateStressScene()
 {
-	if (!StaticPrimitives || !MovingProxies) return;
+	if (!StaticPrimitives || !MovingProxies)
+		return;
 	StaticPrimitives->ClearInstances();
 	MovingProxies->ClearInstances();
 	MovingBaseTransforms.Reset();
@@ -74,9 +75,11 @@ void AVirtualSensorStressSceneActor::GenerateStressScene()
 void AVirtualSensorStressSceneActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	if (!MovingProxies || MovingBaseTransforms.IsEmpty() || !GetWorld()) return;
+	if (!MovingProxies || MovingBaseTransforms.IsEmpty() || !GetWorld())
+		return;
 	const double NowSeconds = GetWorld()->GetTimeSeconds();
-	if (NowSeconds < NextMovingUpdateSeconds) return;
+	if (NowSeconds < NextMovingUpdateSeconds)
+		return;
 	NextMovingUpdateSeconds = NowSeconds + 1.0 / FMath::Max(0.1f, MovingUpdateHz);
 
 	TArray<FTransform> UpdatedTransforms;
@@ -89,6 +92,6 @@ void AVirtualSensorStressSceneActor::Tick(float DeltaSeconds)
 		Updated.SetLocation(Location);
 		UpdatedTransforms.Add(Updated);
 	}
-	SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::StressInstances,GFrameCounter,uint64(UpdatedTransforms.Num())*sizeof(FTransform),uint64(UpdatedTransforms.Num())*sizeof(FTransform));
+	SensorUploadDiagnostics::RecordCopy(SensorUploadDiagnostics::ESite::StressInstances, GFrameCounter, uint64(UpdatedTransforms.Num()) * sizeof(FTransform), uint64(UpdatedTransforms.Num()) * sizeof(FTransform));
 	MovingProxies->BatchUpdateInstancesTransforms(0, UpdatedTransforms, false, true, true);
 }

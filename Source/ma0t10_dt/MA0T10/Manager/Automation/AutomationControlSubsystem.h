@@ -10,29 +10,30 @@ struct FAutomationControlState;
 UCLASS()
 class MA0T10_DT_API UAutomationControlSubsystem : public UWorldSubsystem
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 public:
-    virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
-    virtual void OnWorldBeginPlay(UWorld& World) override;
-    virtual void Deinitialize() override;
-    bool SetApiEnabled(bool Enabled);
-    bool IsApiEnabled() const;
-    FString GetPresentationStatus() const;
-    /** Compact read-only UI summary; enabled listener is not an active control lease. */
-    FString GetActivityPresentation() const;
-    TSharedRef<FJsonObject> GetStatus() const;
-    /** Game-thread only. Also used by the job runner and integration tests. */
-    TSharedRef<FJsonObject> Dispatch(const FString& Method,const FString& Path,const TSharedPtr<FJsonObject>& Body,int32& Code);
-    bool StartJob(const FString& Path,bool ExitWhenDone=true);
+	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
+	virtual void OnWorldBeginPlay(UWorld& World) override;
+	virtual void Deinitialize() override;
+	bool SetApiEnabled(bool Enabled);
+	bool IsApiEnabled() const;
+	FString GetPresentationStatus() const;
+	/** Compact read-only UI summary; enabled listener is not an active control lease. */
+	FString GetActivityPresentation() const;
+	TSharedRef<FJsonObject> GetStatus() const;
+	/** Game-thread only. Also used by the job runner and integration tests. */
+	TSharedRef<FJsonObject> Dispatch(const FString& Method, const FString& Path, const TSharedPtr<FJsonObject>& Body, int32& Code);
+	bool StartJob(const FString& Path, bool ExitWhenDone = true);
+
 private:
-    TSharedPtr<FAutomationControlState> State;
-    FTSTicker::FDelegateHandle Ticker;
-    FDelegateHandle FrameHook;
-    bool Poll(float Delta);
-    void ObserveFrame(UWorld* World,ELevelTick Tick,float Delta);
-    void EnsurePolling();
-    bool StartCommand(const TSharedRef<FJsonObject>& Command,FString& Error);
-    void CompleteOperation(bool Success,const FString& Error);
-    void FinishJob(bool Success,const FString& Error);
-    void StopOwnedOperation();
+	TSharedPtr<FAutomationControlState> State;
+	FTSTicker::FDelegateHandle Ticker;
+	FDelegateHandle FrameHook;
+	bool Poll(float Delta);
+	void ObserveFrame(UWorld* World, ELevelTick Tick, float Delta);
+	void EnsurePolling();
+	bool StartCommand(const TSharedRef<FJsonObject>& Command, FString& Error);
+	void CompleteOperation(bool Success, const FString& Error);
+	void FinishJob(bool Success, const FString& Error);
+	void StopOwnedOperation();
 };

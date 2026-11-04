@@ -27,13 +27,14 @@ public:
 public:
 	UFUNCTION()
 	void OnLevelInitApiFinished(bool bSuccess, const FString& Error);
+
 private:
 protected:
-
 	// Variable
 public:
 	UPROPERTY()
 	TObjectPtr<UDxApiServiceTest> DxApiService;
+
 private:
 protected:
 };

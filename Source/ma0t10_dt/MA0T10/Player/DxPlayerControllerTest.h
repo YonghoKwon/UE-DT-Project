@@ -24,8 +24,10 @@ public:
 	AVirtualSensorTransformGizmoActor* GetPlacementInputOwner() const;
 	IVirtualSensorPlacementInputOwner* GetPlacementInputView() const;
 	void FinishOwnedNavigationInput();
+
 protected:
 	virtual void SetupInputComponent() override;
+
 private:
 	IVirtualSensorPlacementInputOwner* GetRegisteredPlacementInputView() const;
 	void PlacementMove(const FInputActionValue& Value);
@@ -33,8 +35,8 @@ private:
 	void PlacementMoveUpDown(const FInputActionValue& Value);
 	void PlacementRightMouse(const FInputActionValue& Value);
 	TWeakObjectPtr<AVirtualSensorTransformGizmoActor> PlacementOwner;
-	bool bOwnedRightInput=false;
-	bool SavedCursor=true,SavedClickEvents=true,SavedMouseOverEvents=true;
+	bool bOwnedRightInput = false;
+	bool SavedCursor = true, SavedClickEvents = true, SavedMouseOverEvents = true;
 	void ApplyProjectViewportPolicy();
 	FDelegateHandle WorldBeginPlayHandle;
 };

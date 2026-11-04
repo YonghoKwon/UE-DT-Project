@@ -26,189 +26,191 @@ namespace
 {
 struct FEditorSmokeMapSummary
 {
-    int32 ManagerCount = 0;
-    int32 LidarActorCount = 0;
-    int32 CameraActorCount = 0;
-    int32 MonitorHostCount = 0;
-    int32 ReadyMonitorHostCount = 0;
-    int32 SensorTestTargetCount = 0;
-    int32 HallWallCount = 0;
-    int32 CeilingRectLightCount = 0;
-    int32 SkyLightCount = 0;
-    bool bCameraPlacementRealistic = false;
+	int32 ManagerCount = 0;
+	int32 LidarActorCount = 0;
+	int32 CameraActorCount = 0;
+	int32 MonitorHostCount = 0;
+	int32 ReadyMonitorHostCount = 0;
+	int32 SensorTestTargetCount = 0;
+	int32 HallWallCount = 0;
+	int32 CeilingRectLightCount = 0;
+	int32 SkyLightCount = 0;
+	bool bCameraPlacementRealistic = false;
 	bool bOverheadCameraConfigured = false;
-    bool bLidarPlacementRealistic = false;
-    bool bLegacyLidarDebugDisabled = false;
-    bool bLidarPointCloudPreviewEnabled = false;
+	bool bLidarPlacementRealistic = false;
+	bool bLegacyLidarDebugDisabled = false;
+	bool bLidarPointCloudPreviewEnabled = false;
 };
 
 UWorld* LoadSmokeMap(FAutomationTestBase& Test, const TCHAR* MapObjectPath)
 {
-    FString ResolvedObjectPath = MapObjectPath;
-    FString SnapshotDirectory;
-    if (ResolvedObjectPath == TEXT("/Game/MA0T10/Maps/SensorTestMap.SensorTestMap") &&
-        FParse::Value(FCommandLine::Get(), TEXT("SensorSmokeMapDirectory="), SnapshotDirectory))
-    {
-        SnapshotDirectory = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), SnapshotDirectory);
-        const FString ReportsDirectory = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("Reports"));
-        if (!FPaths::IsUnderDirectory(SnapshotDirectory, ReportsDirectory) ||
-            !IFileManager::Get().FileExists(*(SnapshotDirectory / TEXT("SensorTestMap.umap"))))
-        {
-            Test.AddError(TEXT("Committed-map snapshot must be an existing map under Saved/Reports."));
-            return nullptr;
-        }
-        // Test the exact archived commit without replacing the user's working map.
-        FPackageName::RegisterMountPoint(TEXT("/SensorSmokeBaseline/"), SnapshotDirectory + TEXT("/"));
-        ResolvedObjectPath = TEXT("/SensorSmokeBaseline/SensorTestMap.SensorTestMap");
-        Test.AddInfo(TEXT("Testing archived SensorTestMap; all original layout assertions remain enabled."));
-    }
-    UWorld* LoadedWorld = LoadObject<UWorld>(nullptr, *ResolvedObjectPath);
-    Test.TestNotNull(FString::Printf(TEXT("map asset loads: %s"), MapObjectPath), LoadedWorld);
-    if (!LoadedWorld)
-    {
-        return nullptr;
-    }
+	FString ResolvedObjectPath = MapObjectPath;
+	FString SnapshotDirectory;
+	if (ResolvedObjectPath == TEXT("/Game/MA0T10/Maps/SensorTestMap.SensorTestMap") &&
+	    FParse::Value(FCommandLine::Get(), TEXT("SensorSmokeMapDirectory="), SnapshotDirectory))
+	{
+		SnapshotDirectory = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), SnapshotDirectory);
+		const FString ReportsDirectory = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("Reports"));
+		if (!FPaths::IsUnderDirectory(SnapshotDirectory, ReportsDirectory) ||
+		    !IFileManager::Get().FileExists(*(SnapshotDirectory / TEXT("SensorTestMap.umap"))))
+		{
+			Test.AddError(TEXT("Committed-map snapshot must be an existing map under Saved/Reports."));
+			return nullptr;
+		}
+		// Test the exact archived commit without replacing the user's working map.
+		FPackageName::RegisterMountPoint(TEXT("/SensorSmokeBaseline/"), SnapshotDirectory + TEXT("/"));
+		ResolvedObjectPath = TEXT("/SensorSmokeBaseline/SensorTestMap.SensorTestMap");
+		Test.AddInfo(TEXT("Testing archived SensorTestMap; all original layout assertions remain enabled."));
+	}
+	UWorld* LoadedWorld = LoadObject<UWorld>(nullptr, *ResolvedObjectPath);
+	Test.TestNotNull(FString::Printf(TEXT("map asset loads: %s"), MapObjectPath), LoadedWorld);
+	if (!LoadedWorld)
+	{
+		return nullptr;
+	}
 
-    ULevel* PersistentLevel = LoadedWorld->PersistentLevel.Get();
-    Test.TestNotNull(FString::Printf(TEXT("map has persistent level: %s"), MapObjectPath), PersistentLevel);
-    if (PersistentLevel)
-    {
-        Test.TestTrue(FString::Printf(TEXT("map has at least one actor slot: %s"), MapObjectPath), PersistentLevel->Actors.Num() > 0);
-    }
-    return LoadedWorld;
+	ULevel* PersistentLevel = LoadedWorld->PersistentLevel.Get();
+	Test.TestNotNull(FString::Printf(TEXT("map has persistent level: %s"), MapObjectPath), PersistentLevel);
+	if (PersistentLevel)
+	{
+		Test.TestTrue(FString::Printf(TEXT("map has at least one actor slot: %s"), MapObjectPath), PersistentLevel->Actors.Num() > 0);
+	}
+	return LoadedWorld;
 }
 
 bool TestMapAssetLoads(FAutomationTestBase& Test, const TCHAR* MapObjectPath)
 {
-    return LoadSmokeMap(Test, MapObjectPath) != nullptr;
+	return LoadSmokeMap(Test, MapObjectPath) != nullptr;
 }
 
 void AddMapComposition(UWorld* LoadedWorld, FEditorSmokeMapSummary& Summary)
 {
-    if (!LoadedWorld || !LoadedWorld->PersistentLevel)
-    {
-        return;
-    }
+	if (!LoadedWorld || !LoadedWorld->PersistentLevel)
+	{
+		return;
+	}
 
-    for (AActor* Actor : LoadedWorld->PersistentLevel->Actors)
-    {
-        if (!Actor)
-        {
-            continue;
-        }
-        if (Actor->IsA<AVirtualSensorCoordinator>())
-        {
-            ++Summary.ManagerCount;
-        }
-        if (Actor->IsA<AVirtualLidarSensorActor>())
-        {
-            ++Summary.LidarActorCount;
-            const AVirtualLidarSensorActor* LidarActor = CastChecked<AVirtualLidarSensorActor>(Actor);
-            Summary.bLidarPlacementRealistic |= FMath::IsNearlyEqual(Actor->GetActorLocation().Z, 150.0f, 1.0f);
-            Summary.bLegacyLidarDebugDisabled |= LidarActor->ScanComp && !LidarActor->ScanComp->bDrawDebugRays;
-            Summary.bLidarPointCloudPreviewEnabled |= LidarActor->ScanComp && LidarActor->ScanComp->IsPointCloudPreviewEnabled();
-        }
-        if (Actor->IsA<AVirtualCameraSensorActor>())
-        {
-            ++Summary.CameraActorCount;
-            Summary.bCameraPlacementRealistic |= FMath::IsNearlyEqual(Actor->GetActorLocation().Z, 170.0f, 1.0f);
+	for (AActor* Actor : LoadedWorld->PersistentLevel->Actors)
+	{
+		if (!Actor)
+		{
+			continue;
+		}
+		if (Actor->IsA<AVirtualSensorCoordinator>())
+		{
+			++Summary.ManagerCount;
+		}
+		if (Actor->IsA<AVirtualLidarSensorActor>())
+		{
+			++Summary.LidarActorCount;
+			const AVirtualLidarSensorActor* LidarActor = CastChecked<AVirtualLidarSensorActor>(Actor);
+			Summary.bLidarPlacementRealistic |= FMath::IsNearlyEqual(Actor->GetActorLocation().Z, 150.0f, 1.0f);
+			Summary.bLegacyLidarDebugDisabled |= LidarActor->ScanComp && !LidarActor->ScanComp->bDrawDebugRays;
+			Summary.bLidarPointCloudPreviewEnabled |= LidarActor->ScanComp && LidarActor->ScanComp->IsPointCloudPreviewEnabled();
+		}
+		if (Actor->IsA<AVirtualCameraSensorActor>())
+		{
+			++Summary.CameraActorCount;
+			Summary.bCameraPlacementRealistic |= FMath::IsNearlyEqual(Actor->GetActorLocation().Z, 170.0f, 1.0f);
 			const AVirtualCameraSensorActor* CameraActor = CastChecked<AVirtualCameraSensorActor>(Actor);
 			Summary.bOverheadCameraConfigured |= CameraActor->CaptureComp &&
-				CameraActor->CaptureComp->SensorId == TEXT("VCAM-TEST-002") &&
-				FMath::IsNearlyEqual(Actor->GetActorLocation().Z, 1000.0f, 1.0f) &&
-				FMath::IsNearlyEqual(Actor->GetActorRotation().Pitch, -90.0f, 0.1f);
-        }
-        if (Actor->IsA<AVirtualSensorUiHostActor>())
-        {
-            ++Summary.MonitorHostCount;
-            const AVirtualSensorUiHostActor* Host = CastChecked<AVirtualSensorUiHostActor>(Actor);
-            if (Host->MonitorWidgetClass && Host->bAutoCreateOnBeginPlay &&
-                Host->SettingsWidgetClass && Host->CaptureExportWidgetClass &&
-                Host->bAutoCreateToolPanels && Host->bAllowViewportFallback && Host->bConfigurePlayerInputOnCreate)
-            {
-                ++Summary.ReadyMonitorHostCount;
-            }
-        }
-        if (Actor->ActorHasTag(TEXT("SensorTestTarget")))
-        {
-            ++Summary.SensorTestTargetCount;
-        }
+			                                     CameraActor->CaptureComp->SensorId == TEXT("VCAM-TEST-002") &&
+			                                     FMath::IsNearlyEqual(Actor->GetActorLocation().Z, 1000.0f, 1.0f) &&
+			                                     FMath::IsNearlyEqual(Actor->GetActorRotation().Pitch, -90.0f, 0.1f);
+		}
+		if (Actor->IsA<AVirtualSensorUiHostActor>())
+		{
+			++Summary.MonitorHostCount;
+			const AVirtualSensorUiHostActor* Host = CastChecked<AVirtualSensorUiHostActor>(Actor);
+			if (Host->MonitorWidgetClass && Host->bAutoCreateOnBeginPlay &&
+			    Host->SettingsWidgetClass && Host->CaptureExportWidgetClass &&
+			    Host->bAutoCreateToolPanels && Host->bAllowViewportFallback && Host->bConfigurePlayerInputOnCreate)
+			{
+				++Summary.ReadyMonitorHostCount;
+			}
+		}
+		if (Actor->ActorHasTag(TEXT("SensorTestTarget")))
+		{
+			++Summary.SensorTestTargetCount;
+		}
 #if WITH_EDITOR
-        if (Actor->GetActorLabel().StartsWith(TEXT("SensorTest_Hall")))
-        {
-            ++Summary.HallWallCount;
-        }
+		if (Actor->GetActorLabel().StartsWith(TEXT("SensorTest_Hall")))
+		{
+			++Summary.HallWallCount;
+		}
 #endif
-        if (Actor->IsA<ARectLight>()) ++Summary.CeilingRectLightCount;
-        if (Actor->IsA<ASkyLight>()) ++Summary.SkyLightCount;
-    }
+		if (Actor->IsA<ARectLight>())
+			++Summary.CeilingRectLightCount;
+		if (Actor->IsA<ASkyLight>())
+			++Summary.SkyLightCount;
+	}
 }
 }
 
 bool FEditorMapAssetsLoadTest::RunTest(const FString& Parameters)
 {
-    bool bAllLoaded = true;
-    bAllLoaded &= TestMapAssetLoads(*this, TEXT("/Game/MA0T10/Maps/BasicMap.BasicMap"));
-    bAllLoaded &= TestMapAssetLoads(*this, TEXT("/Game/MA0T10/Maps/SensorTestMap.SensorTestMap"));
-    bAllLoaded &= TestMapAssetLoads(*this, TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap.SensorRefactorTestMap"));
-    TestNotNull(
-        TEXT("WBP_VirtualSensorMonitorPanel generated class loads"),
-        LoadObject<UClass>(nullptr, TEXT("/Game/MA0T10/UI/WBP_VirtualSensorMonitorPanel.WBP_VirtualSensorMonitorPanel_C")));
-    TestNotNull(
-        TEXT("WBP_VirtualSensorSettingsPanel generated class loads"),
-        LoadObject<UClass>(nullptr, TEXT("/Game/MA0T10/UI/WBP_VirtualSensorSettingsPanel.WBP_VirtualSensorSettingsPanel_C")));
-    TestNotNull(
-        TEXT("WBP_VirtualSensorCaptureExportPanel generated class loads"),
-        LoadObject<UClass>(nullptr, TEXT("/Game/MA0T10/UI/WBP_VirtualSensorCaptureExportPanel.WBP_VirtualSensorCaptureExportPanel_C")));
-    return bAllLoaded;
+	bool bAllLoaded = true;
+	bAllLoaded &= TestMapAssetLoads(*this, TEXT("/Game/MA0T10/Maps/BasicMap.BasicMap"));
+	bAllLoaded &= TestMapAssetLoads(*this, TEXT("/Game/MA0T10/Maps/SensorTestMap.SensorTestMap"));
+	bAllLoaded &= TestMapAssetLoads(*this, TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap.SensorRefactorTestMap"));
+	TestNotNull(
+	    TEXT("WBP_VirtualSensorMonitorPanel generated class loads"),
+	    LoadObject<UClass>(nullptr, TEXT("/Game/MA0T10/UI/WBP_VirtualSensorMonitorPanel.WBP_VirtualSensorMonitorPanel_C")));
+	TestNotNull(
+	    TEXT("WBP_VirtualSensorSettingsPanel generated class loads"),
+	    LoadObject<UClass>(nullptr, TEXT("/Game/MA0T10/UI/WBP_VirtualSensorSettingsPanel.WBP_VirtualSensorSettingsPanel_C")));
+	TestNotNull(
+	    TEXT("WBP_VirtualSensorCaptureExportPanel generated class loads"),
+	    LoadObject<UClass>(nullptr, TEXT("/Game/MA0T10/UI/WBP_VirtualSensorCaptureExportPanel.WBP_VirtualSensorCaptureExportPanel_C")));
+	return bAllLoaded;
 }
 
 bool FEditorMapSensorCompositionTest::RunTest(const FString& Parameters)
 {
-    FEditorSmokeMapSummary Summary;
-    AddMapComposition(LoadSmokeMap(*this, TEXT("/Game/MA0T10/Maps/SensorTestMap.SensorTestMap")), Summary);
+	FEditorSmokeMapSummary Summary;
+	AddMapComposition(LoadSmokeMap(*this, TEXT("/Game/MA0T10/Maps/SensorTestMap.SensorTestMap")), Summary);
 
-    TestTrue(TEXT("SensorTestMap includes an AVirtualSensorCoordinator"), Summary.ManagerCount > 0);
-    TestTrue(TEXT("SensorTestMap includes an AVirtualLidarSensorActor"), Summary.LidarActorCount > 0);
-    TestTrue(TEXT("SensorTestMap includes an AVirtualCameraSensorActor"), Summary.CameraActorCount > 0);
-    TestTrue(TEXT("SensorTestMap includes an AVirtualSensorUiHostActor"), Summary.MonitorHostCount > 0);
-    TestTrue(TEXT("SensorTestMap monitor host is configured for immediate interaction"), Summary.ReadyMonitorHostCount > 0);
-    TestTrue(TEXT("SensorTestMap includes generic sensor targets"), Summary.SensorTestTargetCount > 0);
-    TestEqual(TEXT("SensorTestMap has three open-front hall walls"), Summary.HallWallCount, 3);
-    TestEqual(TEXT("SensorTestMap has four ceiling rect lights"), Summary.CeilingRectLightCount, 4);
-    TestTrue(TEXT("SensorTestMap has ambient skylight"), Summary.SkyLightCount > 0);
-    TestTrue(TEXT("camera is placed at realistic test height"), Summary.bCameraPlacementRealistic);
-    TestTrue(TEXT("LiDAR is placed at realistic test height"), Summary.bLidarPlacementRealistic);
-    TestTrue(TEXT("legacy LiDAR per-ray debug is disabled"), Summary.bLegacyLidarDebugDisabled);
-    TestTrue(TEXT("LiDAR spatial point-cloud preview is enabled for immediate testing"), Summary.bLidarPointCloudPreviewEnabled);
-    return Summary.ManagerCount > 0 &&
-        Summary.LidarActorCount > 0 &&
-        Summary.CameraActorCount > 0 &&
-        Summary.MonitorHostCount > 0 &&
-        Summary.ReadyMonitorHostCount > 0 &&
-        Summary.SensorTestTargetCount > 0 &&
-        Summary.HallWallCount == 3 &&
-        Summary.CeilingRectLightCount == 4 &&
-        Summary.SkyLightCount > 0 &&
-        Summary.bCameraPlacementRealistic &&
-        Summary.bLidarPlacementRealistic &&
-        Summary.bLegacyLidarDebugDisabled &&
-        Summary.bLidarPointCloudPreviewEnabled;
+	TestTrue(TEXT("SensorTestMap includes an AVirtualSensorCoordinator"), Summary.ManagerCount > 0);
+	TestTrue(TEXT("SensorTestMap includes an AVirtualLidarSensorActor"), Summary.LidarActorCount > 0);
+	TestTrue(TEXT("SensorTestMap includes an AVirtualCameraSensorActor"), Summary.CameraActorCount > 0);
+	TestTrue(TEXT("SensorTestMap includes an AVirtualSensorUiHostActor"), Summary.MonitorHostCount > 0);
+	TestTrue(TEXT("SensorTestMap monitor host is configured for immediate interaction"), Summary.ReadyMonitorHostCount > 0);
+	TestTrue(TEXT("SensorTestMap includes generic sensor targets"), Summary.SensorTestTargetCount > 0);
+	TestEqual(TEXT("SensorTestMap has three open-front hall walls"), Summary.HallWallCount, 3);
+	TestEqual(TEXT("SensorTestMap has four ceiling rect lights"), Summary.CeilingRectLightCount, 4);
+	TestTrue(TEXT("SensorTestMap has ambient skylight"), Summary.SkyLightCount > 0);
+	TestTrue(TEXT("camera is placed at realistic test height"), Summary.bCameraPlacementRealistic);
+	TestTrue(TEXT("LiDAR is placed at realistic test height"), Summary.bLidarPlacementRealistic);
+	TestTrue(TEXT("legacy LiDAR per-ray debug is disabled"), Summary.bLegacyLidarDebugDisabled);
+	TestTrue(TEXT("LiDAR spatial point-cloud preview is enabled for immediate testing"), Summary.bLidarPointCloudPreviewEnabled);
+	return Summary.ManagerCount > 0 &&
+	       Summary.LidarActorCount > 0 &&
+	       Summary.CameraActorCount > 0 &&
+	       Summary.MonitorHostCount > 0 &&
+	       Summary.ReadyMonitorHostCount > 0 &&
+	       Summary.SensorTestTargetCount > 0 &&
+	       Summary.HallWallCount == 3 &&
+	       Summary.CeilingRectLightCount == 4 &&
+	       Summary.SkyLightCount > 0 &&
+	       Summary.bCameraPlacementRealistic &&
+	       Summary.bLidarPlacementRealistic &&
+	       Summary.bLegacyLidarDebugDisabled &&
+	       Summary.bLidarPointCloudPreviewEnabled;
 }
 
 bool FSensorV2RefactorMapCompositionTest::RunTest(const FString& Parameters)
 {
-    FEditorSmokeMapSummary Summary;
-    AddMapComposition(LoadSmokeMap(*this, TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap.SensorRefactorTestMap")), Summary);
-    TestEqual(TEXT("V2 regression map has one coordinator"), Summary.ManagerCount, 1);
-    TestEqual(TEXT("V2 regression map has diagonal and overhead cameras"), Summary.CameraActorCount, 2);
+	FEditorSmokeMapSummary Summary;
+	AddMapComposition(LoadSmokeMap(*this, TEXT("/Game/MA0T10/Maps/Tests/SensorRefactorTestMap.SensorRefactorTestMap")), Summary);
+	TestEqual(TEXT("V2 regression map has one coordinator"), Summary.ManagerCount, 1);
+	TestEqual(TEXT("V2 regression map has diagonal and overhead cameras"), Summary.CameraActorCount, 2);
 	TestTrue(TEXT("V2 regression map overhead camera has the expected pose and SensorId"), Summary.bOverheadCameraConfigured);
-    TestTrue(TEXT("V2 regression map has LiDAR V2"), Summary.LidarActorCount > 0);
-    TestEqual(TEXT("V2 regression map has one UI host"), Summary.MonitorHostCount, 1);
-    TestTrue(TEXT("V2 regression map UI host is ready"), Summary.ReadyMonitorHostCount == 1);
-    TestTrue(TEXT("V2 regression map enables the LiDAR point-cloud preview"), Summary.bLidarPointCloudPreviewEnabled);
-    return Summary.ManagerCount == 1 && Summary.CameraActorCount == 2 && Summary.bOverheadCameraConfigured && Summary.LidarActorCount > 0 &&
-        Summary.MonitorHostCount == 1 && Summary.ReadyMonitorHostCount == 1 && Summary.bLidarPointCloudPreviewEnabled;
+	TestTrue(TEXT("V2 regression map has LiDAR V2"), Summary.LidarActorCount > 0);
+	TestEqual(TEXT("V2 regression map has one UI host"), Summary.MonitorHostCount, 1);
+	TestTrue(TEXT("V2 regression map UI host is ready"), Summary.ReadyMonitorHostCount == 1);
+	TestTrue(TEXT("V2 regression map enables the LiDAR point-cloud preview"), Summary.bLidarPointCloudPreviewEnabled);
+	return Summary.ManagerCount == 1 && Summary.CameraActorCount == 2 && Summary.bOverheadCameraConfigured && Summary.LidarActorCount > 0 &&
+	       Summary.MonitorHostCount == 1 && Summary.ReadyMonitorHostCount == 1 && Summary.bLidarPointCloudPreviewEnabled;
 }
 
 #endif

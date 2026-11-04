@@ -10,85 +10,148 @@
 #include "Engine/World.h"
 
 ASlabSimulationUiHostActor::ASlabSimulationUiHostActor()
-{ PrimaryActorTick.bCanEverTick = false; PanelHostComp = CreateDefaultSubobject<UVirtualSensorPanelHostComp>(TEXT("SlabPanelHost")); }
+{
+	PrimaryActorTick.bCanEverTick = false;
+	PanelHostComp = CreateDefaultSubobject<UVirtualSensorPanelHostComp>(TEXT("SlabPanelHost"));
+}
 void ASlabSimulationUiHostActor::RegisterSlabUiHost(bool bActive)
 {
 	const TWeakObjectPtr<ASlabSimulationUiHostActor> WeakThis(this);
-	SlabUiRegistry::RegisterHost(this,[WeakThis]() -> ASlabActor* { return WeakThis.IsValid()?WeakThis->SlabActor.Get():nullptr; },bActive);
-	SlabUiRegistry::RegisterActivation(this,[WeakThis](ASlabActor* Selected)
-	{
+	SlabUiRegistry::RegisterHost(this, [WeakThis]() -> ASlabActor*
+	                             { return WeakThis.IsValid() ? WeakThis->SlabActor.Get() : nullptr; }, bActive);
+	SlabUiRegistry::RegisterActivation(this, [WeakThis](ASlabActor* Selected)
+	                                   {
 		if(!WeakThis.IsValid()||!IsValid(Selected))return false;auto* Host=WeakThis.Get();auto* W=Host->GetWorld()->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
 		if(!W||!Host->ProgressWidget||W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress)!=Host->ProgressWidget)return false;
 		Host->BindSlabActor(Selected);W->SetPanelOpen(ESensorToolPanelRole::SlabProgress,true);
 		if(Host->ProgressWidget->IsPanelCollapsed())Host->ProgressWidget->TogglePanelCollapsed();
-		W->BringOwnedPanelToFront(ESensorToolPanelRole::SlabProgress);return true;
-	});
+		W->BringOwnedPanelToFront(ESensorToolPanelRole::SlabProgress);return true; });
 }
-void ASlabSimulationUiHostActor::PostLoad() { Super::PostLoad(); RegisterSlabUiHost(); }
-void ASlabSimulationUiHostActor::PostDuplicate(EDuplicateMode::Type DuplicateMode) { Super::PostDuplicate(DuplicateMode); RegisterSlabUiHost(); }
-void ASlabSimulationUiHostActor::PostActorCreated() { Super::PostActorCreated(); RegisterSlabUiHost(); }
-void ASlabSimulationUiHostActor::Destroyed() { SlabUiRegistry::UnregisterHost(this); Super::Destroyed(); }
-void ASlabSimulationUiHostActor::BeginPlay() { Super::BeginPlay(); RegisterSlabUiHost(true); bEnding=false; InitializationAttempts=0; ShowSimulationPanels(); }
+void ASlabSimulationUiHostActor::PostLoad()
+{
+	Super::PostLoad();
+	RegisterSlabUiHost();
+}
+void ASlabSimulationUiHostActor::PostDuplicate(EDuplicateMode::Type DuplicateMode)
+{
+	Super::PostDuplicate(DuplicateMode);
+	RegisterSlabUiHost();
+}
+void ASlabSimulationUiHostActor::PostActorCreated()
+{
+	Super::PostActorCreated();
+	RegisterSlabUiHost();
+}
+void ASlabSimulationUiHostActor::Destroyed()
+{
+	SlabUiRegistry::UnregisterHost(this);
+	Super::Destroyed();
+}
+void ASlabSimulationUiHostActor::BeginPlay()
+{
+	Super::BeginPlay();
+	RegisterSlabUiHost(true);
+	bEnding = false;
+	InitializationAttempts = 0;
+	ShowSimulationPanels();
+}
 void ASlabSimulationUiHostActor::BindSlabActor(ASlabActor* InSlab)
 {
-	SlabActor = IsValid(InSlab)&&InSlab->GetWorld()==GetWorld()?InSlab:nullptr;
-	if (ChartsWidget) ChartsWidget->BindSlabActor(SlabActor);
-	if (ProgressWidget) ProgressWidget->BindSlabActor(SlabActor);
+	SlabActor = IsValid(InSlab) && InSlab->GetWorld() == GetWorld() ? InSlab : nullptr;
+	if (ChartsWidget)
+		ChartsWidget->BindSlabActor(SlabActor);
+	if (ProgressWidget)
+		ProgressWidget->BindSlabActor(SlabActor);
 }
 void ASlabSimulationUiHostActor::ShowSimulationPanels()
 {
-	if (bEnding||!GetWorld()||GetNetMode()==NM_DedicatedServer) return;
+	if (bEnding || !GetWorld() || GetNetMode() == NM_DedicatedServer)
+		return;
 	if (!GetWorld()->GetFirstPlayerController())
 	{
-		if(++InitializationAttempts<=40)
-		{ InitializationMessage=TEXT("PlayerController 준비 대기 중 (최대 10초)"); GetWorldTimerManager().SetTimer(InitializationRetry,this,&ASlabSimulationUiHostActor::ShowSimulationPanels,.25f,false); }
-		else { GetWorldTimerManager().ClearTimer(InitializationRetry); InitializationMessage=TEXT("PlayerController가 없어 Slab UI를 만들지 못했습니다. 준비 후 ShowSimulationPanels를 호출하세요."); }
+		if (++InitializationAttempts <= 40)
+		{
+			InitializationMessage = TEXT("PlayerController 준비 대기 중 (최대 10초)");
+			GetWorldTimerManager().SetTimer(InitializationRetry, this, &ASlabSimulationUiHostActor::ShowSimulationPanels, .25f, false);
+		}
+		else
+		{
+			GetWorldTimerManager().ClearTimer(InitializationRetry);
+			InitializationMessage = TEXT("PlayerController가 없어 Slab UI를 만들지 못했습니다. 준비 후 ShowSimulationPanels를 호출하세요.");
+		}
 		return;
 	}
 	GetWorldTimerManager().ClearTimer(InitializationRetry);
-	if(SlabActor&&(!IsValid(SlabActor)||SlabActor->GetWorld()!=GetWorld())) SlabActor=nullptr;
+	if (SlabActor && (!IsValid(SlabActor) || SlabActor->GetWorld() != GetWorld()))
+		SlabActor = nullptr;
 	if (!SlabActor)
 	{
 		ASlabActor* Only = nullptr;
-		for (TActorIterator<ASlabActor> It(GetWorld()); It; ++It) { if (Only) { Only = nullptr; break; } Only = *It; }
+		for (TActorIterator<ASlabActor> It(GetWorld()); It; ++It)
+		{
+			if (Only)
+			{
+				Only = nullptr;
+				break;
+			}
+			Only = *It;
+		}
 		SlabActor = Only; // Ambiguous ownership is never silently resolved to another Slab.
 	}
 	auto* Workspace = GetWorld()->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-	if (!Workspace) return;
+	if (!Workspace)
+		return;
 	if (!ChartsWidget && !Workspace->GetOwnedPanel(ESensorToolPanelRole::SlabCharts))
 	{
 		auto Class = ChartsWidgetClass;
-		if (!Class) Class = LoadClass<UDxWidgetSlabChartsPanel>(nullptr, TEXT("/Game/MA0T10/UI/WBP_SlabChartsPanel.WBP_SlabChartsPanel_C"));
-		if (!Class) Class = UDxWidgetSlabChartsPanel::StaticClass();
+		if (!Class)
+			Class = LoadClass<UDxWidgetSlabChartsPanel>(nullptr, TEXT("/Game/MA0T10/UI/WBP_SlabChartsPanel.WBP_SlabChartsPanel_C"));
+		if (!Class)
+			Class = UDxWidgetSlabChartsPanel::StaticClass();
 		ChartsWidget = CreateWidget<UDxWidgetSlabChartsPanel>(GetWorld(), Class);
 		if (Workspace->RegisterOwnedPanel(ESensorToolPanelRole::SlabCharts, ChartsWidget))
 		{
-			ChartsWidget->SetPanelPersistenceKey(TEXT("SlabCharts")); ChartsWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::LeftCenter, FVector2D(780, 820));
-			ChartsWidget->SetPanelResizable(true); ChartsWidget->ResizeHandleSize = 32; ChartsWidget->SetPanelResizeLimits(FVector2D(720, 720), FVector2D::ZeroVector);
+			ChartsWidget->SetPanelPersistenceKey(TEXT("SlabCharts"));
+			ChartsWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::LeftCenter, FVector2D(780, 820));
+			ChartsWidget->SetPanelResizable(true);
+			ChartsWidget->ResizeHandleSize = 32;
+			ChartsWidget->SetPanelResizeLimits(FVector2D(720, 720), FVector2D::ZeroVector);
 			PanelHostComp->RegisterPanel(ChartsWidget, 50);
 		}
 	}
 	if (!ProgressWidget && !Workspace->GetOwnedPanel(ESensorToolPanelRole::SlabProgress))
 	{
 		auto Class = ProgressWidgetClass;
-		if (!Class) Class = LoadClass<UDxWidgetSlabProgressPanel>(nullptr, TEXT("/Game/MA0T10/UI/WBP_SlabProgressPanel.WBP_SlabProgressPanel_C"));
-		if (!Class) Class = UDxWidgetSlabProgressPanel::StaticClass();
+		if (!Class)
+			Class = LoadClass<UDxWidgetSlabProgressPanel>(nullptr, TEXT("/Game/MA0T10/UI/WBP_SlabProgressPanel.WBP_SlabProgressPanel_C"));
+		if (!Class)
+			Class = UDxWidgetSlabProgressPanel::StaticClass();
 		ProgressWidget = CreateWidget<UDxWidgetSlabProgressPanel>(GetWorld(), Class);
 		if (Workspace->RegisterOwnedPanel(ESensorToolPanelRole::SlabProgress, ProgressWidget))
 		{
-			ProgressWidget->SetPanelPersistenceKey(TEXT("SlabProgress")); ProgressWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::LeftCenter, FVector2D(520, 420));
-			ProgressWidget->SetPanelResizable(true); ProgressWidget->ResizeHandleSize = 32; ProgressWidget->SetPanelResizeLimits(FVector2D(360, 280), FVector2D::ZeroVector);
+			ProgressWidget->SetPanelPersistenceKey(TEXT("SlabProgress"));
+			ProgressWidget->ConfigurePanelLayout(EVirtualSensorPanelPlacement::LeftCenter, FVector2D(520, 420));
+			ProgressWidget->SetPanelResizable(true);
+			ProgressWidget->ResizeHandleSize = 32;
+			ProgressWidget->SetPanelResizeLimits(FVector2D(360, 280), FVector2D::ZeroVector);
 			PanelHostComp->RegisterPanel(ProgressWidget, 51);
 		}
 	}
 	BindSlabActor(SlabActor);
-	InitializationMessage=SlabActor?TEXT("Slab UI 연결 완료"):TEXT("Slab를 하나로 결정할 수 없습니다. Host의 SlabActor를 직접 연결하세요.");
+	InitializationMessage = SlabActor ? TEXT("Slab UI 연결 완료") : TEXT("Slab를 하나로 결정할 수 없습니다. Host의 SlabActor를 직접 연결하세요.");
 }
 void ASlabSimulationUiHostActor::EndPlay(const EEndPlayReason::Type Reason)
 {
 	SlabUiRegistry::UnregisterHost(this);
-	bEnding=true; if(GetWorld()) GetWorldTimerManager().ClearTimer(InitializationRetry);
+	bEnding = true;
+	if (GetWorld())
+		GetWorldTimerManager().ClearTimer(InitializationRetry);
 	PanelHostComp->UnregisterAllPanels();
-	if (ChartsWidget) ChartsWidget->RemoveFromParent(); if (ProgressWidget) ProgressWidget->RemoveFromParent();
-	ChartsWidget = nullptr; ProgressWidget = nullptr; Super::EndPlay(Reason);
+	if (ChartsWidget)
+		ChartsWidget->RemoveFromParent();
+	if (ProgressWidget)
+		ProgressWidget->RemoveFromParent();
+	ChartsWidget = nullptr;
+	ProgressWidget = nullptr;
+	Super::EndPlay(Reason);
 }

@@ -26,187 +26,191 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorCapturePanelResizeTest, "MA0T10.S
 
 bool FVirtualSensorPanelClampTest::RunTest(const FString& Parameters)
 {
-    const FVector2D Viewport(1280.0f, 720.0f);
-    const FVector2D Panel(450.0f, 640.0f);
-    TestEqual(TEXT("negative position clamps to margin"), UDxWidgetVirtualSensorPanelBase::ClampPanelPosition(FVector2D(-100, -100), Panel, Viewport, 18.0f), FVector2D(18.0f, 18.0f));
-    const FVector2D Clamped = UDxWidgetVirtualSensorPanelBase::ClampPanelPosition(FVector2D(2000, 2000), Panel, Viewport, 18.0f);
-    TestTrue(TEXT("right edge clamps"), FMath::IsNearlyEqual(Clamped.X, 812.0));
-    TestTrue(TEXT("title remains reachable at bottom"), FMath::IsNearlyEqual(Clamped.Y, 638.0));
-    return true;
+	const FVector2D Viewport(1280.0f, 720.0f);
+	const FVector2D Panel(450.0f, 640.0f);
+	TestEqual(TEXT("negative position clamps to margin"), UDxWidgetVirtualSensorPanelBase::ClampPanelPosition(FVector2D(-100, -100), Panel, Viewport, 18.0f), FVector2D(18.0f, 18.0f));
+	const FVector2D Clamped = UDxWidgetVirtualSensorPanelBase::ClampPanelPosition(FVector2D(2000, 2000), Panel, Viewport, 18.0f);
+	TestTrue(TEXT("right edge clamps"), FMath::IsNearlyEqual(Clamped.X, 812.0));
+	TestTrue(TEXT("title remains reachable at bottom"), FMath::IsNearlyEqual(Clamped.Y, 638.0));
+	return true;
 }
 
 bool FVirtualSensorMapApplyQueueTest::RunTest(const FString& Parameters)
 {
-    // Memory-only synthetic canonical map. Never loads/saves the protected operating map.
-    const FString Prefix=TEXT("MAP01Fixture_")+FGuid::NewGuid().ToString(EGuidFormats::Digits)+TEXT("_");
-    UPackage* Package=CreatePackage(*(TEXT("/Game/MA0T10/Maps/")+Prefix+TEXT("SensorTestMap")));
-    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false,NAME_None,Package);
-    World->StreamingLevelsPrefix=Prefix;
-    AVirtualSensorUiHostActor* Host = World->SpawnActor<AVirtualSensorUiHostActor>();
-    TestNotNull(TEXT("host"), Host);
-    FVirtualSensorEditableState State;
-    State.PersistentActorTag = TEXT("SensorTestPersistent_PrimaryCamera");
-    State.SensorId = TEXT("CAM-A");
-    Host->QueueSensorStateForMapApply(State);
-    if(!TestTrue(TEXT("queue becomes pending in canonical SensorTestMap"), Host->HasPendingMapApplySnapshot())){World->DestroyWorld(false);return false;}
-    TestEqual(TEXT("one state queued"), Host->GetPendingMapApplySnapshot().SensorStates.Num(), 1);
-    State.SensorId = TEXT("CAM-B");
-    Host->QueueSensorStateForMapApply(State);
-    TestEqual(TEXT("same persistent tag replaces instead of duplicating"), Host->GetPendingMapApplySnapshot().SensorStates.Num(), 1);
-    TestEqual(TEXT("replacement value is retained"), Host->GetPendingMapApplySnapshot().SensorStates[0].SensorId, FString(TEXT("CAM-B")));
-    World->DestroyWorld(false);
-    return true;
+	// Memory-only synthetic canonical map. Never loads/saves the protected operating map.
+	const FString Prefix = TEXT("MAP01Fixture_") + FGuid::NewGuid().ToString(EGuidFormats::Digits) + TEXT("_");
+	UPackage* Package = CreatePackage(*(TEXT("/Game/MA0T10/Maps/") + Prefix + TEXT("SensorTestMap")));
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, Package);
+	World->StreamingLevelsPrefix = Prefix;
+	AVirtualSensorUiHostActor* Host = World->SpawnActor<AVirtualSensorUiHostActor>();
+	TestNotNull(TEXT("host"), Host);
+	FVirtualSensorEditableState State;
+	State.PersistentActorTag = TEXT("SensorTestPersistent_PrimaryCamera");
+	State.SensorId = TEXT("CAM-A");
+	Host->QueueSensorStateForMapApply(State);
+	if (!TestTrue(TEXT("queue becomes pending in canonical SensorTestMap"), Host->HasPendingMapApplySnapshot()))
+	{
+		World->DestroyWorld(false);
+		return false;
+	}
+	TestEqual(TEXT("one state queued"), Host->GetPendingMapApplySnapshot().SensorStates.Num(), 1);
+	State.SensorId = TEXT("CAM-B");
+	Host->QueueSensorStateForMapApply(State);
+	TestEqual(TEXT("same persistent tag replaces instead of duplicating"), Host->GetPendingMapApplySnapshot().SensorStates.Num(), 1);
+	TestEqual(TEXT("replacement value is retained"), Host->GetPendingMapApplySnapshot().SensorStates[0].SensorId, FString(TEXT("CAM-B")));
+	World->DestroyWorld(false);
+	return true;
 }
 
 bool FVirtualSensorRealisticProfileTest::RunTest(const FString& Parameters)
 {
-    UVirtualCameraCaptureComp* Camera = NewObject<UVirtualCameraCaptureComp>();
-    UVirtualLidarScanComp* Lidar = NewObject<UVirtualLidarScanComp>();
-    Camera->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);
-    Lidar->ApplyDeviceProfile(EVirtualLidarDeviceProfile::LivoxMid360S);
-    const FVirtualSensorDeviceSpec& CameraSpec = Camera->GetDeviceSpec();
-    const FVirtualSensorDeviceSpec& LidarSpec = Lidar->GetDeviceSpec();
-    TestEqual(TEXT("D455 horizontal depth FOV"), CameraSpec.HorizontalFovDegrees, 87.0f);
-    TestEqual(TEXT("D455 max-resolution Min-Z cm"), CameraSpec.MinRangeCm, 52.0f);
-    TestEqual(TEXT("D455 ideal max range cm"), CameraSpec.MaxRangeCm, 600.0f);
-    TestEqual(TEXT("Mid-360S horizontal FOV"), LidarSpec.HorizontalFovDegrees, 360.0f);
-    TestEqual(TEXT("Mid-360S close blind zone cm"), LidarSpec.MinRangeCm, 10.0f);
-    TestEqual(TEXT("Mid-360S 10 percent range cm"), LidarSpec.TypicalRangeCm, 4000.0f);
-    TestEqual(TEXT("Mid-360S cutoff cm"), LidarSpec.MaxRangeCm, 10000.0f);
-    TestEqual(TEXT("Mid-360S point rate"), LidarSpec.PointRate, 200000);
-    Camera->ApplySimulationQuality(EVirtualSensorSimulationQuality::RealTimePreview);
-    Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::RealTimePreview);
-    TestEqual(TEXT("D455 real-time preview resolution"), Camera->CaptureResolution, FIntPoint(640, 360));
-    TestEqual(TEXT("Mid-360S real-time horizontal ray budget"), Lidar->HorizontalSamples, 120);
-    TestEqual(TEXT("Mid-360S real-time vertical ray budget"), Lidar->VerticalChannels, 24);
-    TestEqual(TEXT("Mid-360S real-time range remains realistic"), Lidar->MaxDistance, 4000.0f);
+	UVirtualCameraCaptureComp* Camera = NewObject<UVirtualCameraCaptureComp>();
+	UVirtualLidarScanComp* Lidar = NewObject<UVirtualLidarScanComp>();
+	Camera->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);
+	Lidar->ApplyDeviceProfile(EVirtualLidarDeviceProfile::LivoxMid360S);
+	const FVirtualSensorDeviceSpec& CameraSpec = Camera->GetDeviceSpec();
+	const FVirtualSensorDeviceSpec& LidarSpec = Lidar->GetDeviceSpec();
+	TestEqual(TEXT("D455 horizontal depth FOV"), CameraSpec.HorizontalFovDegrees, 87.0f);
+	TestEqual(TEXT("D455 max-resolution Min-Z cm"), CameraSpec.MinRangeCm, 52.0f);
+	TestEqual(TEXT("D455 ideal max range cm"), CameraSpec.MaxRangeCm, 600.0f);
+	TestEqual(TEXT("Mid-360S horizontal FOV"), LidarSpec.HorizontalFovDegrees, 360.0f);
+	TestEqual(TEXT("Mid-360S close blind zone cm"), LidarSpec.MinRangeCm, 10.0f);
+	TestEqual(TEXT("Mid-360S 10 percent range cm"), LidarSpec.TypicalRangeCm, 4000.0f);
+	TestEqual(TEXT("Mid-360S cutoff cm"), LidarSpec.MaxRangeCm, 10000.0f);
+	TestEqual(TEXT("Mid-360S point rate"), LidarSpec.PointRate, 200000);
+	Camera->ApplySimulationQuality(EVirtualSensorSimulationQuality::RealTimePreview);
+	Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::RealTimePreview);
+	TestEqual(TEXT("D455 real-time preview resolution"), Camera->CaptureResolution, FIntPoint(640, 360));
+	TestEqual(TEXT("Mid-360S real-time horizontal ray budget"), Lidar->HorizontalSamples, 120);
+	TestEqual(TEXT("Mid-360S real-time vertical ray budget"), Lidar->VerticalChannels, 24);
+	TestEqual(TEXT("Mid-360S real-time range remains realistic"), Lidar->MaxDistance, 4000.0f);
 
-    Lidar->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80);
-    Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
-    const FVirtualSensorDeviceSpec& MlxSpec = Lidar->GetDeviceSpec();
-    TestEqual(TEXT("ML-X(80) integration model"), MlxSpec.Model, FString(TEXT("ML-X(80) Integration 200")));
-    TestEqual(TEXT("ML-X(80) maximum range cm"), Lidar->MaxDistance, 15000.0f);
-    TestEqual(TEXT("ML-X(80) horizontal samples"), Lidar->HorizontalSamples, 200);
-    TestEqual(TEXT("ML-X(80) vertical channels"), Lidar->VerticalChannels, 56);
-    TestEqual(TEXT("ML-X(80) scan interval"), Lidar->ScanInterval, 0.05f);
-    TestEqual(TEXT("ML-X(80) horizontal FOV"), Lidar->HorizontalFov, 80.0f);
-    TestEqual(TEXT("ML-X(80) minimum vertical angle"), Lidar->MinVerticalAngle, -11.65f);
-    TestEqual(TEXT("ML-X(80) maximum vertical angle"), Lidar->MaxVerticalAngle, 11.65f);
-    TestEqual(TEXT("ML-X(80) point rate"), MlxSpec.PointRate, 224000);
-    TestEqual(TEXT("ML-X(80) integration profile class"), Lidar->ProfileClass, EVirtualLidarProfileClass::IntegrationDownsampled);
+	Lidar->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80);
+	Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+	const FVirtualSensorDeviceSpec& MlxSpec = Lidar->GetDeviceSpec();
+	TestEqual(TEXT("ML-X(80) integration model"), MlxSpec.Model, FString(TEXT("ML-X(80) Integration 200")));
+	TestEqual(TEXT("ML-X(80) maximum range cm"), Lidar->MaxDistance, 15000.0f);
+	TestEqual(TEXT("ML-X(80) horizontal samples"), Lidar->HorizontalSamples, 200);
+	TestEqual(TEXT("ML-X(80) vertical channels"), Lidar->VerticalChannels, 56);
+	TestEqual(TEXT("ML-X(80) scan interval"), Lidar->ScanInterval, 0.05f);
+	TestEqual(TEXT("ML-X(80) horizontal FOV"), Lidar->HorizontalFov, 80.0f);
+	TestEqual(TEXT("ML-X(80) minimum vertical angle"), Lidar->MinVerticalAngle, -11.65f);
+	TestEqual(TEXT("ML-X(80) maximum vertical angle"), Lidar->MaxVerticalAngle, 11.65f);
+	TestEqual(TEXT("ML-X(80) point rate"), MlxSpec.PointRate, 224000);
+	TestEqual(TEXT("ML-X(80) integration profile class"), Lidar->ProfileClass, EVirtualLidarProfileClass::IntegrationDownsampled);
 
-    Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::Balanced);
-    TestEqual(TEXT("ML-X(80) balanced horizontal samples"), Lidar->HorizontalSamples, 160);
-    TestEqual(TEXT("ML-X(80) balanced vertical channels"), Lidar->VerticalChannels, 42);
-    TestTrue(TEXT("ML-X(80) balanced rate is 15Hz"), FMath::IsNearlyEqual(Lidar->ScanInterval, 1.0f / 15.0f));
-    TestEqual(TEXT("ML-X(80) balanced preserves range"), Lidar->MaxDistance, 15000.0f);
+	Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::Balanced);
+	TestEqual(TEXT("ML-X(80) balanced horizontal samples"), Lidar->HorizontalSamples, 160);
+	TestEqual(TEXT("ML-X(80) balanced vertical channels"), Lidar->VerticalChannels, 42);
+	TestTrue(TEXT("ML-X(80) balanced rate is 15Hz"), FMath::IsNearlyEqual(Lidar->ScanInterval, 1.0f / 15.0f));
+	TestEqual(TEXT("ML-X(80) balanced preserves range"), Lidar->MaxDistance, 15000.0f);
 
-    Lidar->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);
-    Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
-    const FVirtualSensorDeviceSpec& NativeSpec = Lidar->GetDeviceSpec();
-    TestEqual(TEXT("ML-X(80) native model"), NativeSpec.Model, FString(TEXT("ML-X(80) Native")));
-    TestEqual(TEXT("ML-X(80) native horizontal samples"), Lidar->HorizontalSamples, 576);
-    TestEqual(TEXT("ML-X(80) native vertical channels"), Lidar->VerticalChannels, 56);
-    TestTrue(TEXT("ML-X(80) native runs at 20Hz"), FMath::IsNearlyEqual(Lidar->ScanInterval, 0.05f));
-    TestEqual(TEXT("ML-X(80) native point rate"), NativeSpec.PointRate, 645120);
-    TestEqual(TEXT("ML-X(80) native maximum echoes"), NativeSpec.MaxEchoesPerPixel, 2);
-    TestEqual(TEXT("ML-X(80) native profile class"), Lidar->ProfileClass, EVirtualLidarProfileClass::PublicSpecNative);
-    TestEqual(TEXT("ML-X(80) native fidelity is public spec based"), Lidar->FidelityMode, EVirtualSensorFidelityMode::PublicSpecBased);
-    TestFalse(TEXT("public profile never claims vendor protocol verification"), NativeSpec.bProtocolVerifiedAgainstHardware);
-    return true;
+	Lidar->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);
+	Lidar->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+	const FVirtualSensorDeviceSpec& NativeSpec = Lidar->GetDeviceSpec();
+	TestEqual(TEXT("ML-X(80) native model"), NativeSpec.Model, FString(TEXT("ML-X(80) Native")));
+	TestEqual(TEXT("ML-X(80) native horizontal samples"), Lidar->HorizontalSamples, 576);
+	TestEqual(TEXT("ML-X(80) native vertical channels"), Lidar->VerticalChannels, 56);
+	TestTrue(TEXT("ML-X(80) native runs at 20Hz"), FMath::IsNearlyEqual(Lidar->ScanInterval, 0.05f));
+	TestEqual(TEXT("ML-X(80) native point rate"), NativeSpec.PointRate, 645120);
+	TestEqual(TEXT("ML-X(80) native maximum echoes"), NativeSpec.MaxEchoesPerPixel, 2);
+	TestEqual(TEXT("ML-X(80) native profile class"), Lidar->ProfileClass, EVirtualLidarProfileClass::PublicSpecNative);
+	TestEqual(TEXT("ML-X(80) native fidelity is public spec based"), Lidar->FidelityMode, EVirtualSensorFidelityMode::PublicSpecBased);
+	TestFalse(TEXT("public profile never claims vendor protocol verification"), NativeSpec.bProtocolVerifiedAgainstHardware);
+	return true;
 }
 
 bool FVirtualSensorEditableStateValidationTest::RunTest(const FString& Parameters)
 {
-    FVirtualSensorEditableState State;
-    State.TargetKind = EVirtualSensorTargetKind::Camera;
-    State.SensorId = TEXT("CAM-A");
-    FString Error;
-    TestTrue(TEXT("real-time camera state is accepted"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
+	FVirtualSensorEditableState State;
+	State.TargetKind = EVirtualSensorTargetKind::Camera;
+	State.SensorId = TEXT("CAM-A");
+	FString Error;
+	TestTrue(TEXT("real-time camera state is accepted"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
 
-    TestFalse(TEXT("duplicate SensorId is rejected"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, { TEXT("CAM-A") }, Error));
-    State.SensorId = TEXT("CAM-B");
-    State.CameraResolution.X = 100;
-    TestFalse(TEXT("out-of-range camera resolution is rejected"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
+	TestFalse(TEXT("duplicate SensorId is rejected"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {TEXT("CAM-A")}, Error));
+	State.SensorId = TEXT("CAM-B");
+	State.CameraResolution.X = 100;
+	TestFalse(TEXT("out-of-range camera resolution is rejected"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
 
-    State.CameraResolution = FIntPoint(640, 360);
-    State.ActorTransform.SetLocation(FVector(std::numeric_limits<double>::quiet_NaN(), 0.0, 0.0));
-    TestFalse(TEXT("NaN transform is rejected"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
+	State.CameraResolution = FIntPoint(640, 360);
+	State.ActorTransform.SetLocation(FVector(std::numeric_limits<double>::quiet_NaN(), 0.0, 0.0));
+	TestFalse(TEXT("NaN transform is rejected"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
 
-    State.ActorTransform = FTransform::Identity;
-    State.TargetKind = EVirtualSensorTargetKind::Lidar;
-    State.SensorId = TEXT("LIDAR-A");
-    State.LidarMaxDistance = 15000.0f;
-    TestTrue(TEXT("150m LiDAR range is accepted"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
-    State.LidarMaxDistance = 20001.0f;
-    TestFalse(TEXT("LiDAR range above 200m is rejected"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
-    State.LidarMaxDistance = 15000.0f;
-    State.LidarMinVerticalAngle = 52.0f;
-    State.LidarMaxVerticalAngle = -7.0f;
-    TestFalse(TEXT("inverted LiDAR vertical angles are rejected"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
-    return true;
+	State.ActorTransform = FTransform::Identity;
+	State.TargetKind = EVirtualSensorTargetKind::Lidar;
+	State.SensorId = TEXT("LIDAR-A");
+	State.LidarMaxDistance = 15000.0f;
+	TestTrue(TEXT("150m LiDAR range is accepted"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
+	State.LidarMaxDistance = 20001.0f;
+	TestFalse(TEXT("LiDAR range above 200m is rejected"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
+	State.LidarMaxDistance = 15000.0f;
+	State.LidarMinVerticalAngle = 52.0f;
+	State.LidarMaxVerticalAngle = -7.0f;
+	TestFalse(TEXT("inverted LiDAR vertical angles are rejected"), UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State, {}, Error));
+	return true;
 }
 
 bool FVirtualSensorStorageSummaryTest::RunTest(const FString& Parameters)
 {
-    UDxWidgetVirtualSensorCaptureExportPanel* Widget = NewObject<UDxWidgetVirtualSensorCaptureExportPanel>();
-    const FString Summary = Widget->GetStorageSummaryText();
-    TestTrue(TEXT("summary includes payload folder"), Summary.Contains(TEXT("ServerPayload")));
-    TestTrue(TEXT("summary includes point cloud folder"), Summary.Contains(TEXT("PointCloud")));
-    TestTrue(TEXT("summary includes timed camera and lidar"), Summary.Contains(TEXT("LocalTimedCapture")) && Summary.Contains(TEXT("Camera | Lidar")));
-    TestTrue(TEXT("summary includes recorder folder"), Summary.Contains(TEXT("SensorRecordings")));
-    TestFalse(TEXT("copy path fails clearly when no result exists"), Widget->CopyLastResultPath());
-    TestTrue(TEXT("copy path failure is shown in summary"), Widget->GetStorageSummaryText().Contains(TEXT("복사할 최근 저장 경로가 없습니다")));
-    return true;
+	UDxWidgetVirtualSensorCaptureExportPanel* Widget = NewObject<UDxWidgetVirtualSensorCaptureExportPanel>();
+	const FString Summary = Widget->GetStorageSummaryText();
+	TestTrue(TEXT("summary includes payload folder"), Summary.Contains(TEXT("ServerPayload")));
+	TestTrue(TEXT("summary includes point cloud folder"), Summary.Contains(TEXT("PointCloud")));
+	TestTrue(TEXT("summary includes timed camera and lidar"), Summary.Contains(TEXT("LocalTimedCapture")) && Summary.Contains(TEXT("Camera | Lidar")));
+	TestTrue(TEXT("summary includes recorder folder"), Summary.Contains(TEXT("SensorRecordings")));
+	TestFalse(TEXT("copy path fails clearly when no result exists"), Widget->CopyLastResultPath());
+	TestTrue(TEXT("copy path failure is shown in summary"), Widget->GetStorageSummaryText().Contains(TEXT("복사할 최근 저장 경로가 없습니다")));
+	return true;
 }
 
 bool FVirtualSensorGizmoMathTest::RunTest(const FString& Parameters)
 {
-    TestTrue(TEXT("near-camera gizmo follows distance rather than covering the viewport"),FMath::IsNearlyEqual(AVirtualSensorTransformGizmoActor::CalculateVisualScale(10.f),10.f/900.f));
-    TestEqual(TEXT("coincident gizmo retains a finite positive size"),AVirtualSensorTransformGizmoActor::CalculateVisualScale(0.f),0.005f);
-    TestEqual(TEXT("normal-distance gizmo scale is unchanged"),AVirtualSensorTransformGizmoActor::CalculateVisualScale(900.f),1.f);
-    TestEqual(TEXT("far-distance cap is unchanged"),AVirtualSensorTransformGizmoActor::CalculateVisualScale(9000.f),2.5f);
-    const FTransform Rotated(FRotator(0.0f, 90.0f, 0.0f), FVector(100.0f, 200.0f, 300.0f));
-    const FVector LocalForward = AVirtualSensorTransformGizmoActor::ResolveAxisVector(Rotated, EVirtualSensorCoordinateSpace::Local, EAxis::X);
-    TestTrue(TEXT("local X follows sensor yaw"), LocalForward.Equals(FVector::RightVector, 0.01f));
-    const FVector WorldForward = AVirtualSensorTransformGizmoActor::ResolveAxisVector(Rotated, EVirtualSensorCoordinateSpace::World, EAxis::X);
-    TestTrue(TEXT("world X ignores sensor yaw"), WorldForward.Equals(FVector::ForwardVector, 0.01f));
+	TestTrue(TEXT("near-camera gizmo follows distance rather than covering the viewport"), FMath::IsNearlyEqual(AVirtualSensorTransformGizmoActor::CalculateVisualScale(10.f), 10.f / 900.f));
+	TestEqual(TEXT("coincident gizmo retains a finite positive size"), AVirtualSensorTransformGizmoActor::CalculateVisualScale(0.f), 0.005f);
+	TestEqual(TEXT("normal-distance gizmo scale is unchanged"), AVirtualSensorTransformGizmoActor::CalculateVisualScale(900.f), 1.f);
+	TestEqual(TEXT("far-distance cap is unchanged"), AVirtualSensorTransformGizmoActor::CalculateVisualScale(9000.f), 2.5f);
+	const FTransform Rotated(FRotator(0.0f, 90.0f, 0.0f), FVector(100.0f, 200.0f, 300.0f));
+	const FVector LocalForward = AVirtualSensorTransformGizmoActor::ResolveAxisVector(Rotated, EVirtualSensorCoordinateSpace::Local, EAxis::X);
+	TestTrue(TEXT("local X follows sensor yaw"), LocalForward.Equals(FVector::RightVector, 0.01f));
+	const FVector WorldForward = AVirtualSensorTransformGizmoActor::ResolveAxisVector(Rotated, EVirtualSensorCoordinateSpace::World, EAxis::X);
+	TestTrue(TEXT("world X ignores sensor yaw"), WorldForward.Equals(FVector::ForwardVector, 0.01f));
 
-    const FTransform LocalMoved = AVirtualSensorTransformGizmoActor::ApplyKeyboardDelta(Rotated, EVirtualSensorCoordinateSpace::Local, FVector(10.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
-    TestTrue(TEXT("local W movement uses sensor forward"), LocalMoved.GetLocation().Equals(FVector(100.0f, 210.0f, 300.0f), 0.01f));
-    const FTransform WorldMoved = AVirtualSensorTransformGizmoActor::ApplyKeyboardDelta(Rotated, EVirtualSensorCoordinateSpace::World, FVector(10.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
-    TestTrue(TEXT("world W movement uses world X"), WorldMoved.GetLocation().Equals(FVector(110.0f, 200.0f, 300.0f), 0.01f));
+	const FTransform LocalMoved = AVirtualSensorTransformGizmoActor::ApplyKeyboardDelta(Rotated, EVirtualSensorCoordinateSpace::Local, FVector(10.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+	TestTrue(TEXT("local W movement uses sensor forward"), LocalMoved.GetLocation().Equals(FVector(100.0f, 210.0f, 300.0f), 0.01f));
+	const FTransform WorldMoved = AVirtualSensorTransformGizmoActor::ApplyKeyboardDelta(Rotated, EVirtualSensorCoordinateSpace::World, FVector(10.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+	TestTrue(TEXT("world W movement uses world X"), WorldMoved.GetLocation().Equals(FVector(110.0f, 200.0f, 300.0f), 0.01f));
 
-    const FTransform RotatedAgain = AVirtualSensorTransformGizmoActor::ApplyKeyboardDelta(FTransform::Identity, EVirtualSensorCoordinateSpace::World, FVector::ZeroVector, FRotator(0.0f, 90.0f, 0.0f));
-    TestTrue(TEXT("keyboard yaw rotates forward to world Y"), RotatedAgain.GetUnitAxis(EAxis::X).Equals(FVector::RightVector, 0.01f));
-    return true;
+	const FTransform RotatedAgain = AVirtualSensorTransformGizmoActor::ApplyKeyboardDelta(FTransform::Identity, EVirtualSensorCoordinateSpace::World, FVector::ZeroVector, FRotator(0.0f, 90.0f, 0.0f));
+	TestTrue(TEXT("keyboard yaw rotates forward to world Y"), RotatedAgain.GetUnitAxis(EAxis::X).Equals(FVector::RightVector, 0.01f));
+	return true;
 }
 
 bool FVirtualSensorDebugBudgetTest::RunTest(const FString& Parameters)
 {
-    TestEqual(TEXT("projection debug ray budget remains performance safe"), AVirtualSensorTransformGizmoActor::ProjectionDebugRayBudget, 64);
-    UVirtualLidarScanComp* Lidar = NewObject<UVirtualLidarScanComp>();
-    TestFalse(TEXT("legacy per-ray debug remains off by default"), Lidar->bDrawDebugRays);
-    return true;
+	TestEqual(TEXT("projection debug ray budget remains performance safe"), AVirtualSensorTransformGizmoActor::ProjectionDebugRayBudget, 64);
+	UVirtualLidarScanComp* Lidar = NewObject<UVirtualLidarScanComp>();
+	TestFalse(TEXT("legacy per-ray debug remains off by default"), Lidar->bDrawDebugRays);
+	return true;
 }
 
 bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parameters)
 {
-    UVirtualSensorUiPreferencesSaveGame* Preferences = NewObject<UVirtualSensorUiPreferencesSaveGame>();
-    FVirtualSensorPanelUiState& Panel = Preferences->PanelStates.Add(TEXT("Monitor"));
-    Panel.NormalizedPosition = FVector2D(0.75f, 0.25f);
-    Panel.bHasSavedPosition = true;
-    Panel.bCollapsed = true;
-    Panel.ExpandedSize = FVector2D(1040.0f, 620.0f);
-    Panel.bHasSavedSize = true;
-    Preferences->LidarViewMode = static_cast<uint8>(EVirtualLidarViewMode::ActorClassColor);
-    Preferences->LidarProjectionMode = ELidarMonitorProjectionMode::Split;
-    Preferences->LidarColorMode = ELidarColorMode::DistanceViridis;
-    Preferences->bShowWorldLidarPointCloud = false;
-    Preferences->LidarPointSize = 3.5f;
-    Preferences->bWorldTopDownAutoFit = false;
-    Preferences->bMonitorDetailsExpanded = true;
-    Preferences->bSettingsKeyboardHelpExpanded = true;
+	UVirtualSensorUiPreferencesSaveGame* Preferences = NewObject<UVirtualSensorUiPreferencesSaveGame>();
+	FVirtualSensorPanelUiState& Panel = Preferences->PanelStates.Add(TEXT("Monitor"));
+	Panel.NormalizedPosition = FVector2D(0.75f, 0.25f);
+	Panel.bHasSavedPosition = true;
+	Panel.bCollapsed = true;
+	Panel.ExpandedSize = FVector2D(1040.0f, 620.0f);
+	Panel.bHasSavedSize = true;
+	Preferences->LidarViewMode = static_cast<uint8>(EVirtualLidarViewMode::ActorClassColor);
+	Preferences->LidarProjectionMode = ELidarMonitorProjectionMode::Split;
+	Preferences->LidarColorMode = ELidarColorMode::DistanceViridis;
+	Preferences->bShowWorldLidarPointCloud = false;
+	Preferences->LidarPointSize = 3.5f;
+	Preferences->bWorldTopDownAutoFit = false;
+	Preferences->bMonitorDetailsExpanded = true;
+	Preferences->bSettingsKeyboardHelpExpanded = true;
 	Preferences->CaptureExportActiveTab = static_cast<uint8>(EVirtualSensorCaptureExportTab::ConnectionLog);
 	Preferences->SensorStreamFrameStride = 3;
 	Preferences->SensorStreamReceiptInterval = 10;
@@ -222,28 +226,29 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
 	Preferences->PrimaryCameraSensorId = TEXT("VCAM-TEST-001");
 	Preferences->SecondaryCameraSensorId = TEXT("VCAM-TEST-002");
 
-    TArray<uint8> Bytes;
-    TestTrue(TEXT("UI preferences serialize to memory"), UGameplayStatics::SaveGameToMemory(Preferences, Bytes));
-    UVirtualSensorUiPreferencesSaveGame* Loaded = Cast<UVirtualSensorUiPreferencesSaveGame>(UGameplayStatics::LoadGameFromMemory(Bytes));
-    TestNotNull(TEXT("UI preferences deserialize from memory"), Loaded);
-    if (!Loaded) return false;
-    const FVirtualSensorPanelUiState* LoadedPanel = Loaded->PanelStates.Find(TEXT("Monitor"));
-    TestNotNull(TEXT("panel state survives serialization"), LoadedPanel);
-    if (LoadedPanel)
-    {
-        TestEqual(TEXT("normalized position survives serialization"), LoadedPanel->NormalizedPosition, FVector2D(0.75f, 0.25f));
-        TestTrue(TEXT("collapsed state survives serialization"), LoadedPanel->bCollapsed);
-        TestTrue(TEXT("saved size flag survives serialization"), LoadedPanel->bHasSavedSize);
-        TestEqual(TEXT("expanded size survives serialization"), LoadedPanel->ExpandedSize, FVector2D(1040.0f, 620.0f));
-    }
-    TestEqual(TEXT("LiDAR mode survives serialization"), Loaded->LidarViewMode, static_cast<uint8>(EVirtualLidarViewMode::ActorClassColor));
-    TestEqual(TEXT("LiDAR projection survives serialization"), Loaded->LidarProjectionMode, ELidarMonitorProjectionMode::Split);
-    TestEqual(TEXT("LiDAR color mode survives serialization"), Loaded->LidarColorMode, ELidarColorMode::DistanceViridis);
-    TestFalse(TEXT("world point visibility survives serialization"), Loaded->bShowWorldLidarPointCloud);
-    TestEqual(TEXT("point size survives serialization"), Loaded->LidarPointSize, 3.5f);
-    TestFalse(TEXT("world top-down auto-fit survives serialization"), Loaded->bWorldTopDownAutoFit);
-    TestTrue(TEXT("monitor detail state survives serialization"), Loaded->bMonitorDetailsExpanded);
-    TestTrue(TEXT("keyboard help state survives serialization"), Loaded->bSettingsKeyboardHelpExpanded);
+	TArray<uint8> Bytes;
+	TestTrue(TEXT("UI preferences serialize to memory"), UGameplayStatics::SaveGameToMemory(Preferences, Bytes));
+	UVirtualSensorUiPreferencesSaveGame* Loaded = Cast<UVirtualSensorUiPreferencesSaveGame>(UGameplayStatics::LoadGameFromMemory(Bytes));
+	TestNotNull(TEXT("UI preferences deserialize from memory"), Loaded);
+	if (!Loaded)
+		return false;
+	const FVirtualSensorPanelUiState* LoadedPanel = Loaded->PanelStates.Find(TEXT("Monitor"));
+	TestNotNull(TEXT("panel state survives serialization"), LoadedPanel);
+	if (LoadedPanel)
+	{
+		TestEqual(TEXT("normalized position survives serialization"), LoadedPanel->NormalizedPosition, FVector2D(0.75f, 0.25f));
+		TestTrue(TEXT("collapsed state survives serialization"), LoadedPanel->bCollapsed);
+		TestTrue(TEXT("saved size flag survives serialization"), LoadedPanel->bHasSavedSize);
+		TestEqual(TEXT("expanded size survives serialization"), LoadedPanel->ExpandedSize, FVector2D(1040.0f, 620.0f));
+	}
+	TestEqual(TEXT("LiDAR mode survives serialization"), Loaded->LidarViewMode, static_cast<uint8>(EVirtualLidarViewMode::ActorClassColor));
+	TestEqual(TEXT("LiDAR projection survives serialization"), Loaded->LidarProjectionMode, ELidarMonitorProjectionMode::Split);
+	TestEqual(TEXT("LiDAR color mode survives serialization"), Loaded->LidarColorMode, ELidarColorMode::DistanceViridis);
+	TestFalse(TEXT("world point visibility survives serialization"), Loaded->bShowWorldLidarPointCloud);
+	TestEqual(TEXT("point size survives serialization"), Loaded->LidarPointSize, 3.5f);
+	TestFalse(TEXT("world top-down auto-fit survives serialization"), Loaded->bWorldTopDownAutoFit);
+	TestTrue(TEXT("monitor detail state survives serialization"), Loaded->bMonitorDetailsExpanded);
+	TestTrue(TEXT("keyboard help state survives serialization"), Loaded->bSettingsKeyboardHelpExpanded);
 	TestEqual(TEXT("capture/export tab survives serialization"), Loaded->CaptureExportActiveTab, static_cast<uint8>(EVirtualSensorCaptureExportTab::ConnectionLog));
 	TestEqual(TEXT("stream stride survives serialization"), Loaded->SensorStreamFrameStride, 3);
 	TestEqual(TEXT("receipt sampling survives serialization"), Loaded->SensorStreamReceiptInterval, 10);
@@ -258,13 +263,13 @@ bool FVirtualSensorUiPreferencesSerializationTest::RunTest(const FString& Parame
 	TestTrue(TEXT("dual camera mode survives serialization"), Loaded->bDualCameraModeEnabled);
 	TestEqual(TEXT("primary camera selection survives serialization"), Loaded->PrimaryCameraSensorId, FString(TEXT("VCAM-TEST-001")));
 	TestEqual(TEXT("secondary camera selection survives serialization"), Loaded->SecondaryCameraSensorId, FString(TEXT("VCAM-TEST-002")));
-    return true;
+	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FVirtualSensorCaptureSelectionTest,
-	"MA0T10.SensorExport.CaptureSelection",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+    FVirtualSensorCaptureSelectionTest,
+    "MA0T10.SensorExport.CaptureSelection",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FVirtualSensorCaptureSelectionTest::RunTest(const FString& Parameters)
 {
@@ -290,12 +295,12 @@ bool FVirtualSensorCaptureSelectionTest::RunTest(const FString& Parameters)
 bool FVirtualSensorCapturePanelResizeTest::RunTest(const FString& Parameters)
 {
 	const FVector2D Resized = UDxWidgetVirtualSensorPanelBase::CalculateResizedPanelSize(
-		FVector2D(900.0f, 620.0f), FVector2D(200.0f, 100.0f), 1.0f,
-		FVector2D(620.0f, 360.0f), FVector2D(1600.0f, 1000.0f));
+	    FVector2D(900.0f, 620.0f), FVector2D(200.0f, 100.0f), 1.0f,
+	    FVector2D(620.0f, 360.0f), FVector2D(1600.0f, 1000.0f));
 	TestEqual(TEXT("capture panel grows from bottom-right grip"), Resized, FVector2D(1100.0f, 720.0f));
 	const FVector2D Minimum = UDxWidgetVirtualSensorPanelBase::CalculateResizedPanelSize(
-		FVector2D(900.0f, 620.0f), FVector2D(-1000.0f, -1000.0f), 1.0f,
-		FVector2D(620.0f, 360.0f), FVector2D(1600.0f, 1000.0f));
+	    FVector2D(900.0f, 620.0f), FVector2D(-1000.0f, -1000.0f), 1.0f,
+	    FVector2D(620.0f, 360.0f), FVector2D(1600.0f, 1000.0f));
 	TestEqual(TEXT("capture panel respects its minimum size"), Minimum, FVector2D(620.0f, 360.0f));
 	UDxWidgetVirtualSensorCaptureExportPanel* Widget = NewObject<UDxWidgetVirtualSensorCaptureExportPanel>();
 	Widget->SetPanelResizable(true);

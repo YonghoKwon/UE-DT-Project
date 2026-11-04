@@ -6,9 +6,9 @@
 UCLASS()
 class USetupVirtualLidarNiagaraAssetsCommandlet : public UCommandlet
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    USetupVirtualLidarNiagaraAssetsCommandlet();
-    virtual int32 Main(const FString& Params) override;
+	USetupVirtualLidarNiagaraAssetsCommandlet();
+	virtual int32 Main(const FString& Params) override;
 };

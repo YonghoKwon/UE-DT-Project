@@ -9,35 +9,36 @@ class UVirtualLidarScanComp;
 class UVirtualLidarVisualizationComp;
 struct FTestSetPcdFrame
 {
-    TArray<FVirtualLidarPoint> Points;
-    TSharedPtr<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe> Snapshot;
-    FTransform Pose;
-    FString Error;
-    int32 Index=0,Width=1,Height=1;
-    double Elapsed=0,Range=100;
+	TArray<FVirtualLidarPoint> Points;
+	TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> Snapshot;
+	FTransform Pose;
+	FString Error;
+	int32 Index = 0, Width = 1, Height = 1;
+	double Elapsed = 0, Range = 100;
 };
 /** Saved-file viewer. Private components have no Actor output router, transport or recorder. */
 class FAgentTestSetPcdPreview
 {
 public:
-    FAgentTestSetPcdPreview();
-    ~FAgentTestSetPcdPreview();
-    void Start(UWorld* World,const FAgentTestSetItem& Item,int32 Index);
-    void Pump(UWorld* World);
-    void Stop();
-    void SetPaused(bool Paused);
-    bool NeedsPump() const;
-    FAgentTestSetPreviewStatus Status() const { return View; }
-    UTexture2D* Texture() const;
-    static FTestSetPcdFrame ReadFrame(const FAgentTestSetItem& Item,int32 Index,const std::atomic<bool>& Cancel);
+	FAgentTestSetPcdPreview();
+	~FAgentTestSetPcdPreview();
+	void Start(UWorld* World, const FAgentTestSetItem& Item, int32 Index);
+	void Pump(UWorld* World);
+	void Stop();
+	void SetPaused(bool Paused);
+	bool NeedsPump() const;
+	FAgentTestSetPreviewStatus Status() const { return View; }
+	UTexture2D* Texture() const;
+	static FTestSetPcdFrame ReadFrame(const FAgentTestSetItem& Item, int32 Index, const std::atomic<bool>& Cancel);
+
 private:
-    void Queue(int32 Index);
-    FAgentTestSetItem Source;
-    FAgentTestSetPreviewStatus View;
-    TFuture<FTestSetPcdFrame> Read;
-    TOptional<FTestSetPcdFrame> Ready;
-    TSharedRef<std::atomic<bool>,ESPMode::ThreadSafe> Cancelled=MakeShared<std::atomic<bool>,ESPMode::ThreadSafe>(false);
-    TStrongObjectPtr<UVirtualLidarScanComp> Scan;
-    TStrongObjectPtr<UVirtualLidarVisualizationComp> Visualization;
-    double AppliedAt=0;
+	void Queue(int32 Index);
+	FAgentTestSetItem Source;
+	FAgentTestSetPreviewStatus View;
+	TFuture<FTestSetPcdFrame> Read;
+	TOptional<FTestSetPcdFrame> Ready;
+	TSharedRef<std::atomic<bool>, ESPMode::ThreadSafe> Cancelled = MakeShared<std::atomic<bool>, ESPMode::ThreadSafe>(false);
+	TStrongObjectPtr<UVirtualLidarScanComp> Scan;
+	TStrongObjectPtr<UVirtualLidarVisualizationComp> Visualization;
+	double AppliedAt = 0;
 };

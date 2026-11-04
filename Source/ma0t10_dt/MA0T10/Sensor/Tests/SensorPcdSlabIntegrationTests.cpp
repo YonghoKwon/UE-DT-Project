@@ -32,7 +32,8 @@ bool FSensorWssFallbackTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("WSS camera keeps output demand for compatibility JSON"), Camera->CaptureComp->HasRuntimeStreamOutputDemand());
 	TestEqual(TEXT("secure URL is never rewritten to plaintext"), Transport->TransportProfile.BrokerUrl, FString(TEXT("wss://example.invalid:61616/stomp")));
 	Publisher->StopAllStreams(FString());
-	Camera->Destroy(); Manager->Destroy();
+	Camera->Destroy();
+	Manager->Destroy();
 	return true;
 }
 
@@ -55,14 +56,15 @@ bool FSensorCaptureViewPolicyTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStompAuthContractTest, "MA0T10.SensorStream.StompAuthContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FStompAuthContractTest::RunTest(const FString& Parameters)
 {
-	TMap<FName,FString> Headers; FString Error;
+	TMap<FName, FString> Headers;
+	FString Error;
 	TestTrue(TEXT("empty password is a broker decision, never an engine assertion"),
-		UVirtualSensorTransportComp::BuildStompConnectHeaders(TEXT("user"),TEXT(""),TEXT(""),Headers,Error));
-	TestTrue(TEXT("login and passcode keys travel together"),Headers.Contains(TEXT("login")) && Headers.Contains(TEXT("passcode")));
+	         UVirtualSensorTransportComp::BuildStompConnectHeaders(TEXT("user"), TEXT(""), TEXT(""), Headers, Error));
+	TestTrue(TEXT("login and passcode keys travel together"), Headers.Contains(TEXT("login")) && Headers.Contains(TEXT("passcode")));
 	TestFalse(TEXT("mixed upgrade and CONNECT auth rejected before engine call"),
-		UVirtualSensorTransportComp::BuildStompConnectHeaders(TEXT("user"),TEXT("secret"),TEXT("token"),Headers,Error));
+	          UVirtualSensorTransportComp::BuildStompConnectHeaders(TEXT("user"), TEXT("secret"), TEXT("token"), Headers, Error));
 	TestTrue(TEXT("token-only auth has no CONNECT login"),
-		UVirtualSensorTransportComp::BuildStompConnectHeaders(TEXT(""),TEXT(""),TEXT("token"),Headers,Error) && Headers.IsEmpty());
+	         UVirtualSensorTransportComp::BuildStompConnectHeaders(TEXT(""), TEXT(""), TEXT("token"), Headers, Error) && Headers.IsEmpty());
 	return true;
 }
 
@@ -127,11 +129,18 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabContextSnapshotTest, "MA0T10.SensorStream.
 bool FSlabContextSnapshotTest::RunTest(const FString& Parameters)
 {
 	FVirtualSlabFrameContext Current;
-	Current.RunId=FGuid::NewGuid().ToString(); Current.MtlNo=TEXT("SQ83521 047"); Current.SlabFrameNo=100; Current.ElapsedSec=5; Current.Generation=1; Current.bEligible=true;
+	Current.RunId = FGuid::NewGuid().ToString();
+	Current.MtlNo = TEXT("SQ83521 047");
+	Current.SlabFrameNo = 100;
+	Current.ElapsedSec = 5;
+	Current.Generation = 1;
+	Current.bEligible = true;
 	FVirtualSensorFrameEnvelope SensorFrame;
-	SensorFrame.FrameId=9001; SensorFrame.SlabContext=Current;
-	Current.SlabFrameNo=101; Current.MtlNo=TEXT("NEXT-SLAB");
-	const auto Headers=SensorFrame.SlabContext.ToHeaders();
+	SensorFrame.FrameId = 9001;
+	SensorFrame.SlabContext = Current;
+	Current.SlabFrameNo = 101;
+	Current.MtlNo = TEXT("NEXT-SLAB");
+	const auto Headers = SensorFrame.SlabContext.ToHeaders();
 	TestEqual(TEXT("delayed result keeps acquisition slab number"), Headers.FindRef(TEXT("x-slab-frame-no")), FString(TEXT("100")));
 	TestEqual(TEXT("material id includes original whitespace"), Headers.FindRef(TEXT("x-mtl-no")), FString(TEXT("SQ83521 047")));
 	TestEqual(TEXT("sensor frame independent of slab frame"), SensorFrame.FrameId, static_cast<int64>(9001));
@@ -140,41 +149,46 @@ bool FSlabContextSnapshotTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabLifecycleTest, "MA0T10.SensorStream.SlabSessionLifecycle", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FSlabLifecycleTest::RunTest(const FString& Parameters)
 {
-	UWorld* World=FAutomationEditorCommonUtils::CreateNewMap();
-	auto* Manager=World->SpawnActor<AVirtualSensorCoordinator>();
-	auto* Sensor=World->SpawnActor<AVirtualLidarSensorActor>();
+	UWorld* World = FAutomationEditorCommonUtils::CreateNewMap();
+	auto* Manager = World->SpawnActor<AVirtualSensorCoordinator>();
+	auto* Sensor = World->SpawnActor<AVirtualLidarSensorActor>();
 	Manager->RegisterSensorActor(Sensor);
-	auto* Slab=World->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
-	TestNotNull(TEXT("world adapter exists"),Slab);
-	if (!Slab) return false;
-	TestTrue(TEXT("log-only transport cannot claim a Topic session"),Slab->BeginSlabSensorSession(FString(),{}).IsEmpty());
-	Manager->SharedTransportComp->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
-	const FString Run=Slab->BeginSlabSensorSession(FString(),{});
-	TestFalse(TEXT("begin creates UUID"),Run.IsEmpty());
-	TestFalse(TEXT("ready state does not admit sensor frames"),Slab->CaptureContext(Sensor->GetSensorId(),9001).bEligible);
-	TestTrue(TEXT("first applied slab activates session"),Slab->NotifySlabFrameApplied(Run,TEXT("SQ83521 047"),100,5.0));
-	const auto Captured=Slab->CaptureContext(Sensor->GetSensorId(),9001);
-	TestTrue(TEXT("duplicate applied data is idempotent"),Slab->NotifySlabFrameApplied(Run,TEXT("SQ83521 047"),100,5.0));
-	TestFalse(TEXT("reversed slab frame rejected"),Slab->NotifySlabFrameApplied(Run,TEXT("SQ83521 047"),99,4.95));
-	TestFalse(TEXT("wrong run rejected"),Slab->EndSlabSensorSession(TEXT("wrong"),false));
-	Slab->NotifySlabFrameApplied(Run,TEXT("NEXT"),101,5.05);
-	TestEqual(TEXT("captured context stays at earlier applied slab frame"),Captured.SlabFrameNo,static_cast<int64>(100));
-	Slab->SetSlabSensorSessionPaused(Run,true);
-	TestFalse(TEXT("paused acquisition not admitted"),Slab->CaptureContext(Sensor->GetSensorId(),9002).bEligible);
-	TestTrue(TEXT("pre-pause acquisition can drain"),Slab->AllowsFrame(Sensor->GetSensorId(),Captured));
-	Slab->SetSlabSensorSessionPaused(Run,false);
-	Slab->EndSlabSensorSession(Run,false);
-	TestFalse(TEXT("new acquisition after movement end rejected"),Slab->CaptureContext(Sensor->GetSensorId(),9003).bEligible);
+	auto* Slab = World->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
+	TestNotNull(TEXT("world adapter exists"), Slab);
+	if (!Slab)
+		return false;
+	TestTrue(TEXT("log-only transport cannot claim a Topic session"), Slab->BeginSlabSensorSession(FString(), {}).IsEmpty());
+	Manager->SharedTransportComp->TransportMode = EVirtualSensorTransportMode::StompWebSocket;
+	const FString Run = Slab->BeginSlabSensorSession(FString(), {});
+	TestFalse(TEXT("begin creates UUID"), Run.IsEmpty());
+	TestFalse(TEXT("ready state does not admit sensor frames"), Slab->CaptureContext(Sensor->GetSensorId(), 9001).bEligible);
+	TestTrue(TEXT("first applied slab activates session"), Slab->NotifySlabFrameApplied(Run, TEXT("SQ83521 047"), 100, 5.0));
+	const auto Captured = Slab->CaptureContext(Sensor->GetSensorId(), 9001);
+	TestTrue(TEXT("duplicate applied data is idempotent"), Slab->NotifySlabFrameApplied(Run, TEXT("SQ83521 047"), 100, 5.0));
+	TestFalse(TEXT("reversed slab frame rejected"), Slab->NotifySlabFrameApplied(Run, TEXT("SQ83521 047"), 99, 4.95));
+	TestFalse(TEXT("wrong run rejected"), Slab->EndSlabSensorSession(TEXT("wrong"), false));
+	Slab->NotifySlabFrameApplied(Run, TEXT("NEXT"), 101, 5.05);
+	TestEqual(TEXT("captured context stays at earlier applied slab frame"), Captured.SlabFrameNo, static_cast<int64>(100));
+	Slab->SetSlabSensorSessionPaused(Run, true);
+	TestFalse(TEXT("paused acquisition not admitted"), Slab->CaptureContext(Sensor->GetSensorId(), 9002).bEligible);
+	TestTrue(TEXT("pre-pause acquisition can drain"), Slab->AllowsFrame(Sensor->GetSensorId(), Captured));
+	Slab->SetSlabSensorSessionPaused(Run, false);
+	Slab->EndSlabSensorSession(Run, false);
+	TestFalse(TEXT("new acquisition after movement end rejected"), Slab->CaptureContext(Sensor->GetSensorId(), 9003).bEligible);
 	Slab->Tick(0.01f);
-	TestEqual(TEXT("in-flight acquisition holds draining state"),Slab->GetSlabSensorSessionStatus().State,EVirtualSlabSessionState::Draining);
-	Slab->CompleteAcquisition(Sensor->GetSensorId(),9001); Slab->Tick(0.01f);
-	TestEqual(TEXT("all pending work completed"),Slab->GetSlabSensorSessionStatus().State,EVirtualSlabSessionState::Completed);
-	TestTrue(TEXT("used UUID cannot be reused"),Slab->BeginSlabSensorSession(Run,{}).IsEmpty());
-	const FString Next=Slab->BeginSlabSensorSession(FString(),{});
-	TestTrue(TEXT("new run succeeds"),!Next.IsEmpty() && Next!=Run);
-	TestFalse(TEXT("previous run result never leaks"),Slab->AllowsFrame(Sensor->GetSensorId(),Captured));
-	Slab->EndSlabSensorSession(Next,true); Slab->Tick(0.01f);
-	Sensor->StopSensor(); Sensor->Destroy(); Manager->Destroy();
+	TestEqual(TEXT("in-flight acquisition holds draining state"), Slab->GetSlabSensorSessionStatus().State, EVirtualSlabSessionState::Draining);
+	Slab->CompleteAcquisition(Sensor->GetSensorId(), 9001);
+	Slab->Tick(0.01f);
+	TestEqual(TEXT("all pending work completed"), Slab->GetSlabSensorSessionStatus().State, EVirtualSlabSessionState::Completed);
+	TestTrue(TEXT("used UUID cannot be reused"), Slab->BeginSlabSensorSession(Run, {}).IsEmpty());
+	const FString Next = Slab->BeginSlabSensorSession(FString(), {});
+	TestTrue(TEXT("new run succeeds"), !Next.IsEmpty() && Next != Run);
+	TestFalse(TEXT("previous run result never leaks"), Slab->AllowsFrame(Sensor->GetSensorId(), Captured));
+	Slab->EndSlabSensorSession(Next, true);
+	Slab->Tick(0.01f);
+	Sensor->StopSensor();
+	Sensor->Destroy();
+	Manager->Destroy();
 	return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabSessionFailureTest, "MA0T10.SensorStream.SlabSessionFailureCompletion", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -235,17 +249,22 @@ bool FSlabSessionFailureTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("unfinished count survives cleanup"), Slab->GetSlabSensorSessionStatus().UnfinishedFrames, static_cast<int64>(1));
 
 	const FString CleanRun = Slab->BeginSlabSensorSession(FString(), {SensorId});
-	Slab->EndSlabSensorSession(CleanRun, false); Slab->Tick(0);
+	Slab->EndSlabSensorSession(CleanRun, false);
+	Slab->Tick(0);
 	TestEqual(TEXT("clean repeat run completes"), Slab->GetSlabSensorSessionStatus().EndReason, EVirtualSlabSessionEndReason::Completed);
 	const FString AbortedRun = Slab->BeginSlabSensorSession(FString(), {SensorId});
-	Slab->EndSlabSensorSession(AbortedRun, true); Slab->Tick(0);
+	Slab->EndSlabSensorSession(AbortedRun, true);
+	Slab->Tick(0);
 	TestEqual(TEXT("intentional abort is not timeout"), Slab->GetSlabSensorSessionStatus().EndReason, EVirtualSlabSessionEndReason::Aborted);
-	const FString PcdRun=Slab->BeginSlabSensorSession(FString(),{SensorId},true);
-	TestTrue(TEXT("PCD-only session starts point cloud"),Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud,SensorId));
-	TestFalse(TEXT("PCD-only does not enable lidar telemetry"),Publisher->IsStreamEnabled(EVirtualSensorStreamKind::LidarPayload,SensorId));
-	TestFalse(TEXT("PCD-only does not enable camera"),Publisher->IsStreamEnabled(EVirtualSensorStreamKind::CameraImage,SensorId));
-	Slab->EndSlabSensorSession(PcdRun,false); Slab->Tick(0);
-	Sensor->StopSensor(); Sensor->Destroy(); Manager->Destroy();
+	const FString PcdRun = Slab->BeginSlabSensorSession(FString(), {SensorId}, true);
+	TestTrue(TEXT("PCD-only session starts point cloud"), Publisher->IsStreamEnabled(EVirtualSensorStreamKind::PointCloud, SensorId));
+	TestFalse(TEXT("PCD-only does not enable lidar telemetry"), Publisher->IsStreamEnabled(EVirtualSensorStreamKind::LidarPayload, SensorId));
+	TestFalse(TEXT("PCD-only does not enable camera"), Publisher->IsStreamEnabled(EVirtualSensorStreamKind::CameraImage, SensorId));
+	Slab->EndSlabSensorSession(PcdRun, false);
+	Slab->Tick(0);
+	Sensor->StopSensor();
+	Sensor->Destroy();
+	Manager->Destroy();
 	return true;
 }
 #endif

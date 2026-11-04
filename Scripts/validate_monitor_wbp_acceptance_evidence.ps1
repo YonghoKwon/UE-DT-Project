@@ -210,7 +210,7 @@ function New-MissingEvidenceAction {
 function Get-MonitorOptionalBindingNames {
     param([string]$SourceRepoRoot)
 
-    $headerPath = Join-Path $SourceRepoRoot "Source\ma0t10_dt\MA0T10\UI\DxWidgetVirtualSensorMonitorPanel.h"
+    $headerPath = Join-Path $SourceRepoRoot "Source\ma0t10_dt\MA0T10\UI\Freeview\DxWidgetVirtualSensorMonitorPanel.h"
     if (-not (Test-Path -LiteralPath $headerPath -PathType Leaf)) {
         throw "DxWidgetVirtualSensorMonitorPanel.h not found: $headerPath"
     }

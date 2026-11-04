@@ -1,6 +1,5 @@
 ﻿#include "FacilityBase.h"
 
-
 // Sets default values
 AFacilityBase::AFacilityBase()
 {
@@ -12,7 +11,6 @@ AFacilityBase::AFacilityBase()
 void AFacilityBase::BeginPlay()
 {
 	Super::BeginPlay();
-	
 }
 
 // Called every frame

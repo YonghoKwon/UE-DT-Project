@@ -8,8 +8,8 @@
 UCLASS()
 class UMemoryAttributionCommandlet : public UCommandlet
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 public:
-    UMemoryAttributionCommandlet();
-    virtual int32 Main(const FString& Params) override;
+	UMemoryAttributionCommandlet();
+	virtual int32 Main(const FString& Params) override;
 };

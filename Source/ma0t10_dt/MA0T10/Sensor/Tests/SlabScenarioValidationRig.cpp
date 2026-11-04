@@ -3,7 +3,10 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 void ASlabScenarioValidationRig::SetValidationControlsVisibleForTests(bool Visible)
-{if(Controls)Controls->SetVisibility(Visible?EVisibility::SelfHitTestInvisible:EVisibility::Collapsed);}
+{
+	if (Controls)
+		Controls->SetVisibility(Visible ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed);
+}
 #endif
 #include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorControlTypes.h"
 #include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
@@ -40,234 +43,354 @@ void ASlabScenarioValidationRig::SetValidationControlsVisibleForTests(bool Visib
 #include "Editor/EditorPerformanceSettings.h"
 #endif
 
-ASlabScenarioValidationRig::ASlabScenarioValidationRig(){PrimaryActorTick.bCanEverTick=true;}
+ASlabScenarioValidationRig::ASlabScenarioValidationRig()
+{
+	PrimaryActorTick.bCanEverTick = true;
+}
 void ASlabScenarioValidationRig::ConfigureLocalBroker()
 {
-    if(!Coordinator||!Coordinator->SharedTransportComp)return;
-    auto Profile=Coordinator->SharedTransportComp->GetTransportProfile();
-    Profile.BrokerUrl=TEXT("ws://127.0.0.1:61616");
-    Profile.UserName=TEXT("artemis");
-    Coordinator->SharedTransportComp->ConfigureTransportProfile(Profile);
-    Coordinator->SharedTransportComp->SetSessionCredentials(TEXT("artemis"),FString());
-    Coordinator->SharedTransportComp->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+	if (!Coordinator || !Coordinator->SharedTransportComp)
+		return;
+	auto Profile = Coordinator->SharedTransportComp->GetTransportProfile();
+	Profile.BrokerUrl = TEXT("ws://127.0.0.1:61616");
+	Profile.UserName = TEXT("artemis");
+	Coordinator->SharedTransportComp->ConfigureTransportProfile(Profile);
+	Coordinator->SharedTransportComp->SetSessionCredentials(TEXT("artemis"), FString());
+	Coordinator->SharedTransportComp->TransportMode = EVirtualSensorTransportMode::StompWebSocket;
 }
 void ASlabScenarioValidationRig::Tick(float Delta)
 {
-    Super::Tick(Delta);
-    if(!SlabActor||!Lidar||!Coordinator)return;
-    if(!bInitialized)
-    {
-        auto* PC=GetWorld()->GetFirstPlayerController();
-        if(!PC||!GetWorld()->GetGameViewport())return;
-        // Owned validation fixture only: production UI uses the Actor editable-state API.
-        Lidar->StopSensor();
-        auto* Scan=Lidar->ScanComp.Get();
-        Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);
-        Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
-        Scan->SensorId=TEXT("SLAB-LIDAR-001");
-        Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;
-        Scan->FidelityMode=EVirtualSensorFidelityMode::IdealTruth;
-        Scan->bEnableRangeNoise=false;
-        Scan->SetServerPayloadPolicy(32,1024,false);
-        Coordinator->RegisterLidar(Scan);
-        Lidar->SetSharedOutputServices(Coordinator->SharedTransportComp,Coordinator->SharedRecorderComp,Coordinator->StreamPublisherComp);
-        Lidar->StartSensor();
-        if(Camera)
-        {
-            Camera->StopSensor();
-            Camera->CaptureComp->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);
-            Camera->CaptureComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
-            Coordinator->RegisterCamera(Camera->CaptureComp);
-            Camera->SetSharedOutputServices(Coordinator->SharedTransportComp,Coordinator->SharedRecorderComp,Coordinator->StreamPublisherComp);
-        }
-        if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_LOCAL_BROKER"))==TEXT("1"))ConfigureLocalBroker();
-        PC->bShowMouseCursor=true;PC->SetInputMode(FInputModeGameAndUI());
-        // Explicit test-only comparison switch; never changes production defaults or saves actors.
-        if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_ANALYSIS_OFF"))==TEXT("1"))
-        {
-            FSlabAnalysisDisplaySettings Off;
-            Off.bOutline=Off.bCross=Off.bReferencePose=Off.bCenterline=Off.bYaw=Off.bMargins=Off.bStatus=false;
-            SlabActor->SetAnalysisDisplaySettings(Off);
-        }
-        auto Button=[](const TCHAR* Label,TFunction<void()> Action){return SNew(SButton).Text(FText::FromString(Label)).OnClicked_Lambda([Action](){Action();return FReply::Handled();});};
-        Controls=SNew(SVerticalBox).Visibility(EVisibility::SelfHitTestInvisible)
-            +SVerticalBox::Slot().FillHeight(1)[SNullWidget::NullWidget]
-            // Test helper only: reserve the bottom input strip without referencing L3 UI.
-            +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,96)[SNew(SBorder).Padding(6).BorderBackgroundColor(FLinearColor(.02,.03,.05,1))[
-                SNew(SVerticalBox)
-                +SVerticalBox::Slot().AutoHeight()[SNew(SHorizontalBox)
-                    +SHorizontalBox::Slot().AutoWidth()[Button(TEXT("검증: 30초 관찰"),[this](){SubmitSynthetic(false);})]
-                    +SHorizontalBox::Slot().AutoWidth()[Button(TEXT("검증: 30초 PCD / 로컬 Broker"),[this](){SubmitSynthetic(true);})]
-                    +SHorizontalBox::Slot().AutoWidth()[Button(TEXT("검증 화면 저장"),[this](){SaveEvidence();})]
-                ]
-                +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(DisplayStatus);})]
-            ]];
-        GetWorld()->GetGameViewport()->AddViewportWidgetContent(Controls.ToSharedRef(),70);
-        bInitialized=true;
-    }
-    const auto S=SlabActor->GetSimulationStatus();
+	Super::Tick(Delta);
+	if (!SlabActor || !Lidar || !Coordinator)
+		return;
+	if (!bInitialized)
+	{
+		auto* PC = GetWorld()->GetFirstPlayerController();
+		if (!PC || !GetWorld()->GetGameViewport())
+			return;
+		// Owned validation fixture only: production UI uses the Actor editable-state API.
+		Lidar->StopSensor();
+		auto* Scan = Lidar->ScanComp.Get();
+		Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);
+		Scan->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+		Scan->SensorId = TEXT("SLAB-LIDAR-001");
+		Scan->AcquisitionBackend = EVirtualLidarAcquisitionBackend::GpuDepthProjection;
+		Scan->FidelityMode = EVirtualSensorFidelityMode::IdealTruth;
+		Scan->bEnableRangeNoise = false;
+		Scan->SetServerPayloadPolicy(32, 1024, false);
+		Coordinator->RegisterLidar(Scan);
+		Lidar->SetSharedOutputServices(Coordinator->SharedTransportComp, Coordinator->SharedRecorderComp, Coordinator->StreamPublisherComp);
+		Lidar->StartSensor();
+		if (Camera)
+		{
+			Camera->StopSensor();
+			Camera->CaptureComp->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);
+			Camera->CaptureComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+			Coordinator->RegisterCamera(Camera->CaptureComp);
+			Camera->SetSharedOutputServices(Coordinator->SharedTransportComp, Coordinator->SharedRecorderComp, Coordinator->StreamPublisherComp);
+		}
+		if (FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_LOCAL_BROKER")) == TEXT("1"))
+			ConfigureLocalBroker();
+		PC->bShowMouseCursor = true;
+		PC->SetInputMode(FInputModeGameAndUI());
+		// Explicit test-only comparison switch; never changes production defaults or saves actors.
+		if (FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_ANALYSIS_OFF")) == TEXT("1"))
+		{
+			FSlabAnalysisDisplaySettings Off;
+			Off.bOutline = Off.bCross = Off.bReferencePose = Off.bCenterline = Off.bYaw = Off.bMargins = Off.bStatus = false;
+			SlabActor->SetAnalysisDisplaySettings(Off);
+		}
+		auto Button = [](const TCHAR* Label, TFunction<void()> Action)
+		{
+			return SNew(SButton).Text(FText::FromString(Label)).OnClicked_Lambda([Action]()
+			                                                                     {Action();return FReply::Handled(); });
+		};
+		Controls = SNew(SVerticalBox).Visibility(EVisibility::SelfHitTestInvisible) + SVerticalBox::Slot().FillHeight(1)[SNullWidget::NullWidget]
+		           // Test helper only: reserve the bottom input strip without referencing L3 UI.
+		           + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 96)[SNew(SBorder).Padding(6).BorderBackgroundColor(FLinearColor(.02, .03, .05, 1))[SNew(SVerticalBox) + SVerticalBox::Slot().AutoHeight()[SNew(SHorizontalBox) + SHorizontalBox::Slot().AutoWidth()[Button(TEXT("검증: 30초 관찰"), [this]()
+		                                                                                                                                                                                                                                                                           { SubmitSynthetic(false); })] +
+		                                                                                                                                                                                                          SHorizontalBox::Slot().AutoWidth()[Button(TEXT("검증: 30초 PCD / 로컬 Broker"), [this]()
+		                                                                                                                                                                                                                                                    { SubmitSynthetic(true); })] +
+		                                                                                                                                                                                                          SHorizontalBox::Slot().AutoWidth()[Button(TEXT("검증 화면 저장"), [this]()
+		                                                                                                                                                                                                                                                    { SaveEvidence(); })]] +
+		                                                                                                                                                   SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).AutoWrapText(true).Text_Lambda([this]()
+		                                                                                                                                                                                                                                     { return FText::FromString(DisplayStatus); })]]];
+		GetWorld()->GetGameViewport()->AddViewportWidgetContent(Controls.ToSharedRef(), 70);
+		bInitialized = true;
+	}
+	const auto S = SlabActor->GetSimulationStatus();
 #if WITH_DEV_AUTOMATION_TESTS
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_DEMAND_ACCEPTANCE"))==TEXT("1"))
-        for(auto* Device:Coordinator->GetSensorActors())if(auto* C=Cast<AVirtualCameraSensorActor>(Device))
-        {
-            const FString Id=C->GetSensorId();const int64 Frame=C->GetSensorRuntimeStatus().FrameId;
-            if(const int64* Previous=AcceptanceCameraFrames.Find(Id);Previous&&Frame>*Previous&&S.State==ESlabSimulationState::Playing)
-                AcceptanceAcquisitions.FindOrAdd(S.RunUUID).FindOrAdd(Id)+=Frame-*Previous;
-            AcceptanceCameraFrames.Add(Id,Frame);
-        }
+	if (FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_DEMAND_ACCEPTANCE")) == TEXT("1"))
+		for (auto* Device : Coordinator->GetSensorActors())
+			if (auto* C = Cast<AVirtualCameraSensorActor>(Device))
+			{
+				const FString Id = C->GetSensorId();
+				const int64 Frame = C->GetSensorRuntimeStatus().FrameId;
+				if (const int64* Previous = AcceptanceCameraFrames.Find(Id); Previous && Frame > *Previous && S.State == ESlabSimulationState::Playing)
+					AcceptanceAcquisitions.FindOrAdd(S.RunUUID).FindOrAdd(Id) += Frame - *Previous;
+				AcceptanceCameraFrames.Add(Id, Frame);
+			}
 #endif
-    if(S.RunUUID!=ActiveRun&&!S.RunUUID.IsEmpty()){ActiveRun=S.RunUUID;FrameTimes.Reset();bReportWritten=false;}
-    if(S.State==ESlabSimulationState::Playing&&Delta>0)FrameTimes.Add(Delta*1000.0);
-    if(!bReportWritten&&!ActiveRun.IsEmpty()&&(S.State==ESlabSimulationState::Completed||S.State==ESlabSimulationState::Failed))
-    {
-        const auto Session=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()->GetSlabSensorSessionStatus();
-        if(Session.State!=EVirtualSlabSessionState::Draining){WriteReport();bReportWritten=true;}
-    }
-    UiTime+=Delta;
-    if(UiTime>=.2f){UiTime=0;DisplayStatus=FString::Printf(TEXT("전용 검증맵 · 치수 mm / 위치 cm · 실제 시점 조작은 PIE F8 또는 기본 Pawn | %s | Slab %lld · %.2f / %.2f초 · LiDAR %.1fHz"),*S.Message,S.FrameNo,S.ElapsedSec,S.DurationSec,Lidar->GetSensorRuntimeStatus().MeasuredCompletionRateHz);}
+	if (S.RunUUID != ActiveRun && !S.RunUUID.IsEmpty())
+	{
+		ActiveRun = S.RunUUID;
+		FrameTimes.Reset();
+		bReportWritten = false;
+	}
+	if (S.State == ESlabSimulationState::Playing && Delta > 0)
+		FrameTimes.Add(Delta * 1000.0);
+	if (!bReportWritten && !ActiveRun.IsEmpty() && (S.State == ESlabSimulationState::Completed || S.State == ESlabSimulationState::Failed))
+	{
+		const auto Session = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>()->GetSlabSensorSessionStatus();
+		if (Session.State != EVirtualSlabSessionState::Draining)
+		{
+			WriteReport();
+			bReportWritten = true;
+		}
+	}
+	UiTime += Delta;
+	if (UiTime >= .2f)
+	{
+		UiTime = 0;
+		DisplayStatus = FString::Printf(TEXT("전용 검증맵 · 치수 mm / 위치 cm · 실제 시점 조작은 PIE F8 또는 기본 Pawn | %s | Slab %lld · %.2f / %.2f초 · LiDAR %.1fHz"), *S.Message, S.FrameNo, S.ElapsedSec, S.DurationSec, Lidar->GetSensorRuntimeStatus().MeasuredCompletionRateHz);
+	}
 }
 void ASlabScenarioValidationRig::SubmitSynthetic(bool bPcd)
 {
-    if(!SlabActor)return;
-    if(bPcd)ConfigureLocalBroker();
-    auto Outputs=FVirtualSlabSensorOutputSelection::ObservationOnly();Outputs.bPointCloud=bPcd;
-    const FString Json=FSlabScenarioCodec::MakeSyntheticJson(FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower));
-    const FString Dir=FPaths::ProjectSavedDir()/TEXT("Reports/Slab");
-    IFileManager::Get().MakeDirectory(*Dir,true);
-    FFileHelper::SaveStringToFile(Json,*(Dir/TEXT("last_dtcore_input.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
-    // A validation button is a one-shot run option, not a user's next live
-    // scenario preference. Use the existing replay admission/snapshot path.
-    FSlabScenarioDataPtr Data;FString Error;
-    auto* Replay=GetWorld()->GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();
-    if(FSlabScenarioCodec::Parse(Json,Data,Error,true)&&Replay->RegisterValidatedScenario(Data))
-        Replay->RequestScenarioReplayWithOutputs(Data->ScenarioUUID,Outputs,SlabActor->TargetSensorIds);
+	if (!SlabActor)
+		return;
+	if (bPcd)
+		ConfigureLocalBroker();
+	auto Outputs = FVirtualSlabSensorOutputSelection::ObservationOnly();
+	Outputs.bPointCloud = bPcd;
+	const FString Json = FSlabScenarioCodec::MakeSyntheticJson(FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower));
+	const FString Dir = FPaths::ProjectSavedDir() / TEXT("Reports/Slab");
+	IFileManager::Get().MakeDirectory(*Dir, true);
+	FFileHelper::SaveStringToFile(Json, *(Dir / TEXT("last_dtcore_input.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	// A validation button is a one-shot run option, not a user's next live
+	// scenario preference. Use the existing replay admission/snapshot path.
+	FSlabScenarioDataPtr Data;
+	FString Error;
+	auto* Replay = GetWorld()->GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>();
+	if (FSlabScenarioCodec::Parse(Json, Data, Error, true) && Replay->RegisterValidatedScenario(Data))
+		Replay->RequestScenarioReplayWithOutputs(Data->ScenarioUUID, Outputs, SlabActor->TargetSensorIds);
 }
 void ASlabScenarioValidationRig::WriteReport()
 {
-    auto Root=MakeShared<FJsonObject>();const auto S=SlabActor->GetSimulationStatus();
-    Root->SetStringField(TEXT("run_uuid"),S.RunUUID);Root->SetStringField(TEXT("scenario_uuid"),S.ScenarioUUID);
-    Root->SetStringField(TEXT("message"),S.Message);Root->SetNumberField(TEXT("last_slab_frame"),S.FrameNo);
-    Root->SetNumberField(TEXT("elapsed"),S.ElapsedSec);Root->SetNumberField(TEXT("duration"),S.DurationSec);
-    Root->SetBoolField(TEXT("completed"),S.State==ESlabSimulationState::Completed);
-    const auto Display=SlabActor->GetAnalysisDisplaySettings();
-    Root->SetBoolField(TEXT("analysis_display_enabled"),Display.bOutline||Display.bCross||Display.bReferencePose||Display.bCenterline||Display.bYaw||Display.bMargins||Display.bStatus);
-    if(auto* V=GetWorld()->GetGameViewport();V&&V->Viewport)
-    {
-        Root->SetNumberField(TEXT("viewport_width"),V->Viewport->GetSizeXY().X);
-        Root->SetNumberField(TEXT("viewport_height"),V->Viewport->GetSizeXY().Y);
-    }
+	auto Root = MakeShared<FJsonObject>();
+	const auto S = SlabActor->GetSimulationStatus();
+	Root->SetStringField(TEXT("run_uuid"), S.RunUUID);
+	Root->SetStringField(TEXT("scenario_uuid"), S.ScenarioUUID);
+	Root->SetStringField(TEXT("message"), S.Message);
+	Root->SetNumberField(TEXT("last_slab_frame"), S.FrameNo);
+	Root->SetNumberField(TEXT("elapsed"), S.ElapsedSec);
+	Root->SetNumberField(TEXT("duration"), S.DurationSec);
+	Root->SetBoolField(TEXT("completed"), S.State == ESlabSimulationState::Completed);
+	const auto Display = SlabActor->GetAnalysisDisplaySettings();
+	Root->SetBoolField(TEXT("analysis_display_enabled"), Display.bOutline || Display.bCross || Display.bReferencePose || Display.bCenterline || Display.bYaw || Display.bMargins || Display.bStatus);
+	if (auto* V = GetWorld()->GetGameViewport(); V && V->Viewport)
+	{
+		Root->SetNumberField(TEXT("viewport_width"), V->Viewport->GetSizeXY().X);
+		Root->SetNumberField(TEXT("viewport_height"), V->Viewport->GetSizeXY().Y);
+	}
 #if WITH_EDITOR
-    Root->SetBoolField(TEXT("editor_background_throttle"),GetDefault<UEditorPerformanceSettings>()->bThrottleCPUWhenNotForeground);
-    Root->SetBoolField(TEXT("editor_performance_monitor"),GetDefault<UEditorPerformanceSettings>()->bMonitorEditorPerformance);
+	Root->SetBoolField(TEXT("editor_background_throttle"), GetDefault<UEditorPerformanceSettings>()->bThrottleCPUWhenNotForeground);
+	Root->SetBoolField(TEXT("editor_performance_monitor"), GetDefault<UEditorPerformanceSettings>()->bMonitorEditorPerformance);
 #endif
-    if(!FrameTimes.IsEmpty())
-    {
-        auto Sorted=FrameTimes;Sorted.Sort();double Sum=0,Slow=0;for(double V:Sorted)Sum+=V;
-        const int32 SlowCount=FMath::Max(1,FMath::CeilToInt(Sorted.Num()*.01));
-        for(int32 I=Sorted.Num()-SlowCount;I<Sorted.Num();++I)Slow+=Sorted[I];
-        Root->SetNumberField(TEXT("average_engine_fps"),1000*Sorted.Num()/Sum);
-        Root->SetNumberField(TEXT("one_percent_low"),1000*SlowCount/Slow);
-        Root->SetNumberField(TEXT("engine_frame_p95_ms"),Sorted[FMath::Clamp(FMath::CeilToInt(Sorted.Num()*.95)-1,0,Sorted.Num()-1)]);
-        TArray<TSharedPtr<FJsonValue>> Samples;Samples.Reserve(FrameTimes.Num());for(double V:FrameTimes)Samples.Add(MakeShared<FJsonValueNumber>(V));Root->SetArrayField(TEXT("engine_frame_ms"),Samples);
-    }
-    TArray<TSharedPtr<FJsonValue>> Streams;
-    for(const auto& T:GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->GetStreamTelemetry())
-    {
-        auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("sensor"),T.SensorId);R->SetNumberField(TEXT("kind"),int32(T.StreamKind));
-        R->SetNumberField(TEXT("submit"),T.SubmittedCount);R->SetNumberField(TEXT("receipt"),T.ReceiptCount);R->SetNumberField(TEXT("consumer"),T.ConsumerReceivedCount);
-        R->SetNumberField(TEXT("invalid"),T.ValidationFailureCount);R->SetNumberField(TEXT("gap"),T.FrameGapCount);R->SetNumberField(TEXT("overflow"),T.OverloadCount);
-        Streams.Add(MakeShared<FJsonValueObject>(R));
-    }
-    Root->SetArrayField(TEXT("streams"),Streams);
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_DEMAND_ACCEPTANCE"))==TEXT("1"))
-    {
-        Root->SetStringField(TEXT("fixture_scope"),TEXT("native-created-pcd-demand"));
-        Root->SetStringField(TEXT("compatibility_policy"),FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_JSON_POLICY")));
-        Root->SetStringField(TEXT("map"),GetWorld()->GetOutermost()->GetName());
-        TArray<TSharedPtr<FJsonValue>> Sensors;
-        for(auto* Device:Coordinator->GetSensorActors())if(IsValid(Device))
-        {
-            auto Entry=MakeShared<FJsonObject>();FVirtualSensorEditableState State;bool Running=false;Device->ReadCollectionState(State,Running);
-            Entry->SetStringField(TEXT("sensor_id"),Device->GetSensorId());Entry->SetStringField(TEXT("kind"),Device->GetSensorKind()==EVirtualSensorKind::Camera?TEXT("Camera"):TEXT("Lidar"));
-            Entry->SetBoolField(TEXT("running"),Running);Entry->SetNumberField(TEXT("acquisitions"),AcceptanceAcquisitions.FindRef(S.RunUUID).FindRef(Device->GetSensorId()));
-            Entry->SetObjectField(TEXT("configuration"),FJsonObjectConverter::UStructToJsonObject(State));Sensors.Add(MakeShared<FJsonValueObject>(Entry));
-            if(auto* L=Cast<AVirtualLidarSensorActor>(Device))Entry->SetObjectField(TEXT("compatibility_output"),FJsonObjectConverter::UStructToJsonObject(L->ScanComp->GetCompatibilityOutputStatus()));
-        }
-        Root->SetArrayField(TEXT("expected_sensors"),Sensors);
-    }
-    FSlabRunDeliverySummary RunSummary;
-    if(GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->GetRunResult(S.RunUUID,RunSummary))Root->SetObjectField(TEXT("run_delivery_summary"),FJsonObjectConverter::UStructToJsonObject(RunSummary));
-    const auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();const auto Held=Raw->GetRunRetentionSnapshot();
-    auto Retention=MakeShared<FJsonObject>();Retention->SetNumberField(TEXT("worker_serial"),Raw->GetWorkerInstanceSerial());Retention->SetNumberField(TEXT("connection_revision"),Raw->GetConnectionRevision());
-    Retention->SetNumberField(TEXT("active_runs"),Held.ActiveRuns);Retention->SetNumberField(TEXT("retiring_runs"),Held.RetiringRuns);Retention->SetNumberField(TEXT("completed_runs"),Held.CompletedRuns);Retention->SetNumberField(TEXT("minimal_known_ids"),Held.KnownRunIds);
-    Retention->SetNumberField(TEXT("sequence_entries"),Held.SequenceEntries);Retention->SetNumberField(TEXT("invalid_frame_entries"),Held.InvalidFrameEntries);Retention->SetNumberField(TEXT("pending_events"),Held.PendingEvents);Retention->SetNumberField(TEXT("outstanding_bytes"),Held.OutstandingBytes);
-    Root->SetObjectField(TEXT("retention"),Retention);
+	if (!FrameTimes.IsEmpty())
+	{
+		auto Sorted = FrameTimes;
+		Sorted.Sort();
+		double Sum = 0, Slow = 0;
+		for (double V : Sorted)
+			Sum += V;
+		const int32 SlowCount = FMath::Max(1, FMath::CeilToInt(Sorted.Num() * .01));
+		for (int32 I = Sorted.Num() - SlowCount; I < Sorted.Num(); ++I)
+			Slow += Sorted[I];
+		Root->SetNumberField(TEXT("average_engine_fps"), 1000 * Sorted.Num() / Sum);
+		Root->SetNumberField(TEXT("one_percent_low"), 1000 * SlowCount / Slow);
+		Root->SetNumberField(TEXT("engine_frame_p95_ms"), Sorted[FMath::Clamp(FMath::CeilToInt(Sorted.Num() * .95) - 1, 0, Sorted.Num() - 1)]);
+		TArray<TSharedPtr<FJsonValue>> Samples;
+		Samples.Reserve(FrameTimes.Num());
+		for (double V : FrameTimes)
+			Samples.Add(MakeShared<FJsonValueNumber>(V));
+		Root->SetArrayField(TEXT("engine_frame_ms"), Samples);
+	}
+	TArray<TSharedPtr<FJsonValue>> Streams;
+	for (const auto& T : GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->GetStreamTelemetry())
+	{
+		auto R = MakeShared<FJsonObject>();
+		R->SetStringField(TEXT("sensor"), T.SensorId);
+		R->SetNumberField(TEXT("kind"), int32(T.StreamKind));
+		R->SetNumberField(TEXT("submit"), T.SubmittedCount);
+		R->SetNumberField(TEXT("receipt"), T.ReceiptCount);
+		R->SetNumberField(TEXT("consumer"), T.ConsumerReceivedCount);
+		R->SetNumberField(TEXT("invalid"), T.ValidationFailureCount);
+		R->SetNumberField(TEXT("gap"), T.FrameGapCount);
+		R->SetNumberField(TEXT("overflow"), T.OverloadCount);
+		Streams.Add(MakeShared<FJsonValueObject>(R));
+	}
+	Root->SetArrayField(TEXT("streams"), Streams);
+	if (FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_DEMAND_ACCEPTANCE")) == TEXT("1"))
+	{
+		Root->SetStringField(TEXT("fixture_scope"), TEXT("native-created-pcd-demand"));
+		Root->SetStringField(TEXT("compatibility_policy"), FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_JSON_POLICY")));
+		Root->SetStringField(TEXT("map"), GetWorld()->GetOutermost()->GetName());
+		TArray<TSharedPtr<FJsonValue>> Sensors;
+		for (auto* Device : Coordinator->GetSensorActors())
+			if (IsValid(Device))
+			{
+				auto Entry = MakeShared<FJsonObject>();
+				FVirtualSensorEditableState State;
+				bool Running = false;
+				Device->ReadCollectionState(State, Running);
+				Entry->SetStringField(TEXT("sensor_id"), Device->GetSensorId());
+				Entry->SetStringField(TEXT("kind"), Device->GetSensorKind() == EVirtualSensorKind::Camera ? TEXT("Camera") : TEXT("Lidar"));
+				Entry->SetBoolField(TEXT("running"), Running);
+				Entry->SetNumberField(TEXT("acquisitions"), AcceptanceAcquisitions.FindRef(S.RunUUID).FindRef(Device->GetSensorId()));
+				Entry->SetObjectField(TEXT("configuration"), FJsonObjectConverter::UStructToJsonObject(State));
+				Sensors.Add(MakeShared<FJsonValueObject>(Entry));
+				if (auto* L = Cast<AVirtualLidarSensorActor>(Device))
+					Entry->SetObjectField(TEXT("compatibility_output"), FJsonObjectConverter::UStructToJsonObject(L->ScanComp->GetCompatibilityOutputStatus()));
+			}
+		Root->SetArrayField(TEXT("expected_sensors"), Sensors);
+	}
+	FSlabRunDeliverySummary RunSummary;
+	if (GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->GetRunResult(S.RunUUID, RunSummary))
+		Root->SetObjectField(TEXT("run_delivery_summary"), FJsonObjectConverter::UStructToJsonObject(RunSummary));
+	const auto* Raw = GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
+	const auto Held = Raw->GetRunRetentionSnapshot();
+	auto Retention = MakeShared<FJsonObject>();
+	Retention->SetNumberField(TEXT("worker_serial"), Raw->GetWorkerInstanceSerial());
+	Retention->SetNumberField(TEXT("connection_revision"), Raw->GetConnectionRevision());
+	Retention->SetNumberField(TEXT("active_runs"), Held.ActiveRuns);
+	Retention->SetNumberField(TEXT("retiring_runs"), Held.RetiringRuns);
+	Retention->SetNumberField(TEXT("completed_runs"), Held.CompletedRuns);
+	Retention->SetNumberField(TEXT("minimal_known_ids"), Held.KnownRunIds);
+	Retention->SetNumberField(TEXT("sequence_entries"), Held.SequenceEntries);
+	Retention->SetNumberField(TEXT("invalid_frame_entries"), Held.InvalidFrameEntries);
+	Retention->SetNumberField(TEXT("pending_events"), Held.PendingEvents);
+	Retention->SetNumberField(TEXT("outstanding_bytes"), Held.OutstandingBytes);
+	Root->SetObjectField(TEXT("retention"), Retention);
 #if WITH_DEV_AUTOMATION_TESTS
-    TArray<TSharedPtr<FJsonValue>> Audit;
-    for(const auto& A:GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->GetRunFrameAuditForTesting(S.RunUUID))
-    {auto Item=MakeShared<FJsonObject>();Item->SetStringField(TEXT("key"),A.Key);Item->SetStringField(TEXT("request_id"),A.RequestId);Item->SetNumberField(TEXT("flags"),A.Flags);Audit.Add(MakeShared<FJsonValueObject>(Item));}
-    Root->SetArrayField(TEXT("accepted_requests"),Audit);
+	TArray<TSharedPtr<FJsonValue>> Audit;
+	for (const auto& A : GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->GetRunFrameAuditForTesting(S.RunUUID))
+	{
+		auto Item = MakeShared<FJsonObject>();
+		Item->SetStringField(TEXT("key"), A.Key);
+		Item->SetStringField(TEXT("request_id"), A.RequestId);
+		Item->SetNumberField(TEXT("flags"), A.Flags);
+		Audit.Add(MakeShared<FJsonValueObject>(Item));
+	}
+	Root->SetArrayField(TEXT("accepted_requests"), Audit);
 #endif
-    const FString Dir=FPaths::ProjectSavedDir()/TEXT("Reports/Slab");IFileManager::Get().MakeDirectory(*Dir,true);
-    FString Text;FJsonSerializer::Serialize(Root,TJsonWriterFactory<>::Create(&Text));
-    FFileHelper::SaveStringToFile(Text,*(Dir/(S.RunUUID+TEXT(".json"))),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	const FString Dir = FPaths::ProjectSavedDir() / TEXT("Reports/Slab");
+	IFileManager::Get().MakeDirectory(*Dir, true);
+	FString Text;
+	FJsonSerializer::Serialize(Root, TJsonWriterFactory<>::Create(&Text));
+	FFileHelper::SaveStringToFile(Text, *(Dir / (S.RunUUID + TEXT(".json"))), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 }
 void ASlabScenarioValidationRig::SaveEvidence(bool bScreenshot)
 {
-    WriteReport();const FString Dir=FPaths::ProjectSavedDir()/TEXT("Reports/Slab");
-    auto* V=GetWorld()->GetGameViewport();const auto Size=V&&V->Viewport?V->Viewport->GetSizeXY():FIntPoint::ZeroValue;
-    FFileHelper::SaveStringToFile(FString::Printf(TEXT("# Actual UI evidence\n\nViewport: %d x %d\n%s\n"),Size.X,Size.Y,*DisplayStatus),*(Dir/TEXT("manual.md")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
-    if(bScreenshot)FScreenshotRequest::RequestScreenshot(Dir/TEXT("manual.png"),true,false);
+	WriteReport();
+	const FString Dir = FPaths::ProjectSavedDir() / TEXT("Reports/Slab");
+	auto* V = GetWorld()->GetGameViewport();
+	const auto Size = V && V->Viewport ? V->Viewport->GetSizeXY() : FIntPoint::ZeroValue;
+	FFileHelper::SaveStringToFile(FString::Printf(TEXT("# Actual UI evidence\n\nViewport: %d x %d\n%s\n"), Size.X, Size.Y, *DisplayStatus), *(Dir / TEXT("manual.md")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	if (bScreenshot)
+		FScreenshotRequest::RequestScreenshot(Dir / TEXT("manual.png"), true, false);
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
 void ASlabScenarioValidationRig::BeginAcceptanceObservation()
 {
-    for(auto* Device:Coordinator->GetSensorActors())
-    {
-        const FString Id=Device->GetSensorId();
-        if(auto* L=Cast<AVirtualLidarSensorActor>(Device))L->ScanComp->OnFrameAcquiredNative.AddWeakLambda(this,[this,Id](int64){ObserveAcquisition(Id);});
-    }
+	for (auto* Device : Coordinator->GetSensorActors())
+	{
+		const FString Id = Device->GetSensorId();
+		if (auto* L = Cast<AVirtualLidarSensorActor>(Device))
+			L->ScanComp->OnFrameAcquiredNative.AddWeakLambda(this, [this, Id](int64)
+			                                                 { ObserveAcquisition(Id); });
+	}
 }
 void ASlabScenarioValidationRig::ObserveAcquisition(const FString& Id)
 {
-    const auto Status=SlabActor->GetSimulationStatus();
-    if(Status.State==ESlabSimulationState::Playing)++AcceptanceAcquisitions.FindOrAdd(Status.RunUUID).FindOrAdd(Id);
+	const auto Status = SlabActor->GetSimulationStatus();
+	if (Status.State == ESlabSimulationState::Playing)
+		++AcceptanceAcquisitions.FindOrAdd(Status.RunUUID).FindOrAdd(Id);
 }
-void ASlabScenarioValidationRig::SaveResourceEvidence(const FString& Phase,int32 Repetition,int64 AuditEntries,int64 AuditBytes) const
+void ASlabScenarioValidationRig::SaveResourceEvidence(const FString& Phase, int32 Repetition, int64 AuditEntries, int64 AuditBytes) const
 {
-    if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SENSOR_RESOURCE_DIAGNOSTICS"))!=TEXT("1"))return;
-    auto Root=MakeShared<FJsonObject>();const auto Status=SlabActor->GetSimulationStatus();
-    Root->SetStringField(TEXT("run_uuid"),Status.RunUUID);Root->SetStringField(TEXT("phase"),Phase);
-    Root->SetNumberField(TEXT("repetition"),Repetition);Root->SetNumberField(TEXT("monotonic_seconds"),FPlatformTime::Seconds());
-    Root->SetStringField(TEXT("utc"),FDateTime::UtcNow().ToIso8601());
-    Root->SetNumberField(TEXT("fixture_audit_entries"),AuditEntries);Root->SetNumberField(TEXT("fixture_audit_cpu_bytes"),AuditBytes);
-    Root->SetNumberField(TEXT("scenario_count"),GetWorld()->GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>()->GetScenarios().Num());
-    Root->SetStringField(TEXT("byte_semantics"),TEXT("owned CPU containers; shared bytes observed per owner, not additive; GPU estimates exclude padding/driver caches"));
-    TArray<TSharedPtr<FJsonValue>> Items;
-    auto Add=[&](const FVirtualSensorResourceSnapshot& S){auto Item=MakeShared<FJsonObject>();Item->SetStringField(TEXT("owner"),S.Owner);
-        auto Map=[&](const TCHAR* Key,const TMap<FString,int64>& Values){auto Object=MakeShared<FJsonObject>();for(const auto& P:Values)Object->SetNumberField(P.Key,P.Value);Item->SetObjectField(Key,Object);};
-        Map(TEXT("counts"),S.Counts);Map(TEXT("owned_cpu_bytes"),S.OwnedCpuBytes);Map(TEXT("shared_cpu_bytes"),S.SharedCpuBytes);Map(TEXT("estimated_gpu_bytes"),S.EstimatedGpuBytes);Items.Add(MakeShared<FJsonValueObject>(Item));};
-    if(Camera)Add(Camera->CaptureComp->GetResourceSnapshot());
-    if(Lidar){Add(Lidar->ScanComp->GetResourceSnapshot());if(Lidar->GpuDepthProjectionComp)Add(Lidar->GpuDepthProjectionComp->GetResourceSnapshot());if(Lidar->VisualizationComp)Add(Lidar->VisualizationComp->GetResourceSnapshot());}
-    TInlineComponentArray<UVirtualSensorStreamPublisherComp*> Publishers;Coordinator->GetComponents(Publishers);
-    for(auto* Publisher:Publishers)Add(Publisher->GetResourceSnapshot());
-    Add(GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->GetResourceSnapshotForTesting());
-    Root->SetArrayField(TEXT("owners"),Items);
-    const auto Held=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->GetRunRetentionSnapshot();
-    auto Raw=MakeShared<FJsonObject>();Raw->SetNumberField(TEXT("outstanding_bytes"),Held.OutstandingBytes);Raw->SetNumberField(TEXT("pending_events"),Held.PendingEvents);
-    Raw->SetNumberField(TEXT("active_runs"),Held.ActiveRuns);Raw->SetNumberField(TEXT("retiring_runs"),Held.RetiringRuns);Raw->SetNumberField(TEXT("completed_runs"),Held.CompletedRuns);Raw->SetNumberField(TEXT("minimal_run_ids"),Held.KnownRunIds);
-    Root->SetObjectField(TEXT("raw_transport"),Raw);
-    FString Directory=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SENSOR_RESOURCE_REPORT_DIR"));
-    if(Directory.IsEmpty())Directory=FPaths::ProjectSavedDir()/TEXT("Reports/SensorResourceLifecycle/resources");
-    IFileManager::Get().MakeDirectory(*Directory,true);FString Text;FJsonSerializer::Serialize(Root,TJsonWriterFactory<>::Create(&Text));
-    FFileHelper::SaveStringToFile(Text,*(Directory/FString::Printf(TEXT("%02d-%s-%s.json"),Repetition,*Status.RunUUID,*Phase)),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
-    if((Phase==TEXT("warmup")||Phase==TEXT("sensors-stopped"))&&FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SENSOR_RESOURCE_MEMREPORT"))==TEXT("1"))
-        GEngine->Exec(GetWorld(),TEXT("MemReport -full"));
+	if (FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SENSOR_RESOURCE_DIAGNOSTICS")) != TEXT("1"))
+		return;
+	auto Root = MakeShared<FJsonObject>();
+	const auto Status = SlabActor->GetSimulationStatus();
+	Root->SetStringField(TEXT("run_uuid"), Status.RunUUID);
+	Root->SetStringField(TEXT("phase"), Phase);
+	Root->SetNumberField(TEXT("repetition"), Repetition);
+	Root->SetNumberField(TEXT("monotonic_seconds"), FPlatformTime::Seconds());
+	Root->SetStringField(TEXT("utc"), FDateTime::UtcNow().ToIso8601());
+	Root->SetNumberField(TEXT("fixture_audit_entries"), AuditEntries);
+	Root->SetNumberField(TEXT("fixture_audit_cpu_bytes"), AuditBytes);
+	Root->SetNumberField(TEXT("scenario_count"), GetWorld()->GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>()->GetScenarios().Num());
+	Root->SetStringField(TEXT("byte_semantics"), TEXT("owned CPU containers; shared bytes observed per owner, not additive; GPU estimates exclude padding/driver caches"));
+	TArray<TSharedPtr<FJsonValue>> Items;
+	auto Add = [&](const FVirtualSensorResourceSnapshot& S)
+	{
+		auto Item = MakeShared<FJsonObject>();
+		Item->SetStringField(TEXT("owner"), S.Owner);
+		auto Map = [&](const TCHAR* Key, const TMap<FString, int64>& Values)
+		{
+			auto Object = MakeShared<FJsonObject>();
+			for (const auto& P : Values)
+				Object->SetNumberField(P.Key, P.Value);
+			Item->SetObjectField(Key, Object);
+		};
+		Map(TEXT("counts"), S.Counts);
+		Map(TEXT("owned_cpu_bytes"), S.OwnedCpuBytes);
+		Map(TEXT("shared_cpu_bytes"), S.SharedCpuBytes);
+		Map(TEXT("estimated_gpu_bytes"), S.EstimatedGpuBytes);
+		Items.Add(MakeShared<FJsonValueObject>(Item));
+	};
+	if (Camera)
+		Add(Camera->CaptureComp->GetResourceSnapshot());
+	if (Lidar)
+	{
+		Add(Lidar->ScanComp->GetResourceSnapshot());
+		if (Lidar->GpuDepthProjectionComp)
+			Add(Lidar->GpuDepthProjectionComp->GetResourceSnapshot());
+		if (Lidar->VisualizationComp)
+			Add(Lidar->VisualizationComp->GetResourceSnapshot());
+	}
+	TInlineComponentArray<UVirtualSensorStreamPublisherComp*> Publishers;
+	Coordinator->GetComponents(Publishers);
+	for (auto* Publisher : Publishers)
+		Add(Publisher->GetResourceSnapshot());
+	Add(GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->GetResourceSnapshotForTesting());
+	Root->SetArrayField(TEXT("owners"), Items);
+	const auto Held = GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->GetRunRetentionSnapshot();
+	auto Raw = MakeShared<FJsonObject>();
+	Raw->SetNumberField(TEXT("outstanding_bytes"), Held.OutstandingBytes);
+	Raw->SetNumberField(TEXT("pending_events"), Held.PendingEvents);
+	Raw->SetNumberField(TEXT("active_runs"), Held.ActiveRuns);
+	Raw->SetNumberField(TEXT("retiring_runs"), Held.RetiringRuns);
+	Raw->SetNumberField(TEXT("completed_runs"), Held.CompletedRuns);
+	Raw->SetNumberField(TEXT("minimal_run_ids"), Held.KnownRunIds);
+	Root->SetObjectField(TEXT("raw_transport"), Raw);
+	FString Directory = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SENSOR_RESOURCE_REPORT_DIR"));
+	if (Directory.IsEmpty())
+		Directory = FPaths::ProjectSavedDir() / TEXT("Reports/SensorResourceLifecycle/resources");
+	IFileManager::Get().MakeDirectory(*Directory, true);
+	FString Text;
+	FJsonSerializer::Serialize(Root, TJsonWriterFactory<>::Create(&Text));
+	FFileHelper::SaveStringToFile(Text, *(Directory / FString::Printf(TEXT("%02d-%s-%s.json"), Repetition, *Status.RunUUID, *Phase)), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	if ((Phase == TEXT("warmup") || Phase == TEXT("sensors-stopped")) && FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SENSOR_RESOURCE_MEMREPORT")) == TEXT("1"))
+		GEngine->Exec(GetWorld(), TEXT("MemReport -full"));
 }
 #endif
 void ASlabScenarioValidationRig::EndPlay(const EEndPlayReason::Type Reason)
 {
-    if(Controls&&GetWorld()->GetGameViewport())GetWorld()->GetGameViewport()->RemoveViewportWidgetContent(Controls.ToSharedRef());
-    Controls.Reset();Super::EndPlay(Reason);
+	if (Controls && GetWorld()->GetGameViewport())
+		GetWorld()->GetGameViewport()->RemoveViewportWidgetContent(Controls.ToSharedRef());
+	Controls.Reset();
+	Super::EndPlay(Reason);
 }

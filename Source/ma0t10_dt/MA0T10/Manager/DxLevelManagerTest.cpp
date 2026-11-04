@@ -5,7 +5,6 @@
 #include "ma0t10_dt/ma0t10_dt.h"
 #include "Core/DxGameStateBase.h"
 
-
 ADxLevelManagerTest::ADxLevelManagerTest()
 {
 	PrimaryActorTick.bCanEverTick = true;

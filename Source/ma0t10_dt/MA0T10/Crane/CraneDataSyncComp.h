@@ -11,7 +11,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCranePositionChanged, const FCranePositionData&, PositionData);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCraneStatusColorChanged, const FLinearColor&, NewColor);
 
-UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class MA0T10_DT_API UCraneDataSyncComp : public UDataSyncCompBase
 {
 	GENERATED_BODY()
@@ -27,15 +27,16 @@ public:
 	void OnReceiveCraneStateData(const FCraneStateData& InData);
 	// 부모 가상 함수 오버라이드
 	virtual void OnReceiveData(const TSharedPtr<FDxDataBase>& DataPtr) override;
+
 private:
 protected:
-
 	// Variable
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Crane|Events")
 	FOnCranePositionChanged OnCranePositionChanged;
 	UPROPERTY(BlueprintAssignable, Category = "Crane|Events")
 	FOnCraneStatusColorChanged OnCraneStatusColorChanged;
+
 private:
 protected:
 };

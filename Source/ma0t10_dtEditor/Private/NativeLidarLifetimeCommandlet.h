@@ -4,10 +4,10 @@
 
 /** Explicit real-RHI diagnostic; no map/widget/assets are created or saved. */
 UCLASS()
-class UNativeLidarLifetimeCommandlet final:public UCommandlet
+class UNativeLidarLifetimeCommandlet final : public UCommandlet
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 public:
-    UNativeLidarLifetimeCommandlet();
-    int32 Main(const FString& Params)override;
+	UNativeLidarLifetimeCommandlet();
+	int32 Main(const FString& Params) override;
 };

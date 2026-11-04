@@ -15,19 +15,30 @@ bool FSlabChartDecimationTest::RunTest(const FString&)
 	TArray<FSlabChartSample> Samples;
 	for (int32 I = 0; I < 600; ++I)
 	{
-		auto& S = Samples.AddDefaulted_GetRef(); S.Time = I * .05; S.Frame = I; S.LeftAngle = -.2; S.RightAngle = .2;
-		S.MarginLeftCm = 100; S.MarginRightCm = 100; S.bMarginsValid = true;
+		auto& S = Samples.AddDefaulted_GetRef();
+		S.Time = I * .05;
+		S.Frame = I;
+		S.LeftAngle = -.2;
+		S.RightAngle = .2;
+		S.MarginLeftCm = 100;
+		S.MarginRightCm = 100;
+		S.bMarginsValid = true;
 	}
-	Samples[211].LeftAngle = -9; Samples[212].LeftAngle = 7; Samples[400].MarginLeftCm = -2;
+	Samples[211].LeftAngle = -9;
+	Samples[212].LeftAngle = 7;
+	Samples[400].MarginLeftCm = -2;
 	const auto Result = USlabScenarioChartWidget::BuildMinMaxIndices(Samples, ESlabChartMetric::Angles, 0, false, 0, 29.95, 60);
 	TestTrue(TEXT("bounded by pixel bins"), Result.Num() <= 120);
 	TestTrue(TEXT("negative spike retained"), Result.Contains(211));
 	TestTrue(TEXT("positive spike retained"), Result.Contains(212));
-	for (int32 I = 1; I < Result.Num(); ++I) TestTrue(TEXT("indices stay ordered"), Result[I] > Result[I - 1]);
+	for (int32 I = 1; I < Result.Num(); ++I)
+		TestTrue(TEXT("indices stay ordered"), Result[I] > Result[I - 1]);
 	const auto FrameResult = USlabScenarioChartWidget::BuildMinMaxIndices(Samples, ESlabChartMetric::RailMargins, 0, true, 300, 500, 20);
 	TestTrue(TEXT("signed rail violation retained"), FrameResult.Contains(400));
-	for (int32 I : FrameResult) TestTrue(TEXT("frame zoom filters outside values"), I >= 300 && I <= 500);
-	for (auto& S : Samples) S.bMarginsValid = false;
+	for (int32 I : FrameResult)
+		TestTrue(TEXT("frame zoom filters outside values"), I >= 300 && I <= 500);
+	for (auto& S : Samples)
+		S.bMarginsValid = false;
 	TestEqual(TEXT("unset rails produce no invented zero curve"), USlabScenarioChartWidget::BuildMinMaxIndices(Samples, ESlabChartMetric::RailMargins, 0, false, 0, 30, 400).Num(), 0);
 	TestTrue(TEXT("original rows retained"), Samples.Num() == 600 && Samples[211].LeftAngle == -9);
 	return true;
@@ -40,7 +51,8 @@ bool FSlabPanelIsolationTest::RunTest(const FString&)
 	auto* Workspace = World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
 	auto* Foreign = NewObject<UDxWidgetSensorWorkspaceForeignFixture>(World);
 	auto* Text = NewObject<UTextBlock>(Foreign);
-	const auto OriginalFont = Text->GetFont(); const auto Size = Foreign->GetEffectivePanelSize();
+	const auto OriginalFont = Text->GetFont();
+	const auto Size = Foreign->GetEffectivePanelSize();
 	auto* Charts = NewObject<UDxWidgetSlabChartsPanel>(World);
 	auto* Progress = NewObject<UDxWidgetSlabProgressPanel>(World);
 	auto* Replay = NewObject<UDxWidgetSlabScenarioReplayPanel>(World);
@@ -60,12 +72,14 @@ bool FSlabPanelIsolationTest::RunTest(const FString&)
 	TestTrue(TEXT("hide retains exact instance"), Workspace->GetOwnedPanel(ESensorToolPanelRole::SlabCharts) == Charts);
 	const auto Default = Replay->GetReplayOutputs();
 	TestFalse(TEXT("replay defaults to observation only"), Default.bPointCloud || Default.bCameraImage || Default.bLidarTelemetry);
-	FVirtualSlabSensorOutputSelection Outputs; Outputs.bCameraImage = true;
+	FVirtualSlabSensorOutputSelection Outputs;
+	Outputs.bCameraImage = true;
 	Replay->SetReplayOutputs(Outputs);
 	TestTrue(TEXT("PCD compatibility property follows new API"), Replay->bSendPcd);
 	TestTrue(TEXT("camera independently enabled"), Replay->GetReplayOutputs().bCameraImage);
 	TestFalse(TEXT("lidar remains independently disabled"), Replay->GetReplayOutputs().bLidarTelemetry);
-	Workspace->UnregisterPanel(Charts); Workspace->UnregisterPanel(Progress);
+	Workspace->UnregisterPanel(Charts);
+	Workspace->UnregisterPanel(Progress);
 	return true;
 }
 
@@ -78,8 +92,11 @@ bool FSlabWorkspaceDeferredLayoutTest::RunTest(const FString&)
 	const auto Role = ESensorToolPanelRole::SlabProgress;
 	const auto OriginalPreferences = Workspace->Preferences->Panels;
 	auto& Saved = Workspace->Preferences->Panels.FindOrAdd(Role);
-	Saved.bOpen = false; Saved.Layout.bHasSavedSize = true; Saved.Layout.bHasSavedPosition = true;
-	Saved.Layout.ExpandedSize = FVector2D(650, 440); Saved.Layout.NormalizedPosition = FVector2D(.25, .4);
+	Saved.bOpen = false;
+	Saved.Layout.bHasSavedSize = true;
+	Saved.Layout.bHasSavedPosition = true;
+	Saved.Layout.ExpandedSize = FVector2D(650, 440);
+	Saved.Layout.NormalizedPosition = FVector2D(.25, .4);
 	TestTrue(TEXT("registration accepted"), Workspace->RegisterOwnedPanel(Role, Progress));
 	TestTrue(TEXT("registration schedules first layout"), Workspace->PendingInitialLayouts.Contains(Role));
 	TestFalse(TEXT("unattached panel is not layout-ready"), Workspace->IsOwnedPanelLayoutReady(Role));

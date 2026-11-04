@@ -1,11 +1,9 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "CraneStatusVisualizerComp.h"
 #include "CraneDataSyncComp.h"
 
 #include "Components/StaticMeshComponent.h"
-
 
 // Sets default values for this component's properties
 UCraneStatusVisualizerComp::UCraneStatusVisualizerComp()
@@ -16,7 +14,6 @@ UCraneStatusVisualizerComp::UCraneStatusVisualizerComp()
 
 	// ...
 }
-
 
 // Called when the game starts
 void UCraneStatusVisualizerComp::BeginPlay()
@@ -32,10 +29,9 @@ void UCraneStatusVisualizerComp::BeginPlay()
 	}
 }
 
-
 // Called every frame
 void UCraneStatusVisualizerComp::TickComponent(float DeltaTime, ELevelTick TickType,
-                                           FActorComponentTickFunction* ThisTickFunction)
+                                               FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
@@ -44,5 +40,4 @@ void UCraneStatusVisualizerComp::TickComponent(float DeltaTime, ELevelTick TickT
 
 void UCraneStatusVisualizerComp::OnColorChanged(const FLinearColor& NewColor)
 {
-
 }

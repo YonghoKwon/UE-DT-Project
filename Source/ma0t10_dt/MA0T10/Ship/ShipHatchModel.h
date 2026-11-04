@@ -4,56 +4,67 @@
 /** HATCH-01 SI model. X=length, Y=breadth, Z=height above tank top. No transport state. */
 namespace ShipHatch
 {
-enum class ECargo : uint8 { IronOre, Coal };
+enum class ECargo : uint8
+{
+	IronOre,
+	Coal
+};
 struct MA0T10_DT_API FSettings
 {
-    double Length=25.8, Width=42.3, Depth=22.5;
-    double OpeningLength=20, OpeningWidth=23, Coaming=2, SensorAboveDeck=8;
-    double MeshCell=.5, FillMin=35, FillMax=65;
-    int32 Seed=19019;
-    ECargo Cargo=ECargo::IronOre;
-    bool Validate(FString& Error) const;
+	double Length = 25.8, Width = 42.3, Depth = 22.5;
+	double OpeningLength = 20, OpeningWidth = 23, Coaming = 2, SensorAboveDeck = 8;
+	double MeshCell = .5, FillMin = 35, FillMax = 65;
+	int32 Seed = 19019;
+	ECargo Cargo = ECargo::IronOre;
+	bool Validate(FString& Error) const;
 };
 struct MA0T10_DT_API FSurface
 {
-    FSettings Settings;
-    int32 NX=0, NY=0, Peaks=0;
-    double DX=0, DY=0, Volume=0, Fill=0, Repose=0, Density=0;
-    TArray<float> Heights;
-    float At(int32 X,int32 Y) const { return Heights[Y*(NX+1)+X]; }
-    double Height(double X,double Y) const;
-    uint32 Hash() const;
+	FSettings Settings;
+	int32 NX = 0, NY = 0, Peaks = 0;
+	double DX = 0, DY = 0, Volume = 0, Fill = 0, Repose = 0, Density = 0;
+	TArray<float> Heights;
+	float At(int32 X, int32 Y) const { return Heights[Y * (NX + 1) + X]; }
+	double Height(double X, double Y) const;
+	uint32 Hash() const;
 };
-struct FObservation { FVector PositionMeters; FName Label; };
-struct FSectionSample { double Position=0,Height=0; };
+struct FObservation
+{
+	FVector PositionMeters;
+	FName Label;
+};
+struct FSectionSample
+{
+	double Position = 0, Height = 0;
+};
 /** Exact intersections with grid edges and triangle diagonals; position is SI. */
-MA0T10_DT_API void Section(const FSurface& Surface,bool AlongLength,double Offset,TArray<FSectionSample>& Out);
+MA0T10_DT_API void Section(const FSurface& Surface, bool AlongLength, double Offset, TArray<FSectionSample>& Out);
 struct FCell
 {
-    int32 Count=0;
-    double Sum=0, Highest=0;
-    double Mean() const { return Count ? Sum/Count : 0; }
+	int32 Count = 0;
+	double Sum = 0, Highest = 0;
+	double Mean() const { return Count ? Sum / Count : 0; }
 };
 struct MA0T10_DT_API FAnalysis
 {
-    int32 NX=0,NY=0,Observed=0;
-    double DX=0,DY=0,Min=0,Max=0,Mean=0,Volume=0,Coverage=0,FillLowerBound=0;
-    TArray<FCell> Cells;
+	int32 NX = 0, NY = 0, Observed = 0;
+	double DX = 0, DY = 0, Min = 0, Max = 0, Mean = 0, Volume = 0, Coverage = 0, FillLowerBound = 0;
+	TArray<FCell> Cells;
 };
 MA0T10_DT_API FSurface Generate(const FSettings& Settings);
-MA0T10_DT_API void GenerateInto(const FSettings& Settings,FSurface& Surface,TArray<double>& ShapeScratch);
+MA0T10_DT_API void GenerateInto(const FSettings& Settings, FSurface& Surface, TArray<double>& ShapeScratch);
 /** Integral of the rendered/collision triangles, in cubic meters. */
 MA0T10_DT_API double Integrate(const FSurface& Surface);
 /** Nearest nonempty triangle along a hold-local SI ray; no sensor acquisition. */
-MA0T10_DT_API bool Raycast(const FSurface& Surface,FVector Origin,FVector Direction,FVector& Hit);
+MA0T10_DT_API bool Raycast(const FSurface& Surface, FVector Origin, FVector Direction, FVector& Hit);
 /** Grab bowl followed by volume-conserving triangular-face repose relaxation.
  * Radius is the grab footprint; the relaxed shoulder may extend beyond it. */
-MA0T10_DT_API double Excavate(FSurface& Surface,FVector2D Center,double Radius,double Depth,double Aspect=1);
-MA0T10_DT_API FAnalysis Analyze(const FSettings& Settings,double CellSize,const TArray<FObservation>& Points);
+MA0T10_DT_API double Excavate(FSurface& Surface, FVector2D Center, double Radius, double Depth, double Aspect = 1);
+MA0T10_DT_API FAnalysis Analyze(const FSettings& Settings, double CellSize, const TArray<FObservation>& Points);
 /** Same analysis, reusing the caller-owned cell allocation across revisions. */
-MA0T10_DT_API void AnalyzeInto(const FSettings& Settings,double CellSize,const TArray<FObservation>& Points,FAnalysis& Result);
+MA0T10_DT_API void AnalyzeInto(const FSettings& Settings, double CellSize, const TArray<FObservation>& Points, FAnalysis& Result);
 MA0T10_DT_API FColor Jet(double Normalized);
 MA0T10_DT_API double Reflectivity(ECargo Cargo);
 /** Structural visibility only: ray passes through both deck and coaming aperture. */
-MA0T10_DT_API bool ThroughOpening(const FSettings& Settings,FVector Origin,FVector Target);
+MA0T10_DT_API bool ThroughOpening(const FSettings& Settings, FVector Origin, FVector Target);
 }

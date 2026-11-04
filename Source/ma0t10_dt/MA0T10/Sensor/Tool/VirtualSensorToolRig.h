@@ -13,29 +13,37 @@ class UDxWidgetVirtualSensorCaptureExportPanel;
 UCLASS(BlueprintType)
 class MA0T10_DT_API AVirtualSensorToolRig : public AActor
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 public:
-    AVirtualSensorToolRig();
-    UPROPERTY(EditAnywhere, Category="Sensor Tools|Existing") TObjectPtr<AVirtualSensorCoordinator> Coordinator;
-    UPROPERTY(EditAnywhere, Category="Sensor Tools|Existing") TObjectPtr<AVirtualSensorUiHostActor> SensorUiHost;
-    UPROPERTY(EditAnywhere, Category="Sensor Tools|Existing") TObjectPtr<ASlabSimulationUiHostActor> SlabUiHost;
-    UPROPERTY(EditAnywhere, Category="Sensor Tools|Existing") TObjectPtr<ASlabScenarioReplayUiHostActor> ReplayUiHost;
-    UPROPERTY(EditAnywhere, Category="Sensor Tools|Existing") TObjectPtr<ASlabActor> TargetSlab;
-    UPROPERTY(VisibleAnywhere, Category="Sensor Tools|Status") FString SetupMessage;
-    bool EnsureSetup();
-    bool IsSetupReady() const { return bReady; }
-    int32 GetOwnedActorCount() const;
-    FString GetSlabSetupMessage() const;
+	AVirtualSensorToolRig();
+	UPROPERTY(EditAnywhere, Category = "Sensor Tools|Existing")
+	TObjectPtr<AVirtualSensorCoordinator> Coordinator;
+	UPROPERTY(EditAnywhere, Category = "Sensor Tools|Existing")
+	TObjectPtr<AVirtualSensorUiHostActor> SensorUiHost;
+	UPROPERTY(EditAnywhere, Category = "Sensor Tools|Existing")
+	TObjectPtr<ASlabSimulationUiHostActor> SlabUiHost;
+	UPROPERTY(EditAnywhere, Category = "Sensor Tools|Existing")
+	TObjectPtr<ASlabScenarioReplayUiHostActor> ReplayUiHost;
+	UPROPERTY(EditAnywhere, Category = "Sensor Tools|Existing")
+	TObjectPtr<ASlabActor> TargetSlab;
+	UPROPERTY(VisibleAnywhere, Category = "Sensor Tools|Status")
+	FString SetupMessage;
+	bool EnsureSetup();
+	bool IsSetupReady() const { return bReady; }
+	int32 GetOwnedActorCount() const;
+	FString GetSlabSetupMessage() const;
+
 protected:
-    virtual void BeginPlay() override;
-    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+
 private:
-    TArray<TWeakObjectPtr<AActor>> OwnedActors;
-    TWeakObjectPtr<AVirtualSensorCoordinator> PreviousManager;
-    TWeakObjectPtr<ASlabActor> PreviousSlab;
-    TWeakObjectPtr<ASlabActor> LastBoundSlab,PreviousDataSlab;
-    TWeakObjectPtr<UDxWidgetVirtualSensorCaptureExportPanel> BoundDataWidget;
-    bool bReady=false, bEnding=false, bReusedSensor=false, bReusedSlab=false;
-    FTimerHandle SetupTimer;
-    void RetrySetup();
+	TArray<TWeakObjectPtr<AActor>> OwnedActors;
+	TWeakObjectPtr<AVirtualSensorCoordinator> PreviousManager;
+	TWeakObjectPtr<ASlabActor> PreviousSlab;
+	TWeakObjectPtr<ASlabActor> LastBoundSlab, PreviousDataSlab;
+	TWeakObjectPtr<UDxWidgetVirtualSensorCaptureExportPanel> BoundDataWidget;
+	bool bReady = false, bEnding = false, bReusedSensor = false, bReusedSlab = false;
+	FTimerHandle SetupTimer;
+	void RetrySetup();
 };

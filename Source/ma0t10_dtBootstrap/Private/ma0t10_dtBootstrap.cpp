@@ -3,7 +3,7 @@
 
 namespace
 {
-	constexpr double Mlx80WebSocketServiceIntervalSeconds = 0.001;
+constexpr double Mlx80WebSocketServiceIntervalSeconds = 0.001;
 }
 
 // Native ray tracing and its shader mapping now live in the DTDevice plugin (DeviceNative).
@@ -20,10 +20,10 @@ public:
 		if (GConfig)
 		{
 			GConfig->SetDouble(
-				TEXT("WebSockets.LibWebSockets"),
-				TEXT("ThreadTargetFrameTimeInSeconds"),
-				Mlx80WebSocketServiceIntervalSeconds,
-				GEngineIni);
+			    TEXT("WebSockets.LibWebSockets"),
+			    TEXT("ThreadTargetFrameTimeInSeconds"),
+			    Mlx80WebSocketServiceIntervalSeconds,
+			    GEngineIni);
 		}
 	}
 };

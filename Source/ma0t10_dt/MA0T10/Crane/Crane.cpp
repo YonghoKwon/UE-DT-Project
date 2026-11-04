@@ -1,6 +1,5 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "Crane.h"
 
 #include "CraneDataSyncComp.h"
@@ -10,7 +9,6 @@
 #include "Components/StaticMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Core/DxProcessSubsystem.h"
-
 
 // Sets default values
 ACrane::ACrane()

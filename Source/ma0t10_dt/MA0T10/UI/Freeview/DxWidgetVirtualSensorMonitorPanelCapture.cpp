@@ -56,170 +56,168 @@
 namespace
 {
 
-
 FString BuildPointCloudTimestamp()
 {
-    const FDateTime NowUtc = FDateTime::UtcNow();
-    return FString::Printf(TEXT("%s_%03d_%lld"), *NowUtc.ToString(TEXT("%Y%m%d_%H%M%S")), NowUtc.GetMillisecond(), NowUtc.GetTicks());
+	const FDateTime NowUtc = FDateTime::UtcNow();
+	return FString::Printf(TEXT("%s_%03d_%lld"), *NowUtc.ToString(TEXT("%Y%m%d_%H%M%S")), NowUtc.GetMillisecond(), NowUtc.GetTicks());
 }
 
 FString BuildPointCloudExportDirectory(const UVirtualLidarScanComp* LidarComp)
 {
-    const FString SensorId = LidarComp ? LidarComp->SensorId : TEXT("LIDAR");
-    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, SensorId, VirtualSensorDefaults::PointCloudSubdirectory);
-    IFileManager::Get().MakeDirectory(*Directory, true);
-    return Directory;
+	const FString SensorId = LidarComp ? LidarComp->SensorId : TEXT("LIDAR");
+	const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, SensorId, VirtualSensorDefaults::PointCloudSubdirectory);
+	IFileManager::Get().MakeDirectory(*Directory, true);
+	return Directory;
 }
 
 FString BuildServerPayloadExportDirectory(const UVirtualLidarScanComp* LidarComp)
 {
-    const FString SensorId = LidarComp ? LidarComp->SensorId : TEXT("LIDAR");
-    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, SensorId, VirtualSensorDefaults::ServerPayloadSubdirectory);
-    IFileManager::Get().MakeDirectory(*Directory, true);
-    return Directory;
+	const FString SensorId = LidarComp ? LidarComp->SensorId : TEXT("LIDAR");
+	const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, SensorId, VirtualSensorDefaults::ServerPayloadSubdirectory);
+	IFileManager::Get().MakeDirectory(*Directory, true);
+	return Directory;
 }
 
 FString BuildCameraPayloadExportDirectory(const UVirtualCameraCaptureComp* CameraComp)
 {
-    const FString SensorId = CameraComp ? CameraComp->SensorId : TEXT("CAMERA");
-    const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, SensorId, VirtualSensorDefaults::ServerPayloadSubdirectory);
-    IFileManager::Get().MakeDirectory(*Directory, true);
-    return Directory;
+	const FString SensorId = CameraComp ? CameraComp->SensorId : TEXT("CAMERA");
+	const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, SensorId, VirtualSensorDefaults::ServerPayloadSubdirectory);
+	IFileManager::Get().MakeDirectory(*Directory, true);
+	return Directory;
 }
 
 bool SaveServerPayloadJsonFile(const FString& Directory, const FString& Prefix, const FString& SensorId, const FString& Payload, FString& OutPath)
 {
-    const FString SafePrefix = FPaths::MakeValidFileName(Prefix.IsEmpty() ? TEXT("manual_server_payload") : Prefix);
-    const FString SafeSensorId = FPaths::MakeValidFileName(SensorId.IsEmpty() ? TEXT("UNKNOWN_SENSOR") : SensorId);
-    OutPath = FPaths::Combine(Directory, FString::Printf(TEXT("%s_%s_%s.json"), *SafePrefix, *SafeSensorId, *BuildPointCloudTimestamp()));
-    return FFileHelper::SaveStringToFile(Payload, *OutPath);
+	const FString SafePrefix = FPaths::MakeValidFileName(Prefix.IsEmpty() ? TEXT("manual_server_payload") : Prefix);
+	const FString SafeSensorId = FPaths::MakeValidFileName(SensorId.IsEmpty() ? TEXT("UNKNOWN_SENSOR") : SensorId);
+	OutPath = FPaths::Combine(Directory, FString::Printf(TEXT("%s_%s_%s.json"), *SafePrefix, *SafeSensorId, *BuildPointCloudTimestamp()));
+	return FFileHelper::SaveStringToFile(Payload, *OutPath);
 }
 
 FIntPoint ResolveLidarGridCoord(const FVirtualLidarPoint& Point, int32 PointIndex, int32 HorizontalSamples)
 {
-    if (Point.bHasGridCoord)
-    {
-        return FIntPoint(Point.Row, Point.Col);
-    }
+	if (Point.bHasGridCoord)
+	{
+		return FIntPoint(Point.Row, Point.Col);
+	}
 
-    const int32 SafeHorizontalSamples = FMath::Max(1, HorizontalSamples);
-    return FIntPoint(PointIndex / SafeHorizontalSamples, PointIndex % SafeHorizontalSamples);
+	const int32 SafeHorizontalSamples = FMath::Max(1, HorizontalSamples);
+	return FIntPoint(PointIndex / SafeHorizontalSamples, PointIndex % SafeHorizontalSamples);
 }
 
 FString BuildRowColCsvText(const UVirtualLidarScanComp* LidarComp, int32& OutExportedPointCount)
 {
-    OutExportedPointCount = 0;
-    FString Text;
-    Text.Reserve(LidarComp ? FMath::Max(128, LidarComp->GetLastPoints().Num() * 64) : 128);
-    Text += TEXT("row,col,returnIndex,x,y,z\n");
-    if (!LidarComp)
-    {
-        return Text;
-    }
+	OutExportedPointCount = 0;
+	FString Text;
+	Text.Reserve(LidarComp ? FMath::Max(128, LidarComp->GetLastPoints().Num() * 64) : 128);
+	Text += TEXT("row,col,returnIndex,x,y,z\n");
+	if (!LidarComp)
+	{
+		return Text;
+	}
 
-    const TArray<FVirtualLidarPoint>& Points = LidarComp->GetLastPoints();
-    for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
-    {
-        const FVirtualLidarPoint& Point = Points[PointIndex];
-        if (LidarComp->bExportHitOnlyPointCloud && !Point.bHit)
-        {
-            continue;
-        }
+	const TArray<FVirtualLidarPoint>& Points = LidarComp->GetLastPoints();
+	for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
+	{
+		const FVirtualLidarPoint& Point = Points[PointIndex];
+		if (LidarComp->bExportHitOnlyPointCloud && !Point.bHit)
+		{
+			continue;
+		}
 
-        const FIntPoint GridCoord = ResolveLidarGridCoord(Point, PointIndex, LidarComp->HorizontalSamples);
-        Text += FString::Printf(TEXT("%d,%d,%d,%f,%f,%f\n"),
-            GridCoord.X,
-            GridCoord.Y,
-            Point.ReturnIndex,
-            Point.WorldLocation.X,
-            Point.WorldLocation.Y,
-            Point.WorldLocation.Z);
-        ++OutExportedPointCount;
-    }
-    return Text;
+		const FIntPoint GridCoord = ResolveLidarGridCoord(Point, PointIndex, LidarComp->HorizontalSamples);
+		Text += FString::Printf(TEXT("%d,%d,%d,%f,%f,%f\n"),
+		                        GridCoord.X,
+		                        GridCoord.Y,
+		                        Point.ReturnIndex,
+		                        Point.WorldLocation.X,
+		                        Point.WorldLocation.Y,
+		                        Point.WorldLocation.Z);
+		++OutExportedPointCount;
+	}
+	return Text;
 }
 
 bool ExportRowColPointCloudCsv(const UVirtualLidarScanComp* LidarComp, const FString& FileNamePrefix)
 {
-    if (!LidarComp)
-    {
-        return false;
-    }
+	if (!LidarComp)
+	{
+		return false;
+	}
 
-    int32 ExportedPointCount = 0;
-    const FString Text = BuildRowColCsvText(LidarComp, ExportedPointCount);
-    const FString Prefix = FileNamePrefix.IsEmpty() ? LidarComp->SensorId : FileNamePrefix;
-    const FString Path = FPaths::Combine(BuildPointCloudExportDirectory(LidarComp), FString::Printf(TEXT("%s_%s.csv"), *Prefix, *BuildPointCloudTimestamp()));
-    const bool bSaved = FFileHelper::SaveStringToFile(Text, *Path);
-    if (bSaved)
-    {
-        UE_LOG(LogTemp, Log, TEXT("[VirtualLidar:%s] row/col CSV export saved: %s points=%d"), *LidarComp->SensorId, *Path, ExportedPointCount);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] row/col CSV export failed: %s points=%d"), *LidarComp->SensorId, *Path, ExportedPointCount);
-    }
-    return bSaved;
+	int32 ExportedPointCount = 0;
+	const FString Text = BuildRowColCsvText(LidarComp, ExportedPointCount);
+	const FString Prefix = FileNamePrefix.IsEmpty() ? LidarComp->SensorId : FileNamePrefix;
+	const FString Path = FPaths::Combine(BuildPointCloudExportDirectory(LidarComp), FString::Printf(TEXT("%s_%s.csv"), *Prefix, *BuildPointCloudTimestamp()));
+	const bool bSaved = FFileHelper::SaveStringToFile(Text, *Path);
+	if (bSaved)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[VirtualLidar:%s] row/col CSV export saved: %s points=%d"), *LidarComp->SensorId, *Path, ExportedPointCount);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] row/col CSV export failed: %s points=%d"), *LidarComp->SensorId, *Path, ExportedPointCount);
+	}
+	return bSaved;
 }
 }
-
 
 FString UDxWidgetVirtualSensorMonitorPanel::GetServerPayloadSummaryText() const
 {
-    if (bShowingLidar && LidarComp)
-    {
-        const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
-        return FString::Printf(TEXT("Server Payload: Points=%d Bytes=%d Stride=%d Max=%d IncludeMiss=%s"),
-            Status.ServerPayloadPointCount,
-            Status.LastPayloadLength,
-            LidarComp->ServerPayloadStride,
-            LidarComp->MaxServerPayloadPoints,
-            LidarComp->bIncludeMissPointsInServerPayload ? TEXT("true") : TEXT("false"));
-    }
-    if (!bShowingLidar && CameraComp)
-    {
-        const FVirtualSensorRuntimeStatus& Status = CameraComp->GetRuntimeStatus();
-        return FString::Printf(TEXT("Payload: Bytes=%d Cached=%s"),
-            Status.LastPayloadLength,
-            CameraComp->GetLastJsonPayload().IsEmpty() ? TEXT("false") : TEXT("true"));
-    }
-    return TEXT("Server Payload: unavailable");
+	if (bShowingLidar && LidarComp)
+	{
+		const FVirtualSensorRuntimeStatus& Status = LidarComp->GetRuntimeStatus();
+		return FString::Printf(TEXT("Server Payload: Points=%d Bytes=%d Stride=%d Max=%d IncludeMiss=%s"),
+		                       Status.ServerPayloadPointCount,
+		                       Status.LastPayloadLength,
+		                       LidarComp->ServerPayloadStride,
+		                       LidarComp->MaxServerPayloadPoints,
+		                       LidarComp->bIncludeMissPointsInServerPayload ? TEXT("true") : TEXT("false"));
+	}
+	if (!bShowingLidar && CameraComp)
+	{
+		const FVirtualSensorRuntimeStatus& Status = CameraComp->GetRuntimeStatus();
+		return FString::Printf(TEXT("Payload: Bytes=%d Cached=%s"),
+		                       Status.LastPayloadLength,
+		                       CameraComp->GetLastJsonPayload().IsEmpty() ? TEXT("false") : TEXT("true"));
+	}
+	return TEXT("Server Payload: unavailable");
 }
 
 FString UDxWidgetVirtualSensorMonitorPanel::GetLazExportSummaryText() const
 {
-    const UVirtualLidarScanComp* TargetLidar = GetTargetLidarForPreview();
-    if (!TargetLidar)
-    {
-        return TEXT("LAZ Export: unavailable");
-    }
+	const UVirtualLidarScanComp* TargetLidar = GetTargetLidarForPreview();
+	if (!TargetLidar)
+	{
+		return TEXT("LAZ Export: unavailable");
+	}
 
-    const FString LazStatusText = TargetLidar->GetLastLazExportStatusText();
-    const FString LazWarningText = TargetLidar->GetLastLazExportWarningText();
-    return FString::Printf(TEXT("LAZ Export: Attempted=%s Success=%s Placeholder=%s External=%s/%s/%s Produced=%s TrueValidated=%s Points=%d ReturnCode=%d Size=%lld Status=%s Warning=%s"),
-        TargetLidar->WasLastLazExportAttempted() ? TEXT("true") : TEXT("false"),
-        TargetLidar->DidLastLazExportSucceed() ? TEXT("true") : TEXT("false"),
-        TargetLidar->WasLastLazExportPlaceholderOnly() ? TEXT("true") : TEXT("false"),
-        TargetLidar->WasLastLazExternalCompressorRequested() ? TEXT("requested") : TEXT("not-requested"),
-        TargetLidar->WasLastLazExternalCompressorAttempted() ? TEXT("attempted") : TEXT("not-attempted"),
-        TargetLidar->DidLastLazExternalCompressorSucceed() ? TEXT("succeeded") : TEXT("not-succeeded"),
-        TargetLidar->DidLastLazProduceOutputFile() ? TEXT("true") : TEXT("false"),
-        TargetLidar->WasLastLazTrueCompressionValidated() ? TEXT("true") : TEXT("false"),
-        TargetLidar->GetLastLazExportedPointCount(),
-        TargetLidar->GetLastLazExternalCompressorReturnCode(),
-        TargetLidar->GetLastLazOutputSizeBytes(),
-        LazStatusText.IsEmpty() ? TEXT("None") : *LazStatusText,
-        LazWarningText.IsEmpty() ? TEXT("None") : *LazWarningText);
+	const FString LazStatusText = TargetLidar->GetLastLazExportStatusText();
+	const FString LazWarningText = TargetLidar->GetLastLazExportWarningText();
+	return FString::Printf(TEXT("LAZ Export: Attempted=%s Success=%s Placeholder=%s External=%s/%s/%s Produced=%s TrueValidated=%s Points=%d ReturnCode=%d Size=%lld Status=%s Warning=%s"),
+	                       TargetLidar->WasLastLazExportAttempted() ? TEXT("true") : TEXT("false"),
+	                       TargetLidar->DidLastLazExportSucceed() ? TEXT("true") : TEXT("false"),
+	                       TargetLidar->WasLastLazExportPlaceholderOnly() ? TEXT("true") : TEXT("false"),
+	                       TargetLidar->WasLastLazExternalCompressorRequested() ? TEXT("requested") : TEXT("not-requested"),
+	                       TargetLidar->WasLastLazExternalCompressorAttempted() ? TEXT("attempted") : TEXT("not-attempted"),
+	                       TargetLidar->DidLastLazExternalCompressorSucceed() ? TEXT("succeeded") : TEXT("not-succeeded"),
+	                       TargetLidar->DidLastLazProduceOutputFile() ? TEXT("true") : TEXT("false"),
+	                       TargetLidar->WasLastLazTrueCompressionValidated() ? TEXT("true") : TEXT("false"),
+	                       TargetLidar->GetLastLazExportedPointCount(),
+	                       TargetLidar->GetLastLazExternalCompressorReturnCode(),
+	                       TargetLidar->GetLastLazOutputSizeBytes(),
+	                       LazStatusText.IsEmpty() ? TEXT("None") : *LazStatusText,
+	                       LazWarningText.IsEmpty() ? TEXT("None") : *LazWarningText);
 }
 
 void UDxWidgetVirtualSensorMonitorPanel::PumpPendingCaptureWork()
 {
-    ProcessPendingCameraReadbacks();
+	ProcessPendingCameraReadbacks();
 	if (bConfiguredOneShotPending)
 	{
 		const int64 CurrentFrameId = bConfiguredOneShotLidar
-			? (LidarComp ? LidarComp->GetRuntimeStatus().FrameId : INDEX_NONE)
-			: (CameraComp ? CameraComp->GetRuntimeStatus().FrameId : INDEX_NONE);
+		                                 ? (LidarComp ? LidarComp->GetRuntimeStatus().FrameId : INDEX_NONE)
+		                                 : (CameraComp ? CameraComp->GetRuntimeStatus().FrameId : INDEX_NONE);
 		const bool bNewFrameReady = CurrentFrameId > ConfiguredOneShotStartFrameId;
 		const bool bTimedOut = FPlatformTime::Seconds() - ConfiguredOneShotStartedSeconds >= 2.0;
 		if (bNewFrameReady || bTimedOut)
@@ -228,14 +226,13 @@ void UDxWidgetVirtualSensorMonitorPanel::PumpPendingCaptureWork()
 			CaptureConfiguredFrame();
 		}
 	}
-
 }
 
 void UDxWidgetVirtualSensorMonitorPanel::NativeOnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent)
 {
-    bPanningLidarProjection = false;
-    bRotatingLidarProjection = false;
-    Super::NativeOnMouseCaptureLost(CaptureLostEvent);
+	bPanningLidarProjection = false;
+	bRotatingLidarProjection = false;
+	Super::NativeOnMouseCaptureLost(CaptureLostEvent);
 }
 
 void UDxWidgetVirtualSensorMonitorPanel::ConfigureLocalCapture(const FVirtualSensorCaptureSelection& Selection)
@@ -266,13 +263,14 @@ void UDxWidgetVirtualSensorMonitorPanel::CaptureConfiguredOutputsOnce()
 {
 	bConfiguredOneShotLidar = bShowingLidar;
 	ConfiguredOneShotStartFrameId = bConfiguredOneShotLidar
-		? (LidarComp ? LidarComp->GetRuntimeStatus().FrameId : INDEX_NONE)
-		: (CameraComp ? CameraComp->GetRuntimeStatus().FrameId : INDEX_NONE);
+	                                    ? (LidarComp ? LidarComp->GetRuntimeStatus().FrameId : INDEX_NONE)
+	                                    : (CameraComp ? CameraComp->GetRuntimeStatus().FrameId : INDEX_NONE);
 	ConfiguredOneShotStartedSeconds = FPlatformTime::Seconds();
 	bConfiguredOneShotPending = true;
 	if (bConfiguredOneShotLidar)
 	{
-		if (LidarComp) LidarComp->RequestImmediateScheduledScan();
+		if (LidarComp)
+			LidarComp->RequestImmediateScheduledScan();
 	}
 	else if (CameraComp)
 	{
@@ -282,304 +280,304 @@ void UDxWidgetVirtualSensorMonitorPanel::CaptureConfiguredOutputsOnce()
 
 void UDxWidgetVirtualSensorMonitorPanel::CaptureSelectedSensorsOnce()
 {
-    if (SensorManager)
-    {
-        SensorManager->CaptureSelectedOnce();
-    }
-    else
-    {
-        if (CameraComp)
-        {
-            CameraComp->CaptureAndSendImage();
-        }
-        if (LidarComp)
-        {
-            LidarComp->ScanAndSend();
-        }
-    }
+	if (SensorManager)
+	{
+		SensorManager->CaptureSelectedOnce();
+	}
+	else
+	{
+		if (CameraComp)
+		{
+			CameraComp->CaptureAndSendImage();
+		}
+		if (LidarComp)
+		{
+			LidarComp->ScanAndSend();
+		}
+	}
 
-    InvalidateEnhancedLidarView();
-    RefreshImageBrush();
-    RefreshStatusText();
+	InvalidateEnhancedLidarView();
+	RefreshImageBrush();
+	RefreshStatusText();
 }
 
 bool UDxWidgetVirtualSensorMonitorPanel::ExportSelectedLidarServerPayload(const FString& FileNamePrefix)
 {
-    UVirtualLidarScanComp* TargetLidar = GetTargetLidarForPreview();
-    if (!TargetLidar)
-    {
-        LastManualExportPath.Reset();
-        LastManualExportMessage = TEXT("Server Payload Export: failed, LiDAR sensor is not bound");
-        RefreshStatusText();
-        return false;
-    }
+	UVirtualLidarScanComp* TargetLidar = GetTargetLidarForPreview();
+	if (!TargetLidar)
+	{
+		LastManualExportPath.Reset();
+		LastManualExportMessage = TEXT("Server Payload Export: failed, LiDAR sensor is not bound");
+		RefreshStatusText();
+		return false;
+	}
 
-    if (TargetLidar->GetLastJsonPayload().IsEmpty())
-    {
-        RefreshLidarPreviewWithoutTransport(true);
-    }
+	if (TargetLidar->GetLastJsonPayload().IsEmpty())
+	{
+		RefreshLidarPreviewWithoutTransport(true);
+	}
 
-    const FString& Payload = TargetLidar->GetLastJsonPayload();
-    if (Payload.IsEmpty())
-    {
-        LastManualExportPath.Reset();
-        LastManualExportMessage = FString::Printf(TEXT("Server Payload Export: failed, no payload for %s"), *TargetLidar->SensorId);
-        RefreshStatusText();
-        return false;
-    }
+	const FString& Payload = TargetLidar->GetLastJsonPayload();
+	if (Payload.IsEmpty())
+	{
+		LastManualExportPath.Reset();
+		LastManualExportMessage = FString::Printf(TEXT("Server Payload Export: failed, no payload for %s"), *TargetLidar->SensorId);
+		RefreshStatusText();
+		return false;
+	}
 
-    const FString Directory = BuildServerPayloadExportDirectory(TargetLidar);
-    const bool bSaved = SaveServerPayloadJsonFile(Directory, FileNamePrefix, TargetLidar->SensorId, Payload, LastManualExportPath);
-    LastManualExportMessage = bSaved
-        ? FString::Printf(TEXT("LiDAR Server Payload Export: saved %s bytes=%d"), *LastManualExportPath, Payload.Len())
-        : FString::Printf(TEXT("LiDAR Server Payload Export: failed %s bytes=%d"), *LastManualExportPath, Payload.Len());
+	const FString Directory = BuildServerPayloadExportDirectory(TargetLidar);
+	const bool bSaved = SaveServerPayloadJsonFile(Directory, FileNamePrefix, TargetLidar->SensorId, Payload, LastManualExportPath);
+	LastManualExportMessage = bSaved
+	                              ? FString::Printf(TEXT("LiDAR Server Payload Export: saved %s bytes=%d"), *LastManualExportPath, Payload.Len())
+	                              : FString::Printf(TEXT("LiDAR Server Payload Export: failed %s bytes=%d"), *LastManualExportPath, Payload.Len());
 
-    if (bSaved)
-    {
-        UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] %s"), *LastManualExportMessage);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[SensorMonitor] %s"), *LastManualExportMessage);
-    }
+	if (bSaved)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] %s"), *LastManualExportMessage);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[SensorMonitor] %s"), *LastManualExportMessage);
+	}
 
-    RefreshStatusText();
-    return bSaved;
+	RefreshStatusText();
+	return bSaved;
 }
 
 bool UDxWidgetVirtualSensorMonitorPanel::ExportSelectedSensorServerPayload(const FString& FileNamePrefix)
 {
-    if (bShowingLidar)
-    {
-        return ExportSelectedLidarServerPayload(FileNamePrefix);
-    }
+	if (bShowingLidar)
+	{
+		return ExportSelectedLidarServerPayload(FileNamePrefix);
+	}
 
-    if (!CameraComp)
-    {
-        LastManualExportPath.Reset();
-        LastManualExportMessage = TEXT("Camera Server Payload Export: failed, camera sensor is not bound");
-        RefreshStatusText();
-        return false;
-    }
+	if (!CameraComp)
+	{
+		LastManualExportPath.Reset();
+		LastManualExportMessage = TEXT("Camera Server Payload Export: failed, camera sensor is not bound");
+		RefreshStatusText();
+		return false;
+	}
 
-    if (CameraComp->GetLastJsonPayload().IsEmpty())
-    {
-        CameraComp->CaptureAndSendImage();
-    }
+	if (CameraComp->GetLastJsonPayload().IsEmpty())
+	{
+		CameraComp->CaptureAndSendImage();
+	}
 
-    const FString& Payload = CameraComp->GetLastJsonPayload();
-    if (Payload.IsEmpty())
-    {
-        LastManualExportPath.Reset();
-        LastManualExportMessage = FString::Printf(TEXT("Camera Server Payload Export: failed, no payload for %s"), *CameraComp->SensorId);
-        RefreshStatusText();
-        return false;
-    }
+	const FString& Payload = CameraComp->GetLastJsonPayload();
+	if (Payload.IsEmpty())
+	{
+		LastManualExportPath.Reset();
+		LastManualExportMessage = FString::Printf(TEXT("Camera Server Payload Export: failed, no payload for %s"), *CameraComp->SensorId);
+		RefreshStatusText();
+		return false;
+	}
 
-    const FString Directory = BuildCameraPayloadExportDirectory(CameraComp);
-    const bool bSaved = SaveServerPayloadJsonFile(Directory, FileNamePrefix, CameraComp->SensorId, Payload, LastManualExportPath);
-    LastManualExportMessage = bSaved
-        ? FString::Printf(TEXT("Camera Server Payload Export: saved %s bytes=%d"), *LastManualExportPath, Payload.Len())
-        : FString::Printf(TEXT("Camera Server Payload Export: failed %s bytes=%d"), *LastManualExportPath, Payload.Len());
+	const FString Directory = BuildCameraPayloadExportDirectory(CameraComp);
+	const bool bSaved = SaveServerPayloadJsonFile(Directory, FileNamePrefix, CameraComp->SensorId, Payload, LastManualExportPath);
+	LastManualExportMessage = bSaved
+	                              ? FString::Printf(TEXT("Camera Server Payload Export: saved %s bytes=%d"), *LastManualExportPath, Payload.Len())
+	                              : FString::Printf(TEXT("Camera Server Payload Export: failed %s bytes=%d"), *LastManualExportPath, Payload.Len());
 
-    if (bSaved)
-    {
-        UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] %s"), *LastManualExportMessage);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[SensorMonitor] %s"), *LastManualExportMessage);
-    }
+	if (bSaved)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] %s"), *LastManualExportMessage);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[SensorMonitor] %s"), *LastManualExportMessage);
+	}
 
-    RefreshStatusText();
-    return bSaved;
+	RefreshStatusText();
+	return bSaved;
 }
 
 void UDxWidgetVirtualSensorMonitorPanel::ToggleLocalSensorCapture()
 {
-    UWorld* World = GetWorld();
-    if (!World)
-    {
-        return;
-    }
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
 
-    if (bLocalSensorCaptureActive)
-    {
-        World->GetTimerManager().ClearTimer(LocalSensorCaptureTimerHandle);
-        bLocalSensorCaptureActive = false;
-        UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] Local timed capture stopped. Session=%s frames=%d pendingReadbacks=%d"), *LocalCaptureSessionDirectory, LocalCaptureFrameIndex, PendingCameraReadbacks.Num());
-    }
-    else
-    {
-        LocalCaptureSessionDirectory = EnsureLocalCaptureSessionDirectory();
-        LocalCaptureFrameIndex = 0;
-        bLocalSensorCaptureActive = true;
-        CaptureLocalSensorFrame();
-        World->GetTimerManager().SetTimer(LocalSensorCaptureTimerHandle, this, &UDxWidgetVirtualSensorMonitorPanel::CaptureLocalSensorFrame, FMath::Max(0.05f, LocalCaptureIntervalSeconds), true);
-        UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] Local timed capture started. Interval=%.3fs Session=%s GpuReadback=%s MaxReadbacks=%d LidarFormats=[csv:%s las:%s laz:%s]"), LocalCaptureIntervalSeconds, *LocalCaptureSessionDirectory, bUseGpuAsyncCameraReadback ? TEXT("true") : TEXT("false"), MaxPendingCameraReadbacks, bLocalCaptureSaveLidarCsv ? TEXT("on") : TEXT("off"), bLocalCaptureSaveLidarLas ? TEXT("on") : TEXT("off"), bLocalCaptureSaveLidarLaz ? TEXT("on") : TEXT("off"));
-    }
-    RefreshLocalCaptureButtonText();
-    RefreshStatusText();
+	if (bLocalSensorCaptureActive)
+	{
+		World->GetTimerManager().ClearTimer(LocalSensorCaptureTimerHandle);
+		bLocalSensorCaptureActive = false;
+		UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] Local timed capture stopped. Session=%s frames=%d pendingReadbacks=%d"), *LocalCaptureSessionDirectory, LocalCaptureFrameIndex, PendingCameraReadbacks.Num());
+	}
+	else
+	{
+		LocalCaptureSessionDirectory = EnsureLocalCaptureSessionDirectory();
+		LocalCaptureFrameIndex = 0;
+		bLocalSensorCaptureActive = true;
+		CaptureLocalSensorFrame();
+		World->GetTimerManager().SetTimer(LocalSensorCaptureTimerHandle, this, &UDxWidgetVirtualSensorMonitorPanel::CaptureLocalSensorFrame, FMath::Max(0.05f, LocalCaptureIntervalSeconds), true);
+		UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] Local timed capture started. Interval=%.3fs Session=%s GpuReadback=%s MaxReadbacks=%d LidarFormats=[csv:%s las:%s laz:%s]"), LocalCaptureIntervalSeconds, *LocalCaptureSessionDirectory, bUseGpuAsyncCameraReadback ? TEXT("true") : TEXT("false"), MaxPendingCameraReadbacks, bLocalCaptureSaveLidarCsv ? TEXT("on") : TEXT("off"), bLocalCaptureSaveLidarLas ? TEXT("on") : TEXT("off"), bLocalCaptureSaveLidarLaz ? TEXT("on") : TEXT("off"));
+	}
+	RefreshLocalCaptureButtonText();
+	RefreshStatusText();
 }
 
 void UDxWidgetVirtualSensorMonitorPanel::HandleLocalSensorCaptureButtonClicked()
 {
-    ToggleLocalSensorCapture();
+	ToggleLocalSensorCapture();
 }
 
 void UDxWidgetVirtualSensorMonitorPanel::HandleCaptureOnceButtonClicked()
 {
-    CaptureSelectedSensorsOnce();
+	CaptureSelectedSensorsOnce();
 }
 
 void UDxWidgetVirtualSensorMonitorPanel::HandleExportServerPayloadButtonClicked()
 {
-    ExportSelectedSensorServerPayload(TEXT("button_server_payload"));
+	ExportSelectedSensorServerPayload(TEXT("button_server_payload"));
 }
 
 void UDxWidgetVirtualSensorMonitorPanel::HandleLogPointCloudButtonClicked()
 {
-    if (!LidarComp)
-    {
-        return;
-    }
+	if (!LidarComp)
+	{
+		return;
+	}
 
-    const TArray<FVirtualLidarPoint>& Points = LidarComp->GetLastPoints();
-    int32 Logged = 0;
-    int32 CandidateCount = 0;
-    UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] RowCol PointCloud log start. format=row,col,returnIndex,x,y,z"), *LidarComp->SensorId);
-    for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
-    {
-        const FVirtualLidarPoint& Point = Points[PointIndex];
-        if (LidarComp->bExportHitOnlyPointCloud && !Point.bHit)
-        {
-            continue;
-        }
-        ++CandidateCount;
-        if (Logged++ >= 200)
-        {
-            continue;
-        }
-        const FIntPoint GridCoord = ResolveLidarGridCoord(Point, PointIndex, LidarComp->HorizontalSamples);
-        UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] row=%d col=%d returnIndex=%d x=%.3f y=%.3f z=%.3f"), *LidarComp->SensorId, GridCoord.X, GridCoord.Y, Point.ReturnIndex, Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z);
-    }
-    UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] RowCol PointCloud log complete. candidates=%d"), *LidarComp->SensorId, CandidateCount);
+	const TArray<FVirtualLidarPoint>& Points = LidarComp->GetLastPoints();
+	int32 Logged = 0;
+	int32 CandidateCount = 0;
+	UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] RowCol PointCloud log start. format=row,col,returnIndex,x,y,z"), *LidarComp->SensorId);
+	for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
+	{
+		const FVirtualLidarPoint& Point = Points[PointIndex];
+		if (LidarComp->bExportHitOnlyPointCloud && !Point.bHit)
+		{
+			continue;
+		}
+		++CandidateCount;
+		if (Logged++ >= 200)
+		{
+			continue;
+		}
+		const FIntPoint GridCoord = ResolveLidarGridCoord(Point, PointIndex, LidarComp->HorizontalSamples);
+		UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] row=%d col=%d returnIndex=%d x=%.3f y=%.3f z=%.3f"), *LidarComp->SensorId, GridCoord.X, GridCoord.Y, Point.ReturnIndex, Point.WorldLocation.X, Point.WorldLocation.Y, Point.WorldLocation.Z);
+	}
+	UE_LOG(LogTemp, Warning, TEXT("[VirtualLidar:%s] RowCol PointCloud log complete. candidates=%d"), *LidarComp->SensorId, CandidateCount);
 }
 
 void UDxWidgetVirtualSensorMonitorPanel::HandleExportPointCloudButtonClicked()
 {
-    if (!LidarComp)
-    {
-        return;
-    }
+	if (!LidarComp)
+	{
+		return;
+	}
 
-    ExportRowColPointCloudCsv(LidarComp, TEXT("button_export"));
-    LidarComp->ExportLastPointCloudLas(TEXT("button_export"));
-    LidarComp->ExportLastPointCloudLaz(TEXT("button_export"));
+	ExportRowColPointCloudCsv(LidarComp, TEXT("button_export"));
+	LidarComp->ExportLastPointCloudLas(TEXT("button_export"));
+	LidarComp->ExportLastPointCloudLaz(TEXT("button_export"));
 }
 
 void UDxWidgetVirtualSensorMonitorPanel::RefreshLocalCaptureButtonText()
 {
-    if (LocalSensorCaptureButtonText)
-    {
-        LocalSensorCaptureButtonText->SetText(FText::FromString(bLocalSensorCaptureActive ? TEXT("시간 캡처 중지") : TEXT("시간 캡처 시작")));
-    }
+	if (LocalSensorCaptureButtonText)
+	{
+		LocalSensorCaptureButtonText->SetText(FText::FromString(bLocalSensorCaptureActive ? TEXT("시간 캡처 중지") : TEXT("시간 캡처 시작")));
+	}
 }
 
 void UDxWidgetVirtualSensorMonitorPanel::CaptureLocalSensorFrame()
 {
-    if (!bLocalSensorCaptureActive)
-    {
-        return;
-    }
-    if (bSkipLocalCaptureWhenWritePending && (bLocalCaptureCameraWritePending || bLocalCaptureLidarWritePending))
-    {
-        return;
-    }
+	if (!bLocalSensorCaptureActive)
+	{
+		return;
+	}
+	if (bSkipLocalCaptureWhenWritePending && (bLocalCaptureCameraWritePending || bLocalCaptureLidarWritePending))
+	{
+		return;
+	}
 	CaptureConfiguredFrame();
 }
 
 void UDxWidgetVirtualSensorMonitorPanel::CaptureConfiguredFrame()
 {
-    ++LocalCaptureFrameIndex;
-    const FString FramePrefix = FString::Printf(TEXT("frame_%06d_%s"), LocalCaptureFrameIndex, *BuildPointCloudTimestamp());
+	++LocalCaptureFrameIndex;
+	const FString FramePrefix = FString::Printf(TEXT("frame_%06d_%s"), LocalCaptureFrameIndex, *BuildPointCloudTimestamp());
 	const bool bCaptureLidar = bShowingLidar;
-    const bool bCameraQueued = !bCaptureLidar && bLocalCaptureSaveCameraFrames && SaveCameraSnapshotToDisk(FramePrefix);
-    const bool bLidarQueued = bCaptureLidar && bLocalCaptureSaveLidarPointCloud && SaveLidarPointCloudToDisk(FramePrefix);
+	const bool bCameraQueued = !bCaptureLidar && bLocalCaptureSaveCameraFrames && SaveCameraSnapshotToDisk(FramePrefix);
+	const bool bLidarQueued = bCaptureLidar && bLocalCaptureSaveLidarPointCloud && SaveLidarPointCloudToDisk(FramePrefix);
 	if ((!bCaptureLidar && bLocalCaptureSaveCameraPayload) || (bCaptureLidar && bLocalCaptureSaveLidarPayload))
 	{
 		ExportSelectedSensorServerPayload(FramePrefix + TEXT("_payload"));
 	}
-    UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] Local capture frame=%d camera=%s lidar=%s folder=%s"), LocalCaptureFrameIndex, bCameraQueued ? TEXT("queued") : TEXT("skipped"), bLidarQueued ? TEXT("queued") : TEXT("skipped"), *LocalCaptureSessionDirectory);
+	UE_LOG(LogTemp, Log, TEXT("[SensorMonitor] Local capture frame=%d camera=%s lidar=%s folder=%s"), LocalCaptureFrameIndex, bCameraQueued ? TEXT("queued") : TEXT("skipped"), bLidarQueued ? TEXT("queued") : TEXT("skipped"), *LocalCaptureSessionDirectory);
 }
 
 bool UDxWidgetVirtualSensorMonitorPanel::SaveCameraSnapshotToDisk(const FString& FramePrefix)
 {
-    return bUseGpuAsyncCameraReadback ? QueueCameraGpuReadbackToDisk(FramePrefix) : SaveCameraSnapshotToDiskSynchronous(FramePrefix);
+	return bUseGpuAsyncCameraReadback ? QueueCameraGpuReadbackToDisk(FramePrefix) : SaveCameraSnapshotToDiskSynchronous(FramePrefix);
 }
 
 bool UDxWidgetVirtualSensorMonitorPanel::SaveCameraSnapshotToDiskSynchronous(const FString& FramePrefix)
 {
-    if (!CameraComp || bLocalCaptureCameraWritePending)
-    {
-        return false;
-    }
+	if (!CameraComp || bLocalCaptureCameraWritePending)
+	{
+		return false;
+	}
 
-    UTextureRenderTarget2D* RenderTarget = CameraComp->GetCameraRenderTarget();
-    if (!RenderTarget)
-    {
-        return false;
-    }
+	UTextureRenderTarget2D* RenderTarget = CameraComp->GetCameraRenderTarget();
+	if (!RenderTarget)
+	{
+		return false;
+	}
 
-    if (!bLocalCaptureUseCachedSensorFrames)
-    {
-        CameraComp->CaptureScene();
-    }
+	if (!bLocalCaptureUseCachedSensorFrames)
+	{
+		CameraComp->CaptureScene();
+	}
 
-    FTextureRenderTargetResource* Resource = RenderTarget->GameThread_GetRenderTargetResource();
-    if (!Resource)
-    {
-        return false;
-    }
+	FTextureRenderTargetResource* Resource = RenderTarget->GameThread_GetRenderTargetResource();
+	if (!Resource)
+	{
+		return false;
+	}
 
-    TArray<FColor> RawPixels;
-    if (!Resource->ReadPixels(RawPixels) || RawPixels.Num() == 0)
-    {
-        return false;
-    }
+	TArray<FColor> RawPixels;
+	if (!Resource->ReadPixels(RawPixels) || RawPixels.Num() == 0)
+	{
+		return false;
+	}
 
-    const FString CameraDirectory = FPaths::Combine(EnsureLocalCaptureSessionDirectory(), TEXT("Camera"));
-    IFileManager::Get().MakeDirectory(*CameraDirectory, true);
-    const FString Path = FPaths::Combine(CameraDirectory, FString::Printf(TEXT("%s_%s.jpg"), *FramePrefix, *CameraComp->SensorId));
-    StartAsyncCameraJpegWrite(MoveTemp(RawPixels), RenderTarget->SizeX, RenderTarget->SizeY, Path);
-    return true;
+	const FString CameraDirectory = FPaths::Combine(EnsureLocalCaptureSessionDirectory(), TEXT("Camera"));
+	IFileManager::Get().MakeDirectory(*CameraDirectory, true);
+	const FString Path = FPaths::Combine(CameraDirectory, FString::Printf(TEXT("%s_%s.jpg"), *FramePrefix, *CameraComp->SensorId));
+	StartAsyncCameraJpegWrite(MoveTemp(RawPixels), RenderTarget->SizeX, RenderTarget->SizeY, Path);
+	return true;
 }
 
 void UDxWidgetVirtualSensorMonitorPanel::RefreshLocalCaptureCameraPendingState()
 {
-    bLocalCaptureCameraWritePending = PendingCameraReadbacks.Num() > 0 || LocalCaptureCameraAsyncWriteCount > 0;
+	bLocalCaptureCameraWritePending = PendingCameraReadbacks.Num() > 0 || LocalCaptureCameraAsyncWriteCount > 0;
 }
 
 bool UDxWidgetVirtualSensorMonitorPanel::SaveLidarPointCloudToDisk(const FString& FramePrefix)
 {
-    if (!LidarComp || bLocalCaptureLidarWritePending)
-    {
-        return false;
-    }
-    if (!bLocalCaptureSaveLidarCsv && !bLocalCaptureSaveLidarJsonLines && !bLocalCaptureSaveLidarPcd && !bLocalCaptureSaveLidarLas && !bLocalCaptureSaveLidarLaz)
-    {
-        return false;
-    }
-    if (!bLocalCaptureUseCachedSensorFrames || LidarComp->GetLastPoints().Num() <= 0)
-    {
-        RefreshLidarPreviewWithoutTransport(true);
-    }
+	if (!LidarComp || bLocalCaptureLidarWritePending)
+	{
+		return false;
+	}
+	if (!bLocalCaptureSaveLidarCsv && !bLocalCaptureSaveLidarJsonLines && !bLocalCaptureSaveLidarPcd && !bLocalCaptureSaveLidarLas && !bLocalCaptureSaveLidarLaz)
+	{
+		return false;
+	}
+	if (!bLocalCaptureUseCachedSensorFrames || LidarComp->GetLastPoints().Num() <= 0)
+	{
+		RefreshLidarPreviewWithoutTransport(true);
+	}
 
-    const TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> Snapshot = LidarComp->GetLastFrameSnapshot();
-    if (!Snapshot.IsValid() || !Snapshot->Points.IsValid() || Snapshot->Points->IsEmpty())
-    {
-        return false;
-    }
+	const TSharedPtr<const FVirtualLidarFrameSnapshot, ESPMode::ThreadSafe> Snapshot = LidarComp->GetLastFrameSnapshot();
+	if (!Snapshot.IsValid() || !Snapshot->Points.IsValid() || Snapshot->Points->IsEmpty())
+	{
+		return false;
+	}
 
 	FVirtualSensorFrameEnvelope Frame;
 	Frame.SensorId = LidarComp->SensorId;
@@ -589,21 +587,21 @@ bool UDxWidgetVirtualSensorMonitorPanel::SaveLidarPointCloudToDisk(const FString
 	Frame.PointSnapshot = Snapshot->Points;
 	FVirtualSensorStreamConfig Config;
 	Config.StreamKind = EVirtualSensorStreamKind::PointCloud;
-	Config.PointCloudFormat = bLocalCaptureSaveLidarPcd ? EVirtualPointCloudStreamFormat::PCD
-		: bLocalCaptureSaveLidarJsonLines ? EVirtualPointCloudStreamFormat::JSONL
-		: bLocalCaptureSaveLidarLas ? EVirtualPointCloudStreamFormat::LAS
-		: bLocalCaptureSaveLidarLaz ? EVirtualPointCloudStreamFormat::LAZ
-		: EVirtualPointCloudStreamFormat::CSV;
+	Config.PointCloudFormat = bLocalCaptureSaveLidarPcd         ? EVirtualPointCloudStreamFormat::PCD
+	                          : bLocalCaptureSaveLidarJsonLines ? EVirtualPointCloudStreamFormat::JSONL
+	                          : bLocalCaptureSaveLidarLas       ? EVirtualPointCloudStreamFormat::LAS
+	                          : bLocalCaptureSaveLidarLaz       ? EVirtualPointCloudStreamFormat::LAZ
+	                                                            : EVirtualPointCloudStreamFormat::CSV;
 	Config.LazCompressorPath = LidarComp->bUseExternalLazCompressor ? LidarComp->ExternalLazCompressorPath : FString();
 	Config.LazCompressorArguments = LidarComp->ExternalLazCompressorArguments;
-    const FString LidarDirectory = FPaths::Combine(EnsureLocalCaptureSessionDirectory(), TEXT("Lidar"));
-    IFileManager::Get().MakeDirectory(*LidarDirectory, true);
+	const FString LidarDirectory = FPaths::Combine(EnsureLocalCaptureSessionDirectory(), TEXT("Lidar"));
+	IFileManager::Get().MakeDirectory(*LidarDirectory, true);
 	const FString SensorId = LidarComp->SensorId;
-    TWeakObjectPtr<UDxWidgetVirtualSensorMonitorPanel> WeakThis(this);
-    bLocalCaptureLidarWritePending = true;
+	TWeakObjectPtr<UDxWidgetVirtualSensorMonitorPanel> WeakThis(this);
+	bLocalCaptureLidarWritePending = true;
 
-    Async(EAsyncExecution::ThreadPool, [WeakThis, Frame = MoveTemp(Frame), Config, LidarDirectory, FramePrefix, SensorId]() mutable
-    {
+	Async(EAsyncExecution::ThreadPool, [WeakThis, Frame = MoveTemp(Frame), Config, LidarDirectory, FramePrefix, SensorId]() mutable
+	      {
 		FString Extension;
 		FString Error;
 		TArray<uint8> Bytes;
@@ -626,21 +624,20 @@ bool UDxWidgetVirtualSensorMonitorPanel::SaveLidarPointCloudToDisk(const FString
             {
 				UE_LOG(LogTemp, Warning, TEXT("[SensorMonitor] Async LiDAR capture failed: %s %s"), *Path, *Error);
             }
-        });
-    });
-    return true;
+        }); });
+	return true;
 }
 
 FString UDxWidgetVirtualSensorMonitorPanel::EnsureLocalCaptureSessionDirectory()
 {
-    if (!LocalCaptureSessionDirectory.IsEmpty())
-    {
-        IFileManager::Get().MakeDirectory(*LocalCaptureSessionDirectory, true);
-        return LocalCaptureSessionDirectory;
-    }
+	if (!LocalCaptureSessionDirectory.IsEmpty())
+	{
+		IFileManager::Get().MakeDirectory(*LocalCaptureSessionDirectory, true);
+		return LocalCaptureSessionDirectory;
+	}
 
-    LocalCaptureSessionDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, LocalCaptureFolderName, BuildPointCloudTimestamp());
-    IFileManager::Get().MakeDirectory(*LocalCaptureSessionDirectory, true);
-    return LocalCaptureSessionDirectory;
+	LocalCaptureSessionDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), VirtualSensorDefaults::CaptureDirectory, LocalCaptureFolderName, BuildPointCloudTimestamp());
+	IFileManager::Get().MakeDirectory(*LocalCaptureSessionDirectory, true);
+	return LocalCaptureSessionDirectory;
 }
 #undef LOCTEXT_NAMESPACE

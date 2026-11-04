@@ -1,11 +1,9 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "CraneDataSyncComp.h"
 
 #include "ma0t10_dt/ma0t10_dt.h"
 #include "Core/DxDataType.h"
-
 
 // Sets default values for this component's properties
 UCraneDataSyncComp::UCraneDataSyncComp()
@@ -28,7 +26,8 @@ void UCraneDataSyncComp::OnReceiveCraneStateData(const FCraneStateData& InData)
 void UCraneDataSyncComp::OnReceiveData(const TSharedPtr<FDxDataBase>& DataPtr)
 {
 	// 1. 데이터 포인터 유효성 검사
-	if (!DataPtr.IsValid()) return;
+	if (!DataPtr.IsValid())
+		return;
 
 	// 2. 타입 확인 (데이터 자체가 자신의 타입을 알고 있음)
 	if (DataPtr->GetType() == static_cast<int32>(EMa0t10DataType::CraneState))

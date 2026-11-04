@@ -4,8 +4,8 @@
 UCLASS()
 class UEnsureSlabScenarioTransactionCommandlet : public UCommandlet
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 public:
-    UEnsureSlabScenarioTransactionCommandlet();
-    virtual int32 Main(const FString& Params) override;
+	UEnsureSlabScenarioTransactionCommandlet();
+	virtual int32 Main(const FString& Params) override;
 };

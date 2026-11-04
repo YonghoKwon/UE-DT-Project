@@ -29,61 +29,130 @@ namespace
 {
 class FProjectDevicePanelHost final : public IDevicePanelHostBridge
 {
-    TWeakObjectPtr<UVirtualSensorToolWorkspaceSubsystem> Workspace;
-    TWeakObjectPtr<UDxWidgetVirtualSensorPanelBase> Panel;
+	TWeakObjectPtr<UVirtualSensorToolWorkspaceSubsystem> Workspace;
+	TWeakObjectPtr<UDxWidgetVirtualSensorPanelBase> Panel;
+
 public:
-    FProjectDevicePanelHost(UVirtualSensorToolWorkspaceSubsystem* W,UDxWidgetVirtualSensorPanelBase* P):Workspace(W),Panel(P){}
-    bool IsOwned() const override {return Workspace.IsValid();}
-    float PixelScale() const override {return Workspace.IsValid()?Workspace->GetOwnedPixelScale():1.f;}
-    bool NavigateBack() override {return Panel.IsValid()&&Panel->NavigatePanelBack();}
-    FText BackLabel() const override {return Panel.IsValid()?Panel->GetPanelBackLabel():FText::GetEmpty();}
+	FProjectDevicePanelHost(UVirtualSensorToolWorkspaceSubsystem* W, UDxWidgetVirtualSensorPanelBase* P)
+	    : Workspace(W), Panel(P) {}
+	bool IsOwned() const override { return Workspace.IsValid(); }
+	float PixelScale() const override { return Workspace.IsValid() ? Workspace->GetOwnedPixelScale() : 1.f; }
+	bool NavigateBack() override { return Panel.IsValid() && Panel->NavigatePanelBack(); }
+	FText BackLabel() const override { return Panel.IsValid() ? Panel->GetPanelBackLabel() : FText::GetEmpty(); }
 };
 }
 
 bool UDxWidgetVirtualSensorPanelBase::SupportsOwnedDocking() const
-{return IsWorkspaceOwned()&&(!WidgetTree||!WidgetTree->RootWidget);}
-float UDxWidgetVirtualSensorPanelBase::GetSensorToolVisualScale() const
-{return SensorToolFontScale*(SupportsOwnedDocking()&&ToolWorkspace.IsValid()?GetDevicePanelHost()->PixelScale()*.75f:1.f);} // Slate point sizes -> design pixels; stored scale/API is unchanged.
-void UDxWidgetVirtualSensorPanelBase::ApplyWorkspaceDockRect(FVector2D Position,FVector2D Size)
 {
-    if(!SupportsOwnedDocking())return;
-	if(!bWorkspaceDocked)CancelPanelPointerGesture();
-    if(!bWorkspaceDocked){bFloatingDraggable=bPanelDraggable;bFloatingResizable=bPanelResizable;bFloatingClamp=bClampPanelToViewport;}
-    bWorkspaceDocked=true;bPanelDraggable=false;bPanelResizable=false;bClampPanelToViewport=false;
-    bInitialLayoutPending=false;bPanelLayoutConfigured=true;DesiredPanelSize=Size;CurrentViewportPosition=Position;
-    if(auto* S=Cast<UCanvasPanelSlot>(Slot)){if(S->GetAutoSize())S->SetAutoSize(false);if(!S->GetPosition().Equals(Position,.1))S->SetPosition(Position);const auto Effective=GetEffectivePanelSize();if(!S->GetSize().Equals(Effective,.1))S->SetSize(Effective);}
+	return IsWorkspaceOwned() && (!WidgetTree || !WidgetTree->RootWidget);
+}
+float UDxWidgetVirtualSensorPanelBase::GetSensorToolVisualScale() const
+{
+	return SensorToolFontScale * (SupportsOwnedDocking() && ToolWorkspace.IsValid() ? GetDevicePanelHost()->PixelScale() * .75f : 1.f);
+} // Slate point sizes -> design pixels; stored scale/API is unchanged.
+void UDxWidgetVirtualSensorPanelBase::ApplyWorkspaceDockRect(FVector2D Position, FVector2D Size)
+{
+	if (!SupportsOwnedDocking())
+		return;
+	if (!bWorkspaceDocked)
+		CancelPanelPointerGesture();
+	if (!bWorkspaceDocked)
+	{
+		bFloatingDraggable = bPanelDraggable;
+		bFloatingResizable = bPanelResizable;
+		bFloatingClamp = bClampPanelToViewport;
+	}
+	bWorkspaceDocked = true;
+	bPanelDraggable = false;
+	bPanelResizable = false;
+	bClampPanelToViewport = false;
+	bInitialLayoutPending = false;
+	bPanelLayoutConfigured = true;
+	DesiredPanelSize = Size;
+	CurrentViewportPosition = Position;
+	if (auto* S = Cast<UCanvasPanelSlot>(Slot))
+	{
+		if (S->GetAutoSize())
+			S->SetAutoSize(false);
+		if (!S->GetPosition().Equals(Position, .1))
+			S->SetPosition(Position);
+		const auto Effective = GetEffectivePanelSize();
+		if (!S->GetSize().Equals(Effective, .1))
+			S->SetSize(Effective);
+	}
 }
 void UDxWidgetVirtualSensorPanelBase::LeaveWorkspaceDock()
 {
-    if(!bWorkspaceDocked)return;bWorkspaceDocked=false;bPanelDraggable=bFloatingDraggable;bPanelResizable=bFloatingResizable;bClampPanelToViewport=bFloatingClamp;
+	if (!bWorkspaceDocked)
+		return;
+	bWorkspaceDocked = false;
+	bPanelDraggable = bFloatingDraggable;
+	bPanelResizable = bFloatingResizable;
+	bClampPanelToViewport = bFloatingClamp;
 }
 
-const FSlateBrush* UDxWidgetVirtualSensorPanelBase::GetToolPanelBrush() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::PanelBrush():FCoreStyle::Get().GetBrush("WhiteBrush");}
-const FSlateBrush* UDxWidgetVirtualSensorPanelBase::GetToolSectionBrush() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::SectionBrush():FCoreStyle::Get().GetBrush("WhiteBrush");}
-FLinearColor UDxWidgetVirtualSensorPanelBase::GetToolPanelColor() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Panel():FVirtualSensorUiStyle::PanelBackground;}
-FLinearColor UDxWidgetVirtualSensorPanelBase::GetToolHeaderColor() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Header():FVirtualSensorUiStyle::HeaderBackground;}
-FLinearColor UDxWidgetVirtualSensorPanelBase::GetToolSectionColor() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Section():FVirtualSensorUiStyle::SectionBackground;}
-FLinearColor UDxWidgetVirtualSensorPanelBase::GetToolTextColor() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Text():FVirtualSensorUiStyle::PrimaryText;}
-FLinearColor UDxWidgetVirtualSensorPanelBase::GetToolMutedColor() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Muted():FVirtualSensorUiStyle::SecondaryText;}
-FLinearColor UDxWidgetVirtualSensorPanelBase::GetToolAccentColor() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Accent():FVirtualSensorUiStyle::Accent;}
-const FButtonStyle& UDxWidgetVirtualSensorPanelBase::GetToolButtonStyle(bool Danger) const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Button(Danger):FVirtualSensorUiStyle::ButtonStyle();}
-const FEditableTextBoxStyle& UDxWidgetVirtualSensorPanelBase::GetToolInputStyle() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::Input():FVirtualSensorUiStyle::EditableTextBoxStyle();}
-const FComboBoxStyle& UDxWidgetVirtualSensorPanelBase::GetToolComboBoxStyle() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::ComboBox():FCoreStyle::Get().GetWidgetStyle<FComboBoxStyle>("ComboBox");}
-const FSpinBoxStyle& UDxWidgetVirtualSensorPanelBase::GetToolSpinBoxStyle() const {return IsWorkspaceOwned()?FSensorOwnedPresentationStyle::SpinBox():FCoreStyle::Get().GetWidgetStyle<FSpinBoxStyle>("SpinBox");}
-TSharedRef<SWidget> UDxWidgetVirtualSensorPanelBase::BuildToolFormRow(const FText& Label,TSharedRef<SWidget> Control,TSharedRef<SWidget> Detail,TSharedRef<SWidget> Feedback)
+const FSlateBrush* UDxWidgetVirtualSensorPanelBase::GetToolPanelBrush() const
 {
-    return SNew(SVerticalBox)
-        +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,FSensorOwnedPresentationStyle::Gap)
-        [SNew(SHorizontalBox)+SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNewSensorTool(STextBlock).Text(Label)]
-            +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Detail]]
-        +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,FSensorOwnedPresentationStyle::Gap)
-        [SNew(SBox).HeightOverride_Lambda([this](){return FSensorOwnedPresentationStyle::ControlHeight*GetSensorToolVisualScale()/.75f;})[Control]]
-        +SVerticalBox::Slot().AutoHeight()[Feedback];
+	return IsWorkspaceOwned() ? FSensorOwnedPresentationStyle::PanelBrush() : FCoreStyle::Get().GetBrush("WhiteBrush");
+}
+const FSlateBrush* UDxWidgetVirtualSensorPanelBase::GetToolSectionBrush() const
+{
+	return IsWorkspaceOwned() ? FSensorOwnedPresentationStyle::SectionBrush() : FCoreStyle::Get().GetBrush("WhiteBrush");
+}
+FLinearColor UDxWidgetVirtualSensorPanelBase::GetToolPanelColor() const
+{
+	return IsWorkspaceOwned() ? FSensorOwnedPresentationStyle::Panel() : FVirtualSensorUiStyle::PanelBackground;
+}
+FLinearColor UDxWidgetVirtualSensorPanelBase::GetToolHeaderColor() const
+{
+	return IsWorkspaceOwned() ? FSensorOwnedPresentationStyle::Header() : FVirtualSensorUiStyle::HeaderBackground;
+}
+FLinearColor UDxWidgetVirtualSensorPanelBase::GetToolSectionColor() const
+{
+	return IsWorkspaceOwned() ? FSensorOwnedPresentationStyle::Section() : FVirtualSensorUiStyle::SectionBackground;
+}
+FLinearColor UDxWidgetVirtualSensorPanelBase::GetToolTextColor() const
+{
+	return IsWorkspaceOwned() ? FSensorOwnedPresentationStyle::Text() : FVirtualSensorUiStyle::PrimaryText;
+}
+FLinearColor UDxWidgetVirtualSensorPanelBase::GetToolMutedColor() const
+{
+	return IsWorkspaceOwned() ? FSensorOwnedPresentationStyle::Muted() : FVirtualSensorUiStyle::SecondaryText;
+}
+FLinearColor UDxWidgetVirtualSensorPanelBase::GetToolAccentColor() const
+{
+	return IsWorkspaceOwned() ? FSensorOwnedPresentationStyle::Accent() : FVirtualSensorUiStyle::Accent;
+}
+const FButtonStyle& UDxWidgetVirtualSensorPanelBase::GetToolButtonStyle(bool Danger) const
+{
+	return IsWorkspaceOwned() ? FSensorOwnedPresentationStyle::Button(Danger) : FVirtualSensorUiStyle::ButtonStyle();
+}
+const FEditableTextBoxStyle& UDxWidgetVirtualSensorPanelBase::GetToolInputStyle() const
+{
+	return IsWorkspaceOwned() ? FSensorOwnedPresentationStyle::Input() : FVirtualSensorUiStyle::EditableTextBoxStyle();
+}
+const FComboBoxStyle& UDxWidgetVirtualSensorPanelBase::GetToolComboBoxStyle() const
+{
+	return IsWorkspaceOwned() ? FSensorOwnedPresentationStyle::ComboBox() : FCoreStyle::Get().GetWidgetStyle<FComboBoxStyle>("ComboBox");
+}
+const FSpinBoxStyle& UDxWidgetVirtualSensorPanelBase::GetToolSpinBoxStyle() const
+{
+	return IsWorkspaceOwned() ? FSensorOwnedPresentationStyle::SpinBox() : FCoreStyle::Get().GetWidgetStyle<FSpinBoxStyle>("SpinBox");
+}
+TSharedRef<SWidget> UDxWidgetVirtualSensorPanelBase::BuildToolFormRow(const FText& Label, TSharedRef<SWidget> Control, TSharedRef<SWidget> Detail, TSharedRef<SWidget> Feedback)
+{
+	return SNew(SVerticalBox) + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, FSensorOwnedPresentationStyle::Gap)[SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNewSensorTool(STextBlock).Text(Label)] + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Detail]] + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, FSensorOwnedPresentationStyle::Gap)[SNew(SBox).HeightOverride_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                                                                                          { return FSensorOwnedPresentationStyle::ControlHeight * GetSensorToolVisualScale() / .75f; })[Control]] +
+	       SVerticalBox::Slot().AutoHeight()[Feedback];
 }
 void UDxWidgetVirtualSensorPanelBase::PruneFontRegistrations()
-{ UDxDeviceSensorPanelBase::DevicePruneFontRegistrations(); }
-void UDxWidgetVirtualSensorPanelBase::AddFontRegistration(TFunction<void(float)> Setter,TFunction<bool()> IsAlive)
-{ UDxDeviceSensorPanelBase::DeviceAddFontRegistration(Setter,IsAlive); }
+{
+	UDxDeviceSensorPanelBase::DevicePruneFontRegistrations();
+}
+void UDxWidgetVirtualSensorPanelBase::AddFontRegistration(TFunction<void(float)> Setter, TFunction<bool()> IsAlive)
+{
+	UDxDeviceSensorPanelBase::DeviceAddFontRegistration(Setter, IsAlive);
+}
 
 void UDxWidgetVirtualSensorPanelBase::SetGlobalSensorUiFontScale(float InScale)
 {
@@ -92,7 +161,8 @@ void UDxWidgetVirtualSensorPanelBase::SetGlobalSensorUiFontScale(float InScale)
 
 float UDxWidgetVirtualSensorPanelBase::GetGlobalSensorUiFontScale() const
 {
-	if(ToolWorkspace.IsValid())return ToolWorkspace->GetOwnedPanelFontScale();
+	if (ToolWorkspace.IsValid())
+		return ToolWorkspace->GetOwnedPanelFontScale();
 	return SensorAppearanceOwner.IsValid() ? SensorAppearanceOwner->GetSensorToolFontScale() : 1.0f;
 }
 
@@ -102,7 +172,9 @@ void UDxWidgetVirtualSensorPanelBase::ResetGlobalSensorUiFontScale()
 }
 
 int32 UDxWidgetVirtualSensorPanelBase::CalculateScaledFontSize(int32 BaseSize, float Scale)
-{ return UDxDeviceSensorPanelBase::DeviceScaledFontSize(BaseSize,Scale); }
+{
+	return UDxDeviceSensorPanelBase::DeviceScaledFontSize(BaseSize, Scale);
+}
 
 void UDxWidgetVirtualSensorPanelBase::NativeConstruct()
 {
@@ -110,14 +182,17 @@ void UDxWidgetVirtualSensorPanelBase::NativeConstruct()
 	bSensorPanelConstructed = true;
 	// Initial Slate construction / synchronization may replace the constructor-time
 	// font attributes. Reapply only our explicit native controls after it finishes.
-	if(SupportsOwnedDocking())bPendingOwnedFontRefresh=true;
-	if (SensorAppearanceOwner.IsValid()) OnSensorUiFontScaleChanged(SensorToolFontScale);
+	if (SupportsOwnedDocking())
+		bPendingOwnedFontRefresh = true;
+	if (SensorAppearanceOwner.IsValid())
+		OnSensorUiFontScaleChanged(SensorToolFontScale);
 }
 
 void UDxWidgetVirtualSensorPanelBase::NativeDestruct()
 {
 	CancelPanelPointerGesture();
-	if(ToolWorkspace.IsValid())ToolWorkspace->UnregisterPanel(this);
+	if (ToolWorkspace.IsValid())
+		ToolWorkspace->UnregisterPanel(this);
 	bSensorPanelConstructed = false;
 	Super::NativeDestruct();
 }
@@ -125,195 +200,226 @@ void UDxWidgetVirtualSensorPanelBase::NativeDestruct()
 void UDxWidgetVirtualSensorPanelBase::SetSensorAppearanceOwner(AVirtualSensorUiHostActor* Host)
 {
 	SensorAppearanceOwner = Host;
-	if (Host) ApplySensorToolFontScale(ToolWorkspace.IsValid()?ToolWorkspace->GetOwnedPanelFontScale():Host->GetSensorToolFontScale());
+	if (Host)
+		ApplySensorToolFontScale(ToolWorkspace.IsValid() ? ToolWorkspace->GetOwnedPanelFontScale() : Host->GetSensorToolFontScale());
 }
 void UDxWidgetVirtualSensorPanelBase::SetSensorToolFontScale(float Scale)
 {
-	if(ToolWorkspace.IsValid()){ToolWorkspace->SetOwnedPanelFontScale(Scale);return;}
-	if (SensorAppearanceOwner.IsValid()) SensorAppearanceOwner->SetSensorToolFontScale(Scale);
+	if (ToolWorkspace.IsValid())
+	{
+		ToolWorkspace->SetOwnedPanelFontScale(Scale);
+		return;
+	}
+	if (SensorAppearanceOwner.IsValid())
+		SensorAppearanceOwner->SetSensorToolFontScale(Scale);
 }
 void UDxWidgetVirtualSensorPanelBase::ApplySensorToolFontScale(float Scale)
-{ UDxDeviceSensorPanelBase::DeviceApplyFontScale(Scale); }
+{
+	UDxDeviceSensorPanelBase::DeviceApplyFontScale(Scale);
+}
 void UDxWidgetVirtualSensorPanelBase::RegisterSensorNativeFont(TSharedRef<STextBlock> Widget, const STextBlock::FArguments& Args)
-{ UDxDeviceSensorPanelBase::RegisterSensorNativeFont(Widget,Args); }
+{
+	UDxDeviceSensorPanelBase::RegisterSensorNativeFont(Widget, Args);
+}
 void UDxWidgetVirtualSensorPanelBase::RegisterSensorNativeFont(TSharedRef<SButton> Widget, const SButton::FArguments& Args)
-{ UDxDeviceSensorPanelBase::RegisterSensorNativeFont(Widget,Args); }
+{
+	UDxDeviceSensorPanelBase::RegisterSensorNativeFont(Widget, Args);
+}
 void UDxWidgetVirtualSensorPanelBase::RegisterSensorNativeFont(TSharedRef<SEditableTextBox> Widget, const SEditableTextBox::FArguments& Args)
-{ UDxDeviceSensorPanelBase::RegisterSensorNativeFont(Widget,Args); }
+{
+	UDxDeviceSensorPanelBase::RegisterSensorNativeFont(Widget, Args);
+}
 void UDxWidgetVirtualSensorPanelBase::RegisterSensorTextControl(UTextBlock* Text)
-{ UDxDeviceSensorPanelBase::DeviceRegisterTextControl(Text); }
+{
+	UDxDeviceSensorPanelBase::DeviceRegisterTextControl(Text);
+}
 void UDxWidgetVirtualSensorPanelBase::RegisterSensorInputControl(UEditableTextBox* Input)
-{ UDxDeviceSensorPanelBase::DeviceRegisterInputControl(Input); }
+{
+	UDxDeviceSensorPanelBase::DeviceRegisterInputControl(Input);
+}
 
 void UDxWidgetVirtualSensorPanelBase::SetPanelPersistenceKey(FName InPanelPersistenceKey)
 {
-    PanelPersistenceKey = InPanelPersistenceKey;
-    if (bPanelLayoutConfigured)
-    {
-        RestorePanelUiState();
-    }
+	PanelPersistenceKey = InPanelPersistenceKey;
+	if (bPanelLayoutConfigured)
+	{
+		RestorePanelUiState();
+	}
 }
 
 void UDxWidgetVirtualSensorPanelBase::ConfigurePanelLayout(EVirtualSensorPanelPlacement InPlacement, FVector2D InDesiredSize, float InMargin)
 {
-    DefaultPlacement = InPlacement;
-    RequestedPanelSize = InDesiredSize;
-    ViewportMargin = FMath::Max(0.0f, InMargin);
-    const FVector2D ViewportSize = ResolveLogicalViewportSize();
-    if (ViewportSize.X >= 320.0f && ViewportSize.Y >= 200.0f)
-    {
-        ApplyInitialPanelLayout(ViewportSize);
-        return;
-    }
-    bInitialLayoutPending = true;
+	DefaultPlacement = InPlacement;
+	RequestedPanelSize = InDesiredSize;
+	ViewportMargin = FMath::Max(0.0f, InMargin);
+	const FVector2D ViewportSize = ResolveLogicalViewportSize();
+	if (ViewportSize.X >= 320.0f && ViewportSize.Y >= 200.0f)
+	{
+		ApplyInitialPanelLayout(ViewportSize);
+		return;
+	}
+	bInitialLayoutPending = true;
 }
 
 void UDxWidgetVirtualSensorPanelBase::SetPanelResizeLimits(FVector2D InMinimumSize, FVector2D InMaximumSize)
 {
-    MinimumPanelSize.X = FMath::Max(160.0f, InMinimumSize.X);
-    MinimumPanelSize.Y = FMath::Max(80.0f, InMinimumSize.Y);
-    MaximumPanelSize.X = FMath::Max(0.0f, InMaximumSize.X);
-    MaximumPanelSize.Y = FMath::Max(0.0f, InMaximumSize.Y);
-    SetPanelExpandedSize(DesiredPanelSize, false);
+	MinimumPanelSize.X = FMath::Max(160.0f, InMinimumSize.X);
+	MinimumPanelSize.Y = FMath::Max(80.0f, InMinimumSize.Y);
+	MaximumPanelSize.X = FMath::Max(0.0f, InMaximumSize.X);
+	MaximumPanelSize.Y = FMath::Max(0.0f, InMaximumSize.Y);
+	SetPanelExpandedSize(DesiredPanelSize, false);
 }
 
 void UDxWidgetVirtualSensorPanelBase::SetPanelExpandedSize(FVector2D InExpandedSize, bool bPersist)
 {
-    DesiredPanelSize = CalculateResizedPanelSize(
-        FVector2D::ZeroVector,
-        InExpandedSize,
-        1.0f,
-        GetResolvedPanelMinimum(),
-        ResolveMaximumPanelSize());
-    ApplyPanelSize();
-    SetPanelPositionInternal(CurrentViewportPosition);
-    if (bPersist)
-    {
-        SavePanelUiState();
-    }
+	DesiredPanelSize = CalculateResizedPanelSize(
+	    FVector2D::ZeroVector,
+	    InExpandedSize,
+	    1.0f,
+	    GetResolvedPanelMinimum(),
+	    ResolveMaximumPanelSize());
+	ApplyPanelSize();
+	SetPanelPositionInternal(CurrentViewportPosition);
+	if (bPersist)
+	{
+		SavePanelUiState();
+	}
 }
 
 void UDxWidgetVirtualSensorPanelBase::ResetPanelSize()
 {
-    SetPanelExpandedSize(DefaultResolvedPanelSize, true);
+	SetPanelExpandedSize(DefaultResolvedPanelSize, true);
 }
 
 void UDxWidgetVirtualSensorPanelBase::RefreshHostedPanelLayout()
 {
-    ApplyPanelSize();
-    SetPanelPositionInternal(CurrentViewportPosition);
+	ApplyPanelSize();
+	SetPanelPositionInternal(CurrentViewportPosition);
 }
 
 void UDxWidgetVirtualSensorPanelBase::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
-    Super::NativeTick(MyGeometry, InDeltaTime);
-    if(bPendingOwnedFontRefresh&&SupportsOwnedDocking()&&MyGeometry.GetLocalSize().X>0)
-    {bPendingOwnedFontRefresh=false;ApplySensorToolFontScale(SensorToolFontScale);}
-    if (bInitialLayoutPending)
-    {
-        const FVector2D ViewportSize = ResolveLogicalViewportSize();
-        if (ViewportSize.X >= 320.0f && ViewportSize.Y >= 200.0f)
-        {
-            ApplyInitialPanelLayout(ViewportSize);
-        }
-    }
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	if (bPendingOwnedFontRefresh && SupportsOwnedDocking() && MyGeometry.GetLocalSize().X > 0)
+	{
+		bPendingOwnedFontRefresh = false;
+		ApplySensorToolFontScale(SensorToolFontScale);
+	}
+	if (bInitialLayoutPending)
+	{
+		const FVector2D ViewportSize = ResolveLogicalViewportSize();
+		if (ViewportSize.X >= 320.0f && ViewportSize.Y >= 200.0f)
+		{
+			ApplyInitialPanelLayout(ViewportSize);
+		}
+	}
 }
 
 void UDxWidgetVirtualSensorPanelBase::ApplyInitialPanelLayout(FVector2D ViewportSize)
 {
-	if(ToolWorkspace.IsValid()) { bInitialLayoutPending=false;bPanelLayoutConfigured=true;ToolWorkspace->RestorePanel(ToolRole);return; }
-    FVector2D ResolvedSize = RequestedPanelSize;
-    if (ViewportSize.X <= 1400.0f)
-    {
-        // Keep all three default panels independently reachable at 1280x720.
-        // Their scroll boxes preserve the full control surface at these compact sizes.
-        if (DefaultPlacement == EVirtualSensorPanelPlacement::RightCenter)
-        {
-            ResolvedSize.X = FMath::Min(ResolvedSize.X, 620.0f);
-            ResolvedSize.Y = FMath::Min(ResolvedSize.Y, 340.0f);
-        }
-        else if (DefaultPlacement == EVirtualSensorPanelPlacement::LeftCenter)
-        {
-            ResolvedSize.X = FMath::Min(ResolvedSize.X, 340.0f);
-            ResolvedSize.Y = FMath::Min(ResolvedSize.Y, 600.0f);
-        }
-        else if (DefaultPlacement == EVirtualSensorPanelPlacement::BottomCenter)
-        {
-            ResolvedSize.X = FMath::Min(ResolvedSize.X, 500.0f);
-            ResolvedSize.Y = FMath::Min(ResolvedSize.Y, 160.0f);
-        }
-    }
-    DefaultResolvedPanelSize.X = FMath::Max(160.0f, ResolvedSize.X);
-    DefaultResolvedPanelSize.Y = FMath::Max(80.0f, ResolvedSize.Y);
-    DesiredPanelSize = DefaultResolvedPanelSize;
-    ApplyPanelSize();
-    if (!Cast<UCanvasPanelSlot>(Slot))
-    {
-        SetAnchorsInViewport(FAnchors(0.0f, 0.0f));
-        SetAlignmentInViewport(FVector2D::ZeroVector);
-    }
-    bInitialLayoutPending = false;
-    bPanelLayoutConfigured = true;
-    ResetPanelPositionInternal(false);
-    RestorePanelUiState();
+	if (ToolWorkspace.IsValid())
+	{
+		bInitialLayoutPending = false;
+		bPanelLayoutConfigured = true;
+		ToolWorkspace->RestorePanel(ToolRole);
+		return;
+	}
+	FVector2D ResolvedSize = RequestedPanelSize;
+	if (ViewportSize.X <= 1400.0f)
+	{
+		// Keep all three default panels independently reachable at 1280x720.
+		// Their scroll boxes preserve the full control surface at these compact sizes.
+		if (DefaultPlacement == EVirtualSensorPanelPlacement::RightCenter)
+		{
+			ResolvedSize.X = FMath::Min(ResolvedSize.X, 620.0f);
+			ResolvedSize.Y = FMath::Min(ResolvedSize.Y, 340.0f);
+		}
+		else if (DefaultPlacement == EVirtualSensorPanelPlacement::LeftCenter)
+		{
+			ResolvedSize.X = FMath::Min(ResolvedSize.X, 340.0f);
+			ResolvedSize.Y = FMath::Min(ResolvedSize.Y, 600.0f);
+		}
+		else if (DefaultPlacement == EVirtualSensorPanelPlacement::BottomCenter)
+		{
+			ResolvedSize.X = FMath::Min(ResolvedSize.X, 500.0f);
+			ResolvedSize.Y = FMath::Min(ResolvedSize.Y, 160.0f);
+		}
+	}
+	DefaultResolvedPanelSize.X = FMath::Max(160.0f, ResolvedSize.X);
+	DefaultResolvedPanelSize.Y = FMath::Max(80.0f, ResolvedSize.Y);
+	DesiredPanelSize = DefaultResolvedPanelSize;
+	ApplyPanelSize();
+	if (!Cast<UCanvasPanelSlot>(Slot))
+	{
+		SetAnchorsInViewport(FAnchors(0.0f, 0.0f));
+		SetAlignmentInViewport(FVector2D::ZeroVector);
+	}
+	bInitialLayoutPending = false;
+	bPanelLayoutConfigured = true;
+	ResetPanelPositionInternal(false);
+	RestorePanelUiState();
 }
 
 void UDxWidgetVirtualSensorPanelBase::ResetPanelPosition()
 {
-    ResetPanelPositionInternal(true);
+	ResetPanelPositionInternal(true);
 }
 
 void UDxWidgetVirtualSensorPanelBase::ResetPanelPositionInternal(bool bPersist)
 {
-    const FVector2D ViewportSize = ResolveLogicalViewportSize();
-    FVector2D Position(ViewportMargin, ViewportMargin);
-    if (DefaultPlacement == EVirtualSensorPanelPlacement::RightCenter)
-    {
-        Position = FVector2D(ViewportSize.X - DesiredPanelSize.X - ViewportMargin, (ViewportSize.Y - DesiredPanelSize.Y) * 0.5f);
-    }
-    else if (DefaultPlacement == EVirtualSensorPanelPlacement::LeftCenter)
-    {
-        Position = FVector2D(ViewportMargin, (ViewportSize.Y - DesiredPanelSize.Y) * 0.5f);
-    }
-    else if (DefaultPlacement == EVirtualSensorPanelPlacement::BottomCenter)
-    {
-        Position = FVector2D((ViewportSize.X - DesiredPanelSize.X) * 0.5f, ViewportSize.Y - DesiredPanelSize.Y - ViewportMargin);
-    }
-    SetPanelPositionInternal(Position);
-    if (bPersist)
-    {
-        SavePanelUiState();
-    }
+	const FVector2D ViewportSize = ResolveLogicalViewportSize();
+	FVector2D Position(ViewportMargin, ViewportMargin);
+	if (DefaultPlacement == EVirtualSensorPanelPlacement::RightCenter)
+	{
+		Position = FVector2D(ViewportSize.X - DesiredPanelSize.X - ViewportMargin, (ViewportSize.Y - DesiredPanelSize.Y) * 0.5f);
+	}
+	else if (DefaultPlacement == EVirtualSensorPanelPlacement::LeftCenter)
+	{
+		Position = FVector2D(ViewportMargin, (ViewportSize.Y - DesiredPanelSize.Y) * 0.5f);
+	}
+	else if (DefaultPlacement == EVirtualSensorPanelPlacement::BottomCenter)
+	{
+		Position = FVector2D((ViewportSize.X - DesiredPanelSize.X) * 0.5f, ViewportSize.Y - DesiredPanelSize.Y - ViewportMargin);
+	}
+	SetPanelPositionInternal(Position);
+	if (bPersist)
+	{
+		SavePanelUiState();
+	}
 }
 
 void UDxWidgetVirtualSensorPanelBase::TogglePanelCollapsed()
 {
-    bPanelCollapsed = !bPanelCollapsed;
-    ApplyPanelSize();
-    SetPanelPositionInternal(CurrentViewportPosition);
-    SavePanelUiState();
+	bPanelCollapsed = !bPanelCollapsed;
+	ApplyPanelSize();
+	SetPanelPositionInternal(CurrentViewportPosition);
+	SavePanelUiState();
 }
 
 void UDxWidgetVirtualSensorPanelBase::ResetPanelUiStateToDefault()
 {
-    bPanelCollapsed = false;
-    DesiredPanelSize = DefaultResolvedPanelSize;
-    ApplyPanelSize();
-    ResetPanelPositionInternal(true);
+	bPanelCollapsed = false;
+	DesiredPanelSize = DefaultResolvedPanelSize;
+	ApplyPanelSize();
+	ResetPanelPositionInternal(true);
 }
 
 FVector2D UDxWidgetVirtualSensorPanelBase::GetEffectivePanelSize() const
 {
-    return bPanelCollapsed
-        ? FVector2D(DesiredPanelSize.X, FMath::Max(DragHandleHeight, CollapsedPanelHeight))
-        : DesiredPanelSize;
+	return bPanelCollapsed
+	           ? FVector2D(DesiredPanelSize.X, FMath::Max(DragHandleHeight, CollapsedPanelHeight))
+	           : DesiredPanelSize;
 }
 
 FVector2D UDxWidgetVirtualSensorPanelBase::ClampPanelPosition(FVector2D Position, FVector2D PanelSize, FVector2D ViewportSize, float Margin)
-{ return UDxDeviceSensorPanelBase::DeviceClampPosition(Position,PanelSize,ViewportSize,Margin); }
+{
+	return UDxDeviceSensorPanelBase::DeviceClampPosition(Position, PanelSize, ViewportSize, Margin);
+}
 
 FVector2D UDxWidgetVirtualSensorPanelBase::CalculateDraggedPanelPosition(FVector2D CurrentPosition, FVector2D CursorDelta, float DpiScale)
-{ return UDxDeviceSensorPanelBase::DeviceDraggedPosition(CurrentPosition,CursorDelta,DpiScale); }
+{
+	return UDxDeviceSensorPanelBase::DeviceDraggedPosition(CurrentPosition, CursorDelta, DpiScale);
+}
 
 FVector2D UDxWidgetVirtualSensorPanelBase::CalculateResizedPanelSize(
     FVector2D CurrentSize,
@@ -321,390 +427,493 @@ FVector2D UDxWidgetVirtualSensorPanelBase::CalculateResizedPanelSize(
     float DpiScale,
     FVector2D MinimumSize,
     FVector2D MaximumSize)
-{ return UDxDeviceSensorPanelBase::DeviceResizedSize(CurrentSize,CursorDelta,DpiScale,MinimumSize,MaximumSize); }
+{
+	return UDxDeviceSensorPanelBase::DeviceResizedSize(CurrentSize, CursorDelta, DpiScale, MinimumSize, MaximumSize);
+}
 
 FReply UDxWidgetVirtualSensorPanelBase::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
-	if (ToolWorkspace.IsValid())ToolWorkspace->BringOwnedPanelToFront(ToolRole);
-	else if (PanelHostComp) PanelHostComp->BringPanelToFront(this);
-    const FVector2D LocalPosition = InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
-    if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && BeginEdgeResize(InGeometry, InMouseEvent))
-    {
-        return CapturePanelPointer(InMouseEvent);
-    }
-    if (bPanelDraggable && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && LocalPosition.Y <= DragHandleHeight)
-    {
-        bDraggingPanel = true;
-        bResizingPanel = false;
-        return CapturePanelPointer(InMouseEvent);
-    }
-    return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+	if (ToolWorkspace.IsValid())
+		ToolWorkspace->BringOwnedPanelToFront(ToolRole);
+	else if (PanelHostComp)
+		PanelHostComp->BringPanelToFront(this);
+	const FVector2D LocalPosition = InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
+	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && BeginEdgeResize(InGeometry, InMouseEvent))
+	{
+		return CapturePanelPointer(InMouseEvent);
+	}
+	if (bPanelDraggable && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && LocalPosition.Y <= DragHandleHeight)
+	{
+		bDraggingPanel = true;
+		bResizingPanel = false;
+		return CapturePanelPointer(InMouseEvent);
+	}
+	return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
 }
 
 FReply UDxWidgetVirtualSensorPanelBase::NativeOnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
-    if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && FinishPanelPointerGesture())
-    {
-        return FReply::Handled().ReleaseMouseCapture();
-    }
-    return Super::NativeOnMouseButtonUp(InGeometry, InMouseEvent);
+	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && FinishPanelPointerGesture())
+	{
+		return FReply::Handled().ReleaseMouseCapture();
+	}
+	return Super::NativeOnMouseButtonUp(InGeometry, InMouseEvent);
 }
 
 FReply UDxWidgetVirtualSensorPanelBase::CapturePanelPointer(const FPointerEvent& Event)
 {
-    PanelPointerUser=Event.GetUserIndex();
-    const auto Widget=GetCachedWidget();if(!Widget.IsValid())return FReply::Handled();
-    auto Reply=FReply::Handled().CaptureMouse(Widget.ToSharedRef());
-    // Without an explicit focus recipient Slate falls back to SViewport after
-    // the title bubbles. Permanent game capture then overwrites panel capture.
-    if(SupportsOwnedDocking())Reply.SetUserFocus(Widget.ToSharedRef(),EFocusCause::Mouse);
-    return Reply;
+	PanelPointerUser = Event.GetUserIndex();
+	const auto Widget = GetCachedWidget();
+	if (!Widget.IsValid())
+		return FReply::Handled();
+	auto Reply = FReply::Handled().CaptureMouse(Widget.ToSharedRef());
+	// Without an explicit focus recipient Slate falls back to SViewport after
+	// the title bubbles. Permanent game capture then overwrites panel capture.
+	if (SupportsOwnedDocking())
+		Reply.SetUserFocus(Widget.ToSharedRef(), EFocusCause::Mouse);
+	return Reply;
 }
 
 FReply UDxWidgetVirtualSensorPanelBase::NativeOnMouseMove(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
-    if (bResizingPanel && InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
-    {
-        UpdateEdgeResize(InMouseEvent);
-        return FReply::Handled();
-    }
-    if (bDraggingPanel && InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
-    {
-        const FVector2D LocalDelta=InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition()+InMouseEvent.GetCursorDelta())-
-            InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
-        SetPanelPositionInternal(CalculateDraggedPanelPosition(CurrentViewportPosition, LocalDelta, 1.0f));
-        return FReply::Handled();
-    }
-    return Super::NativeOnMouseMove(InGeometry, InMouseEvent);
+	if (bResizingPanel && InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
+	{
+		UpdateEdgeResize(InMouseEvent);
+		return FReply::Handled();
+	}
+	if (bDraggingPanel && InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
+	{
+		const FVector2D LocalDelta = InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition() + InMouseEvent.GetCursorDelta()) -
+		                             InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
+		SetPanelPositionInternal(CalculateDraggedPanelPosition(CurrentViewportPosition, LocalDelta, 1.0f));
+		return FReply::Handled();
+	}
+	return Super::NativeOnMouseMove(InGeometry, InMouseEvent);
 }
 
 void UDxWidgetVirtualSensorPanelBase::NativeOnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent)
 {
-    FinishPanelPointerGesture();
-    Super::NativeOnMouseCaptureLost(CaptureLostEvent);
+	FinishPanelPointerGesture();
+	Super::NativeOnMouseCaptureLost(CaptureLostEvent);
 }
 
 bool UDxWidgetVirtualSensorPanelBase::FinishPanelPointerGesture()
 {
-    const bool bWasDragging=bDraggingPanel||bResizingPanel;
-    bDraggingPanel = false;
-    bResizingPanel = false;
-    ResizeEdges=0;
-    if (bWasDragging && !bWorkspaceDocked)
-    {
-        SavePanelUiState();
-    }
-    return bWasDragging;
+	const bool bWasDragging = bDraggingPanel || bResizingPanel;
+	bDraggingPanel = false;
+	bResizingPanel = false;
+	ResizeEdges = 0;
+	if (bWasDragging && !bWorkspaceDocked)
+	{
+		SavePanelUiState();
+	}
+	return bWasDragging;
 }
 
 void UDxWidgetVirtualSensorPanelBase::CancelPanelPointerGesture()
 {
-    if(!FinishPanelPointerGesture()||!FSlateApplication::IsInitialized())return;
-    const auto Widget=GetCachedWidget();auto& App=FSlateApplication::Get();
-    if(Widget.IsValid()&&Widget->HasMouseCaptureByUser(PanelPointerUser))
-    {
-        FWidgetPath Path;App.GeneratePathToWidgetUnchecked(Widget.ToSharedRef(),Path);
-        App.ProcessReply(Path,FReply::Handled().ReleaseMouseCapture(),nullptr,nullptr,PanelPointerUser);
-    }
+	if (!FinishPanelPointerGesture() || !FSlateApplication::IsInitialized())
+		return;
+	const auto Widget = GetCachedWidget();
+	auto& App = FSlateApplication::Get();
+	if (Widget.IsValid() && Widget->HasMouseCaptureByUser(PanelPointerUser))
+	{
+		FWidgetPath Path;
+		App.GeneratePathToWidgetUnchecked(Widget.ToSharedRef(), Path);
+		App.ProcessReply(Path, FReply::Handled().ReleaseMouseCapture(), nullptr, nullptr, PanelPointerUser);
+	}
 }
 
 EVisibility UDxWidgetVirtualSensorPanelBase::GetPanelBodyVisibility() const
 {
-    return bPanelCollapsed ? EVisibility::Collapsed : EVisibility::Visible;
+	return bPanelCollapsed ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 FVector2D UDxWidgetVirtualSensorPanelBase::ResolveLogicalViewportSize() const
 {
-    auto Available=[this](FVector2D Size)
-    {
-        if(ToolWorkspace.IsValid()&&ToolRole==ESensorToolPanelRole::TestSet&&ToolWorkspace->IsSidebarMode())
-            Size.Y=FMath::Max(200.,Size.Y-FSensorOwnedPresentationStyle::StatusHeight*ToolWorkspace->GetOwnedPanelFontScale()*ToolWorkspace->GetOwnedPixelScale());
-        return Size;
-    };
-    if (const UPanelWidget* ParentPanel = GetParent())
-    {
-        const FVector2D ParentSize = ParentPanel->GetCachedGeometry().GetLocalSize();
-        if (ParentSize.X >= 320.0f && ParentSize.Y >= 200.0f)
-        {
-            return Available(ParentSize);
-        }
-    }
-    const float DpiScale = FMath::Max(0.01f, UWidgetLayoutLibrary::GetViewportScale(this));
-    return Available(UWidgetLayoutLibrary::GetViewportSize(const_cast<UDxWidgetVirtualSensorPanelBase*>(this)) / DpiScale);
+	auto Available = [this](FVector2D Size)
+	{
+		if (ToolWorkspace.IsValid() && ToolRole == ESensorToolPanelRole::TestSet && ToolWorkspace->IsSidebarMode())
+			Size.Y = FMath::Max(200., Size.Y - FSensorOwnedPresentationStyle::StatusHeight * ToolWorkspace->GetOwnedPanelFontScale() * ToolWorkspace->GetOwnedPixelScale());
+		return Size;
+	};
+	if (const UPanelWidget* ParentPanel = GetParent())
+	{
+		const FVector2D ParentSize = ParentPanel->GetCachedGeometry().GetLocalSize();
+		if (ParentSize.X >= 320.0f && ParentSize.Y >= 200.0f)
+		{
+			return Available(ParentSize);
+		}
+	}
+	const float DpiScale = FMath::Max(0.01f, UWidgetLayoutLibrary::GetViewportScale(this));
+	return Available(UWidgetLayoutLibrary::GetViewportSize(const_cast<UDxWidgetVirtualSensorPanelBase*>(this)) / DpiScale);
 }
 
 void UDxWidgetVirtualSensorPanelBase::RestorePanelUiState()
 {
-	if(ToolWorkspace.IsValid()){ToolWorkspace->RestorePanel(ToolRole);return;}
-    if (PanelPersistenceKey.IsNone() || !bPanelLayoutConfigured)
-    {
-        return;
-    }
-    const UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate();
-    const FVirtualSensorPanelUiState* State = Preferences ? Preferences->PanelStates.Find(PanelPersistenceKey) : nullptr;
-    if (!State)
-    {
-        return;
-    }
-    bPanelCollapsed = State->bCollapsed;
-    if (State->bHasSavedSize)
-    {
-        DesiredPanelSize = CalculateResizedPanelSize(
-            FVector2D::ZeroVector,
-            State->ExpandedSize,
-            1.0f,
-            MinimumPanelSize,
-            ResolveMaximumPanelSize());
-    }
-    ApplyPanelSize();
-    if (State->bHasSavedPosition)
-    {
-        SetPanelPositionInternal(FromNormalizedPanelPosition(State->NormalizedPosition, ResolveLogicalViewportSize()));
-    }
+	if (ToolWorkspace.IsValid())
+	{
+		ToolWorkspace->RestorePanel(ToolRole);
+		return;
+	}
+	if (PanelPersistenceKey.IsNone() || !bPanelLayoutConfigured)
+	{
+		return;
+	}
+	const UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate();
+	const FVirtualSensorPanelUiState* State = Preferences ? Preferences->PanelStates.Find(PanelPersistenceKey) : nullptr;
+	if (!State)
+	{
+		return;
+	}
+	bPanelCollapsed = State->bCollapsed;
+	if (State->bHasSavedSize)
+	{
+		DesiredPanelSize = CalculateResizedPanelSize(
+		    FVector2D::ZeroVector,
+		    State->ExpandedSize,
+		    1.0f,
+		    MinimumPanelSize,
+		    ResolveMaximumPanelSize());
+	}
+	ApplyPanelSize();
+	if (State->bHasSavedPosition)
+	{
+		SetPanelPositionInternal(FromNormalizedPanelPosition(State->NormalizedPosition, ResolveLogicalViewportSize()));
+	}
 }
 
 void UDxWidgetVirtualSensorPanelBase::SavePanelUiState() const
 {
-	if(ToolWorkspace.IsValid()){ToolWorkspace->SavePanel(ToolRole);return;}
-    if (PanelPersistenceKey.IsNone() || !bPanelLayoutConfigured)
-    {
-        return;
-    }
-    UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate();
-    if (!Preferences)
-    {
-        return;
-    }
-    FVirtualSensorPanelUiState& State = Preferences->PanelStates.FindOrAdd(PanelPersistenceKey);
-    State.NormalizedPosition = ToNormalizedPanelPosition(CurrentViewportPosition, ResolveLogicalViewportSize());
-    State.bHasSavedPosition = true;
-    State.bCollapsed = bPanelCollapsed;
-    State.ExpandedSize = DesiredPanelSize;
-    State.bHasSavedSize = true;
-    UVirtualSensorUiPreferencesSaveGame::Save(Preferences);
+	if (ToolWorkspace.IsValid())
+	{
+		ToolWorkspace->SavePanel(ToolRole);
+		return;
+	}
+	if (PanelPersistenceKey.IsNone() || !bPanelLayoutConfigured)
+	{
+		return;
+	}
+	UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate();
+	if (!Preferences)
+	{
+		return;
+	}
+	FVirtualSensorPanelUiState& State = Preferences->PanelStates.FindOrAdd(PanelPersistenceKey);
+	State.NormalizedPosition = ToNormalizedPanelPosition(CurrentViewportPosition, ResolveLogicalViewportSize());
+	State.bHasSavedPosition = true;
+	State.bCollapsed = bPanelCollapsed;
+	State.ExpandedSize = DesiredPanelSize;
+	State.bHasSavedSize = true;
+	UVirtualSensorUiPreferencesSaveGame::Save(Preferences);
 }
 
 FVector2D UDxWidgetVirtualSensorPanelBase::ResolveMaximumPanelSize() const
 {
-    const FVector2D ViewportSize = ResolveLogicalViewportSize();
-    if(IsWorkspaceOwned()&&ViewportSize.X>=320&&ViewportSize.Y>=200)
-    {
-        const FVector2D Available(FMath::Max(160.0,ViewportSize.X-ViewportMargin*2),FMath::Max(80.0,ViewportSize.Y-ToolWorkspace->GetToolbarReservedTop()-ViewportMargin));
-        return FVector2D(MaximumPanelSize.X>0?FMath::Min(MaximumPanelSize.X,Available.X):Available.X,MaximumPanelSize.Y>0?FMath::Min(MaximumPanelSize.Y,Available.Y):Available.Y);
-    }
-    const FVector2D ViewportMaximum(
-        FMath::Max(MinimumPanelSize.X, ViewportSize.X - ViewportMargin * 2.0f),
-        FMath::Max(MinimumPanelSize.Y, ViewportSize.Y - ViewportMargin * 2.0f));
-    return FVector2D(
-        MaximumPanelSize.X > 0.0f ? FMath::Min(MaximumPanelSize.X, ViewportMaximum.X) : ViewportMaximum.X,
-        MaximumPanelSize.Y > 0.0f ? FMath::Min(MaximumPanelSize.Y, ViewportMaximum.Y) : ViewportMaximum.Y);
+	const FVector2D ViewportSize = ResolveLogicalViewportSize();
+	if (IsWorkspaceOwned() && ViewportSize.X >= 320 && ViewportSize.Y >= 200)
+	{
+		const FVector2D Available(FMath::Max(160.0, ViewportSize.X - ViewportMargin * 2), FMath::Max(80.0, ViewportSize.Y - ToolWorkspace->GetToolbarReservedTop() - ViewportMargin));
+		return FVector2D(MaximumPanelSize.X > 0 ? FMath::Min(MaximumPanelSize.X, Available.X) : Available.X, MaximumPanelSize.Y > 0 ? FMath::Min(MaximumPanelSize.Y, Available.Y) : Available.Y);
+	}
+	const FVector2D ViewportMaximum(
+	    FMath::Max(MinimumPanelSize.X, ViewportSize.X - ViewportMargin * 2.0f),
+	    FMath::Max(MinimumPanelSize.Y, ViewportSize.Y - ViewportMargin * 2.0f));
+	return FVector2D(
+	    MaximumPanelSize.X > 0.0f ? FMath::Min(MaximumPanelSize.X, ViewportMaximum.X) : ViewportMaximum.X,
+	    MaximumPanelSize.Y > 0.0f ? FMath::Min(MaximumPanelSize.Y, ViewportMaximum.Y) : ViewportMaximum.Y);
 }
 
 FVector2D UDxWidgetVirtualSensorPanelBase::GetResolvedPanelMinimum() const
 {
-    if(bWorkspaceDocked)return FVector2D(160,80);
-    if(!IsWorkspaceOwned())return MinimumPanelSize;
-    const FVector2D Maximum=ResolveMaximumPanelSize();
-    const float HeaderWidthScale=FMath::Max(1.0f,SensorToolFontScale);
-    return FVector2D(FMath::Min(MinimumPanelSize.X*HeaderWidthScale,Maximum.X),FMath::Min(MinimumPanelSize.Y,Maximum.Y));
+	if (bWorkspaceDocked)
+		return FVector2D(160, 80);
+	if (!IsWorkspaceOwned())
+		return MinimumPanelSize;
+	const FVector2D Maximum = ResolveMaximumPanelSize();
+	const float HeaderWidthScale = FMath::Max(1.0f, SensorToolFontScale);
+	return FVector2D(FMath::Min(MinimumPanelSize.X * HeaderWidthScale, Maximum.X), FMath::Min(MinimumPanelSize.Y, Maximum.Y));
 }
 
 bool UDxWidgetVirtualSensorPanelBase::CanResizeEdges() const
 {
-    if(bPanelCollapsed)return false;
-    // The docked preview card is the only docked panel users resize (UXR-14).
-    if(bWorkspaceDocked)return SupportsOwnedDocking()&&ToolRole==ESensorToolPanelRole::Monitor&&ToolWorkspace.IsValid();
-    return bPanelResizable;
+	if (bPanelCollapsed)
+		return false;
+	// The docked preview card is the only docked panel users resize (UXR-14).
+	if (bWorkspaceDocked)
+		return SupportsOwnedDocking() && ToolRole == ESensorToolPanelRole::Monitor && ToolWorkspace.IsValid();
+	return bPanelResizable;
 }
 
 uint8 UDxWidgetVirtualSensorPanelBase::HitResizeEdges(const FGeometry& Geometry, const FVector2D& ScreenPosition) const
 {
-    if(!CanResizeEdges())return 0;
-    const FVector2D L=Geometry.AbsoluteToLocal(ScreenPosition),S=Geometry.GetLocalSize();
-    if(L.X<0||L.Y<0||L.X>S.X||L.Y>S.Y)return 0;
-    constexpr float Edge=7.f,Corner=16.f;
-    uint8 Mask=0;
-    if(L.X<=Edge)Mask|=1;if(L.X>=S.X-Edge)Mask|=2;if(L.Y<=Edge)Mask|=4;if(L.Y>=S.Y-Edge)Mask|=8;
-    // Corners get a larger grab area than straight edges.
-    const bool NearL=L.X<=Corner,NearR=L.X>=S.X-Corner,NearT=L.Y<=Corner,NearB=L.Y>=S.Y-Corner;
-    if((NearL||NearR)&&(NearT||NearB)){Mask=(NearL?1:2)|(NearT?4:8);}
-    // Keep the original bottom-right handle area for floating panels.
-    if(!bWorkspaceDocked&&IsInResizeHandle(Geometry,ScreenPosition))Mask=2|8;
-    return Mask;
+	if (!CanResizeEdges())
+		return 0;
+	const FVector2D L = Geometry.AbsoluteToLocal(ScreenPosition), S = Geometry.GetLocalSize();
+	if (L.X < 0 || L.Y < 0 || L.X > S.X || L.Y > S.Y)
+		return 0;
+	constexpr float Edge = 7.f, Corner = 16.f;
+	uint8 Mask = 0;
+	if (L.X <= Edge)
+		Mask |= 1;
+	if (L.X >= S.X - Edge)
+		Mask |= 2;
+	if (L.Y <= Edge)
+		Mask |= 4;
+	if (L.Y >= S.Y - Edge)
+		Mask |= 8;
+	// Corners get a larger grab area than straight edges.
+	const bool NearL = L.X <= Corner, NearR = L.X >= S.X - Corner, NearT = L.Y <= Corner, NearB = L.Y >= S.Y - Corner;
+	if ((NearL || NearR) && (NearT || NearB))
+	{
+		Mask = (NearL ? 1 : 2) | (NearT ? 4 : 8);
+	}
+	// Keep the original bottom-right handle area for floating panels.
+	if (!bWorkspaceDocked && IsInResizeHandle(Geometry, ScreenPosition))
+		Mask = 2 | 8;
+	return Mask;
 }
 
 bool UDxWidgetVirtualSensorPanelBase::BeginEdgeResize(const FGeometry& Geometry, const FPointerEvent& Event)
 {
-    const uint8 Mask=HitResizeEdges(Geometry,Event.GetScreenSpacePosition());
-    if(!Mask)return false;
-    ResizeEdges=Mask;bResizingPanel=true;bDraggingPanel=false;
-    ResizeStartScreen=Event.GetScreenSpacePosition();ResizeStartScale=FMath::Max(.01f,Geometry.Scale);
-    ResizeStartPosition=CurrentViewportPosition;ResizeStartSize=GetEffectivePanelSize();
-    return true;
+	const uint8 Mask = HitResizeEdges(Geometry, Event.GetScreenSpacePosition());
+	if (!Mask)
+		return false;
+	ResizeEdges = Mask;
+	bResizingPanel = true;
+	bDraggingPanel = false;
+	ResizeStartScreen = Event.GetScreenSpacePosition();
+	ResizeStartScale = FMath::Max(.01f, Geometry.Scale);
+	ResizeStartPosition = CurrentViewportPosition;
+	ResizeStartSize = GetEffectivePanelSize();
+	return true;
 }
 
 void UDxWidgetVirtualSensorPanelBase::UpdateEdgeResize(const FPointerEvent& Event)
 {
-    if(!ResizeEdges){ResizeEdges=2|8;ResizeStartScreen=Event.GetScreenSpacePosition();ResizeStartScale=1.f;ResizeStartPosition=CurrentViewportPosition;ResizeStartSize=GetEffectivePanelSize();}
-    const FVector2D D=(Event.GetScreenSpacePosition()-ResizeStartScreen)/ResizeStartScale;
-    FVector2D Size=ResizeStartSize;
-    if(ResizeEdges&2)Size.X+=D.X;if(ResizeEdges&1)Size.X-=D.X;
-    if(ResizeEdges&8)Size.Y+=D.Y;if(ResizeEdges&4)Size.Y-=D.Y;
-    const FVector2D Min=bWorkspaceDocked&&ToolWorkspace.IsValid()?ToolWorkspace->GetDockedCardMinimum():GetResolvedPanelMinimum();
-    const FVector2D Max=bWorkspaceDocked?FVector2D(100000,100000):ResolveMaximumPanelSize();
-    Size.X=FMath::Clamp(Size.X,Min.X,FMath::Max(Min.X,Max.X));Size.Y=FMath::Clamp(Size.Y,Min.Y,FMath::Max(Min.Y,Max.Y));
-    if(bWorkspaceDocked&&ToolWorkspace.IsValid())
-    {
-        // Only the dragged edge stops at the boundary; the card itself never slides.
-        const FBox2D B=ToolWorkspace->GetDockedCardBounds();const FVector2D Far=ResizeStartPosition+ResizeStartSize;
-        if(ResizeEdges&2)Size.X=FMath::Min(Size.X,FMath::Max(Min.X,B.Max.X-ResizeStartPosition.X));
-        if(ResizeEdges&1)Size.X=FMath::Min(Size.X,FMath::Max(Min.X,Far.X-B.Min.X));
-        if(ResizeEdges&8)Size.Y=FMath::Min(Size.Y,FMath::Max(Min.Y,B.Max.Y-ResizeStartPosition.Y));
-        if(ResizeEdges&4)Size.Y=FMath::Min(Size.Y,FMath::Max(Min.Y,Far.Y-B.Min.Y));
-    }
-    // Left/top edges move the panel so the opposite edge stays where it was.
-    FVector2D Position=ResizeStartPosition;
-    if(ResizeEdges&1)Position.X+=ResizeStartSize.X-Size.X;
-    if(ResizeEdges&4)Position.Y+=ResizeStartSize.Y-Size.Y;
-    if(bWorkspaceDocked){if(ToolWorkspace.IsValid())ToolWorkspace->SetDockedCardRect(Position,Size);return;}
-    SetPanelExpandedSize(Size,false);SetPanelPositionInternal(Position);
+	if (!ResizeEdges)
+	{
+		ResizeEdges = 2 | 8;
+		ResizeStartScreen = Event.GetScreenSpacePosition();
+		ResizeStartScale = 1.f;
+		ResizeStartPosition = CurrentViewportPosition;
+		ResizeStartSize = GetEffectivePanelSize();
+	}
+	const FVector2D D = (Event.GetScreenSpacePosition() - ResizeStartScreen) / ResizeStartScale;
+	FVector2D Size = ResizeStartSize;
+	if (ResizeEdges & 2)
+		Size.X += D.X;
+	if (ResizeEdges & 1)
+		Size.X -= D.X;
+	if (ResizeEdges & 8)
+		Size.Y += D.Y;
+	if (ResizeEdges & 4)
+		Size.Y -= D.Y;
+	const FVector2D Min = bWorkspaceDocked && ToolWorkspace.IsValid() ? ToolWorkspace->GetDockedCardMinimum() : GetResolvedPanelMinimum();
+	const FVector2D Max = bWorkspaceDocked ? FVector2D(100000, 100000) : ResolveMaximumPanelSize();
+	Size.X = FMath::Clamp(Size.X, Min.X, FMath::Max(Min.X, Max.X));
+	Size.Y = FMath::Clamp(Size.Y, Min.Y, FMath::Max(Min.Y, Max.Y));
+	if (bWorkspaceDocked && ToolWorkspace.IsValid())
+	{
+		// Only the dragged edge stops at the boundary; the card itself never slides.
+		const FBox2D B = ToolWorkspace->GetDockedCardBounds();
+		const FVector2D Far = ResizeStartPosition + ResizeStartSize;
+		if (ResizeEdges & 2)
+			Size.X = FMath::Min(Size.X, FMath::Max(Min.X, B.Max.X - ResizeStartPosition.X));
+		if (ResizeEdges & 1)
+			Size.X = FMath::Min(Size.X, FMath::Max(Min.X, Far.X - B.Min.X));
+		if (ResizeEdges & 8)
+			Size.Y = FMath::Min(Size.Y, FMath::Max(Min.Y, B.Max.Y - ResizeStartPosition.Y));
+		if (ResizeEdges & 4)
+			Size.Y = FMath::Min(Size.Y, FMath::Max(Min.Y, Far.Y - B.Min.Y));
+	}
+	// Left/top edges move the panel so the opposite edge stays where it was.
+	FVector2D Position = ResizeStartPosition;
+	if (ResizeEdges & 1)
+		Position.X += ResizeStartSize.X - Size.X;
+	if (ResizeEdges & 4)
+		Position.Y += ResizeStartSize.Y - Size.Y;
+	if (bWorkspaceDocked)
+	{
+		if (ToolWorkspace.IsValid())
+			ToolWorkspace->SetDockedCardRect(Position, Size);
+		return;
+	}
+	SetPanelExpandedSize(Size, false);
+	SetPanelPositionInternal(Position);
 }
 
 FCursorReply UDxWidgetVirtualSensorPanelBase::NativeOnCursorQuery(const FGeometry& InGeometry, const FPointerEvent& InCursorEvent)
 {
-    const uint8 Mask=bResizingPanel?ResizeEdges:HitResizeEdges(InGeometry,InCursorEvent.GetScreenSpacePosition());
-    if(Mask)
-    {
-        const bool H=(Mask&3)!=0,V=(Mask&12)!=0;
-        if(H&&V)return FCursorReply::Cursor(((Mask&1)!=0)==((Mask&4)!=0)?EMouseCursor::ResizeSouthEast:EMouseCursor::ResizeSouthWest);
-        return FCursorReply::Cursor(H?EMouseCursor::ResizeLeftRight:EMouseCursor::ResizeUpDown);
-    }
-    return Super::NativeOnCursorQuery(InGeometry,InCursorEvent);
+	const uint8 Mask = bResizingPanel ? ResizeEdges : HitResizeEdges(InGeometry, InCursorEvent.GetScreenSpacePosition());
+	if (Mask)
+	{
+		const bool H = (Mask & 3) != 0, V = (Mask & 12) != 0;
+		if (H && V)
+			return FCursorReply::Cursor(((Mask & 1) != 0) == ((Mask & 4) != 0) ? EMouseCursor::ResizeSouthEast : EMouseCursor::ResizeSouthWest);
+		return FCursorReply::Cursor(H ? EMouseCursor::ResizeLeftRight : EMouseCursor::ResizeUpDown);
+	}
+	return Super::NativeOnCursorQuery(InGeometry, InCursorEvent);
 }
 
 bool UDxWidgetVirtualSensorPanelBase::IsInResizeHandle(const FGeometry& Geometry, const FVector2D& ScreenPosition) const
 {
-    const FVector2D LocalPosition = Geometry.AbsoluteToLocal(ScreenPosition);
-    const FVector2D LocalSize = Geometry.GetLocalSize();
-    return LocalPosition.X >= LocalSize.X - ResizeHandleSize &&
-        LocalPosition.Y >= LocalSize.Y - ResizeHandleSize;
+	const FVector2D LocalPosition = Geometry.AbsoluteToLocal(ScreenPosition);
+	const FVector2D LocalSize = Geometry.GetLocalSize();
+	return LocalPosition.X >= LocalSize.X - ResizeHandleSize &&
+	       LocalPosition.Y >= LocalSize.Y - ResizeHandleSize;
 }
 
 FVector2D UDxWidgetVirtualSensorPanelBase::ToNormalizedPanelPosition(FVector2D Position, FVector2D ViewportSize) const
 {
-    const float MaxX = FMath::Max(ViewportMargin, ViewportSize.X - DesiredPanelSize.X - ViewportMargin);
-    const float MaxY = FMath::Max(ViewportMargin, ViewportSize.Y - FMath::Min(DesiredPanelSize.Y, 64.0f) - ViewportMargin);
-    const float RangeX = FMath::Max(KINDA_SMALL_NUMBER, MaxX - ViewportMargin);
-    const float RangeY = FMath::Max(KINDA_SMALL_NUMBER, MaxY - ViewportMargin);
-    return FVector2D(
-        FMath::Clamp((Position.X - ViewportMargin) / RangeX, 0.0f, 1.0f),
-        FMath::Clamp((Position.Y - ViewportMargin) / RangeY, 0.0f, 1.0f));
+	const float MaxX = FMath::Max(ViewportMargin, ViewportSize.X - DesiredPanelSize.X - ViewportMargin);
+	const float MaxY = FMath::Max(ViewportMargin, ViewportSize.Y - FMath::Min(DesiredPanelSize.Y, 64.0f) - ViewportMargin);
+	const float RangeX = FMath::Max(KINDA_SMALL_NUMBER, MaxX - ViewportMargin);
+	const float RangeY = FMath::Max(KINDA_SMALL_NUMBER, MaxY - ViewportMargin);
+	return FVector2D(
+	    FMath::Clamp((Position.X - ViewportMargin) / RangeX, 0.0f, 1.0f),
+	    FMath::Clamp((Position.Y - ViewportMargin) / RangeY, 0.0f, 1.0f));
 }
 
 FVector2D UDxWidgetVirtualSensorPanelBase::FromNormalizedPanelPosition(FVector2D NormalizedPosition, FVector2D ViewportSize) const
 {
-    const float MaxX = FMath::Max(ViewportMargin, ViewportSize.X - DesiredPanelSize.X - ViewportMargin);
-    const float MaxY = FMath::Max(ViewportMargin, ViewportSize.Y - FMath::Min(DesiredPanelSize.Y, 64.0f) - ViewportMargin);
-    return FVector2D(
-        FMath::Lerp(ViewportMargin, MaxX, FMath::Clamp(NormalizedPosition.X, 0.0f, 1.0f)),
-        FMath::Lerp(ViewportMargin, MaxY, FMath::Clamp(NormalizedPosition.Y, 0.0f, 1.0f)));
+	const float MaxX = FMath::Max(ViewportMargin, ViewportSize.X - DesiredPanelSize.X - ViewportMargin);
+	const float MaxY = FMath::Max(ViewportMargin, ViewportSize.Y - FMath::Min(DesiredPanelSize.Y, 64.0f) - ViewportMargin);
+	return FVector2D(
+	    FMath::Lerp(ViewportMargin, MaxX, FMath::Clamp(NormalizedPosition.X, 0.0f, 1.0f)),
+	    FMath::Lerp(ViewportMargin, MaxY, FMath::Clamp(NormalizedPosition.Y, 0.0f, 1.0f)));
 }
 
 void UDxWidgetVirtualSensorPanelBase::SetPanelPositionInternal(FVector2D NewPosition)
 {
-    const FVector2D EffectiveSize = GetEffectivePanelSize();
-    if (bClampPanelToViewport)
-    {
-        NewPosition = ClampPanelPosition(NewPosition, EffectiveSize, ResolveLogicalViewportSize(), ViewportMargin);
-		if(IsWorkspaceOwned()){
-			const FVector2D V=ResolveLogicalViewportSize();
-			const double Top=ToolWorkspace->GetToolbarReservedTop();
-			NewPosition.Y=FMath::Clamp(NewPosition.Y,Top,FMath::Max(Top,V.Y-EffectiveSize.Y-ViewportMargin));
+	const FVector2D EffectiveSize = GetEffectivePanelSize();
+	if (bClampPanelToViewport)
+	{
+		NewPosition = ClampPanelPosition(NewPosition, EffectiveSize, ResolveLogicalViewportSize(), ViewportMargin);
+		if (IsWorkspaceOwned())
+		{
+			const FVector2D V = ResolveLogicalViewportSize();
+			const double Top = ToolWorkspace->GetToolbarReservedTop();
+			NewPosition.Y = FMath::Clamp(NewPosition.Y, Top, FMath::Max(Top, V.Y - EffectiveSize.Y - ViewportMargin));
 		}
-    }
-    CurrentViewportPosition = NewPosition;
-    if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Slot))
-    {
-        CanvasSlot->SetPosition(CurrentViewportPosition);
-    }
-    else
-    {
-        SetPositionInViewport(CurrentViewportPosition, false);
-    }
+	}
+	CurrentViewportPosition = NewPosition;
+	if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Slot))
+	{
+		CanvasSlot->SetPosition(CurrentViewportPosition);
+	}
+	else
+	{
+		SetPositionInViewport(CurrentViewportPosition, false);
+	}
 }
 
 void UDxWidgetVirtualSensorPanelBase::ApplyPanelSize()
 {
-    const FVector2D EffectiveSize = GetEffectivePanelSize();
-    if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Slot))
-    {
-        CanvasSlot->SetAutoSize(false);
-        CanvasSlot->SetSize(EffectiveSize);
-    }
-    else
-    {
-        SetDesiredSizeInViewport(EffectiveSize);
-    }
+	const FVector2D EffectiveSize = GetEffectivePanelSize();
+	if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Slot))
+	{
+		CanvasSlot->SetAutoSize(false);
+		CanvasSlot->SetSize(EffectiveSize);
+	}
+	else
+	{
+		SetDesiredSizeInViewport(EffectiveSize);
+	}
 }
 
-void UDxWidgetVirtualSensorPanelBase::SetToolWorkspace(UVirtualSensorToolWorkspaceSubsystem* Owner,ESensorToolPanelRole Role)
+void UDxWidgetVirtualSensorPanelBase::SetToolWorkspace(UVirtualSensorToolWorkspaceSubsystem* Owner, ESensorToolPanelRole Role)
 {
-    BindDevicePanelHost(Owner,Owner?TSharedPtr<IDevicePanelHostBridge>(MakeShared<FProjectDevicePanelHost>(Owner,this)):TSharedPtr<IDevicePanelHostBridge>());
-    if(ToolWorkspace.Get()!=Owner)CancelPanelPointerGesture();
-    if(bOwnedPointerFocus){SetIsFocusable(bPreviousFocusable);bOwnedPointerFocus=false;}
-    ToolWorkspace=Owner;ToolRole=Role;bPendingOwnedFontRefresh=SupportsOwnedDocking();
-    if(SupportsOwnedDocking()){bPreviousFocusable=IsFocusable();SetIsFocusable(true);bOwnedPointerFocus=true;}
+	BindDevicePanelHost(Owner, Owner ? TSharedPtr<IDevicePanelHostBridge>(MakeShared<FProjectDevicePanelHost>(Owner, this)) : TSharedPtr<IDevicePanelHostBridge>());
+	if (ToolWorkspace.Get() != Owner)
+		CancelPanelPointerGesture();
+	if (bOwnedPointerFocus)
+	{
+		SetIsFocusable(bPreviousFocusable);
+		bOwnedPointerFocus = false;
+	}
+	ToolWorkspace = Owner;
+	ToolRole = Role;
+	bPendingOwnedFontRefresh = SupportsOwnedDocking();
+	if (SupportsOwnedDocking())
+	{
+		bPreviousFocusable = IsFocusable();
+		SetIsFocusable(true);
+		bOwnedPointerFocus = true;
+	}
 }
 FVirtualSensorPanelUiState UDxWidgetVirtualSensorPanelBase::CaptureWorkspaceLayout() const
 {
-	FVirtualSensorPanelUiState S;S.bHasSavedPosition=true;S.bHasSavedSize=true;S.bCollapsed=bPanelCollapsed;S.ExpandedSize=DesiredPanelSize;
-	S.NormalizedPosition=ToNormalizedPanelPosition(CurrentViewportPosition,ResolveLogicalViewportSize());return S;
+	FVirtualSensorPanelUiState S;
+	S.bHasSavedPosition = true;
+	S.bHasSavedSize = true;
+	S.bCollapsed = bPanelCollapsed;
+	S.ExpandedSize = DesiredPanelSize;
+	S.NormalizedPosition = ToNormalizedPanelPosition(CurrentViewportPosition, ResolveLogicalViewportSize());
+	return S;
 }
 void UDxWidgetVirtualSensorPanelBase::ApplyWorkspaceLayout(const FVirtualSensorPanelUiState& S)
 {
-	if(!IsWorkspaceOwned())return;bPanelLayoutConfigured=true;bInitialLayoutPending=false;
-	if(S.bHasSavedSize&&FMath::IsFinite(S.ExpandedSize.X)&&FMath::IsFinite(S.ExpandedSize.Y))SetPanelExpandedSize(S.ExpandedSize,false);
-	bPanelCollapsed=S.bCollapsed;ApplyPanelSize();
-	if(S.bHasSavedPosition&&FMath::IsFinite(S.NormalizedPosition.X)&&FMath::IsFinite(S.NormalizedPosition.Y))SetPanelPositionInternal(FromNormalizedPanelPosition(S.NormalizedPosition,ResolveLogicalViewportSize()));
+	if (!IsWorkspaceOwned())
+		return;
+	bPanelLayoutConfigured = true;
+	bInitialLayoutPending = false;
+	if (S.bHasSavedSize && FMath::IsFinite(S.ExpandedSize.X) && FMath::IsFinite(S.ExpandedSize.Y))
+		SetPanelExpandedSize(S.ExpandedSize, false);
+	bPanelCollapsed = S.bCollapsed;
+	ApplyPanelSize();
+	if (S.bHasSavedPosition && FMath::IsFinite(S.NormalizedPosition.X) && FMath::IsFinite(S.NormalizedPosition.Y))
+		SetPanelPositionInternal(FromNormalizedPanelPosition(S.NormalizedPosition, ResolveLogicalViewportSize()));
 }
-FReply UDxWidgetVirtualSensorPanelBase::NativeOnPreviewMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
+FReply UDxWidgetVirtualSensorPanelBase::NativeOnPreviewMouseButtonDown(const FGeometry& G, const FPointerEvent& E)
 {
-	if(ToolWorkspace.IsValid())
+	if (ToolWorkspace.IsValid())
 	{
 		ToolWorkspace->BringOwnedPanelToFront(ToolRole);
 		// Edges/corners win over child buttons, so resize can start anywhere on the border.
-		if(E.GetEffectingButton()==EKeys::LeftMouseButton&&BeginEdgeResize(G,E))
+		if (E.GetEffectingButton() == EKeys::LeftMouseButton && BeginEdgeResize(G, E))
 			return CapturePanelPointer(E);
 		// DTCore's unrelated OpenWidgets list does not contain these owned panels.
 		// Its BringToFront would immediately overwrite our local z-order with 1.
 		return FReply::Unhandled();
 	}
-	return Super::NativeOnPreviewMouseButtonDown(G,E);
+	return Super::NativeOnPreviewMouseButtonDown(G, E);
 }
 TSharedRef<SWidget> UDxWidgetVirtualSensorPanelBase::BuildToolPanelHeader(const FText& Title)
 {
-	if(IsWorkspaceOwned())
-    {
-        // Keep the title filling the remaining width: floating title drag uses
-        // the same panel hit region as UXR-11, while actions stay compact.
-        return SNew(SBox).MinDesiredHeight_Lambda([this](){return FSensorOwnedPresentationStyle::ControlHeight*GetSensorToolVisualScale();})
-        [SNew(SHorizontalBox)
-         +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0,0,FSensorOwnedPresentationStyle::Gap,0)
-         [SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton())
-          .Visibility_Lambda([this](){return SupportsOwnedDocking()&&!GetPanelBackLabel().IsEmpty()?EVisibility::Visible:EVisibility::Collapsed;})
-          .IsEnabled_Lambda([this](){return CanNavigatePanelBack();}).Text(FText::FromString(TEXT("←")))
-          .ToolTipText_Lambda([this](){return GetPanelBackLabel();})
-          .OnClicked_Lambda([this](){NavigatePanelBack();return FReply::Handled();})]
-         +SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)
-         [SNew(STextBlock).Font_Lambda([this](){return FSensorOwnedPresentationStyle::Font(FSensorOwnedPresentationStyle::TitleSize,GetSensorToolVisualScale(),true);})
-          .ColorAndOpacity(GetToolTextColor()).OverflowPolicy(ETextOverflowPolicy::Ellipsis).Text(Title)
-          .ToolTipText_Lambda([this](){return FText::FromString(bWorkspaceDocked?TEXT("작업 사이드바"):TEXT("제목을 드래그해 이동 · 우하단 모서리에서 크기 조절"));})]
-         +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-         [SNew(SComboButton).Visibility_Lambda([this](){return bWorkspaceDocked&&ToolRole==ESensorToolPanelRole::Monitor?EVisibility::Collapsed:EVisibility::Visible;})
-          .ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).ContentPadding(FMargin(0)).HasDownArrow(false)
-          .ToolTipText(NSLOCTEXT("SensorToolPanel","MoreTip","이 창의 배치 설정"))
-          .OnGetMenuContent_Lambda([this]()
-          {
+	if (IsWorkspaceOwned())
+	{
+		// Keep the title filling the remaining width: floating title drag uses
+		// the same panel hit region as UXR-11, while actions stay compact.
+		return SNew(SBox).MinDesiredHeight_Lambda([this]()
+		                                          { return FSensorOwnedPresentationStyle::ControlHeight * GetSensorToolVisualScale(); })
+		    [SNew(SHorizontalBox) + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, FSensorOwnedPresentationStyle::Gap, 0)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Visibility_Lambda([this]()
+		                                                                                                                                                                                                                                                { return SupportsOwnedDocking() && !GetPanelBackLabel().IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed; })
+		                                                                                                                                              .IsEnabled_Lambda([this]()
+		                                                                                                                                                                { return CanNavigatePanelBack(); })
+		                                                                                                                                              .Text(FText::FromString(TEXT("←")))
+		                                                                                                                                              .ToolTipText_Lambda([this]()
+		                                                                                                                                                                  { return GetPanelBackLabel(); })
+		                                                                                                                                              .OnClicked_Lambda([this]()
+		                                                                                                                                                                {NavigatePanelBack();return FReply::Handled(); })] +
+		     SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)
+		         [SNew(STextBlock).Font_Lambda([this]()
+		                                       { return FSensorOwnedPresentationStyle::Font(FSensorOwnedPresentationStyle::TitleSize, GetSensorToolVisualScale(), true); })
+		              .ColorAndOpacity(GetToolTextColor())
+		              .OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+		              .Text(Title)
+		              .ToolTipText_Lambda([this]()
+		                                  { return FText::FromString(bWorkspaceDocked ? TEXT("작업 사이드바") : TEXT("제목을 드래그해 이동 · 우하단 모서리에서 크기 조절")); })] +
+		     SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+		         [SNew(SComboButton).Visibility_Lambda([this]()
+		                                               { return bWorkspaceDocked && ToolRole == ESensorToolPanelRole::Monitor ? EVisibility::Collapsed : EVisibility::Visible; })
+		              .ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton())
+		              .ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton())
+		              .ContentPadding(FMargin(0))
+		              .HasDownArrow(false)
+		              .ToolTipText(NSLOCTEXT("SensorToolPanel", "MoreTip", "이 창의 배치 설정"))
+		              .OnGetMenuContent_Lambda([this]()
+		                                       {
               auto Menu=SNew(SVerticalBox);
               Menu->AddSlot().AutoHeight()[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton())
                 .Text(FText::FromString(IsPanelCollapsed()?TEXT("펼치기"):TEXT("접기")))
@@ -717,41 +926,55 @@ TSharedRef<SWidget> UDxWidgetVirtualSensorPanelBase::BuildToolPanelHeader(const 
               Menu->AddSlot().AutoHeight()[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::QuietButton())
                 .Text(NSLOCTEXT("SensorToolPanel","ResetPlacement","이 창 위치·크기 초기화"))
                 .OnClicked_Lambda([this](){FSlateApplication::Get().DismissAllMenus();if(ToolWorkspace.IsValid())ToolWorkspace->ResetOwnedPanelLayout(ToolRole);return FReply::Handled();})];
-              return Menu;
-          })
-          .ButtonContent()[SNew(SBox).WidthOverride_Lambda([this](){return 18.f*GetSensorToolVisualScale();}).HeightOverride_Lambda([this](){return 18.f*GetSensorToolVisualScale();})[SNew(SSensorToolIcon).Kind(5).Color(FSensorOwnedPresentationStyle::Muted())]]]
-         +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-         [SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("×")))
-          .ToolTipText(SensorToolUiText::HidePanelHint()).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->SetPanelOpen(ToolRole,false);return FReply::Handled();})]];
-    }
-	return SNew(SHorizontalBox)
-	+SHorizontalBox::Slot().FillWidth(1)[SNew(STextBlock).ColorAndOpacity(FSensorToolWorkspaceStyle::Text()).Font_Lambda([this](){return FSensorToolWorkspaceStyle::Font(18,GetSensorToolFontScale());}).Text(Title).ToolTipText(FText::FromString(TEXT("제목을 드래그해 이동 · 우하단에서 크기 조절")))]
-	+SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorToolWorkspaceStyle::Button()).Text_Lambda([this](){return FText::FromString(IsPanelCollapsed()?TEXT("펼치기"):TEXT("접기"));}).OnClicked_Lambda([this](){TogglePanelCollapsed();return FReply::Handled();})]
-	+SHorizontalBox::Slot().AutoWidth().Padding(4,0)[SNewSensorTool(SButton).ButtonStyle(&FSensorToolWorkspaceStyle::Button()).Text(FText::FromString(TEXT("숨김"))).IsEnabled_Lambda([this](){return IsWorkspaceOwned();}).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->SetPanelOpen(ToolRole,false);return FReply::Handled();})]
-	+SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(SButton).ButtonStyle(&FSensorToolWorkspaceStyle::Button()).Text(FText::FromString(TEXT("초기화"))).OnClicked_Lambda([this](){if(ToolWorkspace.IsValid())ToolWorkspace->ResetOwnedPanelLayout(ToolRole);else{ResetPanelSize();ResetPanelPosition();}return FReply::Handled();})];
+              return Menu; })
+		              .ButtonContent()[SNew(SBox).WidthOverride_Lambda([this]()
+		                                                               { return 18.f * GetSensorToolVisualScale(); })
+		                                   .HeightOverride_Lambda([this]()
+		                                                          { return 18.f * GetSensorToolVisualScale(); })[SNew(SSensorToolIcon).Kind(5).Color(FSensorOwnedPresentationStyle::Muted())]]] +
+		     SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+		         [SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(FText::FromString(TEXT("×"))).ToolTipText(SensorToolUiText::HidePanelHint()).OnClicked_Lambda([this]()
+		                                                                                                                                                                                                 {if(ToolWorkspace.IsValid())ToolWorkspace->SetPanelOpen(ToolRole,false);return FReply::Handled(); })]];
+	}
+	return SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1)[SNew(STextBlock).ColorAndOpacity(FSensorToolWorkspaceStyle::Text()).Font_Lambda([this]()
+	                                                                                                                                                  { return FSensorToolWorkspaceStyle::Font(18, GetSensorToolFontScale()); })
+	                                                                      .Text(Title)
+	                                                                      .ToolTipText(FText::FromString(TEXT("제목을 드래그해 이동 · 우하단에서 크기 조절")))] +
+	       SHorizontalBox::Slot().AutoWidth().Padding(4, 0)[SNewSensorTool(SButton).ButtonStyle(&FSensorToolWorkspaceStyle::Button()).Text_Lambda([this]()
+	                                                                                                                                              { return FText::FromString(IsPanelCollapsed() ? TEXT("펼치기") : TEXT("접기")); })
+	                                                            .OnClicked_Lambda([this]()
+	                                                                              {TogglePanelCollapsed();return FReply::Handled(); })] +
+	       SHorizontalBox::Slot().AutoWidth().Padding(4, 0)[SNewSensorTool(SButton).ButtonStyle(&FSensorToolWorkspaceStyle::Button()).Text(FText::FromString(TEXT("숨김"))).IsEnabled_Lambda([this]()
+	                                                                                                                                                                                         { return IsWorkspaceOwned(); })
+	                                                            .OnClicked_Lambda([this]()
+	                                                                              {if(ToolWorkspace.IsValid())ToolWorkspace->SetPanelOpen(ToolRole,false);return FReply::Handled(); })] +
+	       SHorizontalBox::Slot().AutoWidth()[SNewSensorTool(SButton).ButtonStyle(&FSensorToolWorkspaceStyle::Button()).Text(FText::FromString(TEXT("초기화"))).OnClicked_Lambda([this]()
+	                                                                                                                                                                             {if(ToolWorkspace.IsValid())ToolWorkspace->ResetOwnedPanelLayout(ToolRole);else{ResetPanelSize();ResetPanelPosition();}return FReply::Handled(); })];
 }
 
 FText UDxWidgetVirtualSensorPanelBase::GetPanelBackLabel() const
-{return ToolWorkspace.IsValid()?ToolWorkspace->GetPanelBackLabel(ToolRole):FText::GetEmpty();}
+{
+	return ToolWorkspace.IsValid() ? ToolWorkspace->GetPanelBackLabel(ToolRole) : FText::GetEmpty();
+}
 bool UDxWidgetVirtualSensorPanelBase::CanNavigatePanelBack() const
-{return ToolWorkspace.IsValid()&&ToolWorkspace->CanNavigatePanelBack(ToolRole);}
+{
+	return ToolWorkspace.IsValid() && ToolWorkspace->CanNavigatePanelBack(ToolRole);
+}
 bool UDxWidgetVirtualSensorPanelBase::NavigatePanelBack()
-{return ToolWorkspace.IsValid()&&ToolWorkspace->NavigatePanelBack(ToolRole);}
+{
+	return ToolWorkspace.IsValid() && ToolWorkspace->NavigatePanelBack(ToolRole);
+}
 
 TSharedRef<SWidget> UDxWidgetVirtualSensorPanelBase::BuildToolPanelFrame(TSharedRef<SWidget> Content)
 {
-    return SNew(SOverlay)
-        +SOverlay::Slot()[Content]
-        +SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Bottom)
-        [SNew(SBox).WidthOverride(ResizeHandleSize).HeightOverride(ResizeHandleSize)
-         .Visibility_Lambda([this](){return SupportsOwnedDocking()&&!bWorkspaceDocked&&bPanelResizable&&!bPanelCollapsed?EVisibility::Visible:EVisibility::Collapsed;})
-         [SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("NoBorder")).Padding(4)
-          .Cursor(EMouseCursor::ResizeSouthEast).ToolTipText(SensorToolUiText::ResizeHint())
-          [SNewSensorTool(STextBlock).Text(NSLOCTEXT("SensorNavigation","ResizeMark","↘")).ColorAndOpacity(GetToolMutedColor())]]];
+	return SNew(SOverlay) + SOverlay::Slot()[Content] + SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Bottom)[SNew(SBox).WidthOverride(ResizeHandleSize).HeightOverride(ResizeHandleSize).Visibility_Lambda([this]()
+	                                                                                                                                                                                                              { return SupportsOwnedDocking() && !bWorkspaceDocked && bPanelResizable && !bPanelCollapsed ? EVisibility::Visible : EVisibility::Collapsed; })[SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("NoBorder")).Padding(4).Cursor(EMouseCursor::ResizeSouthEast).ToolTipText(SensorToolUiText::ResizeHint())[SNewSensorTool(STextBlock).Text(NSLOCTEXT("SensorNavigation", "ResizeMark", "↘")).ColorAndOpacity(GetToolMutedColor())]]];
 }
 
 void UDxWidgetVirtualSensorPanelBase::DeviceFontLayoutChanged()
 {
-    if(IsWorkspaceOwned())
-    {DragHandleHeight=FMath::Max(38.0f,26.0f*SensorToolFontScale+20.0f);SetPanelExpandedSize(DesiredPanelSize,false);}
+	if (IsWorkspaceOwned())
+	{
+		DragHandleHeight = FMath::Max(38.0f, 26.0f * SensorToolFontScale + 20.0f);
+		SetPanelExpandedSize(DesiredPanelSize, false);
+	}
 }

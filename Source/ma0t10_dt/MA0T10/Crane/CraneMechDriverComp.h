@@ -7,10 +7,9 @@
 #include "ActorComponent/MechDriverCompBase.h"
 #include "CraneMechDriverComp.generated.h"
 
-
 class UPoseableMeshComponent;
 
-UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class MA0T10_DT_API UCraneMechDriverComp : public UMechDriverCompBase
 {
 	GENERATED_BODY()
@@ -32,14 +31,15 @@ public:
 public:
 	UFUNCTION()
 	void SetTargetPosition(const FCranePositionData& InPositionData);
+
 private:
 	UFUNCTION()
 	void UpdateTrolleyMovement(float DeltaTime);
 
 	// 내부적으로 본을 움직이는 함수
 	void UpdateBoneMovement(float DeltaTime);
-protected:
 
+protected:
 	// Variable
 public:
 	// [추가] 자동 테스트 모드 켜기/끄기
@@ -57,6 +57,7 @@ public:
 	// [추가] Rope 상하 이동 범위 (Unreal Unit)
 	UPROPERTY(EditAnywhere, Category = "Test|AutoMove", meta = (EditCondition = "bAutoTestMode"))
 	float TestRopeRange = 50.0f;
+
 private:
 	// 목표 위치 (보간 등에 사용)
 	UPROPERTY()
@@ -97,14 +98,12 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Settings|Bones")
 	FName ControlRopeBoneName = TEXT("ControllerRope"); // 2번 로프 본
 
-
 	// [추가] 흔들릴 '끝부분(갈고리)' 본 이름
 	UPROPERTY(EditAnywhere, Category = "Settings|Bones")
 	FName HookEntityBoneName = TEXT("Hook"); // 실제 갈고리
 
 	UPROPERTY(EditAnywhere, Category = "Settings|Bones")
 	FName ControlEntityBoneName = TEXT("Cpntroller"); // 실제 컨트롤러 (로그상의 오타 유지)
-
 
 	// [추가] 이동 축 설정 (메쉬 제작 방식에 따라 축이 다를 수 있음)
 	UPROPERTY(EditAnywhere, Category = "Settings|Axis")
@@ -118,7 +117,7 @@ protected:
 	bool bEnableSway = true; // 흔들림 켜기/끄기
 
 	UPROPERTY(EditAnywhere, Category = "Movement|Sway")
-	float SwaySpeed = 2.0f;  // 흔들리는 속도
+	float SwaySpeed = 2.0f; // 흔들리는 속도
 
 	UPROPERTY(EditAnywhere, Category = "Movement|Sway")
 	float SwayRadius = 30.0f; // 흔들리는 범위(반경)
