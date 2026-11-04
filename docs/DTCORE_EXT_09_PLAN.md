@@ -1,8 +1,7 @@
 # 9단계: DTCore 공통 기능(660740f)으로 리팩토링 (계획 초안)
 
-상태: **초안. DTCore `feat/dtcore-functional-ext`(660740f)가 사용자 검증·머지된 뒤 시작.**
-기준: host master `8d6adfbe`, DTDevice `97dd8b4`. 8-2 포맷 이후 경로는 그대로이고 줄 모양만 바뀝니다.
-분석은 읽기 전용입니다.
+상태: **실행 승인(2026-11-04 r54 B안). DTCore 브랜치 커밋 `660740f11cd722eea858cb44ae0ec0bb53953fbb`을 먼저 고정해 진행하며, 호스트 머지는 DTCore 브랜치 머지 이후에 한다. DTCore 소스 수정은 승인 범위가 아니다.**
+기준: host master `3e639177`, 시작 DTDevice `8b3a3e5`. 사용자 r54 지시 범위에서 구현·검증합니다.
 
 ## 1. DTCore 새 기능 요약 (660740f)
 
@@ -47,21 +46,21 @@
 
 | 위치 | 현재 | 제안 |
 |---|---|---|
-| DTCore 연결 | 1초 / 60초 / ×2 고정 → 660740f에서 설정값 | 과제 `DefaultGame.ini`에 현장 값만 기록(기본값 유지) |
+| DTCore 연결 | 1초 / 60초 / ×2 고정 → 660740f에서 설정값 | 과제 `DefaultGame.ini`에 Reconnect 키를 추가하지 않음(기본값 유지) |
 | DTDevice 대용량 전송 (`VirtualSensorHighThroughputTransportSubsystem.cpp`) | `min(10초, 2^min(4,n))` 하드코딩 | DTDevice 설정(`UDeviceSensorAssetSettings` 또는 전송 profile)에 `ReconnectInitial/Max/Multiplier`를 추가. 기본값은 현재와 같은 1초 / 10초 / ×2. DTCore 설정을 그대로 공유하지 않는 이유: 센서 broker는 별도 연결이고 회복 목표(수 초 이내)가 다르기 때문 |
 | `VirtualSensorStreamPublisherComp` 과부하 backoff | 자체 정책 | 변경 없음(재연결이 아니라 과부하 제어) |
 
 ## 3. 진행 순서
 
-1. DTCore 660740f 사용자 검증 → DTCore PR 머지(사용자)
-2. host DTCore pin을 머지 커밋으로 갱신. guard 기준(`Scripts/validate_dtcore_submodule_guard.ps1`의 고정 SHA)도 명시적으로 갱신. TestHost `setup_testhost.ps1`의 검증 커밋도 함께 갱신
+1. 승인된 DTCore 브랜치 커밋 660740f 고정(B안, 사용자 승인)
+2. host DTCore pin을 승인된 전체 SHA로 갱신. guard 기준(`Scripts/validate_dtcore_submodule_guard.ps1`의 고정 SHA)도 명시적으로 갱신. TestHost `setup_testhost.ps1`의 검증 커밋도 함께 갱신
 3. 2.3 → 2.2 → 2.1 순서로 적용(위험이 작은 것부터)
 4. 검증
    - 빌드, release Fail 0, 맵 로드 경고 0
    - 성능 ABAB 2%
    - **native 메모리 3시간 × 3장면**(사용자 결정)
    - 원료 하역은 r50에서 r37보다 높았던 6.66 MiB/h와 비교해 추세를 확인
-5. PR·머지
+5. 호스트 브랜치 push까지만 수행. PR·머지는 Claude가 별도로 하며, 호스트 머지는 DTCore 브랜치 머지 이후에 한다.
 
 ## 4. 예상 소요
 
