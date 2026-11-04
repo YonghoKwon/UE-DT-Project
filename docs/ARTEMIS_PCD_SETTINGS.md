@@ -89,3 +89,61 @@ HAProxy는 TCP round-robin VIP를 제공한다. 단순 TCP 포트 개방만으�
 - Raw 재구독 관찰은 Editor 진단에서만 쓰지 않는 Camera 구독을 명시적으로 켰다. 제품의 진단 자기 수신 기본 꺼짐과 PCD wire는 유지한다.
 
 실제 서버 적용 전에는 입력량을 기준으로 장치·프레임 크기·압축·브로커 자원·소비자 처리량을 함께 검토하고, 위 4단계 시범 절차를 따른다. 이 문서의 로컬 설정을 운영에 자동 적용하지 않는다.
+# DATA-IF-10 r55b: 현장 채널·토픽 설정
+
+DTCore는 연결·등록·재연결·상태를 담당한다. 토픽 정책은 프로젝트의
+`UDeviceDataChannelSettings`(`Config=Game`)가 담당한다. DTCore 소스는 변경하지 않는다.
+`sensor`는 JSON/수동 전송, `sensor-bulk`는 기존 raw TCP PCD 경로,
+`Default`는 DTCoreWebSocket 저빈도 JSON 모드의 공유 연결이다.
+
+공통 파일은 `Config/DefaultGame.ini`, 플랫폼 파일은
+`Config/Windows/WindowsGame.ini` 또는 `Config/Linux/LinuxGame.ini`다.
+플랫폼 파일에서 배열을 교체할 때는 `!…=ClearArray` 다음에 **전체 목록**을 쓴다.
+일부 항목을 덧붙이면 같은 채널 이름이 중복될 수 있다.
+
+```ini
+[/Script/DTCore.DTCoreSettings]
+; 연결만 설정한다. Default는 예약 이름이므로 DataChannels에 넣지 않는다.
+WebSocketUrl=ws://127.0.0.1:61614
++DataChannels=(ChannelName="sensor",ChannelClass="/Script/DeviceRuntime.DxDeviceSensorStompChannel",Url="ws://127.0.0.1:61614",bAutoConnect=False,bUseDefaultCredentials=False,LoginOverrideKey="SensorLogin",PasscodeOverrideKey="SensorPasscode")
++DataChannels=(ChannelName="sensor-bulk",ChannelClass="/Script/DeviceRuntime.DxDeviceSensorBulkChannel",Url="tcp://127.0.0.1:61616",bAutoConnect=False,bUseDefaultCredentials=False,LoginOverrideKey="BulkLogin",PasscodeOverrideKey="BulkPasscode")
+
+[/Script/DeviceRuntime.DeviceDataChannelSettings]
+!Channels=ClearArray
++Channels=(ChannelName="sensor",Destinations=((Alias="camera",Destination="topic.virtual.sensor.camera.0",bSubscribe=False,Purpose="camera JSON"),(Alias="lidar",Destination="topic.virtual.sensor.lidar.0",bSubscribe=False,Purpose="LiDAR JSON"),(Alias="pointcloud",Destination="topic.virtual.sensor.export.0",bSubscribe=False,Purpose="manual export"),(Alias="status-in",Destination="topic.site.status",bSubscribe=True,Purpose="project status"),(Alias="result-in",Destination="topic.site.result",bSubscribe=True,Purpose="project result")))
++Channels=(ChannelName="sensor-bulk",Destinations=((Alias="camera",Destination="topic.virtual.sensor.camera.0",bSubscribe=False,Purpose="JPEG"),(Alias="lidar",Destination="topic.virtual.sensor.lidar.0",bSubscribe=False,Purpose="telemetry"),(Alias="pointcloud",Destination="topic.virtual.sensor.export.0",bSubscribe=False,Purpose="binary PCD")))
++Channels=(ChannelName="Default",Destinations=((Alias="camera",Destination="topic.virtual.sensor.camera.0",bSubscribe=False,Purpose="manual JSON"),(Alias="lidar",Destination="topic.virtual.sensor.lidar.0",bSubscribe=False,Purpose="status JSON"),(Alias="pointcloud",Destination="topic.virtual.sensor.export.0",bSubscribe=False,Purpose="result JSON")))
+```
+
+`camera`/`lidar`/`pointcloud`/`imu`/`ack`는 송신 코드가 참조하는 별칭이다.
+추가 별칭은 임의로 정할 수 있다. 같은 채널의 같은 destination은 한 번만 구독한다.
+서로 다른 채널의 `bSubscribe=True` destination이 겹치면 시작 경고와 모니터 상태 문구를
+표시하되 동작을 막지 않는다. 기본값은 기존 이름이며 기본 자동 재수신은 계속 꺼져 있다.
+수신 JSON은 registry의 `OnTopicMessage(ChannelName, Alias, Message)`로 프로젝트가 처리한다.
+구독 등록만으로 연결을 시작하지 않는다. `sensor`는 DTCore의 재구독 기능을 사용하고,
+`Default`는 기존 공유 연결의 연결 상태가 바뀔 때 다시 구독한다.
+`sensor-bulk`의 명시 구독은 기존 worker 소켓에서 처리한다. 이 목록은 수신 선택 UI나
+PCD 검증을 자동 활성화하지 않는다. 기존 receiver selection이 디코딩·검증을 계속 결정한다.
+20Hz PCD body·헤더·FIFO·예산·receipt 처리·서버 destination 계약은 바꾸지 않는다.
+
+배포 시에는 실행 파일을 종료하고 다음 loose 파일을 수정한 뒤 재시작한다.
+
+```text
+Windows/ma0t10_dt/Config/DefaultGame.ini
+Windows/ma0t10_dt/Config/Windows/WindowsGame.ini
+```
+
+자격증명 값은 넣지 않는다. 인증은 기존 Runtime Override 키 방식으로 별도 관리한다.
+저장된 사용자 설정이 같은 키를 덮어쓸 수 있으므로 새 설정 적용 검증은 별도 UserDir에서
+먼저 한다. 연결 URL과 토픽을 각각 식별 가능한 시험값으로 바꾸고 재시작 후 확인한다.
+Development의 `-NullRHI -DeviceChannelConfigProbe`는 읽기 전용 snapshot을
+패키지 `Saved/Reports/device-channel-config.json`에 남기고 종료한다.
+snapshot은 연결 URL을 loopback 시험값 외에는 가리고 인증값을 기록하지 않는다.
+이 진단은 Shipping에서 컴파일하지 않는다. Linux 설정 예시는 제공하지만 Windows에서
+Linux 패키지의 실제 로드를 검증했다고 주장하지 않는다.
+
+이전 방법: `SensorTransport.ini`의 BrokerUrl 등 연결값을 `DataChannels`로,
+CameraTopic/LidarTopic/ExportTopic/AckTopic을 각각 새 별칭으로 옮긴다.
+새 항목이 없거나 destination이 비어 있으면 기존 INI/맵/UI profile을 그대로 사용한다.
+연결 항목과 토픽 항목은 독립적으로 이전할 수 있다. 파일을 복사하기 전에 비밀값을 제거한다.
+기존 `SensorTransport.ini`는 삭제하거나 자동 덮어쓰지 않는다.
