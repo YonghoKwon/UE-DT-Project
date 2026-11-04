@@ -24,6 +24,7 @@ namespace
 struct FDataIfBrokerMetrics
 {
 	int32 JsonConnections = 0, JsonReceipts = 0, JsonFailures = 0;
+	int32 JsonSubscriptionReceipts = 0, JsonMessages = 0;
 	TArray<double> JsonReceiptMs;
 };
 
@@ -120,6 +121,7 @@ public:
 		if (!bFinished)
 			return false;
 		Test.TestTrue(TEXT("ordinary JSON broker receipts"), Metrics->JsonReceipts > 0);
+		Test.TestTrue(TEXT("ordinary JSON channel subscription and receive"), Metrics->JsonSubscriptionReceipts > 0 && Metrics->JsonMessages > 0);
 		if (bPcdOn)
 		{
 			int64 Submitted = 0;
@@ -168,6 +170,13 @@ private:
 			return false;
 		Bulk->SetExplicitSettings(false);
 		Json->SetExplicitSettings(false);
+		// 명시적 진단만: 쓰지 않는 Camera 구독으로 raw 재구독을 검수한다.
+		// 실제 카메라 획득/자기 PCD 재수신/제품 기본 구독은 시작하지 않는다.
+		FVirtualSensorReceiveSelection Receive;
+		Receive.bEnabled = true;
+		Receive.bAllTopics = false;
+		Receive.StreamKeys.Add(FString::Printf(TEXT("%d|data-if-unused-camera-probe"), static_cast<int32>(EVirtualSensorStreamKind::CameraImage)));
+		Transport->ConfigureReceiver(Receive);
 		FVirtualSensorTransportProfile Profile;
 		Profile.UserName = Env(TEXT("DTDEVICE_ARTEMIS_USER"));
 		Profile.BrokerUrl = Tcp;
@@ -181,8 +190,14 @@ private:
 		Profile.BrokerUrl = Ws;
 		if (!Json->AcquireOwner(Game.Get(), Profile, Passcode, FString(), Error))
 			return false;
-		Json->Connected.AddLambda([Shared = Metrics](const FString&, const FString&, const FString&)
-		                          { ++Shared->JsonConnections; });
+		Json->Connected.AddLambda([Shared = Metrics, Channel = Json.Get()](const FString&, const FString&, const FString&)
+		                          {
+			++Shared->JsonConnections;
+			Channel->SubscribeToAck(VirtualSensorDefaults::LidarTopic); });
+		Json->AckSubscribed.AddLambda([Shared = Metrics](bool bSuccess, const FString&)
+		                              { Shared->JsonSubscriptionReceipts += bSuccess ? 1 : 0; });
+		Json->AckReceived.AddLambda([Shared = Metrics](const FWebSocketMessage&)
+		                            { ++Shared->JsonMessages; });
 		Json->Connect();
 		FVirtualLidarPoint Point;
 		Point.SensorLocalPositionMeters = FVector(1, 2, 3);
@@ -217,6 +232,9 @@ private:
 		Root->SetNumberField(TEXT("json_connections"), Metrics->JsonConnections);
 		Root->SetNumberField(TEXT("json_receipts"), Metrics->JsonReceipts);
 		Root->SetNumberField(TEXT("json_failures"), Metrics->JsonFailures);
+		Root->SetNumberField(TEXT("json_subscription_receipts"), Metrics->JsonSubscriptionReceipts);
+		Root->SetNumberField(TEXT("json_messages"), Metrics->JsonMessages);
+		Root->SetBoolField(TEXT("raw_camera_subscription_diagnostic_only"), true);
 		Root->SetNumberField(TEXT("bulk_connection_revision"), Transport->GetConnectionRevision());
 		double Total = 0;
 		auto Sorted = Metrics->JsonReceiptMs;
