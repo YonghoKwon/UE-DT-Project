@@ -8,8 +8,8 @@
 UCLASS()
 class URepairTestMapMonitorReferenceCommandlet : public UCommandlet
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 public:
-    URepairTestMapMonitorReferenceCommandlet();
-    virtual int32 Main(const FString& Params) override;
+	URepairTestMapMonitorReferenceCommandlet();
+	virtual int32 Main(const FString& Params) override;
 };

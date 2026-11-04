@@ -9,27 +9,28 @@ class UBlueprint;
 UCLASS()
 class UDxWidgetDTCoreMainAcceptance : public UDxWidget
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 protected:
-    void NativeOnInitialized() override;
+	void NativeOnInitialized() override;
 };
 
 UCLASS()
 class UDTCoreContractListener : public UObject
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 public:
-    UFUNCTION(BlueprintCallable, Category="DTCore|Validation")
-    static bool CompileBlueprintForValidation(UBlueprint* Blueprint);
-    UFUNCTION(BlueprintCallable, Category="DTCore|Validation")
-    static void PrepareFinalAcceptanceEditor();
-    UFUNCTION(BlueprintCallable, Category="DTCore|Validation")
-    static FString GetFinalAcceptanceRuntimeState();
-    int32 ReceivedCount = 0;
-    FCranePositionData LastPosition;
-    UFUNCTION() void ReceivePosition(const FCranePositionData& Position)
-    {
-        ++ReceivedCount;
-        LastPosition = Position;
-    }
+	UFUNCTION(BlueprintCallable, Category = "DTCore|Validation")
+	static bool CompileBlueprintForValidation(UBlueprint* Blueprint);
+	UFUNCTION(BlueprintCallable, Category = "DTCore|Validation")
+	static void PrepareFinalAcceptanceEditor();
+	UFUNCTION(BlueprintCallable, Category = "DTCore|Validation")
+	static FString GetFinalAcceptanceRuntimeState();
+	int32 ReceivedCount = 0;
+	FCranePositionData LastPosition;
+	UFUNCTION()
+	void ReceivePosition(const FCranePositionData& Position)
+	{
+		++ReceivedCount;
+		LastPosition = Position;
+	}
 };

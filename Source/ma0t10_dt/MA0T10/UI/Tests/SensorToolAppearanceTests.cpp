@@ -14,8 +14,10 @@ bool FSensorFontIsolationTest::RunTest(const FString& Parameters)
 	auto* Other = NewObject<UDxWidgetVirtualSensorSettingsPanel>();
 	auto* OwnText = NewObject<UTextBlock>(Own);
 	auto* OtherText = NewObject<UTextBlock>(Other);
-	FSlateFontInfo Font = OwnText->GetFont(); Font.Size = 20;
-	OwnText->SetFont(Font); OtherText->SetFont(Font);
+	FSlateFontInfo Font = OwnText->GetFont();
+	Font.Size = 20;
+	OwnText->SetFont(Font);
+	OtherText->SetFont(Font);
 	Own->RegisterSensorTextControl(OwnText);
 	Own->RegisterSensorTextControl(OtherText); // Reject controls owned by a nested/other widget.
 	Other->RegisterSensorTextControl(OtherText);
@@ -38,10 +40,11 @@ bool FSensorFontIsolationTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("foreign geometry unchanged"), FVector2D(Foreign->GetDesiredSize()), ForeignSize);
 	const auto* SettingsProperty = FindFProperty<FObjectPropertyBase>(Host->GetClass(), TEXT("SettingsWidget"));
 	TestNotNull(TEXT("host settings ownership slot exists"), SettingsProperty);
-	if (!SettingsProperty) return false;
+	if (!SettingsProperty)
+		return false;
 	SettingsProperty->SetObjectPropertyValue_InContainer(Host, Own);
 	for (const FName Name : {FName(TEXT("SetGlobalSensorUiFontScale")), FName(TEXT("GetGlobalSensorUiFontScale")),
-		FName(TEXT("ResetGlobalSensorUiFontScale")), FName(TEXT("OnSensorUiFontScaleChanged"))})
+	                         FName(TEXT("ResetGlobalSensorUiFontScale")), FName(TEXT("OnSensorUiFontScaleChanged"))})
 		TestNotNull(TEXT("legacy Blueprint function resolves"), Own->FindFunction(Name));
 	Own->SetGlobalSensorUiFontScale(1.25f);
 	TestEqual(TEXT("legacy setter scales only host owned controls"), OwnText->GetFont().Size, 25.0f);

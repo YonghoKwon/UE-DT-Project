@@ -9,6 +9,6 @@ namespace LidarMemoryAttribution
 {
 bool IsEnabled();
 void Begin(UWorld* World);
-void Snapshot(UWorld* World,double Seconds,const TSharedRef<FJsonObject>& Row);
+void Snapshot(UWorld* World, double Seconds, const TSharedRef<FJsonObject>& Row);
 void End();
 }

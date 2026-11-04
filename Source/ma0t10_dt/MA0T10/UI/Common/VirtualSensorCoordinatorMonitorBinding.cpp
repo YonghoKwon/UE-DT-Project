@@ -3,12 +3,12 @@
 
 void AVirtualSensorCoordinator::BindMonitorWidget(UDxWidgetVirtualSensorMonitorPanel* MonitorWidget)
 {
-    BoundMonitorWidget = MonitorWidget;
-    BindDeviceMonitorView(MonitorWidget);
+	BoundMonitorWidget = MonitorWidget;
+	BindDeviceMonitorView(MonitorWidget);
 }
 
 void AVirtualSensorCoordinator::EndPlay(const EEndPlayReason::Type Reason)
 {
-    Super::EndPlay(Reason);
-    BoundMonitorWidget = nullptr;
+	Super::EndPlay(Reason);
+	BoundMonitorWidget = nullptr;
 }

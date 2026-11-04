@@ -1,6 +1,5 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "CraneInfoGetByBittInOracle.h"
 
 #include "ma0t10_dt/ma0t10_dt.h"

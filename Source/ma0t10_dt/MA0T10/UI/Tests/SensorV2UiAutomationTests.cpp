@@ -8,19 +8,19 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FSensorV2PanelCollapseGeometryTest,
-	"MA0T10.SensorV2.UI.CollapseGeometry",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+    FSensorV2PanelCollapseGeometryTest,
+    "MA0T10.SensorV2.UI.CollapseGeometry",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FSensorV2PanelHostDeduplicationTest,
-	"MA0T10.SensorV2.UI.HostDeduplication",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+    FSensorV2PanelHostDeduplicationTest,
+    "MA0T10.SensorV2.UI.HostDeduplication",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FSensorV2DualCameraSelectionTest,
-	"MA0T10.SensorV2.UI.DualCameraSelection",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+    FSensorV2DualCameraSelectionTest,
+    "MA0T10.SensorV2.UI.DualCameraSelection",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FSensorV2PanelCollapseGeometryTest::RunTest(const FString& Parameters)
 {
@@ -36,18 +36,18 @@ bool FSensorV2PanelCollapseGeometryTest::RunTest(const FString& Parameters)
 	Panel->TogglePanelCollapsed();
 	TestEqual(TEXT("expand restores exact size"), Panel->GetEffectivePanelSize(), ExpandedSize);
 	TestEqual(TEXT("drag delta is applied in logical DPI coordinates"),
-		UDxWidgetVirtualSensorPanelBase::CalculateDraggedPanelPosition(FVector2D(100.0f, 80.0f), FVector2D(40.0f, 20.0f), 2.0f),
-		FVector2D(120.0f, 90.0f));
+	          UDxWidgetVirtualSensorPanelBase::CalculateDraggedPanelPosition(FVector2D(100.0f, 80.0f), FVector2D(40.0f, 20.0f), 2.0f),
+	          FVector2D(120.0f, 90.0f));
 	TestEqual(TEXT("resize delta is DPI corrected"),
-		UDxWidgetVirtualSensorPanelBase::CalculateResizedPanelSize(
-			FVector2D(820.0f, 430.0f), FVector2D(200.0f, 100.0f), 2.0f,
-			FVector2D(480.0f, 300.0f), FVector2D(1200.0f, 900.0f)),
-		FVector2D(920.0f, 480.0f));
+	          UDxWidgetVirtualSensorPanelBase::CalculateResizedPanelSize(
+	              FVector2D(820.0f, 430.0f), FVector2D(200.0f, 100.0f), 2.0f,
+	              FVector2D(480.0f, 300.0f), FVector2D(1200.0f, 900.0f)),
+	          FVector2D(920.0f, 480.0f));
 	TestEqual(TEXT("resize clamps to minimum"),
-		UDxWidgetVirtualSensorPanelBase::CalculateResizedPanelSize(
-			FVector2D(500.0f, 320.0f), FVector2D(-500.0f, -500.0f), 1.0f,
-			FVector2D(480.0f, 300.0f), FVector2D(1200.0f, 900.0f)),
-		FVector2D(480.0f, 300.0f));
+	          UDxWidgetVirtualSensorPanelBase::CalculateResizedPanelSize(
+	              FVector2D(500.0f, 320.0f), FVector2D(-500.0f, -500.0f), 1.0f,
+	              FVector2D(480.0f, 300.0f), FVector2D(1200.0f, 900.0f)),
+	          FVector2D(480.0f, 300.0f));
 	return true;
 }
 

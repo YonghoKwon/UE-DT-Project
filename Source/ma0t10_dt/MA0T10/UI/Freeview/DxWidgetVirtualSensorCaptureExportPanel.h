@@ -15,7 +15,8 @@ class AVirtualSensorExternalSourceHostActor;
 class UDxWidgetVirtualSensorMonitorPanel;
 class STextBlock;
 class SExpandableArea;
-template<typename OptionType> class SComboBox;
+template <typename OptionType>
+class SComboBox;
 class ASlabActor;
 class UDxWidgetSlabScenarioReplayPanel;
 class SCheckBox;
@@ -24,10 +25,15 @@ class UVirtualSensorFileSaveSubsystem;
 class UVirtualLidarScanComp;
 struct FVirtualSensorTransportProfile;
 
-
-
 /** Presentation only; never serialized or exposed as a Blueprint replacement enum. */
-enum class ESensorOwnedDataTab : uint8 { Transfer, Results, FileSave, ServerConnection, Diagnostics };
+enum class ESensorOwnedDataTab : uint8
+{
+	Transfer,
+	Results,
+	FileSave,
+	ServerConnection,
+	Diagnostics
+};
 
 UENUM(BlueprintType)
 enum class EVirtualPointCloudStreamFilterPreset : uint8
@@ -41,8 +47,8 @@ enum class EVirtualPointCloudStreamFilterPreset : uint8
 UCLASS(BlueprintType)
 class MA0T10_DT_API UDxWidgetVirtualSensorCaptureExportPanel : public UDxWidgetVirtualSensorPanelBase
 {
-    GENERATED_BODY()
-    friend struct FDeviceSensorCaptureBody;
+	GENERATED_BODY()
+	friend struct FDeviceSensorCaptureBody;
 
 public:
 	/** Navigation/read-only presentation; no draft, output or persistence policy changes. */
@@ -61,41 +67,57 @@ public:
 	/** Native owned presentation only. No connection or receiver operation is invoked. */
 	void OpenOwnedConnectionSection(bool bDiagnostics);
 	bool AreScenarioRunResultsExpanded() const { return bRunResultsExpanded; }
-	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorOutput") FString GetPcdPreflightText() const;
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorOutput")
+	FString GetPcdPreflightText() const;
 	FString GetVisiblePcdBlockingReason() const;
-	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") TArray<FSlabRunDeliverySummary> GetScenarioRunResults() const;
-	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool OpenScenarioRunReport(const FString& RunId);
-	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool SelectScenarioRunResult(const FString& RunId);
-	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") FString GetSelectedScenarioRunId() const { return SelectedScenarioRunId; }
-	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") bool GetSelectedScenarioRunResult(FSlabRunDeliverySummary& Result) const;
-	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool RetrySelectedScenarioRunReport(FString& Reason);
-	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") bool SelectScenarioComparisonRun(const FString& RunId,bool bAsA,FString& Reason);
-	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") void ClearScenarioRunComparison();
-	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Results") FString GetScenarioRunComparisonText() const;
-	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Results") void SetScenarioRunResultsExpanded(bool bExpanded);
-	UFUNCTION(BlueprintCallable,Category="DigitalTwin|Slab|Outputs") bool SetLiveScenarioExecutionOptions(FSlabExecutionOptions Options);
-	UFUNCTION(BlueprintPure,Category="DigitalTwin|Slab|Outputs") FSlabExecutionOptions GetLiveScenarioExecutionOptions() const;
-	UFUNCTION(BlueprintCallable, Category="DigitalTwin|Slab|Outputs") void BindScenarioSlabActor(ASlabActor* InSlab);
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|Slab|Results")
+	TArray<FSlabRunDeliverySummary> GetScenarioRunResults() const;
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Slab|Results")
+	bool OpenScenarioRunReport(const FString& RunId);
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Slab|Results")
+	bool SelectScenarioRunResult(const FString& RunId);
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|Slab|Results")
+	FString GetSelectedScenarioRunId() const { return SelectedScenarioRunId; }
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|Slab|Results")
+	bool GetSelectedScenarioRunResult(FSlabRunDeliverySummary& Result) const;
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Slab|Results")
+	bool RetrySelectedScenarioRunReport(FString& Reason);
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Slab|Results")
+	bool SelectScenarioComparisonRun(const FString& RunId, bool bAsA, FString& Reason);
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Slab|Results")
+	void ClearScenarioRunComparison();
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|Slab|Results")
+	FString GetScenarioRunComparisonText() const;
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Slab|Results")
+	void SetScenarioRunResultsExpanded(bool bExpanded);
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Slab|Outputs")
+	bool SetLiveScenarioExecutionOptions(FSlabExecutionOptions Options);
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|Slab|Outputs")
+	FSlabExecutionOptions GetLiveScenarioExecutionOptions() const;
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Slab|Outputs")
+	void BindScenarioSlabActor(ASlabActor* InSlab);
 	ASlabActor* GetExplicitScenarioSlabActor() const { return ScenarioSlabActor; }
-	UFUNCTION(BlueprintCallable, Category="DigitalTwin|Slab|Outputs") bool SetLiveScenarioOutputs(const FVirtualSlabSensorOutputSelection& Outputs);
-	UFUNCTION(BlueprintPure, Category="DigitalTwin|Slab|Outputs") FVirtualSlabSensorOutputSelection GetLiveScenarioOutputs() const;
-    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
-    void BindSensorManager(AVirtualSensorCoordinator* InSensorManager);
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|Slab|Outputs")
+	bool SetLiveScenarioOutputs(const FVirtualSlabSensorOutputSelection& Outputs);
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|Slab|Outputs")
+	FVirtualSlabSensorOutputSelection GetLiveScenarioOutputs() const;
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
+	void BindSensorManager(AVirtualSensorCoordinator* InSensorManager);
 
-    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
-    void BindMonitorWidget(UDxWidgetVirtualSensorMonitorPanel* InMonitorWidget);
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
+	void BindMonitorWidget(UDxWidgetVirtualSensorMonitorPanel* InMonitorWidget);
 
-    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
-    void CaptureOnce();
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
+	void CaptureOnce();
 
-    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
-    bool ExportServerPayload();
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
+	bool ExportServerPayload();
 
-    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
-    bool ExportSelectedPointCloud(EVirtualSensorExportKind Kind);
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
+	bool ExportSelectedPointCloud(EVirtualSensorExportKind Kind);
 
-    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
-    void ToggleTimedCapture();
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
+	void ToggleTimedCapture();
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Capture")
 	void SetCaptureIntervalSeconds(float IntervalSeconds);
@@ -109,14 +131,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Capture")
 	FVirtualSensorCaptureSelection GetCaptureSelection() const { return CaptureSelection; }
 
-    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
-    bool OpenCaptureRootFolder();
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
+	bool OpenCaptureRootFolder();
 
-    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
-    bool OpenLastResultFolder();
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
+	bool OpenLastResultFolder();
 
-    UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
-    bool CopyLastResultPath();
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
+	bool CopyLastResultPath();
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport")
 	void SetSelectedPointCloudExportKind(EVirtualSensorExportKind Kind);
@@ -133,9 +155,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Transport")
 	bool SendSelectedPayloadToServer();
 
-    /** Native UI: asynchronous JSON creation from an already completed immutable frame. */
-    UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorExport|Transport")
-    bool RequestSelectedPayloadSend();
+	/** Native UI: asynchronous JSON creation from an already completed immutable frame. */
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Transport")
+	bool RequestSelectedPayloadSend();
 
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Transport")
 	bool SendLastExportToServer();
@@ -185,38 +207,42 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Stream")
 	bool ExportTransportDiagnosticReport();
 
-    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport")
-    FString GetStorageSummaryText() const;
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport")
+	FString GetStorageSummaryText() const;
 
-    UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport")
-    const TArray<FVirtualSensorExportResult>& GetRecentResults() const { return RecentResults; }
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport")
+	const TArray<FVirtualSensorExportResult>& GetRecentResults() const { return RecentResults; }
 
-    UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|SensorExport")
-    FOnVirtualSensorExportCompleted OnExportCompleted;
+	UPROPERTY(BlueprintAssignable, Category = "DigitalTwin|SensorExport")
+	FOnVirtualSensorExportCompleted OnExportCompleted;
 
 	/** Additive asynchronous UI path. Legacy synchronous Blueprint methods above retain their contract. */
-	UFUNCTION(BlueprintCallable,Category="DigitalTwin|SensorExport|Async") FString RequestFileSave(EVirtualSensorFileSaveMode Mode);
-	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorExport|Async") FVirtualSensorFileSaveStatus GetActiveFileSaveStatus() const;
-	UFUNCTION(BlueprintPure,Category="DigitalTwin|SensorExport|Stream") bool IsSelectedStreamScenarioControlled(EVirtualSensorStreamKind Kind) const;
+	UFUNCTION(BlueprintCallable, Category = "DigitalTwin|SensorExport|Async")
+	FString RequestFileSave(EVirtualSensorFileSaveMode Mode);
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Async")
+	FVirtualSensorFileSaveStatus GetActiveFileSaveStatus() const;
+	UFUNCTION(BlueprintPure, Category = "DigitalTwin|SensorExport|Stream")
+	bool IsSelectedStreamScenarioControlled(EVirtualSensorStreamKind Kind) const;
 	static int32 ResolveOwnedTabIndex(EVirtualSensorCaptureExportTab Tab);
 
 protected:
 	ASlabActor* ResolveScenarioSlabActor() const;
-	UPROPERTY(Transient) TObjectPtr<ASlabActor> ScenarioSlabActor;
+	UPROPERTY(Transient)
+	TObjectPtr<ASlabActor> ScenarioSlabActor;
 	mutable TWeakObjectPtr<ASlabActor> AutoScenarioSlabActor;
 	mutable double NextScenarioSlabLookup = 0;
-    virtual TSharedRef<SWidget> RebuildWidget() override;
+	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
-    TSharedRef<SWidget> BuildDeviceFileExtension() { return BuildOwnedDatasetSection(); }
-    FString ActiveManualPayloadRequest;
-    TWeakObjectPtr<UVirtualLidarScanComp> ManualPayloadSensor;
-    FDelegateHandle ManualPayloadHandle;
+	TSharedRef<SWidget> BuildDeviceFileExtension() { return BuildOwnedDatasetSection(); }
+	FString ActiveManualPayloadRequest;
+	TWeakObjectPtr<UVirtualLidarScanComp> ManualPayloadSensor;
+	FDelegateHandle ManualPayloadHandle;
 #if WITH_DEV_AUTOMATION_TESTS
-    friend class FSlabRunComparisonUiTest;
+	friend class FSlabRunComparisonUiTest;
 	friend class FSensorWorkflowToolbarTest;
 	friend class FSensorDataWorkflowTest;
 	friend class FSensorVocabularyTest;
@@ -225,30 +251,30 @@ private:
 	FString CachedPcdPreflightSummary;
 	FString CachedPcdPreflightShortSummary;
 	FVirtualSensorOutputPreflightResult OwnedPreflightSnapshot;
-	bool bOwnedPreflightSnapshotReady=false;
-	bool bRunResultsExpanded=false;
-	FString ComparisonRunA,ComparisonRunB,RunComparisonText;
-	FString RunResultsText,SelectedScenarioRunId,RunSelectionNotice,RunRetryReason;
-	FString OwnedRunResultsText,OwnedRunComparisonText;
-	ESensorOwnedDataTab OwnedTab=ESensorOwnedDataTab::Transfer;
+	bool bOwnedPreflightSnapshotReady = false;
+	bool bRunResultsExpanded = false;
+	FString ComparisonRunA, ComparisonRunB, RunComparisonText;
+	FString RunResultsText, SelectedScenarioRunId, RunSelectionNotice, RunRetryReason;
+	FString OwnedRunResultsText, OwnedRunComparisonText;
+	ESensorOwnedDataTab OwnedTab = ESensorOwnedDataTab::Transfer;
 	TArray<ESensorOwnedDataTab> OwnedTabHistory;
-	bool bReturningOwnedTab=false;
+	bool bReturningOwnedTab = false;
 	TSharedPtr<SCheckBox> OwnedReplayPcdControl;
 	TSharedPtr<SCheckBox> OwnedLivePcdControl;
 	void FocusOwnedOutputSettings(bool bReplay);
-	bool bOwnedPreflightExpanded=false,bOwnedRunDiagnosticsExpanded=false;
-	bool bOwnedDirectExpanded=false;
-	bool bOwnedReplayPreflight=false;
-	bool bOwnedReplayOwnerRequested=false;
-	int32 OwnedPreflightFix=0; // 0=server, 1=placement, 2=settings, 3=scenario
-	int64 CachedRunResultsRevision=-1;
+	bool bOwnedPreflightExpanded = false, bOwnedRunDiagnosticsExpanded = false;
+	bool bOwnedDirectExpanded = false;
+	bool bOwnedReplayPreflight = false;
+	bool bOwnedReplayOwnerRequested = false;
+	int32 OwnedPreflightFix = 0; // 0=server, 1=placement, 2=settings, 3=scenario
+	int64 CachedRunResultsRevision = -1;
 	TArray<TSharedPtr<FString>> RunResultOptions;
-	TMap<FString,FString> RunResultLabels;
+	TMap<FString, FString> RunResultLabels;
 	TSharedPtr<SComboBox<TSharedPtr<FString>>> RunResultCombo;
 	TSharedPtr<SExpandableArea> RunResultsArea;
-	TSharedPtr<SExpandableArea> OwnedServerArea,OwnedReceiverArea,OwnedTransportLogArea;
-	bool bOwnedServerExpanded=false;
-	bool bSelectedRunReportSaved=false,bCanRetrySelectedRun=false;
+	TSharedPtr<SExpandableArea> OwnedServerArea, OwnedReceiverArea, OwnedTransportLogArea;
+	bool bOwnedServerExpanded = false;
+	bool bSelectedRunReportSaved = false, bCanRetrySelectedRun = false;
 	TSharedRef<SWidget> BuildRunResultsContent();
 	void RefreshRunResults();
 	TSharedRef<SWidget> BuildOwnedWidget();
@@ -261,20 +287,20 @@ private:
 	void RefreshDatasetPresentation();
 	FVirtualDatasetSettings DatasetDraft;
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
-    friend class FDatasetManualAcceptanceCommand;
-    friend class FExport01RhiCommand;
-    friend class FUxr15Audit;
-    friend class FPcdBandwidthUiRun;
-    friend class FUxrSlabCapabilityIsolation;
-    friend class FUxr16Audit;
-    friend class FUxr16Integration;
-    friend class FUxr15OptionBindingsTest;
-    friend class FUxr15ToggleRhiCommand;
+	friend class FDatasetManualAcceptanceCommand;
+	friend class FExport01RhiCommand;
+	friend class FUxr15Audit;
+	friend class FPcdBandwidthUiRun;
+	friend class FUxrSlabCapabilityIsolation;
+	friend class FUxr16Audit;
+	friend class FUxr16Integration;
+	friend class FUxr15OptionBindingsTest;
+	friend class FUxr15ToggleRhiCommand;
 #endif
-	TWeakObjectPtr<AActor> DatasetSlab,DatasetLidar,DatasetCamera,DatasetLight;
-	bool bDatasetExpanded=false;
-    TWeakPtr<SExpandableArea> DatasetArea;
-	FString DatasetStatus,DatasetEstimate;
+	TWeakObjectPtr<AActor> DatasetSlab, DatasetLidar, DatasetCamera, DatasetLight;
+	bool bDatasetExpanded = false;
+	TWeakPtr<SExpandableArea> DatasetArea;
+	FString DatasetStatus, DatasetEstimate;
 	TSharedRef<SWidget> BuildOwnedResultsTab();
 	void BindFileService();
 	void TickOwnedUi(double Now);
@@ -283,50 +309,51 @@ private:
 	bool IsOwnedCompatibilityTransport() const;
 	AVirtualSensorActorBase* ResolveOwnedSelectedActor() const;
 	FVirtualSensorCaptureSelection ResolveOwnedFileSelection() const;
-	UFUNCTION() void HandleFileSaveUpdated(const FVirtualSensorFileSaveStatus& Status);
+	UFUNCTION()
+	void HandleFileSaveUpdated(const FVirtualSensorFileSaveStatus& Status);
 	TWeakObjectPtr<UVirtualSensorFileSaveSubsystem> FileSaveService;
-	FString OwnedFileRequestId,OwnedPeriodicSessionId;
+	FString OwnedFileRequestId, OwnedPeriodicSessionId;
 	TSet<FString> OwnedFileRequests;
 	TArray<FString> DeliveredFileRequests;
-	int32 OwnedFileAction=0; // 0=new, 1=current, 2=periodic; no new persistent enum/slot.
-	bool bOwnedScenarioStreamView=false,bOwnedExtraScenarioOutputs=false;
-	bool bOwnedEntryInitialized=false;
+	int32 OwnedFileAction = 0; // 0=new, 1=current, 2=periodic; no new persistent enum/slot.
+	bool bOwnedScenarioStreamView = false, bOwnedExtraScenarioOutputs = false;
+	bool bOwnedEntryInitialized = false;
 	void InitializeOwnedEntryView(EVirtualSensorCaptureExportTab PreviousTab);
 	FString OwnedScenarioSummary;
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FSlabMinimalUiTest;
 	friend class FSlabRunHistoryTest;
 #endif
-	bool bOwnedStorageExpanded=false,bOwnedReceiverExpanded=false,bOwnedTransportLogExpanded=false;
-	bool bOwnedCanSaveCurrent=false,bOwnedSaveBusy=false,bOwnedPeriodicActive=false;
-	FString OwnedSelectionText,OwnedFileStatusText,OwnedPeriodicStatusText,OwnedConnectionText;
-	FString OwnedUiMessage,CachedOwnedMessageSource;
-	FString CachedOwnedFileMessage,CachedOwnedFileSensor;
-	int64 CachedOwnedFileFrame=-1;
-	ESensorOwnedDataTab CachedOwnedMessageTab=ESensorOwnedDataTab::Diagnostics;
-	double NextReceiverLookup=0,ReceiverLookupDelay=.5;
-	bool bWorkspaceLiveDetails=false;
-	TMap<EVirtualSensorStreamKind,FString> WorkspaceStreamCards;
-    void AddResult(EVirtualSensorExportKind Kind, const FString& SensorId, bool bSucceeded, const FString& Path, const FString& Message);
-    void RefreshNativeText();
-    FString GetSelectedSensorId() const;
-    FString ExportKindText(EVirtualSensorExportKind Kind) const;
-    EVirtualSensorExportKind CyclePointCloudKind(EVirtualSensorExportKind Kind) const;
+	bool bOwnedStorageExpanded = false, bOwnedReceiverExpanded = false, bOwnedTransportLogExpanded = false;
+	bool bOwnedCanSaveCurrent = false, bOwnedSaveBusy = false, bOwnedPeriodicActive = false;
+	FString OwnedSelectionText, OwnedFileStatusText, OwnedPeriodicStatusText, OwnedConnectionText;
+	FString OwnedUiMessage, CachedOwnedMessageSource;
+	FString CachedOwnedFileMessage, CachedOwnedFileSensor;
+	int64 CachedOwnedFileFrame = -1;
+	ESensorOwnedDataTab CachedOwnedMessageTab = ESensorOwnedDataTab::Diagnostics;
+	double NextReceiverLookup = 0, ReceiverLookupDelay = .5;
+	bool bWorkspaceLiveDetails = false;
+	TMap<EVirtualSensorStreamKind, FString> WorkspaceStreamCards;
+	void AddResult(EVirtualSensorExportKind Kind, const FString& SensorId, bool bSucceeded, const FString& Path, const FString& Message);
+	void RefreshNativeText();
+	FString GetSelectedSensorId() const;
+	FString ExportKindText(EVirtualSensorExportKind Kind) const;
+	EVirtualSensorExportKind CyclePointCloudKind(EVirtualSensorExportKind Kind) const;
 	FString GetSelectedSensorIdForStream(EVirtualSensorStreamKind StreamKind) const;
 	void ApplyStreamConfig(EVirtualSensorStreamKind StreamKind, const FString& SensorId, bool bEnabled);
 	TSharedRef<SWidget> BuildLiveStreamTab();
-    TSharedRef<SWidget> BuildPcdBandwidthOptions();
-    bool AreOwnedSlabToolsEnabled() const;
-    bool IsOwnedScenarioStreamView() const;
-    FVirtualPcdSendOptions ReadPcdBandwidthOptions() const;
-    void ApplyPcdBandwidthOptions(const FVirtualPcdSendOptions& Options);
-    FText BuildPcdBandwidthEstimate() const;
-    bool bPcdApplyAll=false;
-    TArray<TSharedPtr<EVirtualPcdFieldProfile>> PcdProfileChoices;
-    TArray<TSharedPtr<int32>> PcdDivisorChoices;
-    mutable double NextPcdBandwidthEstimate=0;
-    mutable FText CachedPcdBandwidthEstimate;
-    mutable FText CachedPcdBandwidthDetails, CachedPcdFieldSummary;
+	TSharedRef<SWidget> BuildPcdBandwidthOptions();
+	bool AreOwnedSlabToolsEnabled() const;
+	bool IsOwnedScenarioStreamView() const;
+	FVirtualPcdSendOptions ReadPcdBandwidthOptions() const;
+	void ApplyPcdBandwidthOptions(const FVirtualPcdSendOptions& Options);
+	FText BuildPcdBandwidthEstimate() const;
+	bool bPcdApplyAll = false;
+	TArray<TSharedPtr<EVirtualPcdFieldProfile>> PcdProfileChoices;
+	TArray<TSharedPtr<int32>> PcdDivisorChoices;
+	mutable double NextPcdBandwidthEstimate = 0;
+	mutable FText CachedPcdBandwidthEstimate;
+	mutable FText CachedPcdBandwidthDetails, CachedPcdFieldSummary;
 	TSharedRef<SWidget> BuildCaptureTab();
 	TSharedRef<SWidget> BuildExportTab(TSharedPtr<EVirtualSensorExportKind> InitiallySelected);
 	TSharedRef<SWidget> BuildConnectionLogTab();
@@ -336,8 +363,8 @@ private:
 	void SaveCapturePreferences() const;
 	void ReconfigureEnabledPointCloudStreams();
 
-    UPROPERTY(Transient)
-    TObjectPtr<AVirtualSensorCoordinator> SensorManager;
+	UPROPERTY(Transient)
+	TObjectPtr<AVirtualSensorCoordinator> SensorManager;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UDxWidgetVirtualSensorMonitorPanel> MonitorWidget;
@@ -345,15 +372,15 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<AVirtualSensorExternalSourceHostActor> TopicReceiverHost;
 
-    UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorExport", meta = (AllowPrivateAccess = "true"))
-    TArray<FVirtualSensorExportResult> RecentResults;
+	UPROPERTY(BlueprintReadOnly, Category = "DigitalTwin|SensorExport", meta = (AllowPrivateAccess = "true"))
+	TArray<FVirtualSensorExportResult> RecentResults;
 
-    EVirtualSensorExportKind SelectedPointCloudKind = EVirtualSensorExportKind::PointCloudCsv;
+	EVirtualSensorExportKind SelectedPointCloudKind = EVirtualSensorExportKind::PointCloudCsv;
 	TArray<TSharedPtr<EVirtualSensorExportKind>> NativeExportKindOptions;
 	TArray<TSharedPtr<EVirtualPointCloudStreamFormat>> NativeStreamFormatOptions;
 	TArray<TSharedPtr<EVirtualPointCloudStreamFilterPreset>> NativeStreamFilterOptions;
-    TSharedPtr<STextBlock> NativeStorageText;
-    FString LastUiMessage;
+	TSharedPtr<STextBlock> NativeStorageText;
+	FString LastUiMessage;
 	FString DraftBrokerUrl = TEXT("ws://127.0.0.1:61616");
 	FString DraftCameraTopic = VirtualSensorDefaults::CameraTopic;
 	FString DraftLidarTopic = VirtualSensorDefaults::LidarTopic;

@@ -1,6 +1,5 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "DxApiServiceTest.h"
 
 #include "Core/DxApiSubsystem.h"
@@ -20,7 +19,8 @@ void UDxApiServiceTest::LevelInitApiCall()
 
 void UDxApiServiceTest::Step1_RequestOne()
 {
-	if (!ApiSubsystem.IsValid()) return;
+	if (!ApiSubsystem.IsValid())
+		return;
 
 	// 콜백 연결
 	FDxApiCallback OnComplete;
@@ -46,7 +46,8 @@ void UDxApiServiceTest::OnOneResponse(bool bSuccess, int32 Code, const FString& 
 
 void UDxApiServiceTest::Step2_RequestTwo()
 {
-	if (!ApiSubsystem.IsValid()) return;
+	if (!ApiSubsystem.IsValid())
+		return;
 
 	FDxApiCallback OnComplete;
 	OnComplete.BindDynamic(this, &UDxApiServiceTest::OnTwoResponse);

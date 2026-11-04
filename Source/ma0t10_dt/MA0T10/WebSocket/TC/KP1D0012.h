@@ -35,7 +35,6 @@ public:
 	// virtual void ProcessData(FYyJsonParser* JsonParser, yyjson_val* RootNode) override;
 private:
 protected:
-
 	// Variable
 public:
 private:

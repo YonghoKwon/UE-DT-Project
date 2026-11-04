@@ -41,8 +41,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "CameraPoint")
 	float TransitionSpeed = 5.0f;
+
 private:
-	bool bPlacementNavigation=false,SavedCameraLag=false,SavedRotationLag=false;
-	FVector2D PlacementMovement=FVector2D::ZeroVector;
-	float PlacementVertical=0;
+	bool bPlacementNavigation = false, SavedCameraLag = false, SavedRotationLag = false;
+	FVector2D PlacementMovement = FVector2D::ZeroVector;
+	float PlacementVertical = 0;
 };

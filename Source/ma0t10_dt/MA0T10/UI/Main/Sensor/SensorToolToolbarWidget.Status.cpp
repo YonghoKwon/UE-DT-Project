@@ -24,217 +24,336 @@
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SBox.h"
 
-void USensorToolToolbarWidget::NativeTick(const FGeometry& Geometry,float DeltaTime)
+void USensorToolToolbarWidget::NativeTick(const FGeometry& Geometry, float DeltaTime)
 {
-    Super::NativeTick(Geometry,DeltaTime);
-    RefreshOwnedStatus(FPlatformTime::Seconds());
+	Super::NativeTick(Geometry, DeltaTime);
+	RefreshOwnedStatus(FPlatformTime::Seconds());
 }
 
 void USensorToolToolbarWidget::RefreshOwnedStatus(double Now)
 {
-    auto* W=Workspace();
-    if(!W||!W->OwnsToolbar(this)||Now<NextStatusRefresh)return;
-    NextStatusRefresh=Now+.2;
-    const float FontScale=W->GetOwnedPanelFontScale();
-    if(!FMath::IsNearlyEqual(DisplayedFontScale,FontScale))
-    {
-        DisplayedFontScale=FontScale;
-        OwnedFontScaleText=SensorToolUiText::ToolsFontPercent(FontScale);
-    }
-    GlobalStatus=FSensorToolGlobalStatus();
-    SlabCardTitle=FText::FromString(TEXT("Slab · 대기"));SlabCardAngle=SlabCardOffset=SlabCardMargin=FText::FromString(TEXT("—"));SlabCardProgress=0;
-    OwnedSensorLabels.Reset();
-    EquipmentLabels.Reset();
-    auto* C=W->GetCoordinator();
-    const auto* Scheduler=GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>();
-    const auto* Rates=Scheduler?&Scheduler->GetTelemetry().SensorRates:nullptr;
-    int32 ImuRecording=0,ImuPublishing=0;
-    if(C)for(auto* A:C->GetSensorActors())if(IsValid(A)&&!A->IsActorBeingDestroyed())
-    {
-        if(const auto* Imu=A->FindComponentByClass<UVirtualImuComp>()){ImuRecording+=Imu->IsRecording()?1:0;ImuPublishing+=Imu->IsPublishing()?1:0;}
-        ++GlobalStatus.EquipmentCount;
-        const bool Running=A->IsSensorRunning();
-        GlobalStatus.MeasuringCount+=Running?1:0;
-        FText State=Running?SensorToolUiText::Measuring():SensorToolUiText::Stopped();
-        FLinearColor Color=Running?FLinearColor(.15f,.85f,.4f):FSensorOwnedPresentationStyle::Muted();
-        const bool Lidar=A->GetSensorKind()==EVirtualSensorKind::Lidar;
-        if(Rates)if(const auto* Rate=Rates->FindByPredicate([&](const auto& R){return R.SensorId==A->GetSensorId()&&R.SensorKind==(Lidar?TEXT("LiDAR"):TEXT("Camera"));}))
-        {
-            if(Running&&Rate->State==EVirtualSensorRateState::Starved){State=SensorToolUiText::Starved();Color=FLinearColor(1,.6f,.1f);}
-            else if(Rate->State==EVirtualSensorRateState::Failed){State=SensorToolUiText::Error();Color=FLinearColor(1,.15f,.2f);}
-            else if(Rate->State==EVirtualSensorRateState::Paused)State=SensorToolUiText::Paused();
-        }
-        FEquipmentLabel Label;Label.Name=FText::FromString(FString(Lidar?TEXT("LiDAR "):TEXT("Camera "))+A->GetSensorId());Label.State=State;Label.Color=Color;
-        EquipmentLabels.Add(A->GetSensorId(),Label);
-        OwnedSensorLabels.Add(A->GetSensorId(),FText::Format(NSLOCTEXT("SensorToolUiText","CompactEquipmentLabel","{0} ● {1}"),Label.Name,State));
-    }
-    if(const auto* Control=GetWorld()->GetSubsystem<UAutomationControlSubsystem>())
-    {const FString Activity=Control->GetActivityPresentation();if(!Activity.IsEmpty())GlobalStatus.Automation=FText::FromString(Activity);}
-    if(ImuRecording||ImuPublishing)GlobalStatus.Imu=FText::Format(NSLOCTEXT("SensorToolUiText","ImuActivity","IMU 기록 {0} · 전송 {1}"),ImuRecording,ImuPublishing);
-    const auto* SessionService=GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
-    const auto Session=SessionService?SessionService->GetSlabSensorSessionStatus():FVirtualSlabSessionStatus();
-    bool TransferFailure=false, PcdOverloadSuspended=false, PcdRateControlled=false;float PcdControlledHz=0;
-    float PcdRequired=0,PcdBudget=0,PcdActualHz=0;
-    if(C&&C->StreamPublisherComp)for(const auto& Stream:C->StreamPublisherComp->GetStreamStatuses())
-    {
-        if(Stream.StreamKind!=EVirtualSensorStreamKind::PointCloud)continue;
-        const auto Config=C->StreamPublisherComp->GetEffectiveStreamConfig(Stream.StreamKind,Stream.SensorId);
-        if(Config.PointCloudFormat!=EVirtualPointCloudStreamFormat::PCD)continue;
-        TransferFailure|=Stream.bOverloaded; // Historical failure counters are not a current blocker.
-        PcdOverloadSuspended|=Stream.bOverloadSuspended;
-        PcdRateControlled|=Stream.bEnabled&&Stream.bRateControlActive;
-        if(Stream.bEnabled&&Stream.bRateControlActive)PcdControlledHz+=Stream.RateControlHz;
-        if(Stream.bEnabled){PcdRequired=FMath::Max(PcdRequired,Stream.PcdRequiredMiBPerSecond);PcdBudget=Stream.PcdBudgetMiBPerSecond;PcdActualHz+=Stream.RecentSubmittedHz;}
-    }
-    if(C&&C->StreamPublisherComp)for(auto* A:C->GetSensorActors())if(IsValid(A)&&A->GetSensorKind()==EVirtualSensorKind::Lidar)
-    {
-        FVirtualSensorStreamConfig Config;
-        if(!C->StreamPublisherComp->ResolveActiveStreamForSensor(EVirtualSensorStreamKind::PointCloud,A->GetSensorId(),Config)||Config.PointCloudFormat!=EVirtualPointCloudStreamFormat::PCD)continue;
-        const bool Controlled=SessionService&&SessionService->ControlsSensor(A->GetSensorId());
-        GlobalStatus.bPcdSending|=!Controlled||(Session.Outputs.bPointCloud&&Session.State==EVirtualSlabSessionState::Running&&Session.CurrentSlab.bEligible);
-    }
-    GlobalStatus.bPcdSending|=Session.State==EVirtualSlabSessionState::Draining&&Session.Outputs.bPointCloud&&Session.UnfinishedFrames>0;
-    const auto Preflight=UVirtualSensorOutputPreflight::InspectForPresentation(this,FVirtualSlabSensorOutputSelection(),{},W->AreSlabToolsEnabled()?EVirtualSensorPreflightPurpose::ScenarioTransition:EVirtualSensorPreflightPurpose::ManualStreamStart,false);
-    bool ConnectionExpected=false;
-    if(C&&C->SharedTransportComp)C->SharedTransportComp->GetOutputServerConnection(GlobalStatus.bServerConnected,ConnectionExpected);
-    // An active output requires its own backend(s); an idle connection test
-    // describes the current profile without inventing a disconnected stream.
-    if(GlobalStatus.bPcdSending){GlobalStatus.bServerConnected=Preflight.bTransportConnected;ConnectionExpected=true;}
-    const bool HasServerSettings=C&&C->SharedTransportComp&&!C->SharedTransportComp->GetTransportProfile().BrokerUrl.TrimStartAndEnd().IsEmpty();
-    if(GlobalStatus.bServerConnected||!HasServerSettings||!ConnectionExpected)ServerDisconnectedSince=-1;
-    else if(ServerDisconnectedSince<0)ServerDisconnectedSince=Now;
-    const auto* Raw=GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
-    const bool SendDelayed=TransferFailure||(Raw&&Raw->IsSendDelayed());
-    GlobalStatus.Equipment=SensorToolUiText::EquipmentCount(GlobalStatus.EquipmentCount,GlobalStatus.MeasuringCount);
-    GlobalStatus.Pcd=PcdOverloadSuspended?SensorToolUiText::PcdResumeWaiting():SensorToolUiText::PcdState(GlobalStatus.bPcdSending);
-    GlobalStatus.Server=SensorToolUiText::ServerState(HasServerSettings,GlobalStatus.bServerConnected,ConnectionExpected,Now-ServerDisconnectedSince);
-    GlobalStatus.Scenario=SensorToolUiText::ScenarioWaiting();
-    if(W->AreSlabToolsEnabled())
-    {
-    if(auto* Progress=Cast<UDxWidgetSlabProgressPanel>(W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress)))StatusSlab=Progress->GetBoundSlabActor();
-    if(!StatusSlab.IsValid()&&Now>=NextSlabLookup)
-    {
-        NextSlabLookup=Now+1;
-        // Only an unambiguous actor is a valid fallback when no owned panel is bound.
-        ASlabActor* Only=nullptr;int32 Count=0;
-        for(TActorIterator<ASlabActor> It(GetWorld());It;++It){Only=*It;++Count;}
-        CachedSlabCount=Count;
-        if(Count==1)StatusSlab=Only;
-    }
-    if(!StatusSlab.IsValid())SlabCardTitle=FText::FromString(CachedSlabCount==0?TEXT("Slab이 없습니다 · 배치 방법"):TEXT("Slab이 여러 개입니다 · 대상 선택"));
-    if(StatusSlab.IsValid())
-    {
-        const auto Simulation=StatusSlab->GetSimulationStatus();
-        SlabCardProgress=Simulation.Progress;
-        if(W->IsSidebarMode()&&Simulation.RowCount>0&&!Simulation.ScenarioUUID.IsEmpty())
-        {
-            SlabCardTitle=FText::FromString(FString::Printf(TEXT("Slab %s · %.0f%%"),*Simulation.MtlNo,Simulation.Progress*100));
-            const auto Metrics=StatusSlab->GetCurrentMetrics();
-            SlabCardAngle=FText::FromString(FString::Printf(TEXT("%.2f°"),Metrics.LeftAngle));
-            SlabCardOffset=FText::FromString(FString::Printf(TEXT("%.1f cm"),Metrics.CenterOffsetCm));
-            SlabCardMargin=Metrics.bMarginsValid?FText::FromString(FString::Printf(TEXT("%.1f / %.1f cm"),Metrics.MarginLeftCm,Metrics.MarginRightCm)):FText::FromString(TEXT("—"));
-        }
-        if(Simulation.State==ESlabSimulationState::Playing)GlobalStatus.Scenario=SensorToolUiText::ScenarioRunning(Simulation.Progress);
-        else if(Simulation.State==ESlabSimulationState::Paused)GlobalStatus.Scenario=SensorToolUiText::ScenarioPaused();
-        else if(Simulation.State==ESlabSimulationState::Preparing)GlobalStatus.Scenario=SensorToolUiText::ScenarioPreparing();
-    }
-    if(LabelExclusionSlab!=StatusSlab&&LabelExclusionSlab.IsValid())
-        if(auto* V=LabelExclusionSlab->FindComponentByClass<USlabVisualizationComp>())V->SetLabelExclusionRects(nullptr,{});
-    LabelExclusionSlab=StatusSlab;
-    if(StatusSlab.IsValid())if(auto* V=StatusSlab->FindComponentByClass<USlabVisualizationComp>())V->SetLabelExclusionRects(this,W->GetOwnedDiagnosticExclusionRects());
-    if(Session.State==EVirtualSlabSessionState::Draining)GlobalStatus.Scenario=SensorToolUiText::ScenarioDraining();
-    else if(Session.State==EVirtualSlabSessionState::Preparing||Session.State==EVirtualSlabSessionState::Ready)GlobalStatus.Scenario=SensorToolUiText::ScenarioPreparing();
-    }
-    else
-    {
-        if(LabelExclusionSlab.IsValid())if(auto* V=LabelExclusionSlab->FindComponentByClass<USlabVisualizationComp>())V->SetLabelExclusionRects(nullptr,{});
-        StatusSlab.Reset();LabelExclusionSlab.Reset();SlabCardTitle=FText::GetEmpty();GlobalStatus.Scenario=FText::GetEmpty();
-    }
-    // A single actionable summary; technical details stay in the destination panel.
-    const auto* Data=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
-    const FString VisibleBlocker=Data?Data->GetVisiblePcdBlockingReason():FString();
-    if(GlobalStatus.EquipmentCount==0)GlobalStatus.Warning=SensorToolUiText::EquipmentRequired();
-    else if(!VisibleBlocker.IsEmpty()){GlobalStatus.Warning=FText::FromString(VisibleBlocker);GlobalStatus.bPreflightWarning=true;}
-    else if(!Preflight.BlockingReasons.IsEmpty())
-    {
-        GlobalStatus.Warning=FText::FromString(SensorToolUiText::PreflightReason(Preflight.BlockingReasons[0]));
-        GlobalStatus.bPreflightWarning=true;
-    }
-    else if(!GlobalStatus.bServerConnected)
-    {
-        GlobalStatus.Warning=SensorToolUiText::ConnectionWarning(HasServerSettings,Now-ServerDisconnectedSince,ConnectionExpected);
-        GlobalStatus.bConnectionWarning=!GlobalStatus.Warning.IsEmpty();
-    }
-    else if(!PcdOverloadSuspended&&PcdRequired>PcdBudget)
-        GlobalStatus.Warning=FText::FromString(FString::Printf(TEXT("PCD 필요 %.2f MiB/s > 예산 %.2f MiB/s · 실제 송신 합계 %.1f Hz (최근 약 1초)"),PcdRequired,PcdBudget,PcdActualHz));
-    else GlobalStatus.Warning=SensorToolUiText::PcdWarning(PcdOverloadSuspended,PcdRateControlled,PcdControlledHz,SendDelayed,!Session.RequiredDataError.IsEmpty());
-    if(const auto* T=GetWorld()->GetSubsystem<UAgentTestSetSubsystem>())if(T->HasItems())
-        GlobalStatus.TestSet=FText::FromString(FString::Printf(TEXT("테스트셋 %s %d/%d"),T->IsComplete()?TEXT("완료"):T->IsPaused()?TEXT("일시정지"):T->HasBusyWork()?TEXT("대기"):TEXT("진행"),T->Completed(),T->Settings().Target));
-    OwnedWarningSummary=SensorToolUiText::Warning(FText::FromString(SensorToolUiText::StatusWarningSummary(GlobalStatus.Warning.ToString())));
-    RefreshActivityChips();
+	auto* W = Workspace();
+	if (!W || !W->OwnsToolbar(this) || Now < NextStatusRefresh)
+		return;
+	NextStatusRefresh = Now + .2;
+	const float FontScale = W->GetOwnedPanelFontScale();
+	if (!FMath::IsNearlyEqual(DisplayedFontScale, FontScale))
+	{
+		DisplayedFontScale = FontScale;
+		OwnedFontScaleText = SensorToolUiText::ToolsFontPercent(FontScale);
+	}
+	GlobalStatus = FSensorToolGlobalStatus();
+	SlabCardTitle = FText::FromString(TEXT("Slab · 대기"));
+	SlabCardAngle = SlabCardOffset = SlabCardMargin = FText::FromString(TEXT("—"));
+	SlabCardProgress = 0;
+	OwnedSensorLabels.Reset();
+	EquipmentLabels.Reset();
+	auto* C = W->GetCoordinator();
+	const auto* Scheduler = GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>();
+	const auto* Rates = Scheduler ? &Scheduler->GetTelemetry().SensorRates : nullptr;
+	int32 ImuRecording = 0, ImuPublishing = 0;
+	if (C)
+		for (auto* A : C->GetSensorActors())
+			if (IsValid(A) && !A->IsActorBeingDestroyed())
+			{
+				if (const auto* Imu = A->FindComponentByClass<UVirtualImuComp>())
+				{
+					ImuRecording += Imu->IsRecording() ? 1 : 0;
+					ImuPublishing += Imu->IsPublishing() ? 1 : 0;
+				}
+				++GlobalStatus.EquipmentCount;
+				const bool Running = A->IsSensorRunning();
+				GlobalStatus.MeasuringCount += Running ? 1 : 0;
+				FText State = Running ? SensorToolUiText::Measuring() : SensorToolUiText::Stopped();
+				FLinearColor Color = Running ? FLinearColor(.15f, .85f, .4f) : FSensorOwnedPresentationStyle::Muted();
+				const bool Lidar = A->GetSensorKind() == EVirtualSensorKind::Lidar;
+				if (Rates)
+					if (const auto* Rate = Rates->FindByPredicate([&](const auto& R)
+					                                              { return R.SensorId == A->GetSensorId() && R.SensorKind == (Lidar ? TEXT("LiDAR") : TEXT("Camera")); }))
+					{
+						if (Running && Rate->State == EVirtualSensorRateState::Starved)
+						{
+							State = SensorToolUiText::Starved();
+							Color = FLinearColor(1, .6f, .1f);
+						}
+						else if (Rate->State == EVirtualSensorRateState::Failed)
+						{
+							State = SensorToolUiText::Error();
+							Color = FLinearColor(1, .15f, .2f);
+						}
+						else if (Rate->State == EVirtualSensorRateState::Paused)
+							State = SensorToolUiText::Paused();
+					}
+				FEquipmentLabel Label;
+				Label.Name = FText::FromString(FString(Lidar ? TEXT("LiDAR ") : TEXT("Camera ")) + A->GetSensorId());
+				Label.State = State;
+				Label.Color = Color;
+				EquipmentLabels.Add(A->GetSensorId(), Label);
+				OwnedSensorLabels.Add(A->GetSensorId(), FText::Format(NSLOCTEXT("SensorToolUiText", "CompactEquipmentLabel", "{0} ● {1}"), Label.Name, State));
+			}
+	if (const auto* Control = GetWorld()->GetSubsystem<UAutomationControlSubsystem>())
+	{
+		const FString Activity = Control->GetActivityPresentation();
+		if (!Activity.IsEmpty())
+			GlobalStatus.Automation = FText::FromString(Activity);
+	}
+	if (ImuRecording || ImuPublishing)
+		GlobalStatus.Imu = FText::Format(NSLOCTEXT("SensorToolUiText", "ImuActivity", "IMU 기록 {0} · 전송 {1}"), ImuRecording, ImuPublishing);
+	const auto* SessionService = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
+	const auto Session = SessionService ? SessionService->GetSlabSensorSessionStatus() : FVirtualSlabSessionStatus();
+	bool TransferFailure = false, PcdOverloadSuspended = false, PcdRateControlled = false;
+	float PcdControlledHz = 0;
+	float PcdRequired = 0, PcdBudget = 0, PcdActualHz = 0;
+	if (C && C->StreamPublisherComp)
+		for (const auto& Stream : C->StreamPublisherComp->GetStreamStatuses())
+		{
+			if (Stream.StreamKind != EVirtualSensorStreamKind::PointCloud)
+				continue;
+			const auto Config = C->StreamPublisherComp->GetEffectiveStreamConfig(Stream.StreamKind, Stream.SensorId);
+			if (Config.PointCloudFormat != EVirtualPointCloudStreamFormat::PCD)
+				continue;
+			TransferFailure |= Stream.bOverloaded; // Historical failure counters are not a current blocker.
+			PcdOverloadSuspended |= Stream.bOverloadSuspended;
+			PcdRateControlled |= Stream.bEnabled && Stream.bRateControlActive;
+			if (Stream.bEnabled && Stream.bRateControlActive)
+				PcdControlledHz += Stream.RateControlHz;
+			if (Stream.bEnabled)
+			{
+				PcdRequired = FMath::Max(PcdRequired, Stream.PcdRequiredMiBPerSecond);
+				PcdBudget = Stream.PcdBudgetMiBPerSecond;
+				PcdActualHz += Stream.RecentSubmittedHz;
+			}
+		}
+	if (C && C->StreamPublisherComp)
+		for (auto* A : C->GetSensorActors())
+			if (IsValid(A) && A->GetSensorKind() == EVirtualSensorKind::Lidar)
+			{
+				FVirtualSensorStreamConfig Config;
+				if (!C->StreamPublisherComp->ResolveActiveStreamForSensor(EVirtualSensorStreamKind::PointCloud, A->GetSensorId(), Config) || Config.PointCloudFormat != EVirtualPointCloudStreamFormat::PCD)
+					continue;
+				const bool Controlled = SessionService && SessionService->ControlsSensor(A->GetSensorId());
+				GlobalStatus.bPcdSending |= !Controlled || (Session.Outputs.bPointCloud && Session.State == EVirtualSlabSessionState::Running && Session.CurrentSlab.bEligible);
+			}
+	GlobalStatus.bPcdSending |= Session.State == EVirtualSlabSessionState::Draining && Session.Outputs.bPointCloud && Session.UnfinishedFrames > 0;
+	const auto Preflight = UVirtualSensorOutputPreflight::InspectForPresentation(this, FVirtualSlabSensorOutputSelection(), {}, W->AreSlabToolsEnabled() ? EVirtualSensorPreflightPurpose::ScenarioTransition : EVirtualSensorPreflightPurpose::ManualStreamStart, false);
+	bool ConnectionExpected = false;
+	if (C && C->SharedTransportComp)
+		C->SharedTransportComp->GetOutputServerConnection(GlobalStatus.bServerConnected, ConnectionExpected);
+	// An active output requires its own backend(s); an idle connection test
+	// describes the current profile without inventing a disconnected stream.
+	if (GlobalStatus.bPcdSending)
+	{
+		GlobalStatus.bServerConnected = Preflight.bTransportConnected;
+		ConnectionExpected = true;
+	}
+	const bool HasServerSettings = C && C->SharedTransportComp && !C->SharedTransportComp->GetTransportProfile().BrokerUrl.TrimStartAndEnd().IsEmpty();
+	if (GlobalStatus.bServerConnected || !HasServerSettings || !ConnectionExpected)
+		ServerDisconnectedSince = -1;
+	else if (ServerDisconnectedSince < 0)
+		ServerDisconnectedSince = Now;
+	const auto* Raw = GetWorld()->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
+	const bool SendDelayed = TransferFailure || (Raw && Raw->IsSendDelayed());
+	GlobalStatus.Equipment = SensorToolUiText::EquipmentCount(GlobalStatus.EquipmentCount, GlobalStatus.MeasuringCount);
+	GlobalStatus.Pcd = PcdOverloadSuspended ? SensorToolUiText::PcdResumeWaiting() : SensorToolUiText::PcdState(GlobalStatus.bPcdSending);
+	GlobalStatus.Server = SensorToolUiText::ServerState(HasServerSettings, GlobalStatus.bServerConnected, ConnectionExpected, Now - ServerDisconnectedSince);
+	GlobalStatus.Scenario = SensorToolUiText::ScenarioWaiting();
+	if (W->AreSlabToolsEnabled())
+	{
+		if (auto* Progress = Cast<UDxWidgetSlabProgressPanel>(W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress)))
+			StatusSlab = Progress->GetBoundSlabActor();
+		if (!StatusSlab.IsValid() && Now >= NextSlabLookup)
+		{
+			NextSlabLookup = Now + 1;
+			// Only an unambiguous actor is a valid fallback when no owned panel is bound.
+			ASlabActor* Only = nullptr;
+			int32 Count = 0;
+			for (TActorIterator<ASlabActor> It(GetWorld()); It; ++It)
+			{
+				Only = *It;
+				++Count;
+			}
+			CachedSlabCount = Count;
+			if (Count == 1)
+				StatusSlab = Only;
+		}
+		if (!StatusSlab.IsValid())
+			SlabCardTitle = FText::FromString(CachedSlabCount == 0 ? TEXT("Slab이 없습니다 · 배치 방법") : TEXT("Slab이 여러 개입니다 · 대상 선택"));
+		if (StatusSlab.IsValid())
+		{
+			const auto Simulation = StatusSlab->GetSimulationStatus();
+			SlabCardProgress = Simulation.Progress;
+			if (W->IsSidebarMode() && Simulation.RowCount > 0 && !Simulation.ScenarioUUID.IsEmpty())
+			{
+				SlabCardTitle = FText::FromString(FString::Printf(TEXT("Slab %s · %.0f%%"), *Simulation.MtlNo, Simulation.Progress * 100));
+				const auto Metrics = StatusSlab->GetCurrentMetrics();
+				SlabCardAngle = FText::FromString(FString::Printf(TEXT("%.2f°"), Metrics.LeftAngle));
+				SlabCardOffset = FText::FromString(FString::Printf(TEXT("%.1f cm"), Metrics.CenterOffsetCm));
+				SlabCardMargin = Metrics.bMarginsValid ? FText::FromString(FString::Printf(TEXT("%.1f / %.1f cm"), Metrics.MarginLeftCm, Metrics.MarginRightCm)) : FText::FromString(TEXT("—"));
+			}
+			if (Simulation.State == ESlabSimulationState::Playing)
+				GlobalStatus.Scenario = SensorToolUiText::ScenarioRunning(Simulation.Progress);
+			else if (Simulation.State == ESlabSimulationState::Paused)
+				GlobalStatus.Scenario = SensorToolUiText::ScenarioPaused();
+			else if (Simulation.State == ESlabSimulationState::Preparing)
+				GlobalStatus.Scenario = SensorToolUiText::ScenarioPreparing();
+		}
+		if (LabelExclusionSlab != StatusSlab && LabelExclusionSlab.IsValid())
+			if (auto* V = LabelExclusionSlab->FindComponentByClass<USlabVisualizationComp>())
+				V->SetLabelExclusionRects(nullptr, {});
+		LabelExclusionSlab = StatusSlab;
+		if (StatusSlab.IsValid())
+			if (auto* V = StatusSlab->FindComponentByClass<USlabVisualizationComp>())
+				V->SetLabelExclusionRects(this, W->GetOwnedDiagnosticExclusionRects());
+		if (Session.State == EVirtualSlabSessionState::Draining)
+			GlobalStatus.Scenario = SensorToolUiText::ScenarioDraining();
+		else if (Session.State == EVirtualSlabSessionState::Preparing || Session.State == EVirtualSlabSessionState::Ready)
+			GlobalStatus.Scenario = SensorToolUiText::ScenarioPreparing();
+	}
+	else
+	{
+		if (LabelExclusionSlab.IsValid())
+			if (auto* V = LabelExclusionSlab->FindComponentByClass<USlabVisualizationComp>())
+				V->SetLabelExclusionRects(nullptr, {});
+		StatusSlab.Reset();
+		LabelExclusionSlab.Reset();
+		SlabCardTitle = FText::GetEmpty();
+		GlobalStatus.Scenario = FText::GetEmpty();
+	}
+	// A single actionable summary; technical details stay in the destination panel.
+	const auto* Data = Cast<UDxWidgetVirtualSensorCaptureExportPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
+	const FString VisibleBlocker = Data ? Data->GetVisiblePcdBlockingReason() : FString();
+	if (GlobalStatus.EquipmentCount == 0)
+		GlobalStatus.Warning = SensorToolUiText::EquipmentRequired();
+	else if (!VisibleBlocker.IsEmpty())
+	{
+		GlobalStatus.Warning = FText::FromString(VisibleBlocker);
+		GlobalStatus.bPreflightWarning = true;
+	}
+	else if (!Preflight.BlockingReasons.IsEmpty())
+	{
+		GlobalStatus.Warning = FText::FromString(SensorToolUiText::PreflightReason(Preflight.BlockingReasons[0]));
+		GlobalStatus.bPreflightWarning = true;
+	}
+	else if (!GlobalStatus.bServerConnected)
+	{
+		GlobalStatus.Warning = SensorToolUiText::ConnectionWarning(HasServerSettings, Now - ServerDisconnectedSince, ConnectionExpected);
+		GlobalStatus.bConnectionWarning = !GlobalStatus.Warning.IsEmpty();
+	}
+	else if (!PcdOverloadSuspended && PcdRequired > PcdBudget)
+		GlobalStatus.Warning = FText::FromString(FString::Printf(TEXT("PCD 필요 %.2f MiB/s > 예산 %.2f MiB/s · 실제 송신 합계 %.1f Hz (최근 약 1초)"), PcdRequired, PcdBudget, PcdActualHz));
+	else
+		GlobalStatus.Warning = SensorToolUiText::PcdWarning(PcdOverloadSuspended, PcdRateControlled, PcdControlledHz, SendDelayed, !Session.RequiredDataError.IsEmpty());
+	if (const auto* T = GetWorld()->GetSubsystem<UAgentTestSetSubsystem>())
+		if (T->HasItems())
+			GlobalStatus.TestSet = FText::FromString(FString::Printf(TEXT("테스트셋 %s %d/%d"), T->IsComplete() ? TEXT("완료") : T->IsPaused()  ? TEXT("일시정지")
+			                                                                                                                 : T->HasBusyWork() ? TEXT("대기")
+			                                                                                                                                    : TEXT("진행"),
+			                                                         T->Completed(), T->Settings().Target));
+	OwnedWarningSummary = SensorToolUiText::Warning(FText::FromString(SensorToolUiText::StatusWarningSummary(GlobalStatus.Warning.ToString())));
+	RefreshActivityChips();
 }
 
 void USensorToolToolbarWidget::RefreshActivityChips()
 {
-    const uint8 Mask=(GlobalStatus.Automation.IsEmpty()?0:1)|(GlobalStatus.Imu.IsEmpty()?0:2)|(GlobalStatus.TestSet.IsEmpty()?0:4);
-    if(DisplayedActivityMask==Mask)return;DisplayedActivityMask=Mask;
-    ActivityHosts.RemoveAll([](const auto& Host){return !Host.IsValid();});
-    for(const auto& Weak:ActivityHosts)if(const auto Host=Weak.Pin())
-    {if(Mask)Host->SetContent(BuildActivityChips());else Host->SetContent(SNullWidget::NullWidget);}
+	const uint8 Mask = (GlobalStatus.Automation.IsEmpty() ? 0 : 1) | (GlobalStatus.Imu.IsEmpty() ? 0 : 2) | (GlobalStatus.TestSet.IsEmpty() ? 0 : 4);
+	if (DisplayedActivityMask == Mask)
+		return;
+	DisplayedActivityMask = Mask;
+	ActivityHosts.RemoveAll([](const auto& Host)
+	                        { return !Host.IsValid(); });
+	for (const auto& Weak : ActivityHosts)
+		if (const auto Host = Weak.Pin())
+		{
+			if (Mask)
+				Host->SetContent(BuildActivityChips());
+			else
+				Host->SetContent(SNullWidget::NullWidget);
+		}
 }
 
 TSharedRef<SWidget> USensorToolToolbarWidget::BuildActivityChips()
 {
-    auto Row=SNew(SHorizontalBox);
-    static const FButtonStyle Chip=FButtonStyle(FSensorOwnedPresentationStyle::HeaderButton())
-        .SetNormal(FSlateRoundedBoxBrush(FLinearColor::Transparent,6.f))
-        .SetHovered(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Selection(),6.f));
-    for(int32 I=0;I<3;++I)
-    {
-        auto Label=[this,I](){return I==0?GlobalStatus.Automation:I==1?GlobalStatus.Imu:GlobalStatus.TestSet;};
-        if(Label().IsEmpty())continue;
-        Row->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(4,0)
-        [SNew(SButton).ButtonStyle(&Chip).ContentPadding(FMargin(8,3))
-          .ToolTipText_Lambda(Label).OnClicked_Lambda([this,I](){OpenOwnedDestination(I==0?ESensorToolDestination::Compatibility:I==1?ESensorToolDestination::Placement:ESensorToolDestination::TestSet);return FReply::Handled();})
-          [SNew(SBox).MaxDesiredWidth(220)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted())]]];
-    }
-    return Row;
+	auto Row = SNew(SHorizontalBox);
+	static const FButtonStyle Chip = FButtonStyle(FSensorOwnedPresentationStyle::HeaderButton())
+	                                     .SetNormal(FSlateRoundedBoxBrush(FLinearColor::Transparent, 6.f))
+	                                     .SetHovered(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Selection(), 6.f));
+	for (int32 I = 0; I < 3; ++I)
+	{
+		auto Label = [this, I]()
+		{
+			return I == 0 ? GlobalStatus.Automation : I == 1 ? GlobalStatus.Imu
+			                                                 : GlobalStatus.TestSet;
+		};
+		if (Label().IsEmpty())
+			continue;
+		Row->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(4, 0)[SNew(SButton).ButtonStyle(&Chip).ContentPadding(FMargin(8, 3)).ToolTipText_Lambda(Label).OnClicked_Lambda([this, I]()
+		                                                                                                                                                                         {OpenOwnedDestination(I==0?ESensorToolDestination::Compatibility:I==1?ESensorToolDestination::Placement:ESensorToolDestination::TestSet);return FReply::Handled(); })[SNew(SBox).MaxDesiredWidth(220)[SNew(STextBlock).Font_Lambda([this]()
+		                                                                                                                                                                                                                                           { return ToolFont(FSensorOwnedPresentationStyle::LabelSize); })
+		                                                                                                                                                                                                                  .Text_Lambda(Label)
+		                                                                                                                                                                                                                  .OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+		                                                                                                                                                                                                                  .ColorAndOpacity(FSensorOwnedPresentationStyle::Muted())]]];
+	}
+	return Row;
 }
 
 TSharedRef<SWidget> USensorToolToolbarWidget::BuildStatusStrip()
 {
-    auto Row=SNew(SHorizontalBox);
-    static const FButtonStyle Chip=FButtonStyle(FSensorOwnedPresentationStyle::HeaderButton())
-        .SetNormal(FSlateRoundedBoxBrush(FLinearColor::Transparent,6.f))
-        .SetHovered(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Selection(),6.f));
-    static const FButtonStyle WarningChip=FButtonStyle(Chip).SetNormal(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::WarningSurface(),6.f));
-    const ESensorToolDestination Destinations[]={ESensorToolDestination::Placement,ESensorToolDestination::PcdTransfer,ESensorToolDestination::Scenario,ESensorToolDestination::ServerSettings,ESensorToolDestination::Diagnostics};
-    for(int32 I=0;I<UE_ARRAY_COUNT(Destinations);++I)
-    {
-        const auto Destination=Destinations[I];
-        if(Destination==ESensorToolDestination::Scenario&&Workspace()&&!Workspace()->AreSlabToolsEnabled())continue;
-        auto Label=[this,I]()
-        {
-            switch(I){case 0:return GlobalStatus.Equipment;case 1:return GlobalStatus.Pcd;case 2:return GlobalStatus.Scenario;case 3:return GlobalStatus.Server;default:return OwnedWarningSummary;}
-        };
-        Row->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(I==0?0:4,0,0,0)
-        [SNew(SButton).ButtonStyle(I==4?&WarningChip:&Chip).ContentPadding(FMargin(8,3))
-          .Visibility_Lambda([this,I](){return I==4&&GlobalStatus.Warning.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;})
-          .ToolTipText_Lambda([this,I,Label](){return I==4?SensorToolUiText::Warning(GlobalStatus.Warning):Label();}).OnClicked_Lambda([this,Destination,I](){OpenOwnedDestination(I==4?(GlobalStatus.bConnectionWarning?ESensorToolDestination::ServerSettings:GlobalStatus.bPreflightWarning?ESensorToolDestination::PcdTransfer:Destination):Destination);return FReply::Handled();})
-         [SNew(SHorizontalBox)
-          +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[SNew(SBox).MaxDesiredWidth(I==4?220.f:240.f)[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text_Lambda(Label).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
-           .ColorAndOpacity(I==4?FSensorOwnedPresentationStyle::Warning():FSensorOwnedPresentationStyle::Muted())]]
-          +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6,0,0,0)[SNew(STextBlock).Visibility(I==4?EVisibility::Visible:EVisibility::Collapsed).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).Text(SensorToolUiText::CheckAction()).ColorAndOpacity(FSensorOwnedPresentationStyle::Warning())]]];
-    }
-    // Off means no activity buttons/font/text attributes in the Slate tree. Rebuild only
-    // when the two activity-presence bits change, within the existing 5Hz refresh.
-    auto ActivityHost=SNew(SBox);ActivityHosts.Add(TWeakPtr<SBox>(ActivityHost));
-    Row->AddSlot().AutoWidth().VAlign(VAlign_Center)[ActivityHost];
-    DisplayedActivityMask=255;RefreshActivityChips();
-    Row->AddSlot().FillWidth(1)[SNullWidget::NullWidget];
-    Row->AddSlot().AutoWidth().VAlign(VAlign_Center)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&Chip).HasDownArrow(false)
-      .ToolTipText(SensorToolUiText::ToolsFontHint())
-      .OnGetMenuContent_Lambda([this](){return BuildAppearanceMenu();}).ButtonContent()[SNew(STextBlock).Font_Lambda([this](){return ToolFont(FSensorOwnedPresentationStyle::LabelSize);}).ColorAndOpacity(FSensorOwnedPresentationStyle::Muted())
-      .Text_Lambda([this](){return OwnedFontScaleText;})]];
-    return Row;
+	auto Row = SNew(SHorizontalBox);
+	static const FButtonStyle Chip = FButtonStyle(FSensorOwnedPresentationStyle::HeaderButton())
+	                                     .SetNormal(FSlateRoundedBoxBrush(FLinearColor::Transparent, 6.f))
+	                                     .SetHovered(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::Selection(), 6.f));
+	static const FButtonStyle WarningChip = FButtonStyle(Chip).SetNormal(FSlateRoundedBoxBrush(FSensorOwnedPresentationStyle::WarningSurface(), 6.f));
+	const ESensorToolDestination Destinations[] = {ESensorToolDestination::Placement, ESensorToolDestination::PcdTransfer, ESensorToolDestination::Scenario, ESensorToolDestination::ServerSettings, ESensorToolDestination::Diagnostics};
+	for (int32 I = 0; I < UE_ARRAY_COUNT(Destinations); ++I)
+	{
+		const auto Destination = Destinations[I];
+		if (Destination == ESensorToolDestination::Scenario && Workspace() && !Workspace()->AreSlabToolsEnabled())
+			continue;
+		auto Label = [this, I]()
+		{
+			switch (I)
+			{
+				case 0:
+					return GlobalStatus.Equipment;
+				case 1:
+					return GlobalStatus.Pcd;
+				case 2:
+					return GlobalStatus.Scenario;
+				case 3:
+					return GlobalStatus.Server;
+				default:
+					return OwnedWarningSummary;
+			}
+		};
+		Row->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(I == 0 ? 0 : 4, 0, 0, 0)[SNew(SButton).ButtonStyle(I == 4 ? &WarningChip : &Chip).ContentPadding(FMargin(8, 3)).Visibility_Lambda([this, I]()
+		                                                                                                                                                                                           { return I == 4 && GlobalStatus.Warning.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible; })
+		                                                                                      .ToolTipText_Lambda([this, I, Label]()
+		                                                                                                          { return I == 4 ? SensorToolUiText::Warning(GlobalStatus.Warning) : Label(); })
+		                                                                                      .OnClicked_Lambda([this, Destination, I]()
+		                                                                                                        {OpenOwnedDestination(I==4?(GlobalStatus.bConnectionWarning?ESensorToolDestination::ServerSettings:GlobalStatus.bPreflightWarning?ESensorToolDestination::PcdTransfer:Destination):Destination);return FReply::Handled(); })[SNew(SHorizontalBox) + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[SNew(SBox).MaxDesiredWidth(I == 4 ? 220.f : 240.f)[SNew(STextBlock).Font_Lambda([this]()
+		                                                                                                                                                                                                                                                                             { return ToolFont(FSensorOwnedPresentationStyle::LabelSize); })
+		                                                                                                                                                                                                                                                    .Text_Lambda(Label)
+		                                                                                                                                                                                                                                                    .OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+		                                                                                                                                                                                                                                                    .ColorAndOpacity(I == 4 ? FSensorOwnedPresentationStyle::Warning() : FSensorOwnedPresentationStyle::Muted())]] +
+		                                                                                                             SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6, 0, 0, 0)[SNew(STextBlock).Visibility(I == 4 ? EVisibility::Visible : EVisibility::Collapsed).Font_Lambda([this]()
+		                                                                                                                                                                                                                                                                                          { return ToolFont(FSensorOwnedPresentationStyle::LabelSize); })
+		                                                                                                                                                                                              .Text(SensorToolUiText::CheckAction())
+		                                                                                                                                                                                              .ColorAndOpacity(FSensorOwnedPresentationStyle::Warning())]]];
+	}
+	// Off means no activity buttons/font/text attributes in the Slate tree. Rebuild only
+	// when the two activity-presence bits change, within the existing 5Hz refresh.
+	auto ActivityHost = SNew(SBox);
+	ActivityHosts.Add(TWeakPtr<SBox>(ActivityHost));
+	Row->AddSlot().AutoWidth().VAlign(VAlign_Center)[ActivityHost];
+	DisplayedActivityMask = 255;
+	RefreshActivityChips();
+	Row->AddSlot().FillWidth(1)[SNullWidget::NullWidget];
+	Row->AddSlot().AutoWidth().VAlign(VAlign_Center)[SNew(SComboButton).ComboButtonStyle(&FSensorOwnedPresentationStyle::ComboButton()).ButtonStyle(&Chip).HasDownArrow(false).ToolTipText(SensorToolUiText::ToolsFontHint()).OnGetMenuContent_Lambda([this]()
+	                                                                                                                                                                                                                                                  { return BuildAppearanceMenu(); })
+	                                                     .ButtonContent()[SNew(STextBlock).Font_Lambda([this]()
+	                                                                                                   { return ToolFont(FSensorOwnedPresentationStyle::LabelSize); })
+	                                                                          .ColorAndOpacity(FSensorOwnedPresentationStyle::Muted())
+	                                                                          .Text_Lambda([this]()
+	                                                                                       { return OwnedFontScaleText; })]];
+	return Row;
 }

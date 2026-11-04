@@ -18,28 +18,31 @@ void UVirtualSensorPanelHostComp::BeginPlay()
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().SetTimer(
-			MainWidgetPollTimer,
-			this,
-			&UVirtualSensorPanelHostComp::RefreshHosting,
-			FMath::Max(0.1f, MainWidgetPollInterval),
-			true,
-			0.0f);
+		    MainWidgetPollTimer,
+		    this,
+		    &UVirtualSensorPanelHostComp::RefreshHosting,
+		    FMath::Max(0.1f, MainWidgetPollInterval),
+		    true,
+		    0.0f);
 	}
 }
 
 void UVirtualSensorPanelHostComp::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (UWorld* World = GetWorld()) World->GetTimerManager().ClearTimer(MainWidgetPollTimer);
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().ClearTimer(MainWidgetPollTimer);
 	UnregisterAllPanels();
 	Super::EndPlay(EndPlayReason);
 }
 
 void UVirtualSensorPanelHostComp::RegisterPanel(UDxWidgetVirtualSensorPanelBase* Panel, int32 DefaultZOrder)
 {
-	if (!Panel) return;
+	if (!Panel)
+		return;
 	for (FVirtualSensorHostedPanel& Entry : HostedPanels)
 	{
-		if (Entry.Panel == Panel) return;
+		if (Entry.Panel == Panel)
+			return;
 	}
 	FVirtualSensorHostedPanel& Entry = HostedPanels.AddDefaulted_GetRef();
 	Entry.Panel = Panel;
@@ -52,9 +55,10 @@ void UVirtualSensorPanelHostComp::UnregisterAllPanels()
 {
 	for (FVirtualSensorHostedPanel& Entry : HostedPanels)
 	{
-        if (Entry.Panel)
-        {
-			if(auto* Workspace=Entry.Panel->GetToolWorkspace())Workspace->UnregisterPanel(Entry.Panel);
+		if (Entry.Panel)
+		{
+			if (auto* Workspace = Entry.Panel->GetToolWorkspace())
+				Workspace->UnregisterPanel(Entry.Panel);
 			Entry.Panel->SetPanelHostComponent(nullptr);
 			Entry.Panel->RemoveFromParent();
 		}
@@ -66,14 +70,17 @@ void UVirtualSensorPanelHostComp::UnregisterAllPanels()
 void UVirtualSensorPanelHostComp::RefreshHosting()
 {
 	UCanvasPanel* TargetCanvas = ResolveMainCanvas();
-	if (TargetCanvas == CurrentMainCanvas) return;
+	if (TargetCanvas == CurrentMainCanvas)
+		return;
 	CurrentMainCanvas = TargetCanvas;
-	for (FVirtualSensorHostedPanel& Entry : HostedPanels) AttachPanel(Entry, TargetCanvas);
+	for (FVirtualSensorHostedPanel& Entry : HostedPanels)
+		AttachPanel(Entry, TargetCanvas);
 }
 
 void UVirtualSensorPanelHostComp::BringPanelToFront(UDxWidgetVirtualSensorPanelBase* Panel)
 {
-	if (!Panel) return;
+	if (!Panel)
+		return;
 	if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Panel->Slot))
 	{
 		CanvasSlot->SetZOrder(++FrontZOrder);
@@ -89,7 +96,8 @@ void UVirtualSensorPanelHostComp::BringPanelToFront(UDxWidgetVirtualSensorPanelB
 
 UCanvasPanel* UVirtualSensorPanelHostComp::ResolveMainCanvas() const
 {
-	if (!bPreferMainWidgetPanel) return nullptr;
+	if (!bPreferMainWidgetPanel)
+		return nullptr;
 	const UWorld* World = GetWorld();
 	const UGameInstance* GameInstance = World ? World->GetGameInstance() : nullptr;
 	UDxWidgetSubsystem* WidgetSubsystem = GameInstance ? GameInstance->GetSubsystem<UDxWidgetSubsystem>() : nullptr;
@@ -99,13 +107,19 @@ UCanvasPanel* UVirtualSensorPanelHostComp::ResolveMainCanvas() const
 void UVirtualSensorPanelHostComp::AttachPanel(FVirtualSensorHostedPanel& Entry, UCanvasPanel* TargetCanvas)
 {
 	UDxWidgetVirtualSensorPanelBase* Panel = Entry.Panel;
-    if (!Panel) return;
-	if(auto* Workspace=Panel->GetToolWorkspace()){Workspace->AttachOwnedPanel(Panel);return;}
+	if (!Panel)
+		return;
+	if (auto* Workspace = Panel->GetToolWorkspace())
+	{
+		Workspace->AttachOwnedPanel(Panel);
+		return;
+	}
 	Panel->RemoveFromParent();
 	if (TargetCanvas)
 	{
 		UCanvasPanelSlot* Slot = TargetCanvas->AddChildToCanvas(Panel);
-		if (Slot) Slot->SetZOrder(Entry.DefaultZOrder);
+		if (Slot)
+			Slot->SetZOrder(Entry.DefaultZOrder);
 	}
 	else if (bAllowViewportFallback)
 	{

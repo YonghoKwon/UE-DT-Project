@@ -26,174 +26,363 @@
 
 namespace
 {
-class FLidarMapMemoryProbe final:public FTickableGameObject
+class FLidarMapMemoryProbe final : public FTickableGameObject
 {
-    FString Directory,CancelFile;
-    TWeakObjectPtr<UWorld> World;
-    TUniquePtr<FArchive> File;
-    TMap<FName,uint64> DefaultTags,PlatformTags;
-    double Created=FPlatformTime::Seconds(),Ready=0,Started=0,Next=0,Seconds=3600,PreviousCost=0,MaxCost=0,TotalCost=0;
-    int32 Samples=0,ExpectedSensors=-1;
-    bool Off=false,ForceHardware=false,Configured=false,Finished=false,Failed=false;
+	FString Directory, CancelFile;
+	TWeakObjectPtr<UWorld> World;
+	TUniquePtr<FArchive> File;
+	TMap<FName, uint64> DefaultTags, PlatformTags;
+	double Created = FPlatformTime::Seconds(), Ready = 0, Started = 0, Next = 0, Seconds = 3600, PreviousCost = 0, MaxCost = 0, TotalCost = 0;
+	int32 Samples = 0, ExpectedSensors = -1;
+	bool Off = false, ForceHardware = false, Configured = false, Finished = false, Failed = false;
 #if !UE_BUILD_SHIPPING
-    bool CommitDiagnostics=false;
-    int32 DiagnosticReports=0;
-    double NextAttributionSnapshot=0,FinishAfter=0;
-    bool AttributionTraceStopped=false;
+	bool CommitDiagnostics = false;
+	int32 DiagnosticReports = 0;
+	double NextAttributionSnapshot = 0, FinishAfter = 0;
+	bool AttributionTraceStopped = false;
 #endif
-    bool Write(const TSharedRef<FJsonObject>& Row)
-    {
-        if(!File)return false;FString Text;FJsonSerializer::Serialize(Row,TJsonWriterFactory<TCHAR,TCondensedJsonPrintPolicy<TCHAR>>::Create(&Text));Text+=TEXT("\n");
-        FTCHARToUTF8 Bytes(*Text);File->Serialize((void*)Bytes.Get(),Bytes.Length());File->Flush();return !File->IsError();
-    }
-    void Finish(bool Complete,const FString& Reason)
-    {
-        if(Finished)return;Finished=true;
-        LidarMemoryAttribution::End();
-        auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("type"),TEXT("summary"));R->SetBoolField(TEXT("complete"),Complete&&!Failed);R->SetStringField(TEXT("reason"),Reason);
-        R->SetNumberField(TEXT("measurement_seconds"),Started?FPlatformTime::Seconds()-Started:0);R->SetNumberField(TEXT("sample_count"),Samples);R->SetNumberField(TEXT("sampler_total_gt_ms"),TotalCost);R->SetNumberField(TEXT("sampler_max_gt_ms"),MaxCost);
-        const bool Saved=Write(R);if(File){Failed=!File->Close()||Failed;File.Reset();}
-        if(World.IsValid())
-        {
-            for(TActorIterator<AVirtualLidarSensorActor> I(World.Get());I;++I)I->StopSensor();
-            if(auto* V=World->GetGameViewport())V->bDisableWorldRendering=true;
-        }
-        FlushRenderingCommands();FPlatformMisc::RequestExitWithStatus(false,Complete&&!Failed&&Saved?0:2);
-    }
-    void Sample(double Now)
-    {
-        const double Begin=FPlatformTime::Seconds();auto R=MakeShared<FJsonObject>();const auto Memory=FPlatformMemory::GetStats();
-        R->SetStringField(TEXT("type"),TEXT("memory_curve"));R->SetNumberField(TEXT("seconds"),Now-Started);R->SetNumberField(TEXT("rss_bytes"),double(Memory.UsedPhysical));R->SetNumberField(TEXT("commit_bytes"),double(Memory.UsedVirtual));R->SetNumberField(TEXT("uobject_count"),GUObjectArray.GetObjectArrayNumMinusAvailable());
-        DefaultTags.Reset();PlatformTags.Reset();
+	bool Write(const TSharedRef<FJsonObject>& Row)
+	{
+		if (!File)
+			return false;
+		FString Text;
+		FJsonSerializer::Serialize(Row, TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Text));
+		Text += TEXT("\n");
+		FTCHARToUTF8 Bytes(*Text);
+		File->Serialize((void*)Bytes.Get(), Bytes.Length());
+		File->Flush();
+		return !File->IsError();
+	}
+	void Finish(bool Complete, const FString& Reason)
+	{
+		if (Finished)
+			return;
+		Finished = true;
+		LidarMemoryAttribution::End();
+		auto R = MakeShared<FJsonObject>();
+		R->SetStringField(TEXT("type"), TEXT("summary"));
+		R->SetBoolField(TEXT("complete"), Complete && !Failed);
+		R->SetStringField(TEXT("reason"), Reason);
+		R->SetNumberField(TEXT("measurement_seconds"), Started ? FPlatformTime::Seconds() - Started : 0);
+		R->SetNumberField(TEXT("sample_count"), Samples);
+		R->SetNumberField(TEXT("sampler_total_gt_ms"), TotalCost);
+		R->SetNumberField(TEXT("sampler_max_gt_ms"), MaxCost);
+		const bool Saved = Write(R);
+		if (File)
+		{
+			Failed = !File->Close() || Failed;
+			File.Reset();
+		}
+		if (World.IsValid())
+		{
+			for (TActorIterator<AVirtualLidarSensorActor> I(World.Get()); I; ++I)
+				I->StopSensor();
+			if (auto* V = World->GetGameViewport())
+				V->bDisableWorldRendering = true;
+		}
+		FlushRenderingCommands();
+		FPlatformMisc::RequestExitWithStatus(false, Complete && !Failed && Saved ? 0 : 2);
+	}
+	void Sample(double Now)
+	{
+		const double Begin = FPlatformTime::Seconds();
+		auto R = MakeShared<FJsonObject>();
+		const auto Memory = FPlatformMemory::GetStats();
+		R->SetStringField(TEXT("type"), TEXT("memory_curve"));
+		R->SetNumberField(TEXT("seconds"), Now - Started);
+		R->SetNumberField(TEXT("rss_bytes"), double(Memory.UsedPhysical));
+		R->SetNumberField(TEXT("commit_bytes"), double(Memory.UsedVirtual));
+		R->SetNumberField(TEXT("uobject_count"), GUObjectArray.GetObjectArrayNumMinusAvailable());
+		DefaultTags.Reset();
+		PlatformTags.Reset();
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
-        if(FLowLevelMemTracker::IsEnabled()){auto& L=FLowLevelMemTracker::Get();L.GetTrackedTagsNamesWithAmount(DefaultTags,ELLMTracker::Default,ELLMTagSet::None);L.GetTrackedTagsNamesWithAmount(PlatformTags,ELLMTracker::Platform,ELLMTagSet::None);}
+		if (FLowLevelMemTracker::IsEnabled())
+		{
+			auto& L = FLowLevelMemTracker::Get();
+			L.GetTrackedTagsNamesWithAmount(DefaultTags, ELLMTracker::Default, ELLMTagSet::None);
+			L.GetTrackedTagsNamesWithAmount(PlatformTags, ELLMTracker::Platform, ELLMTagSet::None);
+		}
 #endif
-        auto Tags=MakeShared<FJsonObject>();for(const TCHAR* Tag:{TEXT("RHIMisc"),TEXT("Untracked"),TEXT("FMallocUnused"),TEXT("ThreadStack"),TEXT("Total")})if(const auto* Value=DefaultTags.Find(FName(Tag)))Tags->SetNumberField(Tag,double(*Value));R->SetObjectField(TEXT("llm_default"),Tags);
-        auto Platform=MakeShared<FJsonObject>();for(const TCHAR* Tag:{TEXT("FMalloc"),TEXT("PlatformUntracked"),TEXT("ThreadStackPlatform"),TEXT("GraphicsPlatform")})if(const auto* Value=PlatformTags.Find(FName(Tag)))Platform->SetNumberField(Tag,double(*Value));R->SetObjectField(TEXT("llm_platform"),Platform);
+		auto Tags = MakeShared<FJsonObject>();
+		for (const TCHAR* Tag : {TEXT("RHIMisc"), TEXT("Untracked"), TEXT("FMallocUnused"), TEXT("ThreadStack"), TEXT("Total")})
+			if (const auto* Value = DefaultTags.Find(FName(Tag)))
+				Tags->SetNumberField(Tag, double(*Value));
+		R->SetObjectField(TEXT("llm_default"), Tags);
+		auto Platform = MakeShared<FJsonObject>();
+		for (const TCHAR* Tag : {TEXT("FMalloc"), TEXT("PlatformUntracked"), TEXT("ThreadStackPlatform"), TEXT("GraphicsPlatform")})
+			if (const auto* Value = PlatformTags.Find(FName(Tag)))
+				Platform->SetNumberField(Tag, double(*Value));
+		R->SetObjectField(TEXT("llm_platform"), Platform);
 #if !UE_BUILD_SHIPPING
-        if(CommitDiagnostics)
-        {
-            auto All=MakeShared<FJsonObject>();for(const auto& P:DefaultTags)All->SetNumberField(P.Key.ToString(),double(P.Value));R->SetObjectField(TEXT("llm_default_all"),All);
-            auto AllPlatform=MakeShared<FJsonObject>();for(const auto& P:PlatformTags)AllPlatform->SetNumberField(P.Key.ToString(),double(P.Value));R->SetObjectField(TEXT("llm_platform_all"),AllPlatform);
-            if(auto* Results=World->GetSubsystem<USlabRunResultsSubsystem>())
-            {
-                const auto Snapshot=Results->GetMemoryDiagnosticSnapshot();auto Counts=MakeShared<FJsonObject>();auto Bytes=MakeShared<FJsonObject>();
-                for(const auto& P:Snapshot.Counts)Counts->SetNumberField(P.Key,double(P.Value));for(const auto& P:Snapshot.OwnedCpuBytes)Bytes->SetNumberField(P.Key,double(P.Value));
-                R->SetObjectField(TEXT("slab_result_counts"),Counts);R->SetObjectField(TEXT("slab_result_owned_bytes"),Bytes);
-            }
-            // These explicitly requested diagnostics perturb GC/render pacing and never qualify as a performance gate.
-            const double At=Now-Started;
-            if(LidarMemoryAttribution::IsEnabled()&&(At>=NextAttributionSnapshot||(At>=Seconds&&FinishAfter==0)))
-            {
-                LidarMemoryAttribution::Snapshot(World.Get(),At,R);NextAttributionSnapshot+=300;
-                if(GEngine){GEngine->Exec(World.Get(),TEXT("rhi.DumpMemory"));GEngine->Exec(World.Get(),TEXT("D3D12.DumpMemory"));}
-            }
-            const double LongReportTimes[]={600,3600,7200,10800};
-            const double HourReportTimes[]={600,1800,3600};
-            const bool Attribution=LidarMemoryAttribution::IsEnabled();
-            const int32 ReportCount=Attribution?(Seconds>=10800?4:3):2;
-            const double ReportAt=Attribution?(Seconds>=10800?LongReportTimes[FMath::Min(DiagnosticReports,3)]:HourReportTimes[FMath::Min(DiagnosticReports,2)]):(DiagnosticReports==0?300.0:1200.0);
-            if(DiagnosticReports<ReportCount&&At>=ReportAt&&GEngine)
-            {
-                R->SetNumberField(TEXT("full_memreport_requested_at_seconds"),At);
-                GEngine->Exec(World.Get(),TEXT("rhi.DumpMemory"));
-                GEngine->Exec(World.Get(),TEXT("memreport -full"));
-                ++DiagnosticReports;
-            }
-        }
+		if (CommitDiagnostics)
+		{
+			auto All = MakeShared<FJsonObject>();
+			for (const auto& P : DefaultTags)
+				All->SetNumberField(P.Key.ToString(), double(P.Value));
+			R->SetObjectField(TEXT("llm_default_all"), All);
+			auto AllPlatform = MakeShared<FJsonObject>();
+			for (const auto& P : PlatformTags)
+				AllPlatform->SetNumberField(P.Key.ToString(), double(P.Value));
+			R->SetObjectField(TEXT("llm_platform_all"), AllPlatform);
+			if (auto* Results = World->GetSubsystem<USlabRunResultsSubsystem>())
+			{
+				const auto Snapshot = Results->GetMemoryDiagnosticSnapshot();
+				auto Counts = MakeShared<FJsonObject>();
+				auto Bytes = MakeShared<FJsonObject>();
+				for (const auto& P : Snapshot.Counts)
+					Counts->SetNumberField(P.Key, double(P.Value));
+				for (const auto& P : Snapshot.OwnedCpuBytes)
+					Bytes->SetNumberField(P.Key, double(P.Value));
+				R->SetObjectField(TEXT("slab_result_counts"), Counts);
+				R->SetObjectField(TEXT("slab_result_owned_bytes"), Bytes);
+			}
+			// These explicitly requested diagnostics perturb GC/render pacing and never qualify as a performance gate.
+			const double At = Now - Started;
+			if (LidarMemoryAttribution::IsEnabled() && (At >= NextAttributionSnapshot || (At >= Seconds && FinishAfter == 0)))
+			{
+				LidarMemoryAttribution::Snapshot(World.Get(), At, R);
+				NextAttributionSnapshot += 300;
+				if (GEngine)
+				{
+					GEngine->Exec(World.Get(), TEXT("rhi.DumpMemory"));
+					GEngine->Exec(World.Get(), TEXT("D3D12.DumpMemory"));
+				}
+			}
+			const double LongReportTimes[] = {600, 3600, 7200, 10800};
+			const double HourReportTimes[] = {600, 1800, 3600};
+			const bool Attribution = LidarMemoryAttribution::IsEnabled();
+			const int32 ReportCount = Attribution ? (Seconds >= 10800 ? 4 : 3) : 2;
+			const double ReportAt = Attribution ? (Seconds >= 10800 ? LongReportTimes[FMath::Min(DiagnosticReports, 3)] : HourReportTimes[FMath::Min(DiagnosticReports, 2)]) : (DiagnosticReports == 0 ? 300.0 : 1200.0);
+			if (DiagnosticReports < ReportCount && At >= ReportAt && GEngine)
+			{
+				R->SetNumberField(TEXT("full_memreport_requested_at_seconds"), At);
+				GEngine->Exec(World.Get(), TEXT("rhi.DumpMemory"));
+				GEngine->Exec(World.Get(), TEXT("memreport -full"));
+				++DiagnosticReports;
+			}
+		}
 #endif
-        auto Sensors=MakeShared<FJsonObject>();int32 Count=0;
-        for(TActorIterator<AVirtualLidarSensorActor> I(World.Get());I;++I)
-        {
-            ++Count;auto* Scan=I->ScanComp.Get();const auto Status=Scan->GetRuntimeStatus();auto S=MakeShared<FJsonObject>();
-            if(ForceHardware&&(!I->IsSensorRunning()||Scan->GetActiveAcquisitionBackend()!=EVirtualLidarAcquisitionBackend::HardwareRayTracing))Failed=true;
-            S->SetNumberField(TEXT("frame_id"),double(Status.FrameId));S->SetBoolField(TEXT("running"),I->IsSensorRunning());S->SetNumberField(TEXT("requested_hz"),Status.RequestedAcquisitionRateHz);S->SetNumberField(TEXT("active_acquisition_backend"),int32(Scan->GetActiveAcquisitionBackend()));
-            S->SetNumberField(TEXT("horizontal_samples"),Scan->HorizontalSamples);S->SetNumberField(TEXT("vertical_channels"),Scan->VerticalChannels);S->SetNumberField(TEXT("visible_preview_points"),I->VisualizationComp->GetVisiblePointCount());Sensors->SetObjectField(I->GetSensorId(),S);
-        }
-        R->SetNumberField(TEXT("lidar_actor_count"),Count);
-        if(ExpectedSensors<0)ExpectedSensors=Count;if(Count!=ExpectedSensors||Sensors->Values.Num()!=Count||(Off?Count!=0:Count==0))Failed=true;
-        const auto Stats=SensorOwnedRayTracing::GetSubmissionStats();auto Gpu=MakeShared<FJsonObject>();Gpu->SetNumberField(TEXT("native_dispatches"),Stats.NativeDispatches);Gpu->SetNumberField(TEXT("native_fallbacks"),Stats.NativeFallbacks);Gpu->SetNumberField(TEXT("dispatches"),Stats.Dispatches);Gpu->SetNumberField(TEXT("scene_builds"),Stats.SceneBuilds);Gpu->SetBoolField(TEXT("native_selected"),SensorOwnedRayTracing::UsesNativeBackend());R->SetObjectField(TEXT("rhi_submission"),Gpu);
-        R->SetObjectField(TEXT("sensors"),Sensors);R->SetNumberField(TEXT("previous_sample_total_gt_ms"),PreviousCost);if(!Write(R))Failed=true;
-        PreviousCost=(FPlatformTime::Seconds()-Begin)*1000;MaxCost=FMath::Max(MaxCost,PreviousCost);TotalCost+=PreviousCost;++Samples;
-    }
+		auto Sensors = MakeShared<FJsonObject>();
+		int32 Count = 0;
+		for (TActorIterator<AVirtualLidarSensorActor> I(World.Get()); I; ++I)
+		{
+			++Count;
+			auto* Scan = I->ScanComp.Get();
+			const auto Status = Scan->GetRuntimeStatus();
+			auto S = MakeShared<FJsonObject>();
+			if (ForceHardware && (!I->IsSensorRunning() || Scan->GetActiveAcquisitionBackend() != EVirtualLidarAcquisitionBackend::HardwareRayTracing))
+				Failed = true;
+			S->SetNumberField(TEXT("frame_id"), double(Status.FrameId));
+			S->SetBoolField(TEXT("running"), I->IsSensorRunning());
+			S->SetNumberField(TEXT("requested_hz"), Status.RequestedAcquisitionRateHz);
+			S->SetNumberField(TEXT("active_acquisition_backend"), int32(Scan->GetActiveAcquisitionBackend()));
+			S->SetNumberField(TEXT("horizontal_samples"), Scan->HorizontalSamples);
+			S->SetNumberField(TEXT("vertical_channels"), Scan->VerticalChannels);
+			S->SetNumberField(TEXT("visible_preview_points"), I->VisualizationComp->GetVisiblePointCount());
+			Sensors->SetObjectField(I->GetSensorId(), S);
+		}
+		R->SetNumberField(TEXT("lidar_actor_count"), Count);
+		if (ExpectedSensors < 0)
+			ExpectedSensors = Count;
+		if (Count != ExpectedSensors || Sensors->Values.Num() != Count || (Off ? Count != 0 : Count == 0))
+			Failed = true;
+		const auto Stats = SensorOwnedRayTracing::GetSubmissionStats();
+		auto Gpu = MakeShared<FJsonObject>();
+		Gpu->SetNumberField(TEXT("native_dispatches"), Stats.NativeDispatches);
+		Gpu->SetNumberField(TEXT("native_fallbacks"), Stats.NativeFallbacks);
+		Gpu->SetNumberField(TEXT("dispatches"), Stats.Dispatches);
+		Gpu->SetNumberField(TEXT("scene_builds"), Stats.SceneBuilds);
+		Gpu->SetBoolField(TEXT("native_selected"), SensorOwnedRayTracing::UsesNativeBackend());
+		R->SetObjectField(TEXT("rhi_submission"), Gpu);
+		R->SetObjectField(TEXT("sensors"), Sensors);
+		R->SetNumberField(TEXT("previous_sample_total_gt_ms"), PreviousCost);
+		if (!Write(R))
+			Failed = true;
+		PreviousCost = (FPlatformTime::Seconds() - Begin) * 1000;
+		MaxCost = FMath::Max(MaxCost, PreviousCost);
+		TotalCost += PreviousCost;
+		++Samples;
+	}
+
 public:
-    explicit FLidarMapMemoryProbe(FString In):Directory(MoveTemp(In))
-    {
-        FParse::Value(FCommandLine::Get(),TEXT("LidarMapMemorySeconds="),Seconds);FParse::Value(FCommandLine::Get(),TEXT("LidarMapMemoryCancel="),CancelFile);
+	explicit FLidarMapMemoryProbe(FString In)
+	    : Directory(MoveTemp(In))
+	{
+		FParse::Value(FCommandLine::Get(), TEXT("LidarMapMemorySeconds="), Seconds);
+		FParse::Value(FCommandLine::Get(), TEXT("LidarMapMemoryCancel="), CancelFile);
 #if !UE_BUILD_SHIPPING
-        Off=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryAllOff"));
-        CommitDiagnostics=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryCommitDiagnostics"));
-        CommitDiagnostics|=LidarMemoryAttribution::IsEnabled();
+		Off = FParse::Param(FCommandLine::Get(), TEXT("LidarMapMemoryAllOff"));
+		CommitDiagnostics = FParse::Param(FCommandLine::Get(), TEXT("LidarMapMemoryCommitDiagnostics"));
+		CommitDiagnostics |= LidarMemoryAttribution::IsEnabled();
 #endif
-        #if !UE_BUILD_SHIPPING
-        ForceHardware=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryHardware"));
-#endif
-        bool DiagnosticDuration=false;
 #if !UE_BUILD_SHIPPING
-        DiagnosticDuration=CommitDiagnostics&&(Seconds==900||Seconds==1200||Seconds==1800);
-        DiagnosticDuration|=LidarMemoryAttribution::IsEnabled()&&(Seconds==120||Seconds==10800);
+		ForceHardware = FParse::Param(FCommandLine::Get(), TEXT("LidarMapMemoryHardware"));
 #endif
-        const bool FinalValidation=FParse::Param(FCommandLine::Get(),TEXT("LidarMapMemoryFinalValidation"));
-        Failed=(Seconds!=30&&Seconds!=3600&&!(FinalValidation&&Seconds==10800)&&!DiagnosticDuration)||(Off&&ForceHardware);IFileManager::Get().MakeDirectory(*Directory,true);const FString Path=Directory/TEXT("memory-trend.jsonl");if(IFileManager::Get().FileExists(*Path))Failed=true;else File.Reset(IFileManager::Get().CreateFileWriter(*Path,FILEWRITE_AllowRead));if(!File)Failed=true;
-    }
-    TStatId GetStatId()const override{RETURN_QUICK_DECLARE_CYCLE_STAT(FLidarMapMemoryProbe,STATGROUP_Tickables);}
-    void Tick(float)override
-    {
-        if(Finished)return;const double Now=FPlatformTime::Seconds();if(Now<Next)return;Next=Now+1;
-        if(Failed){Finish(false,TEXT("map probe validation/write failed"));return;}
-        if(!CancelFile.IsEmpty()&&IFileManager::Get().FileExists(*CancelFile)){Finish(false,TEXT("environment cancelled"));return;}
-        if(Now-Created>Seconds+600){Finish(false,TEXT("map probe timeout"));return;}
-        if(!World.IsValid()){if(GEngine)for(const auto& C:GEngine->GetWorldContexts())if(C.World()&&C.World()->IsGameWorld()){World=C.World();Ready=Now+45;break;}return;}
-        if(!Configured)
-        {
-            if(Now<Ready)return;
-            if(Off)
-            {
-                bool Found=false;for(TActorIterator<AShipHatchSimulation> I(World.Get());I;++I){if(I->IsGenerating())return;Found=true;for(int32 J=0;J<3;++J)I->SetFieldSensor(J,false,I->FieldProfiles[J]);}
-                if(!Found){Finish(false,TEXT("all-off baseline requires hatch public sensor selection"));return;}
-            }
-            if(ForceHardware)for(TActorIterator<AVirtualLidarSensorActor> I(World.Get());I;++I)
-            {FString Error;if(!I->SetLidarAcquisitionBackend(EVirtualLidarAcquisitionBackend::HardwareRayTracing,Error)){Finish(false,TEXT("diagnostic hardware backend selection rejected"));return;}}
-            Configured=true;Ready=Now+((Off||ForceHardware)?35:0);return;
-        }
-        if(Now<Ready)return;
-        if(!Started)
-        {
-            auto R=MakeShared<FJsonObject>();R->SetStringField(TEXT("type"),TEXT("metadata"));R->SetStringField(TEXT("map"),World->GetMapName());R->SetBoolField(TEXT("all_lidar_off"),Off);R->SetStringField(TEXT("scope"),TEXT("Default map devices/settings/output retained; explicit all-off prevents hatch LiDAR creation. Diagnostic sampler only; no map/save write."));R->SetNumberField(TEXT("requested_seconds"),Seconds);R->SetNumberField(TEXT("interval_seconds"),5);
-            R->SetBoolField(TEXT("diagnostic_force_hardware"),ForceHardware);
+		bool DiagnosticDuration = false;
 #if !UE_BUILD_SHIPPING
-            R->SetBoolField(TEXT("commit_diagnostics"),CommitDiagnostics);
-            R->SetBoolField(TEXT("asset_llm_tags_compiled"),LLM_ALLOW_ASSETS_TAGS!=0);
-            if(CommitDiagnostics)R->SetStringField(TEXT("diagnostic_perturbation"),TEXT("Full memreport/GC and RHI dumps requested at5/20min; attribution only, never acceptance/performance evidence"));
-            if(LidarMemoryAttribution::IsEnabled())R->SetStringField(TEXT("diagnostic_perturbation"),TEXT("Read-only size snapshots/RHI dumps every5min; memreport-full10/60/120/180 for3h,10/30/60 for1h; final30s grace; diagnostics are not acceptance/performance evidence"));
+		DiagnosticDuration = CommitDiagnostics && (Seconds == 900 || Seconds == 1200 || Seconds == 1800);
+		DiagnosticDuration |= LidarMemoryAttribution::IsEnabled() && (Seconds == 120 || Seconds == 10800);
 #endif
-            R->SetStringField(TEXT("started_utc"),(FDateTime::UtcNow()-FTimespan::FromSeconds(FPlatformTime::Seconds()-Now)).ToIso8601());
-            if(ForceHardware)R->SetStringField(TEXT("scope"),TEXT("Explicit diagnostic hardware backend through Actor API after map initialization; profile/quality/output retained; no map/save write, no product default change."));
-            R->SetStringField(TEXT("configuration"),
+		const bool FinalValidation = FParse::Param(FCommandLine::Get(), TEXT("LidarMapMemoryFinalValidation"));
+		Failed = (Seconds != 30 && Seconds != 3600 && !(FinalValidation && Seconds == 10800) && !DiagnosticDuration) || (Off && ForceHardware);
+		IFileManager::Get().MakeDirectory(*Directory, true);
+		const FString Path = Directory / TEXT("memory-trend.jsonl");
+		if (IFileManager::Get().FileExists(*Path))
+			Failed = true;
+		else
+			File.Reset(IFileManager::Get().CreateFileWriter(*Path, FILEWRITE_AllowRead));
+		if (!File)
+			Failed = true;
+	}
+	TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(FLidarMapMemoryProbe, STATGROUP_Tickables); }
+	void Tick(float) override
+	{
+		if (Finished)
+			return;
+		const double Now = FPlatformTime::Seconds();
+		if (Now < Next)
+			return;
+		Next = Now + 1;
+		if (Failed)
+		{
+			Finish(false, TEXT("map probe validation/write failed"));
+			return;
+		}
+		if (!CancelFile.IsEmpty() && IFileManager::Get().FileExists(*CancelFile))
+		{
+			Finish(false, TEXT("environment cancelled"));
+			return;
+		}
+		if (Now - Created > Seconds + 600)
+		{
+			Finish(false, TEXT("map probe timeout"));
+			return;
+		}
+		if (!World.IsValid())
+		{
+			if (GEngine)
+				for (const auto& C : GEngine->GetWorldContexts())
+					if (C.World() && C.World()->IsGameWorld())
+					{
+						World = C.World();
+						Ready = Now + 45;
+						break;
+					}
+			return;
+		}
+		if (!Configured)
+		{
+			if (Now < Ready)
+				return;
+			if (Off)
+			{
+				bool Found = false;
+				for (TActorIterator<AShipHatchSimulation> I(World.Get()); I; ++I)
+				{
+					if (I->IsGenerating())
+						return;
+					Found = true;
+					for (int32 J = 0; J < 3; ++J)
+						I->SetFieldSensor(J, false, I->FieldProfiles[J]);
+				}
+				if (!Found)
+				{
+					Finish(false, TEXT("all-off baseline requires hatch public sensor selection"));
+					return;
+				}
+			}
+			if (ForceHardware)
+				for (TActorIterator<AVirtualLidarSensorActor> I(World.Get()); I; ++I)
+				{
+					FString Error;
+					if (!I->SetLidarAcquisitionBackend(EVirtualLidarAcquisitionBackend::HardwareRayTracing, Error))
+					{
+						Finish(false, TEXT("diagnostic hardware backend selection rejected"));
+						return;
+					}
+				}
+			Configured = true;
+			Ready = Now + ((Off || ForceHardware) ? 35 : 0);
+			return;
+		}
+		if (Now < Ready)
+			return;
+		if (!Started)
+		{
+			auto R = MakeShared<FJsonObject>();
+			R->SetStringField(TEXT("type"), TEXT("metadata"));
+			R->SetStringField(TEXT("map"), World->GetMapName());
+			R->SetBoolField(TEXT("all_lidar_off"), Off);
+			R->SetStringField(TEXT("scope"), TEXT("Default map devices/settings/output retained; explicit all-off prevents hatch LiDAR creation. Diagnostic sampler only; no map/save write."));
+			R->SetNumberField(TEXT("requested_seconds"), Seconds);
+			R->SetNumberField(TEXT("interval_seconds"), 5);
+			R->SetBoolField(TEXT("diagnostic_force_hardware"), ForceHardware);
+#if !UE_BUILD_SHIPPING
+			R->SetBoolField(TEXT("commit_diagnostics"), CommitDiagnostics);
+			R->SetBoolField(TEXT("asset_llm_tags_compiled"), LLM_ALLOW_ASSETS_TAGS != 0);
+			if (CommitDiagnostics)
+				R->SetStringField(TEXT("diagnostic_perturbation"), TEXT("Full memreport/GC and RHI dumps requested at5/20min; attribution only, never acceptance/performance evidence"));
+			if (LidarMemoryAttribution::IsEnabled())
+				R->SetStringField(TEXT("diagnostic_perturbation"), TEXT("Read-only size snapshots/RHI dumps every5min; memreport-full10/60/120/180 for3h,10/30/60 for1h; final30s grace; diagnostics are not acceptance/performance evidence"));
+#endif
+			R->SetStringField(TEXT("started_utc"), (FDateTime::UtcNow() - FTimespan::FromSeconds(FPlatformTime::Seconds() - Now)).ToIso8601());
+			if (ForceHardware)
+				R->SetStringField(TEXT("scope"), TEXT("Explicit diagnostic hardware backend through Actor API after map initialization; profile/quality/output retained; no map/save write, no product default change."));
+			R->SetStringField(TEXT("configuration"),
 #if UE_BUILD_SHIPPING
-                TEXT("Shipping")
+			                  TEXT("Shipping")
 #else
-                TEXT("Development")
+			                  TEXT("Development")
 #endif
-            );
-            bool Valid=false;if(auto* V=World->GetGameViewport();V&&V->Viewport){const auto Size=V->Viewport->GetSizeXY();R->SetNumberField(TEXT("viewport_x"),Size.X);R->SetNumberField(TEXT("viewport_y"),Size.Y);if(auto Window=V->GetWindow())R->SetNumberField(TEXT("native_dpi_scale"),Window->GetDPIScaleFactor());Valid=Size==FIntPoint(1920,1080);}
-            if(!Valid||!Write(R)){Finish(false,TEXT("map metadata/viewport failed"));return;}Started=Now;LidarMemoryAttribution::Begin(World.Get());
-        }
-        Next=Now+5;Sample(Now);
+			);
+			bool Valid = false;
+			if (auto* V = World->GetGameViewport(); V && V->Viewport)
+			{
+				const auto Size = V->Viewport->GetSizeXY();
+				R->SetNumberField(TEXT("viewport_x"), Size.X);
+				R->SetNumberField(TEXT("viewport_y"), Size.Y);
+				if (auto Window = V->GetWindow())
+					R->SetNumberField(TEXT("native_dpi_scale"), Window->GetDPIScaleFactor());
+				Valid = Size == FIntPoint(1920, 1080);
+			}
+			if (!Valid || !Write(R))
+			{
+				Finish(false, TEXT("map metadata/viewport failed"));
+				return;
+			}
+			Started = Now;
+			LidarMemoryAttribution::Begin(World.Get());
+		}
+		Next = Now + 5;
+		Sample(Now);
 #if !UE_BUILD_SHIPPING
-        if(LidarMemoryAttribution::IsEnabled())
-        {
-            if(!AttributionTraceStopped&&IFileManager::Get().FileExists(*(Directory/TEXT("trace-stop.request"))))
-            {FTraceAuxiliary::Stop();AttributionTraceStopped=true;}
-            if(Now-Started>=Seconds&&FinishAfter==0)FinishAfter=Now+30;
-            if(FinishAfter>0&&Now>=FinishAfter)Finish(true,TEXT("finished attribution with final memreport grace"));
-            return;
-        }
+		if (LidarMemoryAttribution::IsEnabled())
+		{
+			if (!AttributionTraceStopped && IFileManager::Get().FileExists(*(Directory / TEXT("trace-stop.request"))))
+			{
+				FTraceAuxiliary::Stop();
+				AttributionTraceStopped = true;
+			}
+			if (Now - Started >= Seconds && FinishAfter == 0)
+				FinishAfter = Now + 30;
+			if (FinishAfter > 0 && Now >= FinishAfter)
+				Finish(true, TEXT("finished attribution with final memreport grace"));
+			return;
+		}
 #endif
-        if(Now-Started>=Seconds)Finish(true,TEXT("finished"));
-    }
+		if (Now - Started >= Seconds)
+			Finish(true, TEXT("finished"));
+	}
 };
 TUniquePtr<FLidarMapMemoryProbe> LidarMapMemoryProbe;
 }
-void StartLidarMapMemoryRuntimeProbe(){FString Directory;if(FParse::Value(FCommandLine::Get(),TEXT("LidarMapMemoryReport="),Directory)&&!Directory.IsEmpty())LidarMapMemoryProbe=MakeUnique<FLidarMapMemoryProbe>(MoveTemp(Directory));}
-void StopLidarMapMemoryRuntimeProbe(){LidarMapMemoryProbe.Reset();}
+void StartLidarMapMemoryRuntimeProbe()
+{
+	FString Directory;
+	if (FParse::Value(FCommandLine::Get(), TEXT("LidarMapMemoryReport="), Directory) && !Directory.IsEmpty())
+		LidarMapMemoryProbe = MakeUnique<FLidarMapMemoryProbe>(MoveTemp(Directory));
+}
+void StopLidarMapMemoryRuntimeProbe()
+{
+	LidarMapMemoryProbe.Reset();
+}

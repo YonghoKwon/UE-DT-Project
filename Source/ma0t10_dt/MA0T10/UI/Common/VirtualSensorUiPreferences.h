@@ -10,122 +10,157 @@
 USTRUCT(BlueprintType)
 struct MA0T10_DT_API FVirtualSensorPanelUiState
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
-    UPROPERTY(SaveGame, BlueprintReadWrite, Category = "DigitalTwin|SensorUI")
-    FVector2D NormalizedPosition = FVector2D::ZeroVector;
+	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "DigitalTwin|SensorUI")
+	FVector2D NormalizedPosition = FVector2D::ZeroVector;
 
-    UPROPERTY(SaveGame, BlueprintReadWrite, Category = "DigitalTwin|SensorUI")
-    bool bHasSavedPosition = false;
+	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "DigitalTwin|SensorUI")
+	bool bHasSavedPosition = false;
 
-    UPROPERTY(SaveGame, BlueprintReadWrite, Category = "DigitalTwin|SensorUI")
-    bool bCollapsed = false;
+	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "DigitalTwin|SensorUI")
+	bool bCollapsed = false;
 
-    UPROPERTY(SaveGame, BlueprintReadWrite, Category = "DigitalTwin|SensorUI")
-    FVector2D ExpandedSize = FVector2D::ZeroVector;
+	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "DigitalTwin|SensorUI")
+	FVector2D ExpandedSize = FVector2D::ZeroVector;
 
-    UPROPERTY(SaveGame, BlueprintReadWrite, Category = "DigitalTwin|SensorUI")
-    bool bHasSavedSize = false;
+	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "DigitalTwin|SensorUI")
+	bool bHasSavedSize = false;
 };
 
 UCLASS()
 class MA0T10_DT_API UVirtualSensorUiPreferencesSaveGame : public USaveGame
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    static constexpr int32 CurrentVersion = 6;
-    static const FString SlotName;
-    static const FString Version5SlotName;
-    static const FString Version4SlotName;
-    static const FString Version3SlotName;
-    static const FString Version2SlotName;
-    static const FString LegacySlotName;
-    static constexpr int32 UserIndex = 0;
+	static constexpr int32 CurrentVersion = 6;
+	static const FString SlotName;
+	static const FString Version5SlotName;
+	static const FString Version4SlotName;
+	static const FString Version3SlotName;
+	static const FString Version2SlotName;
+	static const FString LegacySlotName;
+	static constexpr int32 UserIndex = 0;
 
-    static UVirtualSensorUiPreferencesSaveGame* LoadOrCreate();
-    static bool Save(UVirtualSensorUiPreferencesSaveGame* Preferences);
-    static bool DeleteSavedPreferences();
-
-    UPROPERTY(SaveGame)
-    int32 Version = CurrentVersion;
-
-    UPROPERTY(SaveGame)
-    TMap<FString,FVirtualPcdSendOptions> PcdSendOptionsBySensor;
-
-    UPROPERTY(SaveGame)
-    TMap<FName, FVirtualSensorPanelUiState> PanelStates;
-
-    UPROPERTY(SaveGame)
-    uint8 LidarViewMode = 2;
-
-    UPROPERTY(SaveGame)
-    ELidarMonitorProjectionMode LidarProjectionMode = ELidarMonitorProjectionMode::RangeImage;
-
-    UPROPERTY(SaveGame)
-    ELidarColorMode LidarColorMode = ELidarColorMode::DistanceTurbo;
-
-    UPROPERTY(SaveGame) ELidarHeightReference LidarHeightReference = ELidarHeightReference::ProjectionDefault;
-    UPROPERTY(SaveGame) bool bLidarAutoHeightRange = true;
-    UPROPERTY(SaveGame) float LidarHeightMinMeters = 0.0f;
-    UPROPERTY(SaveGame) float LidarHeightMaxMeters = 1.0f;
-
-    UPROPERTY(SaveGame)
-    bool bShowWorldLidarPointCloud = true;
-
-    UPROPERTY(SaveGame)
-    float LidarPointSize = 2.0f;
-
-    UPROPERTY(SaveGame)
-    bool bUseAdaptiveLidarDepthRange = true;
-
-    UPROPERTY(SaveGame)
-    bool bOverlayLidarMonitorGrid = true;
-
-    UPROPERTY(SaveGame)
-    bool bOverlayLidarDepthEdges = true;
-
-    UPROPERTY(SaveGame)
-    bool bWorldTopDownAutoFit = true;
-
-    UPROPERTY(SaveGame)
-    bool bMonitorDetailsExpanded = false;
-
-    UPROPERTY(SaveGame)
-    bool bSettingsKeyboardHelpExpanded = false;
+	static UVirtualSensorUiPreferencesSaveGame* LoadOrCreate();
+	static bool Save(UVirtualSensorUiPreferencesSaveGame* Preferences);
+	static bool DeleteSavedPreferences();
 
 	UPROPERTY(SaveGame)
-    uint8 SelectedPointCloudExportKind = 1;
+	int32 Version = CurrentVersion;
 
-	UPROPERTY(SaveGame) FString StompBrokerUrl = TEXT("ws://127.0.0.1:61616");
-	UPROPERTY(SaveGame) FString StompCameraTopic = VirtualSensorDefaults::CameraTopic;
-	UPROPERTY(SaveGame) FString StompLidarTopic = VirtualSensorDefaults::LidarTopic;
-	UPROPERTY(SaveGame) FString StompExportTopic = VirtualSensorDefaults::PointCloudTopic;
-	UPROPERTY(SaveGame) FString StompUserName = TEXT("artemis");
-	UPROPERTY(SaveGame) FString StompAckTopic;
-	UPROPERTY(SaveGame) int32 OutboundMaxMessageBytes = 8388608;
-	UPROPERTY(SaveGame) FString OutboundHttpEndpoint;
-	UPROPERTY(SaveGame) uint8 CaptureExportActiveTab = 0;
-	UPROPERTY(SaveGame) int32 SensorStreamFrameStride = 1;
-	UPROPERTY(SaveGame) int32 SensorStreamReceiptInterval = 10;
-	UPROPERTY(SaveGame) uint8 SelectedPointCloudStreamFormat = static_cast<uint8>(EVirtualPointCloudStreamFormat::PCD);
-	UPROPERTY(SaveGame) uint8 PointCloudStreamFilterPreset = 0;
-	UPROPERTY(SaveGame) TArray<FName> PointCloudIncludeActorTags;
-	UPROPERTY(SaveGame) TArray<FName> PointCloudIncludeSemanticLabels;
-	UPROPERTY(SaveGame) TArray<FName> PointCloudExcludeActorTags;
-	UPROPERTY(SaveGame) TArray<FName> PointCloudExcludeSemanticLabels;
-	UPROPERTY(SaveGame) FVector PointCloudRoiMinCm = FVector(0.0, -5000.0, -3000.0);
-	UPROPERTY(SaveGame) FVector PointCloudRoiMaxCm = FVector(15000.0, 5000.0, 3000.0);
-	UPROPERTY(SaveGame) float PointCloudMinRangeCm = 0.0f;
-	UPROPERTY(SaveGame) float PointCloudMaxRangeCm = 0.0f;
-	UPROPERTY(SaveGame) float LocalCaptureIntervalSeconds = 1.0f;
-	UPROPERTY(SaveGame) bool bLocalCaptureUseSensorInterval = false;
-	UPROPERTY(SaveGame) bool bLocalCaptureCameraImage = true;
-	UPROPERTY(SaveGame) bool bLocalCaptureCameraPayload = false;
-	UPROPERTY(SaveGame) bool bLocalCaptureLidarPayload = true;
-	UPROPERTY(SaveGame) bool bLocalCapturePointCloud = true;
-	UPROPERTY(SaveGame) uint8 LocalCapturePointCloudFormat = 1;
-	UPROPERTY(SaveGame) bool bDualCameraModeEnabled = false;
-	UPROPERTY(SaveGame) FString PrimaryCameraSensorId;
-	UPROPERTY(SaveGame) FString SecondaryCameraSensorId;
+	UPROPERTY(SaveGame)
+	TMap<FString, FVirtualPcdSendOptions> PcdSendOptionsBySensor;
+
+	UPROPERTY(SaveGame)
+	TMap<FName, FVirtualSensorPanelUiState> PanelStates;
+
+	UPROPERTY(SaveGame)
+	uint8 LidarViewMode = 2;
+
+	UPROPERTY(SaveGame)
+	ELidarMonitorProjectionMode LidarProjectionMode = ELidarMonitorProjectionMode::RangeImage;
+
+	UPROPERTY(SaveGame)
+	ELidarColorMode LidarColorMode = ELidarColorMode::DistanceTurbo;
+
+	UPROPERTY(SaveGame)
+	ELidarHeightReference LidarHeightReference = ELidarHeightReference::ProjectionDefault;
+	UPROPERTY(SaveGame)
+	bool bLidarAutoHeightRange = true;
+	UPROPERTY(SaveGame)
+	float LidarHeightMinMeters = 0.0f;
+	UPROPERTY(SaveGame)
+	float LidarHeightMaxMeters = 1.0f;
+
+	UPROPERTY(SaveGame)
+	bool bShowWorldLidarPointCloud = true;
+
+	UPROPERTY(SaveGame)
+	float LidarPointSize = 2.0f;
+
+	UPROPERTY(SaveGame)
+	bool bUseAdaptiveLidarDepthRange = true;
+
+	UPROPERTY(SaveGame)
+	bool bOverlayLidarMonitorGrid = true;
+
+	UPROPERTY(SaveGame)
+	bool bOverlayLidarDepthEdges = true;
+
+	UPROPERTY(SaveGame)
+	bool bWorldTopDownAutoFit = true;
+
+	UPROPERTY(SaveGame)
+	bool bMonitorDetailsExpanded = false;
+
+	UPROPERTY(SaveGame)
+	bool bSettingsKeyboardHelpExpanded = false;
+
+	UPROPERTY(SaveGame)
+	uint8 SelectedPointCloudExportKind = 1;
+
+	UPROPERTY(SaveGame)
+	FString StompBrokerUrl = TEXT("ws://127.0.0.1:61616");
+	UPROPERTY(SaveGame)
+	FString StompCameraTopic = VirtualSensorDefaults::CameraTopic;
+	UPROPERTY(SaveGame)
+	FString StompLidarTopic = VirtualSensorDefaults::LidarTopic;
+	UPROPERTY(SaveGame)
+	FString StompExportTopic = VirtualSensorDefaults::PointCloudTopic;
+	UPROPERTY(SaveGame)
+	FString StompUserName = TEXT("artemis");
+	UPROPERTY(SaveGame)
+	FString StompAckTopic;
+	UPROPERTY(SaveGame)
+	int32 OutboundMaxMessageBytes = 8388608;
+	UPROPERTY(SaveGame)
+	FString OutboundHttpEndpoint;
+	UPROPERTY(SaveGame)
+	uint8 CaptureExportActiveTab = 0;
+	UPROPERTY(SaveGame)
+	int32 SensorStreamFrameStride = 1;
+	UPROPERTY(SaveGame)
+	int32 SensorStreamReceiptInterval = 10;
+	UPROPERTY(SaveGame)
+	uint8 SelectedPointCloudStreamFormat = static_cast<uint8>(EVirtualPointCloudStreamFormat::PCD);
+	UPROPERTY(SaveGame)
+	uint8 PointCloudStreamFilterPreset = 0;
+	UPROPERTY(SaveGame)
+	TArray<FName> PointCloudIncludeActorTags;
+	UPROPERTY(SaveGame)
+	TArray<FName> PointCloudIncludeSemanticLabels;
+	UPROPERTY(SaveGame)
+	TArray<FName> PointCloudExcludeActorTags;
+	UPROPERTY(SaveGame)
+	TArray<FName> PointCloudExcludeSemanticLabels;
+	UPROPERTY(SaveGame)
+	FVector PointCloudRoiMinCm = FVector(0.0, -5000.0, -3000.0);
+	UPROPERTY(SaveGame)
+	FVector PointCloudRoiMaxCm = FVector(15000.0, 5000.0, 3000.0);
+	UPROPERTY(SaveGame)
+	float PointCloudMinRangeCm = 0.0f;
+	UPROPERTY(SaveGame)
+	float PointCloudMaxRangeCm = 0.0f;
+	UPROPERTY(SaveGame)
+	float LocalCaptureIntervalSeconds = 1.0f;
+	UPROPERTY(SaveGame)
+	bool bLocalCaptureUseSensorInterval = false;
+	UPROPERTY(SaveGame)
+	bool bLocalCaptureCameraImage = true;
+	UPROPERTY(SaveGame)
+	bool bLocalCaptureCameraPayload = false;
+	UPROPERTY(SaveGame)
+	bool bLocalCaptureLidarPayload = true;
+	UPROPERTY(SaveGame)
+	bool bLocalCapturePointCloud = true;
+	UPROPERTY(SaveGame)
+	uint8 LocalCapturePointCloudFormat = 1;
+	UPROPERTY(SaveGame)
+	bool bDualCameraModeEnabled = false;
+	UPROPERTY(SaveGame)
+	FString PrimaryCameraSensorId;
+	UPROPERTY(SaveGame)
+	FString SecondaryCameraSensorId;
 };

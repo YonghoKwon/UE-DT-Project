@@ -8,14 +8,15 @@ struct FTrainCoordinatorProbeState;
 UCLASS()
 class MA0T10_DT_API UTrainBatchCoordinatorProbe : public UWorldSubsystem
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 public:
-    virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
-    virtual void OnWorldBeginPlay(UWorld& World) override;
-    virtual void Deinitialize() override;
+	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
+	virtual void OnWorldBeginPlay(UWorld& World) override;
+	virtual void Deinitialize() override;
+
 private:
-    TSharedPtr<FTrainCoordinatorProbeState> State;
-    FTimerHandle Timer;
-    void Pump();
-    void Finish(bool Success,const FString& Error);
+	TSharedPtr<FTrainCoordinatorProbeState> State;
+	FTimerHandle Timer;
+	void Pump();
+	void Finish(bool Success, const FString& Error);
 };

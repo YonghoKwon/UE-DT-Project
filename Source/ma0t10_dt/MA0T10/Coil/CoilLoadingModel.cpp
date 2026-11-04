@@ -81,7 +81,8 @@ bool ReadSpec(const TSharedPtr<FJsonObject>& O, FSpec& S, FString& E, bool Full)
 		return false; \
 	}
 	READ_SPEC("density", S.Density)
-	READ_SPEC("fill", S.Fill) READ_SPEC("weight", S.MassOverride) READ_SPEC("mu", S.Mu)
+	READ_SPEC("fill", S.Fill)
+	READ_SPEC("weight", S.MassOverride) READ_SPEC("mu", S.Mu)
 #undef READ_SPEC
 	    O->TryGetNumberField(TEXT("steel_mu"), S.SteelMu);
 	O->TryGetNumberField(TEXT("package_radial_m"), S.PackageRadial);
@@ -673,9 +674,10 @@ bool PlanFromJson(const FString& Text, FSettings& OutS, TArray<FPlacement>& OutP
 		E = TEXT("settings.") TEXT(#Name) TEXT(": 숫자 필요"); \
 		return false; \
 	}
-	    READ_OPTIONAL(LCFFromAP) READ_OPTIONAL(BerthGap) READ_OPTIONAL(RailSetback) READ_OPTIONAL(RailGauge) READ_OPTIONAL(QuaySide) READ_OPTIONAL(IntermediateHoldLength) READ_OPTIONAL(HoldGap) READ_OPTIONAL(TPC) READ_OPTIONAL(WaterplaneCoefficient) READ_OPTIONAL(WaterDensity) READ_OPTIONAL(SummerDraftLimit)
+	READ_OPTIONAL(LCFFromAP)
+	READ_OPTIONAL(BerthGap) READ_OPTIONAL(RailSetback) READ_OPTIONAL(RailGauge) READ_OPTIONAL(QuaySide) READ_OPTIONAL(IntermediateHoldLength) READ_OPTIONAL(HoldGap) READ_OPTIONAL(TPC) READ_OPTIONAL(WaterplaneCoefficient) READ_OPTIONAL(WaterDensity) READ_OPTIONAL(SummerDraftLimit)
 #undef READ_OPTIONAL
-	        if (!O->HasField(TEXT("SummerDraftLimit"))) S.SummerDraftLimit = 0;
+	    if (!O->HasField(TEXT("SummerDraftLimit"))) S.SummerDraftLimit = 0;
 	if (O->HasField(TEXT("bTPCConfirmed")) && !O->TryGetBoolField(TEXT("bTPCConfirmed"), S.bTPCConfirmed))
 	{
 		E = TEXT("settings.bTPCConfirmed: bool 필요");
@@ -732,9 +734,13 @@ bool PlanFromJson(const FString& Text, FSettings& OutS, TArray<FPlacement>& OutP
 		return false; \
 	}
 		READ_COIL("x", P.Center.X)
-		READ_COIL("y", P.Center.Y) READ_COIL("z", P.Center.Z)
+		READ_COIL("y", P.Center.Y)
+		READ_COIL("z", P.Center.Z)
 		    READ_COIL("tier", P.Tier) READ_COIL("row", P.Row) READ_COIL("column", P.Column) READ_COIL("support_a", P.SupportA) READ_COIL("support_b", P.SupportB)
-		        READ_COIL("chock_kn", P.ChockCapacityKN) READ_COIL("lashing_kn", P.LashingCapacityKN) READ_COIL("k_diam", P.DiametralStiffnessKNPerM) READ_COIL("ovality_limit", P.OvalityLimit) if (C->HasField(TEXT("rolling_resistance_m"))){READ_COIL("rolling_resistance_m", P.RollingResistanceM)}
+		        READ_COIL("chock_kn", P.ChockCapacityKN) READ_COIL("lashing_kn", P.LashingCapacityKN) READ_COIL("k_diam", P.DiametralStiffnessKNPerM) READ_COIL("ovality_limit", P.OvalityLimit) if (C->HasField(TEXT("rolling_resistance_m")))
+		{
+			READ_COIL("rolling_resistance_m", P.RollingResistanceM)
+		}
 #undef READ_COIL
 #define READ_COIL_BOOL(Field, Target) \
 	if (!C->TryGetBoolField(TEXT(Field), Target)) \
@@ -742,7 +748,8 @@ bool PlanFromJson(const FString& Text, FSettings& OutS, TArray<FPlacement>& OutP
 		E = Prefix + TEXT(Field) TEXT(": bool 필요"); \
 		return false; \
 	}
-		READ_COIL_BOOL("dunnage", P.bDunnage) READ_COIL_BOOL("chocks", P.bChocks) READ_COIL_BOOL("lashing", P.bLashing) READ_COIL_BOOL("eye_fore_aft", P.bEyeForeAft)
+		READ_COIL_BOOL("dunnage", P.bDunnage)
+		READ_COIL_BOOL("chocks", P.bChocks) READ_COIL_BOOL("lashing", P.bLashing) READ_COIL_BOOL("eye_fore_aft", P.bEyeForeAft)
 #undef READ_COIL_BOOL
 #define CHECK_COIL(Condition, Field) \
 	if (!(Condition)) \

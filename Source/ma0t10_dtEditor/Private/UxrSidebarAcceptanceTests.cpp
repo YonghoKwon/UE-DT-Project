@@ -22,145 +22,265 @@
 #include "DeviceUI/SensorOwnedPresentationStyle.h"
 #include "ma0t10_dt/MA0T10/UI/Tests/SensorPresentationTestHelpers.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarOwnershipTest,"MA0T10.UXR09.SidebarOwnershipAndFloatingCompatibility",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarOwnershipTest, "MA0T10.UXR09.SidebarOwnershipAndFloatingCompatibility", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FSidebarOwnershipTest::RunTest(const FString&)
 {
-    auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-    auto* P=NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);auto* S=NewObject<UDxWidgetVirtualSensorSettingsPanel>(World);auto* D=NewObject<UDxWidgetVirtualSensorCaptureExportPanel>(World);
-    W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,P);W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,S);W->RegisterOwnedPanel(ESensorToolPanelRole::Data,D);
-    TestTrue(TEXT("native workspace defaults to sidebar"),W->IsSidebarMode());
-    W->SetPanelOpen(ESensorToolPanelRole::Placement,true);W->SetPanelOpen(ESensorToolPanelRole::Settings,true);
-    TestFalse(TEXT("new task hides previous native body"),W->IsPanelOpen(ESensorToolPanelRole::Placement));TestTrue(TEXT("settings task opens"),W->IsPanelOpen(ESensorToolPanelRole::Settings));
-    W->CollapseSidebar();TestFalse(TEXT("rail toggle collapses active body"),W->IsPanelOpen(ESensorToolPanelRole::Settings));
-    W->SetSidebarMode(false);W->SetPanelOpen(ESensorToolPanelRole::Placement,true);W->SetPanelOpen(ESensorToolPanelRole::Data,true);
-    TestTrue(TEXT("floating mode permits concurrent windows"),W->IsPanelOpen(ESensorToolPanelRole::Placement)&&W->IsPanelOpen(ESensorToolPanelRole::Data));
-    TArray<uint8> Before,After;UGameplayStatics::SaveGameToMemory(W->Preferences,Before);
-    W->SetSidebarMode(true);P->ApplyWorkspaceDockRect(FVector2D(64,0),FVector2D(308,684));W->SavePanel(ESensorToolPanelRole::Placement);W->SetSidebarMode(false);
-    UGameplayStatics::SaveGameToMemory(W->Preferences,After);TestTrue(TEXT("sidebar switching preserves serialized floating preferences byte-for-byte"),Before==After);
-    TestFalse(TEXT("floating mode leaves transient dock"),P->IsWorkspaceDocked());
-    // Editor test has no arranged Canvas; saved preference remains unchanged and no dock is persisted.
-    TestTrue(TEXT("no save schema or slot changes"),USensorToolWorkspaceSaveGame::StaticClass()->FindPropertyByName(TEXT("Version"))!=nullptr);
-    W->UnregisterPanel(P);W->UnregisterPanel(S);W->UnregisterPanel(D);return true;
+	auto* World = FAutomationEditorCommonUtils::CreateNewMap();
+	auto* W = World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
+	auto* P = NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);
+	auto* S = NewObject<UDxWidgetVirtualSensorSettingsPanel>(World);
+	auto* D = NewObject<UDxWidgetVirtualSensorCaptureExportPanel>(World);
+	W->RegisterOwnedPanel(ESensorToolPanelRole::Placement, P);
+	W->RegisterOwnedPanel(ESensorToolPanelRole::Settings, S);
+	W->RegisterOwnedPanel(ESensorToolPanelRole::Data, D);
+	TestTrue(TEXT("native workspace defaults to sidebar"), W->IsSidebarMode());
+	W->SetPanelOpen(ESensorToolPanelRole::Placement, true);
+	W->SetPanelOpen(ESensorToolPanelRole::Settings, true);
+	TestFalse(TEXT("new task hides previous native body"), W->IsPanelOpen(ESensorToolPanelRole::Placement));
+	TestTrue(TEXT("settings task opens"), W->IsPanelOpen(ESensorToolPanelRole::Settings));
+	W->CollapseSidebar();
+	TestFalse(TEXT("rail toggle collapses active body"), W->IsPanelOpen(ESensorToolPanelRole::Settings));
+	W->SetSidebarMode(false);
+	W->SetPanelOpen(ESensorToolPanelRole::Placement, true);
+	W->SetPanelOpen(ESensorToolPanelRole::Data, true);
+	TestTrue(TEXT("floating mode permits concurrent windows"), W->IsPanelOpen(ESensorToolPanelRole::Placement) && W->IsPanelOpen(ESensorToolPanelRole::Data));
+	TArray<uint8> Before, After;
+	UGameplayStatics::SaveGameToMemory(W->Preferences, Before);
+	W->SetSidebarMode(true);
+	P->ApplyWorkspaceDockRect(FVector2D(64, 0), FVector2D(308, 684));
+	W->SavePanel(ESensorToolPanelRole::Placement);
+	W->SetSidebarMode(false);
+	UGameplayStatics::SaveGameToMemory(W->Preferences, After);
+	TestTrue(TEXT("sidebar switching preserves serialized floating preferences byte-for-byte"), Before == After);
+	TestFalse(TEXT("floating mode leaves transient dock"), P->IsWorkspaceDocked());
+	// Editor test has no arranged Canvas; saved preference remains unchanged and no dock is persisted.
+	TestTrue(TEXT("no save schema or slot changes"), USensorToolWorkspaceSaveGame::StaticClass()->FindPropertyByName(TEXT("Version")) != nullptr);
+	W->UnregisterPanel(P);
+	W->UnregisterPanel(S);
+	W->UnregisterPanel(D);
+	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarFontTokensTest,"MA0T10.UXR09.LateOwnedFontTokens",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarFontTokensTest, "MA0T10.UXR09.LateOwnedFontTokens", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FSidebarFontTokensTest::RunTest(const FString&)
 {
-    auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-    auto* P=NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);auto Text=SNew(STextBlock).Font(FCoreStyle::GetDefaultFontStyle("Regular",30));
-    P->RegisterSensorNativeFont(Text,STextBlock::FArguments());
-    TestEqual(TEXT("unowned control retains its font"),Text->GetFont().Size,30.f);
-    W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,P);P->ApplySensorToolFontScale(1);Text->SlatePrepass(1);
-    TestEqual(TEXT("late native ownership normalizes body token"),Text->GetFont().Size,10.f);
-    P->ApplySensorToolFontScale(1.5f);Text->SlatePrepass(1);TestEqual(TEXT("150 percent uses the same original token, no cumulative scaling"),Text->GetFont().Size,15.f);
-    TestEqual(TEXT("existing font-scale API still returns stored 150 percent"),P->GetSensorToolFontScale(),1.5f);
-    W->UnregisterPanel(P);return true;
+	auto* World = FAutomationEditorCommonUtils::CreateNewMap();
+	auto* W = World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
+	auto* P = NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);
+	auto Text = SNew(STextBlock).Font(FCoreStyle::GetDefaultFontStyle("Regular", 30));
+	P->RegisterSensorNativeFont(Text, STextBlock::FArguments());
+	TestEqual(TEXT("unowned control retains its font"), Text->GetFont().Size, 30.f);
+	W->RegisterOwnedPanel(ESensorToolPanelRole::Placement, P);
+	P->ApplySensorToolFontScale(1);
+	Text->SlatePrepass(1);
+	TestEqual(TEXT("late native ownership normalizes body token"), Text->GetFont().Size, 10.f);
+	P->ApplySensorToolFontScale(1.5f);
+	Text->SlatePrepass(1);
+	TestEqual(TEXT("150 percent uses the same original token, no cumulative scaling"), Text->GetFont().Size, 15.f);
+	TestEqual(TEXT("existing font-scale API still returns stored 150 percent"), P->GetSensorToolFontScale(), 1.5f);
+	W->UnregisterPanel(P);
+	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarSupplementDesignTest,"MA0T10.UXR09.SupplementDesignContract",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarSupplementDesignTest, "MA0T10.UXR09.SupplementDesignContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FSidebarSupplementDesignTest::RunTest(const FString&)
 {
-    const float Contrast=(FSensorOwnedPresentationStyle::Text().GetLuminance()+.05f)/(FSensorOwnedPresentationStyle::Selection().GetLuminance()+.05f);
-    TestTrue(TEXT("selected equipment card text contrast is at least 4.5:1"),Contrast>=4.5f);
-    auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-    auto* P=NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);P->Initialize();W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,P);
-    TArray<FString> Texts;int32 InvalidationRoots=0;
-    TFunction<void(const TSharedRef<SWidget>&)> Visit=[&](const TSharedRef<SWidget>& Item)
-    {
-        InvalidationRoots+=Item->GetType()==TEXT("SInvalidationPanel");
-        if(Item->GetType()==TEXT("STextBlock"))Texts.Add(StaticCastSharedRef<STextBlock>(Item)->GetText().ToString());
-        auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)Visit(Children->GetChildAt(I));
-    };
-    const auto PlacementSlate=P->TakeWidget();Visit(PlacementSlate);
-    TArray<FString> Visible;SensorPresentationTests::VisibleText(PlacementSlate,Visible);
-    TestFalse(TEXT("empty equipment hides the selected-equipment card"),Visible.Contains(TEXT("선택 장비")));
-    TestFalse(TEXT("empty equipment hides numeric manipulation controls"),Visible.Contains(TEXT("입력 방식·숫자 입력")));
-    TestTrue(TEXT("empty equipment keeps LiDAR add accessible"),Visible.Contains(TEXT("+ LiDAR")));
-    TestTrue(TEXT("empty equipment keeps Camera add accessible"),Visible.Contains(TEXT("+ Camera")));
-    TestEqual(TEXT("unverified paint caches are not installed"),InvalidationRoots,0);
-    for(const FString& Label:{FString(TEXT("+ LiDAR")),FString(TEXT("+ Camera")),FString(TEXT("+ 현재 위치 저장")),FString(TEXT("전체 배치 저장")),FString(TEXT("불러오기"))})TestTrue(*FString::Printf(TEXT("default surface exposes %s"),*Label),Texts.Contains(Label));
-    for(const auto* Explanation:{TEXT("현재 관찰 위치에 추가 · PCD 전송은 별도"),TEXT("레벨 장비는 삭제할 수 없습니다."),TEXT("선택은 위치를 바꾸지 않습니다 · 이동 버튼으로 적용하세요.")})TestFalse(TEXT("persistent explanations are absent"),Texts.Contains(Explanation));
-    W->UnregisterPanel(P);return true;
+	const float Contrast = (FSensorOwnedPresentationStyle::Text().GetLuminance() + .05f) / (FSensorOwnedPresentationStyle::Selection().GetLuminance() + .05f);
+	TestTrue(TEXT("selected equipment card text contrast is at least 4.5:1"), Contrast >= 4.5f);
+	auto* World = FAutomationEditorCommonUtils::CreateNewMap();
+	auto* W = World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
+	auto* P = NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);
+	P->Initialize();
+	W->RegisterOwnedPanel(ESensorToolPanelRole::Placement, P);
+	TArray<FString> Texts;
+	int32 InvalidationRoots = 0;
+	TFunction<void(const TSharedRef<SWidget>&)> Visit = [&](const TSharedRef<SWidget>& Item)
+	{
+		InvalidationRoots += Item->GetType() == TEXT("SInvalidationPanel");
+		if (Item->GetType() == TEXT("STextBlock"))
+			Texts.Add(StaticCastSharedRef<STextBlock>(Item)->GetText().ToString());
+		auto* Children = Item->GetChildren();
+		for (int32 I = 0; I < Children->Num(); ++I)
+			Visit(Children->GetChildAt(I));
+	};
+	const auto PlacementSlate = P->TakeWidget();
+	Visit(PlacementSlate);
+	TArray<FString> Visible;
+	SensorPresentationTests::VisibleText(PlacementSlate, Visible);
+	TestFalse(TEXT("empty equipment hides the selected-equipment card"), Visible.Contains(TEXT("선택 장비")));
+	TestFalse(TEXT("empty equipment hides numeric manipulation controls"), Visible.Contains(TEXT("입력 방식·숫자 입력")));
+	TestTrue(TEXT("empty equipment keeps LiDAR add accessible"), Visible.Contains(TEXT("+ LiDAR")));
+	TestTrue(TEXT("empty equipment keeps Camera add accessible"), Visible.Contains(TEXT("+ Camera")));
+	TestEqual(TEXT("unverified paint caches are not installed"), InvalidationRoots, 0);
+	for (const FString& Label : {FString(TEXT("+ LiDAR")), FString(TEXT("+ Camera")), FString(TEXT("+ 현재 위치 저장")), FString(TEXT("전체 배치 저장")), FString(TEXT("불러오기"))})
+		TestTrue(*FString::Printf(TEXT("default surface exposes %s"), *Label), Texts.Contains(Label));
+	for (const auto* Explanation : {TEXT("현재 관찰 위치에 추가 · PCD 전송은 별도"), TEXT("레벨 장비는 삭제할 수 없습니다."), TEXT("선택은 위치를 바꾸지 않습니다 · 이동 버튼으로 적용하세요.")})
+		TestFalse(TEXT("persistent explanations are absent"), Texts.Contains(Explanation));
+	W->UnregisterPanel(P);
+	return true;
 }
 
 class FUxrSidebarRender : public IAutomationLatentCommand
 {
-    FAutomationTestBase* Test;double Started=FPlatformTime::Seconds(),ReadyAt=0;int32 Phase=0;bool Requested=false;FString Path;FDateTime Previous;
-    TUniquePtr<TGuardValue<bool>> Debug;
+	FAutomationTestBase* Test;
+	double Started = FPlatformTime::Seconds(), ReadyAt = 0;
+	int32 Phase = 0;
+	bool Requested = false;
+	FString Path;
+	FDateTime Previous;
+	TUniquePtr<TGuardValue<bool>> Debug;
+
 public:
-    explicit FUxrSidebarRender(FAutomationTestBase* T):Test(T){}
-    bool Update() override
-    {
-        if(FPlatformTime::Seconds()-Started>160){Test->AddError(TEXT("Sidebar render timeout"));return true;}
-        UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();
-        if(!FinalAcceptanceViewportReady(World))return false;
-        auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Bar=Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());if(!Bar)return false;
-        const int32 ViewCount=FParse::Param(FCommandLine::Get(),TEXT("Uxr12Capture"))?9:8;
-        const int32 View=Phase%ViewCount;const float Scale=Phase<ViewCount?1:Phase<2*ViewCount?1.25f:1.5f;
-        const TCHAR* Names[]={TEXT("placement"),TEXT("preview"),TEXT("scenario"),TEXT("pcd"),TEXT("results"),TEXT("tools"),TEXT("collapsed-warning"),TEXT("floating"),TEXT("settings")};
-        if(!ReadyAt)
-        {
-            if(!Debug)Debug=MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled,false);
-            if(Phase==0)W->ResetOwnedWorkspaceLayout(); // Default presentation, not the reviewer's explicitly saved closed card.
-            FSlateApplication::Get().DismissAllMenus();W->SetSidebarMode(View!=7);W->SetOwnedPanelFontScale(Scale);
-            for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(false);
-            if(Phase==0)for(TActorIterator<ASlabActor> It(World);It;++It){Test->TestTrue(TEXT("memory-only observation scenario supplies card values"),StartUxrScenarioUiFixture(*It));break;}
-            if(Phase==0)if(auto* C=W->GetCoordinator())for(auto* A:C->GetSensorActors())if(A&&A->GetSensorKind()==EVirtualSensorKind::Lidar){C->SelectSensorActor(A);C->SetViewMode(EVirtualSensorViewMode::Lidar);W->SynchronizeOwnedSelection();break;}
-            if(View<5)Bar->OpenOwnedDestination(static_cast<ESensorToolDestination>(View));
-            if(View==5){W->CollapseSidebar();FSlateApplication::Get().PushMenu(Bar->TakeWidget(),FWidgetPath(),Bar->BuildToolsMenu(),FVector2D(100,100),FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));}
-            if(View==6)W->CollapseSidebar();
-            if(View==7){W->SetPanelOpen(ESensorToolPanelRole::Placement,true);W->SetPanelOpen(ESensorToolPanelRole::Monitor,true);}
-            if(View==8){Bar->OpenOwnedDestination(ESensorToolDestination::Placement);W->SetPanelOpen(ESensorToolPanelRole::Settings,true);Cast<UDxWidgetVirtualSensorSettingsPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Settings))->SelectOwnedSettingsTab(0);}
-            ReadyAt=FPlatformTime::Seconds()+1;return false;
-        }
-        if(FPlatformTime::Seconds()<ReadyAt)return false;
-        if(!Requested)
-        {
-            if(FParse::Param(FCommandLine::Get(),TEXT("Uxr12Validate")))
-            {
-                // Arranged geometry catches the rail clipping and mixed input
-                // heights that a text inventory or token-value test cannot.
-                TFunction<void(const TSharedRef<SWidget>&)> CheckRail=[&](const TSharedRef<SWidget>& Item)
-                {
-                    if(!Item->GetVisibility().IsVisible())return;
-                    if(Item->GetType()==TEXT("STextBlock"))
-                    {
-                        const auto Text=StaticCastSharedRef<STextBlock>(Item);
-                        if(TArray<FString>{TEXT("배치"),TEXT("보기"),TEXT("시나리오"),TEXT("전송"),TEXT("결과")}.Contains(Text->GetText().ToString()))
-                            Test->TestTrue(TEXT("rail label fits its arranged width"),Text->GetDesiredSize().X<=Text->GetCachedGeometry().GetLocalSize().X+1.f);
-                    }
-                    auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)CheckRail(Children->GetChildAt(I));
-                };
-                CheckRail(Bar->TakeWidget());
-                if(View==8)
-                {
-                    TArray<float> Heights;
-                    TFunction<void(const TSharedRef<SWidget>&)> CheckInputs=[&](const TSharedRef<SWidget>& Item)
-                    {
-                        if(!Item->GetVisibility().IsVisible())return;
-                        if(Item->GetTypeAsString().StartsWith(TEXT("SComboBox<"))||Item->GetTypeAsString().StartsWith(TEXT("SSpinBox<")))Heights.Add(Item->GetCachedGeometry().GetLocalSize().Y);
-                        auto* Children=Item->GetChildren();for(int32 I=0;I<Children->Num();++I)CheckInputs(Children->GetChildAt(I));
-                    };
-                    CheckInputs(W->GetOwnedPanel(ESensorToolPanelRole::Settings)->TakeWidget());
-                    Test->TestTrue(TEXT("settings fixture arranges combo and numeric inputs"),Heights.Num()>=3);
-                    if(!Heights.IsEmpty())for(float Height:Heights)Test->TestTrue(TEXT("owned form inputs use the same arranged height"),FMath::IsNearlyEqual(Height,Heights[0],1.f));
-                    for(float Height:Heights)Test->AddInfo(FString::Printf(TEXT("UXR12 input logical height %.2f font %.2f"),Height,Scale));
-                }
-            }
-            const auto V=World->GetGameViewport()->Viewport->GetSizeXY();const FString RequestedRoot=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT"));const FString Root=RequestedRoot.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-09"):RequestedRoot;
-            Path=Root/FString::Printf(TEXT("rendered-%dx%d-%d-%s.png"),V.X,V.Y,FMath::RoundToInt(Scale*100),Names[View]);Previous=IFileManager::Get().GetTimeStamp(*Path);
-            FSlateApplication::Get().CloseToolTip();FScreenshotRequest::RequestScreenshot(Path,true,false);Requested=true;
-            Test->AddInfo(FString::Printf(TEXT("actual client %dx%d font %d view %s; model font=%s slab=%s scenario=%s sidebar=%d; automated render only"),V.X,V.Y,FMath::RoundToInt(Scale*100),Names[View],*Bar->OwnedFontScaleText.ToString(),*Bar->SlabCardTitle.ToString(),*Bar->GlobalStatus.Scenario.ToString(),W->IsSidebarMode()));return false;
-        }
-        if(IFileManager::Get().GetTimeStamp(*Path)<=Previous)return false;
-        Requested=false;ReadyAt=0;return ++Phase==3*ViewCount;
-    }
+	explicit FUxrSidebarRender(FAutomationTestBase* T)
+	    : Test(T) {}
+	bool Update() override
+	{
+		if (FPlatformTime::Seconds() - Started > 160)
+		{
+			Test->AddError(TEXT("Sidebar render timeout"));
+			return true;
+		}
+		UWorld* World = nullptr;
+		for (const auto& C : GEngine->GetWorldContexts())
+			if (C.WorldType == EWorldType::PIE)
+				World = C.World();
+		if (!FinalAcceptanceViewportReady(World))
+			return false;
+		auto* W = World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
+		auto* Bar = Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());
+		if (!Bar)
+			return false;
+		const int32 ViewCount = FParse::Param(FCommandLine::Get(), TEXT("Uxr12Capture")) ? 9 : 8;
+		const int32 View = Phase % ViewCount;
+		const float Scale = Phase < ViewCount ? 1 : Phase < 2 * ViewCount ? 1.25f
+		                                                                  : 1.5f;
+		const TCHAR* Names[] = {TEXT("placement"), TEXT("preview"), TEXT("scenario"), TEXT("pcd"), TEXT("results"), TEXT("tools"), TEXT("collapsed-warning"), TEXT("floating"), TEXT("settings")};
+		if (!ReadyAt)
+		{
+			if (!Debug)
+				Debug = MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled, false);
+			if (Phase == 0)
+				W->ResetOwnedWorkspaceLayout(); // Default presentation, not the reviewer's explicitly saved closed card.
+			FSlateApplication::Get().DismissAllMenus();
+			W->SetSidebarMode(View != 7);
+			W->SetOwnedPanelFontScale(Scale);
+			for (TActorIterator<ASlabScenarioValidationRig> It(World); It; ++It)
+				It->SetValidationControlsVisibleForTests(false);
+			if (Phase == 0)
+				for (TActorIterator<ASlabActor> It(World); It; ++It)
+				{
+					Test->TestTrue(TEXT("memory-only observation scenario supplies card values"), StartUxrScenarioUiFixture(*It));
+					break;
+				}
+			if (Phase == 0)
+				if (auto* C = W->GetCoordinator())
+					for (auto* A : C->GetSensorActors())
+						if (A && A->GetSensorKind() == EVirtualSensorKind::Lidar)
+						{
+							C->SelectSensorActor(A);
+							C->SetViewMode(EVirtualSensorViewMode::Lidar);
+							W->SynchronizeOwnedSelection();
+							break;
+						}
+			if (View < 5)
+				Bar->OpenOwnedDestination(static_cast<ESensorToolDestination>(View));
+			if (View == 5)
+			{
+				W->CollapseSidebar();
+				FSlateApplication::Get().PushMenu(Bar->TakeWidget(), FWidgetPath(), Bar->BuildToolsMenu(), FVector2D(100, 100), FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
+			}
+			if (View == 6)
+				W->CollapseSidebar();
+			if (View == 7)
+			{
+				W->SetPanelOpen(ESensorToolPanelRole::Placement, true);
+				W->SetPanelOpen(ESensorToolPanelRole::Monitor, true);
+			}
+			if (View == 8)
+			{
+				Bar->OpenOwnedDestination(ESensorToolDestination::Placement);
+				W->SetPanelOpen(ESensorToolPanelRole::Settings, true);
+				Cast<UDxWidgetVirtualSensorSettingsPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Settings))->SelectOwnedSettingsTab(0);
+			}
+			ReadyAt = FPlatformTime::Seconds() + 1;
+			return false;
+		}
+		if (FPlatformTime::Seconds() < ReadyAt)
+			return false;
+		if (!Requested)
+		{
+			if (FParse::Param(FCommandLine::Get(), TEXT("Uxr12Validate")))
+			{
+				// Arranged geometry catches the rail clipping and mixed input
+				// heights that a text inventory or token-value test cannot.
+				TFunction<void(const TSharedRef<SWidget>&)> CheckRail = [&](const TSharedRef<SWidget>& Item)
+				{
+					if (!Item->GetVisibility().IsVisible())
+						return;
+					if (Item->GetType() == TEXT("STextBlock"))
+					{
+						const auto Text = StaticCastSharedRef<STextBlock>(Item);
+						if (TArray<FString>{TEXT("배치"), TEXT("보기"), TEXT("시나리오"), TEXT("전송"), TEXT("결과")}.Contains(Text->GetText().ToString()))
+							Test->TestTrue(TEXT("rail label fits its arranged width"), Text->GetDesiredSize().X <= Text->GetCachedGeometry().GetLocalSize().X + 1.f);
+					}
+					auto* Children = Item->GetChildren();
+					for (int32 I = 0; I < Children->Num(); ++I)
+						CheckRail(Children->GetChildAt(I));
+				};
+				CheckRail(Bar->TakeWidget());
+				if (View == 8)
+				{
+					TArray<float> Heights;
+					TFunction<void(const TSharedRef<SWidget>&)> CheckInputs = [&](const TSharedRef<SWidget>& Item)
+					{
+						if (!Item->GetVisibility().IsVisible())
+							return;
+						if (Item->GetTypeAsString().StartsWith(TEXT("SComboBox<")) || Item->GetTypeAsString().StartsWith(TEXT("SSpinBox<")))
+							Heights.Add(Item->GetCachedGeometry().GetLocalSize().Y);
+						auto* Children = Item->GetChildren();
+						for (int32 I = 0; I < Children->Num(); ++I)
+							CheckInputs(Children->GetChildAt(I));
+					};
+					CheckInputs(W->GetOwnedPanel(ESensorToolPanelRole::Settings)->TakeWidget());
+					Test->TestTrue(TEXT("settings fixture arranges combo and numeric inputs"), Heights.Num() >= 3);
+					if (!Heights.IsEmpty())
+						for (float Height : Heights)
+							Test->TestTrue(TEXT("owned form inputs use the same arranged height"), FMath::IsNearlyEqual(Height, Heights[0], 1.f));
+					for (float Height : Heights)
+						Test->AddInfo(FString::Printf(TEXT("UXR12 input logical height %.2f font %.2f"), Height, Scale));
+				}
+			}
+			const auto V = World->GetGameViewport()->Viewport->GetSizeXY();
+			const FString RequestedRoot = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT"));
+			const FString Root = RequestedRoot.IsEmpty() ? FPaths::ProjectSavedDir() / TEXT("Reports/UXR/UXR-09") : RequestedRoot;
+			Path = Root / FString::Printf(TEXT("rendered-%dx%d-%d-%s.png"), V.X, V.Y, FMath::RoundToInt(Scale * 100), Names[View]);
+			Previous = IFileManager::Get().GetTimeStamp(*Path);
+			FSlateApplication::Get().CloseToolTip();
+			FScreenshotRequest::RequestScreenshot(Path, true, false);
+			Requested = true;
+			Test->AddInfo(FString::Printf(TEXT("actual client %dx%d font %d view %s; model font=%s slab=%s scenario=%s sidebar=%d; automated render only"), V.X, V.Y, FMath::RoundToInt(Scale * 100), Names[View], *Bar->OwnedFontScaleText.ToString(), *Bar->SlabCardTitle.ToString(), *Bar->GlobalStatus.Scenario.ToString(), W->IsSidebarMode()));
+			return false;
+		}
+		if (IFileManager::Get().GetTimeStamp(*Path) <= Previous)
+			return false;
+		Requested = false;
+		ReadyAt = 0;
+		return ++Phase == 3 * ViewCount;
+	}
 };
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarRenderTest,"UXR09.PresentationRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarRenderTest, "UXR09.PresentationRhi", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FSidebarRenderTest::RunTest(const FString&)
 {
-    if(!FParse::Param(FCommandLine::Get(),TEXT("Uxr09Capture"))){AddInfo(TEXT("SKIP explicit sidebar capture only"));return true;}
-    if(!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"),true))return false;
-    ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());ADD_LATENT_AUTOMATION_COMMAND(FUxrSidebarRender(this));ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());return true;
+	if (!FParse::Param(FCommandLine::Get(), TEXT("Uxr09Capture")))
+	{
+		AddInfo(TEXT("SKIP explicit sidebar capture only"));
+		return true;
+	}
+	if (!AutomationOpenMap(TEXT("/Game/MA0T10/Maps/Tests/SlabScenarioValidationMap"), true))
+		return false;
+	ADD_LATENT_AUTOMATION_COMMAND(FStartFinalAcceptancePIE());
+	ADD_LATENT_AUTOMATION_COMMAND(FUxrSidebarRender(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
 }
 #endif

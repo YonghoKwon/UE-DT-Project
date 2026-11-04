@@ -53,988 +53,1239 @@ namespace
 {
 FString QualityText(EVirtualSensorSimulationQuality Quality)
 {
-    if (Quality == EVirtualSensorSimulationQuality::Debug) return TEXT("디버그");
-    if (Quality == EVirtualSensorSimulationQuality::RealTimePreview) return TEXT("실시간 미리보기");
-    if (Quality == EVirtualSensorSimulationQuality::Balanced) return TEXT("균형");
-    if (Quality == EVirtualSensorSimulationQuality::FullSpec) return TEXT("FullSpec (고부하)");
-    return TEXT("사용자 설정");
+	if (Quality == EVirtualSensorSimulationQuality::Debug)
+		return TEXT("디버그");
+	if (Quality == EVirtualSensorSimulationQuality::RealTimePreview)
+		return TEXT("실시간 미리보기");
+	if (Quality == EVirtualSensorSimulationQuality::Balanced)
+		return TEXT("균형");
+	if (Quality == EVirtualSensorSimulationQuality::FullSpec)
+		return TEXT("FullSpec (고부하)");
+	return TEXT("사용자 설정");
 }
 
 FString OwnedQualityLabel(EVirtualSensorSimulationQuality Quality)
-{return Quality==EVirtualSensorSimulationQuality::FullSpec?TEXT("전체 사양(고부하)"):QualityText(Quality);}
+{
+	return Quality == EVirtualSensorSimulationQuality::FullSpec ? TEXT("전체 사양(고부하)") : QualityText(Quality);
+}
 
 EVirtualSensorSimulationQuality NextQuality(EVirtualSensorSimulationQuality Quality)
 {
-    const int32 Next = (static_cast<int32>(Quality) + 1) % 5;
-    return static_cast<EVirtualSensorSimulationQuality>(Next);
+	const int32 Next = (static_cast<int32>(Quality) + 1) % 5;
+	return static_cast<EVirtualSensorSimulationQuality>(Next);
 }
 
 FString CaptureModeText(EVirtualCameraCaptureMode Mode)
 {
-    if (Mode == EVirtualCameraCaptureMode::PreviewOnly) return TEXT("미리보기만");
-    if (Mode == EVirtualCameraCaptureMode::Payload) return TEXT("Payload만");
-    return TEXT("Payload 및 출력");
+	if (Mode == EVirtualCameraCaptureMode::PreviewOnly)
+		return TEXT("미리보기만");
+	if (Mode == EVirtualCameraCaptureMode::Payload)
+		return TEXT("Payload만");
+	return TEXT("Payload 및 출력");
 }
 
 EVirtualCameraCaptureMode NextCaptureMode(EVirtualCameraCaptureMode Mode)
 {
-    return static_cast<EVirtualCameraCaptureMode>((static_cast<int32>(Mode) + 1) % 3);
+	return static_cast<EVirtualCameraCaptureMode>((static_cast<int32>(Mode) + 1) % 3);
 }
 
 FVirtualSensorSettingHelpDescriptor MakeSettingHelp(const TCHAR* Key, const TCHAR* Label, const TCHAR* Description, const TCHAR* Unit, const TCHAR* Impact, const TCHAR* Recommended, const TCHAR* Caution = TEXT(""))
 {
-    FVirtualSensorSettingHelpDescriptor Result;
-    Result.Key = FName(Key);
-    Result.Label = FText::FromString(Label);
-    Result.Description = FText::FromString(Description);
-    Result.Unit = FText::FromString(Unit);
-    Result.PerformanceImpact = FText::FromString(Impact);
-    Result.RecommendedValue = FText::FromString(Recommended);
-    Result.Caution = FText::FromString(Caution);
-    return Result;
+	FVirtualSensorSettingHelpDescriptor Result;
+	Result.Key = FName(Key);
+	Result.Label = FText::FromString(Label);
+	Result.Description = FText::FromString(Description);
+	Result.Unit = FText::FromString(Unit);
+	Result.PerformanceImpact = FText::FromString(Impact);
+	Result.RecommendedValue = FText::FromString(Recommended);
+	Result.Caution = FText::FromString(Caution);
+	return Result;
 }
 
 const TArray<FVirtualSensorSettingHelpDescriptor>& SettingHelpDescriptors()
 {
-    static const TArray<FVirtualSensorSettingHelpDescriptor> Descriptors = {
-        MakeSettingHelp(TEXT("DeviceProfile"),TEXT("장비 프로필"),TEXT("선택한 장비의 규격을 해상도·시야각·측정 주기에 한 번에 적용합니다."),TEXT("장비"),TEXT("높음"),TEXT("실제 사용 장비에 맞는 프로필"),TEXT("가상 구현과 실장비의 지원 범위는 다를 수 있습니다.")),
-        MakeSettingHelp(TEXT("LidarFidelity"), TEXT("LiDAR 충실도"), TEXT("Ideal Truth는 엔진 기준값, 공개 사양 기반은 공개된 오차·Intensity·검출 모델, 실장비 캘리브레이션은 제공된 보정표, Replay는 외부 프레임을 뜻합니다."), TEXT("Mode"), TEXT("공개 사양/캘리브레이션 모델은 추가 계산이 필요함"), TEXT("Golden Dataset이 없으면 공개 사양 기반"), TEXT("공개 사양 기반 결과를 제조사 원시 패킷과 동일하다고 해석하면 안 됩니다.")),
-        MakeSettingHelp(TEXT("LidarBackend"), TEXT("LiDAR 측정 백엔드"), TEXT("Auto는 FullSpec ML-X에서 GPU Depth Projection을 우선하고 지원되지 않으면 Accurate CPU Trace로 전환합니다. GPU 방식은 첫 표면을 빠르게 측정하고 CPU 방식은 정밀 회귀와 MultiHit에 적합합니다."), TEXT("Backend"), TEXT("CPU 광선 추적은 센서 수와 광선 수에 비례해 게임 스레드 부하 증가"), TEXT("다중 FullSpec은 Auto, 회귀 테스트는 Accurate CPU"), TEXT("GPU Depth Projection은 현재 투명체와 두 번째 Echo를 물리적으로 분리하지 못합니다.")),
-        MakeSettingHelp(TEXT("LidarIntensity"), TEXT("LiDAR Intensity"), TEXT("940nm 표면 반사율, 입사각, 거리 감쇠와 주변광으로 원시/정규화 Intensity를 계산합니다. Physical Material 응답 컴포넌트로 반사율을 지정할 수 있습니다."), TEXT("0~65535"), TEXT("검출 확률과 Echo 생성에 작은 추가 비용"), TEXT("표면별 940nm 반사율을 실측값으로 보정"), TEXT("캘리브레이션 자료가 없으면 정성적 에뮬레이션입니다.")),
-        MakeSettingHelp(TEXT("SimulationQuality"), TEXT("시뮬레이션 품질"), TEXT("센서별 해상도·광선 수·명목 갱신 주기를 한 번에 적용하는 실행 예산입니다."), TEXT("Preset"), TEXT("FullSpec일수록 높음"), TEXT("일반 조작은 실시간 미리보기, 최종 검증은 FullSpec")),
-        MakeSettingHelp(TEXT("CameraInterval"), TEXT("카메라 캡처 주기"), TEXT("장면을 다시 렌더링하는 간격입니다. 값이 작을수록 초당 캡처 횟수가 증가합니다."), TEXT("초"), TEXT("렌더링·GPU readback 빈도에 반비례"), TEXT("FullSpec 0.033초(30Hz), 실시간 미리보기 0.1초")),
-        MakeSettingHelp(TEXT("CameraWidth"), TEXT("카메라 가로 해상도"), TEXT("렌더 타깃의 가로 픽셀 수입니다."), TEXT("px"), TEXT("세로 해상도와 곱한 픽셀 수에 비례"), TEXT("D455 FullSpec 1280")),
-        MakeSettingHelp(TEXT("CameraHeight"), TEXT("카메라 세로 해상도"), TEXT("렌더 타깃의 세로 픽셀 수입니다."), TEXT("px"), TEXT("가로 해상도와 곱한 픽셀 수에 비례"), TEXT("D455 FullSpec 720")),
-        MakeSettingHelp(TEXT("CameraFov"), TEXT("카메라 FOV"), TEXT("카메라의 수평 시야각입니다. 넓을수록 더 넓은 영역이 보이지만 물체가 작게 표현됩니다."), TEXT("도"), TEXT("동일 해상도에서는 영향 낮음"), TEXT("D455 87°")),
-        MakeSettingHelp(TEXT("JpegQuality"), TEXT("JPEG 품질"), TEXT("카메라 Payload의 JPEG 압축 품질입니다. 높을수록 화질과 파일 크기가 증가합니다."), TEXT("1~100"), TEXT("CPU 압축 시간·Payload 크기 증가"), TEXT("FullSpec 80, 실시간 미리보기 70")),
-        MakeSettingHelp(TEXT("CaptureMode"), TEXT("카메라 출력 모드"), TEXT("미리보기만은 readback을 생략하고, Payload만은 JSON을 캐시하며, Payload 및 출력은 전송까지 수행합니다."), TEXT("Mode"), TEXT("미리보기만 < Payload만 < Payload 및 출력"), TEXT("화면 확인은 미리보기만, 연동 검증은 Payload 및 출력")),
-        MakeSettingHelp(TEXT("LidarInterval"), TEXT("LiDAR 스캔 주기"), TEXT("새 스캔을 시작하는 명목 간격입니다."), TEXT("초"), TEXT("광선/s에 반비례"), TEXT("Mid-360S FullSpec 0.1초(10Hz)")),
-        MakeSettingHelp(TEXT("LidarRange"), TEXT("LiDAR 최대 거리"), TEXT("각 광선이 충돌을 검사하는 최대 거리입니다."), TEXT("cm"), TEXT("장면 복잡도에 따라 trace 비용 증가 가능"), TEXT("일반 검출 4000cm, 장비 cutoff 10000cm")),
-        MakeSettingHelp(TEXT("HorizontalSamples"), TEXT("LiDAR 수평 샘플 수"), TEXT("한 수직 채널에서 발사하는 수평 광선 수입니다."), TEXT("개/행"), TEXT("수직 채널과 곱해 선형 증가"), TEXT("FullSpec 360")),
-        MakeSettingHelp(TEXT("VerticalChannels"), TEXT("LiDAR 수직 채널 수"), TEXT("수직 방향의 광선 행 수입니다."), TEXT("채널"), TEXT("수평 샘플과 곱해 선형 증가"), TEXT("FullSpec 60")),
-        MakeSettingHelp(TEXT("HorizontalFov"), TEXT("LiDAR 수평 FOV"), TEXT("수평으로 스캔하는 전체 각도입니다. 광선 수가 같으면 값이 클수록 각도 간격이 넓어집니다."), TEXT("도"), TEXT("동일 광선 수에서는 영향 낮음"), TEXT("Mid-360S 360°")),
-        MakeSettingHelp(TEXT("VerticalMin"), TEXT("LiDAR 수직 최소 각도"), TEXT("수직 스캔 범위의 아래쪽 경계입니다."), TEXT("도"), TEXT("동일 채널 수에서는 영향 낮음"), TEXT("Mid-360S -7°")),
-        MakeSettingHelp(TEXT("VerticalMax"), TEXT("LiDAR 수직 최대 각도"), TEXT("수직 스캔 범위의 위쪽 경계입니다."), TEXT("도"), TEXT("동일 채널 수에서는 영향 낮음"), TEXT("Mid-360S 52°")),
-        MakeSettingHelp(TEXT("ServerStride"), TEXT("서버 Payload 간격"), TEXT("측정 배열에서 N번째 점마다 서버 Payload에 포함합니다."), TEXT("N개당 1점"), TEXT("값이 클수록 JSON·네트워크 부하 감소"), TEXT("정밀 전송 1, 실시간 연동은 2~8")),
-        MakeSettingHelp(TEXT("ServerMax"), TEXT("서버 최대 점 수"), TEXT("한 Payload에 넣을 최대 점 수입니다. 0은 제한 없음입니다."), TEXT("점"), TEXT("0은 큰 JSON과 메모리 사용 가능"), TEXT("FullSpec 원본 검증은 0, 실시간 서버는 수용량에 맞게 제한"), TEXT("서버 판정에 필요한 측정 밀도를 먼저 확인하세요.")),
-        MakeSettingHelp(TEXT("IncludeMisses"), TEXT("서버 Payload 미검출점 포함"), TEXT("충돌하지 않은 광선도 최대 거리의 miss 점으로 전송합니다."), TEXT("On/Off"), TEXT("Payload 점 수와 JSON 크기 증가"), TEXT("일반적으로 끔")),
-        MakeSettingHelp(TEXT("PreviewStride"), TEXT("미리보기 점 간격"), TEXT("화면에 표시할 점을 N개마다 선택합니다. 서버 Payload에는 영향을 주지 않습니다."), TEXT("N개당 1점"), TEXT("값이 클수록 ISM 갱신 비용 감소"), TEXT("FullSpec 6")),
-        MakeSettingHelp(TEXT("PreviewMax"), TEXT("미리보기 최대 점 수"), TEXT("화면에 그릴 최대 점 수입니다. 0은 제한 없음입니다."), TEXT("점"), TEXT("점 수에 따라 렌더·instance 갱신 증가"), TEXT("FullSpec 5000"), TEXT("FullSpec에서 0은 권장하지 않습니다.")),
-        MakeSettingHelp(TEXT("PreviewHitOnly"), TEXT("미리보기 검출점만 표시"), TEXT("miss 점을 제외하고 실제 충돌점만 화면에 표시합니다."), TEXT("On/Off"), TEXT("켜면 Preview 부하 감소"), TEXT("켬")),
-        MakeSettingHelp(TEXT("PointTime"),TEXT("점별 시간차"),TEXT("점마다 찍힌 시각을 기록합니다."),TEXT("초"),TEXT("점별 계산"),TEXT("기본 끔")),
-        MakeSettingHelp(TEXT("MotionDistortion"),TEXT("움직임 왜곡"),TEXT("움직이는 물체의 점군을 근사합니다."),TEXT("표시"),TEXT("점별 계산"),TEXT("기본 끔")),
-        MakeSettingHelp(TEXT("MaterialResponse"),TEXT("재질 반사"),TEXT("표면별 반사 차이를 근사합니다."),TEXT("강도"),TEXT("분류 캡처·점별 계산"),TEXT("기본 끔")),
-        MakeSettingHelp(TEXT("MultiHit"), TEXT("다중 검출"), TEXT("광선 하나가 통과하며 만나는 여러 충돌을 모두 수집합니다."), TEXT("On/Off"), TEXT("매우 높음"), TEXT("기본 끔"), TEXT("FullSpec과 함께 사용하면 완료 주기가 낮아질 수 있습니다.")),
-        MakeSettingHelp(TEXT("MaxHits"), TEXT("광선당 최대 검출 수"), TEXT("MultiHit에서 광선 하나가 저장할 최대 return 수입니다."), TEXT("점/광선"), TEXT("메모리·Payload가 값에 비례해 증가"), TEXT("3")),
-        MakeSettingHelp(TEXT("AutoExport"), TEXT("스캔 시 자동 파일 저장"), TEXT("각 스캔 완료 후 CSV·JSONL·PCD를 디스크에 기록합니다."), TEXT("On/Off"), TEXT("직렬화·디스크 부하 매우 높음"), TEXT("FullSpec에서는 끄고 데이터 → 파일 저장 사용"))
-    };
-    return Descriptors;
+	static const TArray<FVirtualSensorSettingHelpDescriptor> Descriptors = {
+	    MakeSettingHelp(TEXT("DeviceProfile"), TEXT("장비 프로필"), TEXT("선택한 장비의 규격을 해상도·시야각·측정 주기에 한 번에 적용합니다."), TEXT("장비"), TEXT("높음"), TEXT("실제 사용 장비에 맞는 프로필"), TEXT("가상 구현과 실장비의 지원 범위는 다를 수 있습니다.")),
+	    MakeSettingHelp(TEXT("LidarFidelity"), TEXT("LiDAR 충실도"), TEXT("Ideal Truth는 엔진 기준값, 공개 사양 기반은 공개된 오차·Intensity·검출 모델, 실장비 캘리브레이션은 제공된 보정표, Replay는 외부 프레임을 뜻합니다."), TEXT("Mode"), TEXT("공개 사양/캘리브레이션 모델은 추가 계산이 필요함"), TEXT("Golden Dataset이 없으면 공개 사양 기반"), TEXT("공개 사양 기반 결과를 제조사 원시 패킷과 동일하다고 해석하면 안 됩니다.")),
+	    MakeSettingHelp(TEXT("LidarBackend"), TEXT("LiDAR 측정 백엔드"), TEXT("Auto는 FullSpec ML-X에서 GPU Depth Projection을 우선하고 지원되지 않으면 Accurate CPU Trace로 전환합니다. GPU 방식은 첫 표면을 빠르게 측정하고 CPU 방식은 정밀 회귀와 MultiHit에 적합합니다."), TEXT("Backend"), TEXT("CPU 광선 추적은 센서 수와 광선 수에 비례해 게임 스레드 부하 증가"), TEXT("다중 FullSpec은 Auto, 회귀 테스트는 Accurate CPU"), TEXT("GPU Depth Projection은 현재 투명체와 두 번째 Echo를 물리적으로 분리하지 못합니다.")),
+	    MakeSettingHelp(TEXT("LidarIntensity"), TEXT("LiDAR Intensity"), TEXT("940nm 표면 반사율, 입사각, 거리 감쇠와 주변광으로 원시/정규화 Intensity를 계산합니다. Physical Material 응답 컴포넌트로 반사율을 지정할 수 있습니다."), TEXT("0~65535"), TEXT("검출 확률과 Echo 생성에 작은 추가 비용"), TEXT("표면별 940nm 반사율을 실측값으로 보정"), TEXT("캘리브레이션 자료가 없으면 정성적 에뮬레이션입니다.")),
+	    MakeSettingHelp(TEXT("SimulationQuality"), TEXT("시뮬레이션 품질"), TEXT("센서별 해상도·광선 수·명목 갱신 주기를 한 번에 적용하는 실행 예산입니다."), TEXT("Preset"), TEXT("FullSpec일수록 높음"), TEXT("일반 조작은 실시간 미리보기, 최종 검증은 FullSpec")),
+	    MakeSettingHelp(TEXT("CameraInterval"), TEXT("카메라 캡처 주기"), TEXT("장면을 다시 렌더링하는 간격입니다. 값이 작을수록 초당 캡처 횟수가 증가합니다."), TEXT("초"), TEXT("렌더링·GPU readback 빈도에 반비례"), TEXT("FullSpec 0.033초(30Hz), 실시간 미리보기 0.1초")),
+	    MakeSettingHelp(TEXT("CameraWidth"), TEXT("카메라 가로 해상도"), TEXT("렌더 타깃의 가로 픽셀 수입니다."), TEXT("px"), TEXT("세로 해상도와 곱한 픽셀 수에 비례"), TEXT("D455 FullSpec 1280")),
+	    MakeSettingHelp(TEXT("CameraHeight"), TEXT("카메라 세로 해상도"), TEXT("렌더 타깃의 세로 픽셀 수입니다."), TEXT("px"), TEXT("가로 해상도와 곱한 픽셀 수에 비례"), TEXT("D455 FullSpec 720")),
+	    MakeSettingHelp(TEXT("CameraFov"), TEXT("카메라 FOV"), TEXT("카메라의 수평 시야각입니다. 넓을수록 더 넓은 영역이 보이지만 물체가 작게 표현됩니다."), TEXT("도"), TEXT("동일 해상도에서는 영향 낮음"), TEXT("D455 87°")),
+	    MakeSettingHelp(TEXT("JpegQuality"), TEXT("JPEG 품질"), TEXT("카메라 Payload의 JPEG 압축 품질입니다. 높을수록 화질과 파일 크기가 증가합니다."), TEXT("1~100"), TEXT("CPU 압축 시간·Payload 크기 증가"), TEXT("FullSpec 80, 실시간 미리보기 70")),
+	    MakeSettingHelp(TEXT("CaptureMode"), TEXT("카메라 출력 모드"), TEXT("미리보기만은 readback을 생략하고, Payload만은 JSON을 캐시하며, Payload 및 출력은 전송까지 수행합니다."), TEXT("Mode"), TEXT("미리보기만 < Payload만 < Payload 및 출력"), TEXT("화면 확인은 미리보기만, 연동 검증은 Payload 및 출력")),
+	    MakeSettingHelp(TEXT("LidarInterval"), TEXT("LiDAR 스캔 주기"), TEXT("새 스캔을 시작하는 명목 간격입니다."), TEXT("초"), TEXT("광선/s에 반비례"), TEXT("Mid-360S FullSpec 0.1초(10Hz)")),
+	    MakeSettingHelp(TEXT("LidarRange"), TEXT("LiDAR 최대 거리"), TEXT("각 광선이 충돌을 검사하는 최대 거리입니다."), TEXT("cm"), TEXT("장면 복잡도에 따라 trace 비용 증가 가능"), TEXT("일반 검출 4000cm, 장비 cutoff 10000cm")),
+	    MakeSettingHelp(TEXT("HorizontalSamples"), TEXT("LiDAR 수평 샘플 수"), TEXT("한 수직 채널에서 발사하는 수평 광선 수입니다."), TEXT("개/행"), TEXT("수직 채널과 곱해 선형 증가"), TEXT("FullSpec 360")),
+	    MakeSettingHelp(TEXT("VerticalChannels"), TEXT("LiDAR 수직 채널 수"), TEXT("수직 방향의 광선 행 수입니다."), TEXT("채널"), TEXT("수평 샘플과 곱해 선형 증가"), TEXT("FullSpec 60")),
+	    MakeSettingHelp(TEXT("HorizontalFov"), TEXT("LiDAR 수평 FOV"), TEXT("수평으로 스캔하는 전체 각도입니다. 광선 수가 같으면 값이 클수록 각도 간격이 넓어집니다."), TEXT("도"), TEXT("동일 광선 수에서는 영향 낮음"), TEXT("Mid-360S 360°")),
+	    MakeSettingHelp(TEXT("VerticalMin"), TEXT("LiDAR 수직 최소 각도"), TEXT("수직 스캔 범위의 아래쪽 경계입니다."), TEXT("도"), TEXT("동일 채널 수에서는 영향 낮음"), TEXT("Mid-360S -7°")),
+	    MakeSettingHelp(TEXT("VerticalMax"), TEXT("LiDAR 수직 최대 각도"), TEXT("수직 스캔 범위의 위쪽 경계입니다."), TEXT("도"), TEXT("동일 채널 수에서는 영향 낮음"), TEXT("Mid-360S 52°")),
+	    MakeSettingHelp(TEXT("ServerStride"), TEXT("서버 Payload 간격"), TEXT("측정 배열에서 N번째 점마다 서버 Payload에 포함합니다."), TEXT("N개당 1점"), TEXT("값이 클수록 JSON·네트워크 부하 감소"), TEXT("정밀 전송 1, 실시간 연동은 2~8")),
+	    MakeSettingHelp(TEXT("ServerMax"), TEXT("서버 최대 점 수"), TEXT("한 Payload에 넣을 최대 점 수입니다. 0은 제한 없음입니다."), TEXT("점"), TEXT("0은 큰 JSON과 메모리 사용 가능"), TEXT("FullSpec 원본 검증은 0, 실시간 서버는 수용량에 맞게 제한"), TEXT("서버 판정에 필요한 측정 밀도를 먼저 확인하세요.")),
+	    MakeSettingHelp(TEXT("IncludeMisses"), TEXT("서버 Payload 미검출점 포함"), TEXT("충돌하지 않은 광선도 최대 거리의 miss 점으로 전송합니다."), TEXT("On/Off"), TEXT("Payload 점 수와 JSON 크기 증가"), TEXT("일반적으로 끔")),
+	    MakeSettingHelp(TEXT("PreviewStride"), TEXT("미리보기 점 간격"), TEXT("화면에 표시할 점을 N개마다 선택합니다. 서버 Payload에는 영향을 주지 않습니다."), TEXT("N개당 1점"), TEXT("값이 클수록 ISM 갱신 비용 감소"), TEXT("FullSpec 6")),
+	    MakeSettingHelp(TEXT("PreviewMax"), TEXT("미리보기 최대 점 수"), TEXT("화면에 그릴 최대 점 수입니다. 0은 제한 없음입니다."), TEXT("점"), TEXT("점 수에 따라 렌더·instance 갱신 증가"), TEXT("FullSpec 5000"), TEXT("FullSpec에서 0은 권장하지 않습니다.")),
+	    MakeSettingHelp(TEXT("PreviewHitOnly"), TEXT("미리보기 검출점만 표시"), TEXT("miss 점을 제외하고 실제 충돌점만 화면에 표시합니다."), TEXT("On/Off"), TEXT("켜면 Preview 부하 감소"), TEXT("켬")),
+	    MakeSettingHelp(TEXT("PointTime"), TEXT("점별 시간차"), TEXT("점마다 찍힌 시각을 기록합니다."), TEXT("초"), TEXT("점별 계산"), TEXT("기본 끔")),
+	    MakeSettingHelp(TEXT("MotionDistortion"), TEXT("움직임 왜곡"), TEXT("움직이는 물체의 점군을 근사합니다."), TEXT("표시"), TEXT("점별 계산"), TEXT("기본 끔")),
+	    MakeSettingHelp(TEXT("MaterialResponse"), TEXT("재질 반사"), TEXT("표면별 반사 차이를 근사합니다."), TEXT("강도"), TEXT("분류 캡처·점별 계산"), TEXT("기본 끔")),
+	    MakeSettingHelp(TEXT("MultiHit"), TEXT("다중 검출"), TEXT("광선 하나가 통과하며 만나는 여러 충돌을 모두 수집합니다."), TEXT("On/Off"), TEXT("매우 높음"), TEXT("기본 끔"), TEXT("FullSpec과 함께 사용하면 완료 주기가 낮아질 수 있습니다.")),
+	    MakeSettingHelp(TEXT("MaxHits"), TEXT("광선당 최대 검출 수"), TEXT("MultiHit에서 광선 하나가 저장할 최대 return 수입니다."), TEXT("점/광선"), TEXT("메모리·Payload가 값에 비례해 증가"), TEXT("3")),
+	    MakeSettingHelp(TEXT("AutoExport"), TEXT("스캔 시 자동 파일 저장"), TEXT("각 스캔 완료 후 CSV·JSONL·PCD를 디스크에 기록합니다."), TEXT("On/Off"), TEXT("직렬화·디스크 부하 매우 높음"), TEXT("FullSpec에서는 끄고 데이터 → 파일 저장 사용"))};
+	return Descriptors;
 }
 
 FText SettingHelpTooltip(FName Key)
 {
-    const FVirtualSensorSettingHelpDescriptor* Help = SettingHelpDescriptors().FindByPredicate([Key](const FVirtualSensorSettingHelpDescriptor& Item) { return Item.Key == Key; });
-    return Help ? FText::Format(NSLOCTEXT("VirtualSensorSettingsPanelWidget", "SharedSettingTip", "{0}\n성능 영향: {1}\n권장값: {2}"), Help->Description, Help->PerformanceImpact, Help->RecommendedValue) : FText::GetEmpty();
+	const FVirtualSensorSettingHelpDescriptor* Help = SettingHelpDescriptors().FindByPredicate([Key](const FVirtualSensorSettingHelpDescriptor& Item)
+	                                                                                           { return Item.Key == Key; });
+	return Help ? FText::Format(NSLOCTEXT("VirtualSensorSettingsPanelWidget", "SharedSettingTip", "{0}\n성능 영향: {1}\n권장값: {2}"), Help->Description, Help->PerformanceImpact, Help->RecommendedValue) : FText::GetEmpty();
 }
 FText OwnedSettingImpact(FName Key)
 {
-    if(Key==TEXT("CameraFov")||Key==TEXT("HorizontalFov")||Key==TEXT("VerticalMin")||Key==TEXT("VerticalMax")||Key==TEXT("PreviewHitOnly"))return LOCTEXT("ImpactLow","낮음");
-    if(Key==TEXT("LidarRange")||Key==TEXT("PreviewStride")||Key==TEXT("PreviewMax")||Key==TEXT("JpegQuality")||Key==TEXT("ServerStride")||Key==TEXT("IncludeMisses"))return LOCTEXT("ImpactMedium","보통");
-    return LOCTEXT("ImpactHigh","높음");
+	if (Key == TEXT("CameraFov") || Key == TEXT("HorizontalFov") || Key == TEXT("VerticalMin") || Key == TEXT("VerticalMax") || Key == TEXT("PreviewHitOnly"))
+		return LOCTEXT("ImpactLow", "낮음");
+	if (Key == TEXT("LidarRange") || Key == TEXT("PreviewStride") || Key == TEXT("PreviewMax") || Key == TEXT("JpegQuality") || Key == TEXT("ServerStride") || Key == TEXT("IncludeMisses"))
+		return LOCTEXT("ImpactMedium", "보통");
+	return LOCTEXT("ImpactHigh", "높음");
 }
 FText OwnedSettingExplanation(FName Key)
 {
-    if(!SensorLidarHelp::Summary(Key).IsEmpty())return SensorLidarHelp::Summary(Key);
-    if(Key==TEXT("SimulationQuality"))return LOCTEXT("QualityShort","품질별 해상도·광선 수·측정 주기를 한 번에 적용합니다.");
-    if(Key==TEXT("PreviewStride"))return LOCTEXT("PreviewStrideShort","화면에 그릴 점을 N개마다 선택합니다.");
-    if(Key==TEXT("CameraInterval")||Key==TEXT("LidarInterval"))return LOCTEXT("IntervalShort","값이 작을수록 더 자주 측정합니다.");
-    const auto* Help=SettingHelpDescriptors().FindByPredicate([Key](const auto& H){return H.Key==Key;});
-    if(!Help)return FText::GetEmpty();
-    FString Text=SensorToolUiText::UserReason(Help->Description.ToString());
-    int32 End;if(Text.FindChar(TCHAR('.'),End))Text.LeftInline(End+1);
-    return FText::FromString(Text);
+	if (!SensorLidarHelp::Summary(Key).IsEmpty())
+		return SensorLidarHelp::Summary(Key);
+	if (Key == TEXT("SimulationQuality"))
+		return LOCTEXT("QualityShort", "품질별 해상도·광선 수·측정 주기를 한 번에 적용합니다.");
+	if (Key == TEXT("PreviewStride"))
+		return LOCTEXT("PreviewStrideShort", "화면에 그릴 점을 N개마다 선택합니다.");
+	if (Key == TEXT("CameraInterval") || Key == TEXT("LidarInterval"))
+		return LOCTEXT("IntervalShort", "값이 작을수록 더 자주 측정합니다.");
+	const auto* Help = SettingHelpDescriptors().FindByPredicate([Key](const auto& H)
+	                                                            { return H.Key == Key; });
+	if (!Help)
+		return FText::GetEmpty();
+	FString Text = SensorToolUiText::UserReason(Help->Description.ToString());
+	int32 End;
+	if (Text.FindChar(TCHAR('.'), End))
+		Text.LeftInline(End + 1);
+	return FText::FromString(Text);
 }
 FText OwnedSettingTooltip(FName Key)
 {
-    if(!SensorLidarHelp::Detail(Key).IsEmpty())return SensorLidarHelp::Detail(Key);
-    const auto* Help=SettingHelpDescriptors().FindByPredicate([Key](const auto& H){return H.Key==Key;});
-    if(!Help)return FText::GetEmpty();
-    return FText::Format(LOCTEXT("OwnedTip","{0}\n성능 영향: {1}\n권장값: {2}"),FText::FromString(SensorToolUiText::UserReason(Help->Description.ToString())),OwnedSettingImpact(Key),FText::FromString(SensorToolUiText::UserReason(Help->RecommendedValue.ToString())));
+	if (!SensorLidarHelp::Detail(Key).IsEmpty())
+		return SensorLidarHelp::Detail(Key);
+	const auto* Help = SettingHelpDescriptors().FindByPredicate([Key](const auto& H)
+	                                                            { return H.Key == Key; });
+	if (!Help)
+		return FText::GetEmpty();
+	return FText::Format(LOCTEXT("OwnedTip", "{0}\n성능 영향: {1}\n권장값: {2}"), FText::FromString(SensorToolUiText::UserReason(Help->Description.ToString())), OwnedSettingImpact(Key), FText::FromString(SensorToolUiText::UserReason(Help->RecommendedValue.ToString())));
 }
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::NativeConstruct()
 {
-    Super::NativeConstruct();
-    RestoreSettingsUiPreferences();
-    SpawnGizmoIfNeeded();
-    SyncGizmoTarget();
+	Super::NativeConstruct();
+	RestoreSettingsUiPreferences();
+	SpawnGizmoIfNeeded();
+	SyncGizmoTarget();
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::NativeDestruct()
 {
-    if(auto* I=SharedInteraction.IsValid()?SharedInteraction.Get():OwnedInteraction()){I->Finish(false);I->OnChanged.RemoveAll(this);GizmoActor=nullptr;SharedInteraction.Reset();Super::NativeDestruct();return;}
-    FinishSensorManipulation(false);
-    if (GizmoActor)
-    {
-        GizmoActor->OnManipulationExitRequested.RemoveAll(this);
-        GizmoActor->OnTransformChanged.RemoveAll(this);
-        GizmoActor->OnTransformCommitted.RemoveAll(this);
-        GizmoActor->OnTransformGestureStarted.RemoveAll(this);GizmoActor->OnUndoRequested.RemoveAll(this);GizmoActor->OnRedoRequested.RemoveAll(this);
-        GizmoActor->Destroy();
-        GizmoActor = nullptr;
-    }
-    Super::NativeDestruct();
+	if (auto* I = SharedInteraction.IsValid() ? SharedInteraction.Get() : OwnedInteraction())
+	{
+		I->Finish(false);
+		I->OnChanged.RemoveAll(this);
+		GizmoActor = nullptr;
+		SharedInteraction.Reset();
+		Super::NativeDestruct();
+		return;
+	}
+	FinishSensorManipulation(false);
+	if (GizmoActor)
+	{
+		GizmoActor->OnManipulationExitRequested.RemoveAll(this);
+		GizmoActor->OnTransformChanged.RemoveAll(this);
+		GizmoActor->OnTransformCommitted.RemoveAll(this);
+		GizmoActor->OnTransformGestureStarted.RemoveAll(this);
+		GizmoActor->OnUndoRequested.RemoveAll(this);
+		GizmoActor->OnRedoRequested.RemoveAll(this);
+		GizmoActor->Destroy();
+		GizmoActor = nullptr;
+	}
+	Super::NativeDestruct();
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
-    Super::NativeTick(MyGeometry, InDeltaTime);
-    if(IsWorkspaceOwned()&&IsVisible()&&!IsPanelCollapsed()&&FPlatformTime::Seconds()>=NextOwnedSettingsRefresh)
-    {
-        NextOwnedSettingsRefresh=FPlatformTime::Seconds()+.2;
-        RefreshOwnedSettingsText();
-    }
-    if(OwnedInteraction())
-    {
-        SynchronizeWorkspaceSelection();SynchronizeInteractionState();
-        if(IsValid(GizmoActor))GizmoActor->SetStepSizes(TranslationStepCm,RotationStepDegrees);
-        if((!IsWorkspaceOwned()||(WidgetTree&&WidgetTree->RootWidget))&&IsVisible()&&!IsPanelCollapsed()&&FPlatformTime::Seconds()>=NextPoseRefresh){NextPoseRefresh=FPlatformTime::Seconds()+.2;RefreshPoseRows();}
-        return;
-    }
-    if (IsWorkspaceOwned())
-    {
-        SynchronizeWorkspaceSelection();
-    }
-    else if (AActor* SelectedActor = GetSelectedSensorActor(); SelectedActor != LastSyncedSensorActor.Get())
-    {
-        FinishSensorManipulation(false);
-        RefreshPendingState(true);
-        SyncGizmoTarget();
-    }
-    if (IsValid(GizmoActor))
-    {
-        // A legacy caller may turn the gizmo off directly; still finalize the actor.
-        if (bManipulationEnabled && (!GizmoActor->IsManipulationEnabled() || !ManipulationTarget.IsValid()))
-            FinishSensorManipulation(true);
-        GizmoActor->SetStepSizes(TranslationStepCm, RotationStepDegrees);
-    }
-    else if (bManipulationEnabled) FinishSensorManipulation(true);
-    if (bManipulationEnabled && bMonitorAutoFollowingManipulation && SensorManager &&
-        static_cast<uint8>(SensorManager->GetViewMode()) != AutoFollowMonitorView)
-    {
-        // A direct monitor selection during manipulation is an explicit user override.
-        bMonitorAutoFollowingManipulation = false;
-        bRestoreMonitorViewAfterManipulation = false;
-    }
-    if(IsWorkspaceOwned()&&IsVisible()&&!IsPanelCollapsed()&&FPlatformTime::Seconds()>=NextPoseRefresh)
-    {NextPoseRefresh=FPlatformTime::Seconds()+.2;RefreshPoseRows();}
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	if (IsWorkspaceOwned() && IsVisible() && !IsPanelCollapsed() && FPlatformTime::Seconds() >= NextOwnedSettingsRefresh)
+	{
+		NextOwnedSettingsRefresh = FPlatformTime::Seconds() + .2;
+		RefreshOwnedSettingsText();
+	}
+	if (OwnedInteraction())
+	{
+		SynchronizeWorkspaceSelection();
+		SynchronizeInteractionState();
+		if (IsValid(GizmoActor))
+			GizmoActor->SetStepSizes(TranslationStepCm, RotationStepDegrees);
+		if ((!IsWorkspaceOwned() || (WidgetTree && WidgetTree->RootWidget)) && IsVisible() && !IsPanelCollapsed() && FPlatformTime::Seconds() >= NextPoseRefresh)
+		{
+			NextPoseRefresh = FPlatformTime::Seconds() + .2;
+			RefreshPoseRows();
+		}
+		return;
+	}
+	if (IsWorkspaceOwned())
+	{
+		SynchronizeWorkspaceSelection();
+	}
+	else if (AActor* SelectedActor = GetSelectedSensorActor(); SelectedActor != LastSyncedSensorActor.Get())
+	{
+		FinishSensorManipulation(false);
+		RefreshPendingState(true);
+		SyncGizmoTarget();
+	}
+	if (IsValid(GizmoActor))
+	{
+		// A legacy caller may turn the gizmo off directly; still finalize the actor.
+		if (bManipulationEnabled && (!GizmoActor->IsManipulationEnabled() || !ManipulationTarget.IsValid()))
+			FinishSensorManipulation(true);
+		GizmoActor->SetStepSizes(TranslationStepCm, RotationStepDegrees);
+	}
+	else if (bManipulationEnabled)
+		FinishSensorManipulation(true);
+	if (bManipulationEnabled && bMonitorAutoFollowingManipulation && SensorManager &&
+	    static_cast<uint8>(SensorManager->GetViewMode()) != AutoFollowMonitorView)
+	{
+		// A direct monitor selection during manipulation is an explicit user override.
+		bMonitorAutoFollowingManipulation = false;
+		bRestoreMonitorViewAfterManipulation = false;
+	}
+	if (IsWorkspaceOwned() && IsVisible() && !IsPanelCollapsed() && FPlatformTime::Seconds() >= NextPoseRefresh)
+	{
+		NextPoseRefresh = FPlatformTime::Seconds() + .2;
+		RefreshPoseRows();
+	}
 }
 
 FString CameraProfileText(EVirtualCameraDeviceProfile Profile)
 {
-    return Profile == EVirtualCameraDeviceProfile::IntelRealSenseD455 ? TEXT("Intel RealSense D455") : TEXT("Generic Camera");
+	return Profile == EVirtualCameraDeviceProfile::IntelRealSenseD455 ? TEXT("Intel RealSense D455") : TEXT("Generic Camera");
 }
 
 FText LidarBackendText(EVirtualLidarAcquisitionBackend Backend)
 {
-    switch(Backend)
-    {
-    case EVirtualLidarAcquisitionBackend::Auto:return LOCTEXT("LidarBackendAuto","자동 · GPU 우선");
-    case EVirtualLidarAcquisitionBackend::HardwareRayTracing:return LOCTEXT("LidarBackendGpu","GPU 광선 추적");
-    case EVirtualLidarAcquisitionBackend::AccurateCpuTrace:return LOCTEXT("LidarBackendCpu","CPU 충돌 추적");
-    case EVirtualLidarAcquisitionBackend::GpuDepthProjection:return LOCTEXT("LidarBackendDepth","기존 GPU 깊이 투영");
-    default:return LOCTEXT("LidarBackendExternal","외부 프레임");
-    }
+	switch (Backend)
+	{
+		case EVirtualLidarAcquisitionBackend::Auto:
+			return LOCTEXT("LidarBackendAuto", "자동 · GPU 우선");
+		case EVirtualLidarAcquisitionBackend::HardwareRayTracing:
+			return LOCTEXT("LidarBackendGpu", "GPU 광선 추적");
+		case EVirtualLidarAcquisitionBackend::AccurateCpuTrace:
+			return LOCTEXT("LidarBackendCpu", "CPU 충돌 추적");
+		case EVirtualLidarAcquisitionBackend::GpuDepthProjection:
+			return LOCTEXT("LidarBackendDepth", "기존 GPU 깊이 투영");
+		default:
+			return LOCTEXT("LidarBackendExternal", "외부 프레임");
+	}
 }
 
 FString LidarProfileText(EVirtualLidarDeviceProfile Profile)
 {
-    if (Profile == EVirtualLidarDeviceProfile::IYOBOT_MLX80) return TEXT("아이요봇 ML-X(80) - 통합 200×56");
-    if (Profile == EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE) return TEXT("아이요봇 ML-X(80) - 원본 사양");
-    if (Profile == EVirtualLidarDeviceProfile::LivoxMid360S) return TEXT("Livox Mid-360S");
-    return TEXT("Generic LiDAR");
+	if (Profile == EVirtualLidarDeviceProfile::IYOBOT_MLX80)
+		return TEXT("아이요봇 ML-X(80) - 통합 200×56");
+	if (Profile == EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE)
+		return TEXT("아이요봇 ML-X(80) - 원본 사양");
+	if (Profile == EVirtualLidarDeviceProfile::LivoxMid360S)
+		return TEXT("Livox Mid-360S");
+	return TEXT("Generic LiDAR");
 }
 
 USensorPlacementInteraction* UDxWidgetVirtualSensorSettingsPanel::OwnedInteraction() const
-{return IsWorkspaceOwned()?GetToolWorkspace()->GetPlacementInteraction():nullptr;}
+{
+	return IsWorkspaceOwned() ? GetToolWorkspace()->GetPlacementInteraction() : nullptr;
+}
 void UDxWidgetVirtualSensorSettingsPanel::SynchronizeInteractionState()
 {
-    auto* I=OwnedInteraction();if(!I)return;
-    bManipulationEnabled=I->IsManipulating();ManipulationTarget=I->GetManipulationTarget();GizmoActor=I->GetExistingGizmo();
-    GizmoMode=I->GetMode();CoordinateSpace=I->GetSpace();PlacementInputMode=I->GetInputMode();
-    if(auto* A=I->Selected())if(A==GetSelectedSensorActor())PendingState.ActorTransform=A->GetActorTransform();
+	auto* I = OwnedInteraction();
+	if (!I)
+		return;
+	bManipulationEnabled = I->IsManipulating();
+	ManipulationTarget = I->GetManipulationTarget();
+	GizmoActor = I->GetExistingGizmo();
+	GizmoMode = I->GetMode();
+	CoordinateSpace = I->GetSpace();
+	PlacementInputMode = I->GetInputMode();
+	if (auto* A = I->Selected())
+		if (A == GetSelectedSensorActor())
+			PendingState.ActorTransform = A->GetActorTransform();
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::BindSensorManager(AVirtualSensorCoordinator* InSensorManager)
 {
-    if (SensorManager != InSensorManager) FinishSensorManipulation(false);
-    SensorManager = InSensorManager;
-    if(IsWorkspaceOwned()&&SensorManager&&GetToolWorkspace()->GetCoordinator()!=SensorManager)GetToolWorkspace()->SetCoordinator(SensorManager);
-    if(auto* I=OwnedInteraction()){SharedInteraction=I;I->OnChanged.RemoveAll(this);I->OnChanged.AddUObject(this,&ThisClass::SynchronizeInteractionState);}
-    if (IsWorkspaceOwned() && SensorManager) SynchronizeWorkspaceSelection(true);
-    else RefreshPendingState(true);
-    SpawnGizmoIfNeeded();
-    SyncGizmoTarget();
+	if (SensorManager != InSensorManager)
+		FinishSensorManipulation(false);
+	SensorManager = InSensorManager;
+	if (IsWorkspaceOwned() && SensorManager && GetToolWorkspace()->GetCoordinator() != SensorManager)
+		GetToolWorkspace()->SetCoordinator(SensorManager);
+	if (auto* I = OwnedInteraction())
+	{
+		SharedInteraction = I;
+		I->OnChanged.RemoveAll(this);
+		I->OnChanged.AddUObject(this, &ThisClass::SynchronizeInteractionState);
+	}
+	if (IsWorkspaceOwned() && SensorManager)
+		SynchronizeWorkspaceSelection(true);
+	else
+		RefreshPendingState(true);
+	SpawnGizmoIfNeeded();
+	SyncGizmoTarget();
 }
 
 bool UDxWidgetVirtualSensorSettingsPanel::SynchronizeWorkspaceSelection(bool bForceRefresh)
 {
-    if (!IsWorkspaceOwned() || !SensorManager) return false;
-    AVirtualSensorActorBase* Selected = SensorManager->GetSelectedSensorActor();
-    const auto Kind = Selected
-        ? (Selected->GetSensorKind()==EVirtualSensorKind::Lidar ? EVirtualSensorTargetKind::Lidar : EVirtualSensorTargetKind::Camera)
-        : (SensorManager->GetViewMode()==EVirtualSensorViewMode::Camera ? EVirtualSensorTargetKind::Camera : EVirtualSensorTargetKind::Lidar);
-    const FString Id = Selected ? Selected->GetSensorId() : FString();
-    const bool bSame = Selected==LastSyncedSensorActor.Get() && PendingState.TargetKind==Kind && PendingState.SensorId==Id;
-    if (bSame && !bForceRefresh) return false;
+	if (!IsWorkspaceOwned() || !SensorManager)
+		return false;
+	AVirtualSensorActorBase* Selected = SensorManager->GetSelectedSensorActor();
+	const auto Kind = Selected
+	                      ? (Selected->GetSensorKind() == EVirtualSensorKind::Lidar ? EVirtualSensorTargetKind::Lidar : EVirtualSensorTargetKind::Camera)
+	                      : (SensorManager->GetViewMode() == EVirtualSensorViewMode::Camera ? EVirtualSensorTargetKind::Camera : EVirtualSensorTargetKind::Lidar);
+	const FString Id = Selected ? Selected->GetSensorId() : FString();
+	const bool bSame = Selected == LastSyncedSensorActor.Get() && PendingState.TargetKind == Kind && PendingState.SensorId == Id;
+	if (bSame && !bForceRefresh)
+		return false;
 
-    if (!bSame)
-    {
-        // Do not restore the old monitor view here: the user's new selection wins.
-        FinishSensorManipulation(false);
-    }
-    PendingState.TargetKind=Kind;
-    if (Selected) RefreshPendingState(true);
-    else
-    {
-        PendingState=FVirtualSensorEditableState(); PendingState.TargetKind=Kind;
-        PendingState.SensorId.Reset(); LastControlMessage=TEXT("선택한 종류의 센서가 없습니다."); RefreshNativeText();
-    }
-    SyncGizmoTarget(); LastSyncedSensorActor=Selected;
-    return true;
+	if (!bSame)
+	{
+		// Do not restore the old monitor view here: the user's new selection wins.
+		FinishSensorManipulation(false);
+	}
+	PendingState.TargetKind = Kind;
+	if (Selected)
+		RefreshPendingState(true);
+	else
+	{
+		PendingState = FVirtualSensorEditableState();
+		PendingState.TargetKind = Kind;
+		PendingState.SensorId.Reset();
+		LastControlMessage = TEXT("선택한 종류의 센서가 없습니다.");
+		RefreshNativeText();
+	}
+	SyncGizmoTarget();
+	LastSyncedSensorActor = Selected;
+	return true;
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::BindHostActor(AVirtualSensorUiHostActor* InHostActor)
 {
-    HostActor = InHostActor;
+	HostActor = InHostActor;
 }
 
 TArray<FVirtualSensorSettingHelpDescriptor> UDxWidgetVirtualSensorSettingsPanel::GetAllSettingHelpDescriptors() const
 {
-    return SettingHelpDescriptors();
+	return SettingHelpDescriptors();
 }
 
 const FVirtualSensorSettingHelpDescriptor* UDxWidgetVirtualSensorSettingsPanel::FindSettingHelp(FName SettingKey) const
 {
-    return SettingHelpDescriptors().FindByPredicate([SettingKey](const FVirtualSensorSettingHelpDescriptor& Item) { return Item.Key == SettingKey; });
+	return SettingHelpDescriptors().FindByPredicate([SettingKey](const FVirtualSensorSettingHelpDescriptor& Item)
+	                                                { return Item.Key == SettingKey; });
 }
 
 bool UDxWidgetVirtualSensorSettingsPanel::SelectSettingHelp(FName SettingKey)
 {
-    if (!FindSettingHelp(SettingKey)) return false;
-    SelectedSettingHelpKey = SettingKey;
-    RefreshNativeText();
-    return true;
+	if (!FindSettingHelp(SettingKey))
+		return false;
+	SelectedSettingHelpKey = SettingKey;
+	RefreshNativeText();
+	return true;
 }
 
 FString UDxWidgetVirtualSensorSettingsPanel::GetSelectedSettingHelpText() const
 {
-    const FVirtualSensorSettingHelpDescriptor* Help = FindSettingHelp(SelectedSettingHelpKey);
-    if (!Help) return TEXT("설정 항목의 ⓘ 버튼을 누르면 의미와 성능 영향을 확인할 수 있습니다.");
-    FString Result = FString::Printf(TEXT("%s  [%s]\n%s\n성능 영향: %s\n권장값: %s"),
-        *Help->Label.ToString(), *Help->Unit.ToString(), *Help->Description.ToString(), *Help->PerformanceImpact.ToString(), *Help->RecommendedValue.ToString());
-    if (!Help->Caution.IsEmpty()) Result += FString::Printf(TEXT("\n주의: %s"), *Help->Caution.ToString());
-    return Result;
+	const FVirtualSensorSettingHelpDescriptor* Help = FindSettingHelp(SelectedSettingHelpKey);
+	if (!Help)
+		return TEXT("설정 항목의 ⓘ 버튼을 누르면 의미와 성능 영향을 확인할 수 있습니다.");
+	FString Result = FString::Printf(TEXT("%s  [%s]\n%s\n성능 영향: %s\n권장값: %s"),
+	                                 *Help->Label.ToString(), *Help->Unit.ToString(), *Help->Description.ToString(), *Help->PerformanceImpact.ToString(), *Help->RecommendedValue.ToString());
+	if (!Help->Caution.IsEmpty())
+		Result += FString::Printf(TEXT("\n주의: %s"), *Help->Caution.ToString());
+	return Result;
 }
 
 FString UDxWidgetVirtualSensorSettingsPanel::GetCurrentLoadSummaryText() const
 {
-    FString LoadText;
-    if (PendingState.TargetKind == EVirtualSensorTargetKind::Camera)
-    {
-        const double RateHz = 1.0 / FMath::Max(0.001, static_cast<double>(PendingState.CameraCaptureInterval));
-        const double MegaPixelsPerSecond = CalculateCameraMegaPixelsPerSecond(PendingState);
-        const TCHAR* Level = MegaPixelsPerSecond < 10.0 ? TEXT("낮음") : (MegaPixelsPerSecond < 25.0 ? TEXT("보통") : TEXT("높음"));
-        LoadText = FString::Printf(TEXT("예상 부하: %.1f MP/s · %.1fHz · %s"), MegaPixelsPerSecond, RateHz, Level);
-    }
-    else
-    {
-        const int64 RaysPerScan = static_cast<int64>(PendingState.LidarHorizontalSamples) * PendingState.LidarVerticalChannels;
-        const double RateHz = 1.0 / FMath::Max(0.001, static_cast<double>(PendingState.LidarScanInterval));
-        const double RaysPerSecond = CalculateLidarRaysPerSecond(PendingState);
-        const int32 PayloadUpper = PendingState.MaxServerPayloadPoints > 0
-            ? FMath::Min(PendingState.MaxServerPayloadPoints, static_cast<int32>(RaysPerScan / FMath::Max(1, PendingState.ServerPayloadStride)))
-            : static_cast<int32>(RaysPerScan / FMath::Max(1, PendingState.ServerPayloadStride));
-        const int32 PreviewUpper = PendingState.MaxPreviewPoints > 0
-            ? FMath::Min(PendingState.MaxPreviewPoints, static_cast<int32>(RaysPerScan / FMath::Max(1, PendingState.PreviewPointStride)))
-            : static_cast<int32>(RaysPerScan / FMath::Max(1, PendingState.PreviewPointStride));
-        const TCHAR* Level = RaysPerSecond < 20000.0 ? TEXT("낮음") : (RaysPerSecond < 100000.0 ? TEXT("보통") : TEXT("높음"));
-        LoadText = FString::Printf(TEXT("예상 부하: %lld 광선/스캔 · %.0f 광선/s · Payload≤%d · Preview≤%d · %s"), RaysPerScan, RaysPerSecond, PayloadUpper, PreviewUpper, Level);
-    }
+	FString LoadText;
+	if (PendingState.TargetKind == EVirtualSensorTargetKind::Camera)
+	{
+		const double RateHz = 1.0 / FMath::Max(0.001, static_cast<double>(PendingState.CameraCaptureInterval));
+		const double MegaPixelsPerSecond = CalculateCameraMegaPixelsPerSecond(PendingState);
+		const TCHAR* Level = MegaPixelsPerSecond < 10.0 ? TEXT("낮음") : (MegaPixelsPerSecond < 25.0 ? TEXT("보통") : TEXT("높음"));
+		LoadText = FString::Printf(TEXT("예상 부하: %.1f MP/s · %.1fHz · %s"), MegaPixelsPerSecond, RateHz, Level);
+	}
+	else
+	{
+		const int64 RaysPerScan = static_cast<int64>(PendingState.LidarHorizontalSamples) * PendingState.LidarVerticalChannels;
+		const double RateHz = 1.0 / FMath::Max(0.001, static_cast<double>(PendingState.LidarScanInterval));
+		const double RaysPerSecond = CalculateLidarRaysPerSecond(PendingState);
+		const int32 PayloadUpper = PendingState.MaxServerPayloadPoints > 0
+		                               ? FMath::Min(PendingState.MaxServerPayloadPoints, static_cast<int32>(RaysPerScan / FMath::Max(1, PendingState.ServerPayloadStride)))
+		                               : static_cast<int32>(RaysPerScan / FMath::Max(1, PendingState.ServerPayloadStride));
+		const int32 PreviewUpper = PendingState.MaxPreviewPoints > 0
+		                               ? FMath::Min(PendingState.MaxPreviewPoints, static_cast<int32>(RaysPerScan / FMath::Max(1, PendingState.PreviewPointStride)))
+		                               : static_cast<int32>(RaysPerScan / FMath::Max(1, PendingState.PreviewPointStride));
+		const TCHAR* Level = RaysPerSecond < 20000.0 ? TEXT("낮음") : (RaysPerSecond < 100000.0 ? TEXT("보통") : TEXT("높음"));
+		LoadText = FString::Printf(TEXT("예상 부하: %lld 광선/스캔 · %.0f 광선/s · Payload≤%d · Preview≤%d · %s"), RaysPerScan, RaysPerSecond, PayloadUpper, PreviewUpper, Level);
+	}
 
-    if (PendingState.TargetKind == EVirtualSensorTargetKind::Lidar && SensorManager)
-    {
-        if (const UVirtualLidarScanComp* Lidar = SensorManager->GetSelectedLidar())
-        {
-            const TCHAR* ProfileBadge =
-                Lidar->ProfileClass == EVirtualLidarProfileClass::PublicSpecNative ? TEXT("원본 사양")
-                : Lidar->ProfileClass == EVirtualLidarProfileClass::IntegrationDownsampled ? TEXT("통합/다운샘플")
-                : Lidar->ProfileClass == EVirtualLidarProfileClass::UserCustom ? TEXT("사용자 설정")
-                : TEXT("일반");
-            const TCHAR* Fidelity =
-                Lidar->FidelityMode == EVirtualSensorFidelityMode::HardwareCalibrated ? TEXT("실장비 캘리브레이션 적용")
-                : Lidar->FidelityMode == EVirtualSensorFidelityMode::PublicSpecBased ? TEXT("공개 사양 기반 에뮬레이션")
-                : Lidar->FidelityMode == EVirtualSensorFidelityMode::ReplayOrHardwareInput ? TEXT("Replay/실장비 입력")
-                : TEXT("Ideal Truth");
-            const FVirtualSensorRuntimeStatus& Status = Lidar->GetRuntimeStatus();
-            const FString BackendSuffix = Status.AcquisitionBackendMessage.IsEmpty()
-                ? FString()
-                : FString::Printf(TEXT(" (%s)"), *Status.AcquisitionBackendMessage);
-            LoadText += FString::Printf(
-                TEXT("\n프로필: %s · 충실도: %s · 프로토콜 검증: %s")
-                TEXT("\n측정: 요청 %.1fHz / 완료 %.1fHz · 출력 %.1fHz · deadline miss %d")
-                TEXT("\n백엔드: %s%s"),
-                ProfileBadge,
-                Fidelity,
-                Lidar->GetDeviceSpec().bProtocolVerifiedAgainstHardware ? TEXT("완료") : TEXT("미검증"),
-                Status.RequestedAcquisitionRateHz,
-                Status.MeasuredAcquisitionRateHz,
-                Status.MeasuredOutputRateHz,
-                Status.DeadlineMissCount,
-                *Status.ActiveAcquisitionBackend,
-                *BackendSuffix);
-            const TCHAR* NativeSafety=LidarNativeSafetyText::Message(SensorNativeSafety::GetStatus());
-            if(*NativeSafety)LoadText+=FString(TEXT("\n"))+NativeSafety;
-        }
-    }
+	if (PendingState.TargetKind == EVirtualSensorTargetKind::Lidar && SensorManager)
+	{
+		if (const UVirtualLidarScanComp* Lidar = SensorManager->GetSelectedLidar())
+		{
+			const TCHAR* ProfileBadge =
+			    Lidar->ProfileClass == EVirtualLidarProfileClass::PublicSpecNative         ? TEXT("원본 사양")
+			    : Lidar->ProfileClass == EVirtualLidarProfileClass::IntegrationDownsampled ? TEXT("통합/다운샘플")
+			    : Lidar->ProfileClass == EVirtualLidarProfileClass::UserCustom             ? TEXT("사용자 설정")
+			                                                                               : TEXT("일반");
+			const TCHAR* Fidelity =
+			    Lidar->FidelityMode == EVirtualSensorFidelityMode::HardwareCalibrated      ? TEXT("실장비 캘리브레이션 적용")
+			    : Lidar->FidelityMode == EVirtualSensorFidelityMode::PublicSpecBased       ? TEXT("공개 사양 기반 에뮬레이션")
+			    : Lidar->FidelityMode == EVirtualSensorFidelityMode::ReplayOrHardwareInput ? TEXT("Replay/실장비 입력")
+			                                                                               : TEXT("Ideal Truth");
+			const FVirtualSensorRuntimeStatus& Status = Lidar->GetRuntimeStatus();
+			const FString BackendSuffix = Status.AcquisitionBackendMessage.IsEmpty()
+			                                  ? FString()
+			                                  : FString::Printf(TEXT(" (%s)"), *Status.AcquisitionBackendMessage);
+			LoadText += FString::Printf(
+			    TEXT("\n프로필: %s · 충실도: %s · 프로토콜 검증: %s")
+			        TEXT("\n측정: 요청 %.1fHz / 완료 %.1fHz · 출력 %.1fHz · deadline miss %d")
+			            TEXT("\n백엔드: %s%s"),
+			    ProfileBadge,
+			    Fidelity,
+			    Lidar->GetDeviceSpec().bProtocolVerifiedAgainstHardware ? TEXT("완료") : TEXT("미검증"),
+			    Status.RequestedAcquisitionRateHz,
+			    Status.MeasuredAcquisitionRateHz,
+			    Status.MeasuredOutputRateHz,
+			    Status.DeadlineMissCount,
+			    *Status.ActiveAcquisitionBackend,
+			    *BackendSuffix);
+			const TCHAR* NativeSafety = LidarNativeSafetyText::Message(SensorNativeSafety::GetStatus());
+			if (*NativeSafety)
+				LoadText += FString(TEXT("\n")) + NativeSafety;
+		}
+	}
 
-    if (GetWorld())
-    {
-        if (const UVirtualSensorSchedulerSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>())
-        {
-            LoadText += TEXT("\n") + Subsystem->GetTelemetrySummaryText();
-        }
-    }
-    return LoadText;
+	if (GetWorld())
+	{
+		if (const UVirtualSensorSchedulerSubsystem* Subsystem = GetWorld()->GetSubsystem<UVirtualSensorSchedulerSubsystem>())
+		{
+			LoadText += TEXT("\n") + Subsystem->GetTelemetrySummaryText();
+		}
+	}
+	return LoadText;
 }
 
 double UDxWidgetVirtualSensorSettingsPanel::CalculateCameraMegaPixelsPerSecond(const FVirtualSensorEditableState& State)
-{ return FDeviceSensorSettingsBody::CalculateCameraMegaPixelsPerSecond(State); }
+{
+	return FDeviceSensorSettingsBody::CalculateCameraMegaPixelsPerSecond(State);
+}
 
 double UDxWidgetVirtualSensorSettingsPanel::CalculateLidarRaysPerSecond(const FVirtualSensorEditableState& State)
-{ return FDeviceSensorSettingsBody::CalculateLidarRaysPerSecond(State); }
+{
+	return FDeviceSensorSettingsBody::CalculateLidarRaysPerSecond(State);
+}
 
 void UDxWidgetVirtualSensorSettingsPanel::SelectTargetKind(EVirtualSensorTargetKind InTargetKind)
 {
-    FinishSensorManipulation(false);
-    const bool bCycleWithinCurrentKind = PendingState.TargetKind == InTargetKind;
-    if (SensorManager)
-    {
-        if (bCycleWithinCurrentKind)
-        {
-            if (InTargetKind == EVirtualSensorTargetKind::Camera) SensorManager->SelectNextCamera();
-            else SensorManager->SelectNextLidar();
-        }
-        SensorManager->SetViewMode(InTargetKind == EVirtualSensorTargetKind::Camera
-            ? EVirtualSensorViewMode::Camera
-            : EVirtualSensorViewMode::Lidar);
-    }
-    PendingState.TargetKind = InTargetKind;
-    RefreshPendingState(true);
-    SyncGizmoTarget();
+	FinishSensorManipulation(false);
+	const bool bCycleWithinCurrentKind = PendingState.TargetKind == InTargetKind;
+	if (SensorManager)
+	{
+		if (bCycleWithinCurrentKind)
+		{
+			if (InTargetKind == EVirtualSensorTargetKind::Camera)
+				SensorManager->SelectNextCamera();
+			else
+				SensorManager->SelectNextLidar();
+		}
+		SensorManager->SetViewMode(InTargetKind == EVirtualSensorTargetKind::Camera
+		                               ? EVirtualSensorViewMode::Camera
+		                               : EVirtualSensorViewMode::Lidar);
+	}
+	PendingState.TargetKind = InTargetKind;
+	RefreshPendingState(true);
+	SyncGizmoTarget();
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::SelectNextTarget()
 {
-    FinishSensorManipulation(false);
-    if (!SensorManager)
-    {
-        LastControlMessage = TEXT("SensorManager가 연결되지 않았습니다.");
-        RefreshNativeText();
-        return;
-    }
-    if (PendingState.TargetKind == EVirtualSensorTargetKind::Camera)
-    {
-        SensorManager->SelectNextCamera();
-    }
-    else
-    {
-        SensorManager->SelectNextLidar();
-    }
-    RefreshPendingState(true);
-    SyncGizmoTarget();
+	FinishSensorManipulation(false);
+	if (!SensorManager)
+	{
+		LastControlMessage = TEXT("SensorManager가 연결되지 않았습니다.");
+		RefreshNativeText();
+		return;
+	}
+	if (PendingState.TargetKind == EVirtualSensorTargetKind::Camera)
+	{
+		SensorManager->SelectNextCamera();
+	}
+	else
+	{
+		SensorManager->SelectNextLidar();
+	}
+	RefreshPendingState(true);
+	SyncGizmoTarget();
 }
 
 bool UDxWidgetVirtualSensorSettingsPanel::ApplyPendingState()
 {
-    FVirtualSensorHitchScope Scope(EVirtualSensorHitchSection::SettingsUi);
-    const TWeakObjectPtr<AVirtualSensorActorBase> RequestedActor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
-    const FTransform Before=RequestedActor.IsValid()?RequestedActor->GetActorTransform():FTransform::Identity;
-    const FString BeforeId=RequestedActor.IsValid()?RequestedActor->GetSensorId():FString();
-    FString Error;
-    if (!RequestedActor.IsValid() || RequestedActor.Get()!=GetSelectedSensorActor() || !ValidateState(PendingState, Error) || !RequestedActor->ApplyEditableState(PendingState, Error))
-    {
-        FVirtualSensorEditableState CurrentRuntimeState;
-        CurrentRuntimeState.TargetKind = PendingState.TargetKind;
-        if (ReadSelectedSensorState(CurrentRuntimeState))
-        {
-            PendingState = CurrentRuntimeState;
-        }
-        LastControlMessage = FString::Printf(TEXT("적용 실패: %s"), *Error);
-        RefreshNativeText();
-        return false;
-    }
-    if(bManipulationEnabled)FinishSensorManipulation(false);
-    if(IsWorkspaceOwned()&&RequestedActor.IsValid())if(auto* Placement=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())
-    {
-        if(BeforeId!=RequestedActor->GetSensorId())Placement->ForgetSensorIdentity(RequestedActor.Get());
-        else Placement->RecordPoseChange(RequestedActor.Get(),Before,RequestedActor->GetActorTransform());
-        Placement->BeginPlacementPreviewRefresh(RequestedActor.Get());
-    }
-    LastControlMessage = FString::Printf(TEXT("PIE에 적용됨: %s"), *PendingState.SensorId);
-    if(RequestedActor.Get()==GetSelectedSensorActor())RefreshSelectedSensorNow(true);else RefreshPendingState(true);
-    RefreshNativeText();
-    return true;
+	FVirtualSensorHitchScope Scope(EVirtualSensorHitchSection::SettingsUi);
+	const TWeakObjectPtr<AVirtualSensorActorBase> RequestedActor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
+	const FTransform Before = RequestedActor.IsValid() ? RequestedActor->GetActorTransform() : FTransform::Identity;
+	const FString BeforeId = RequestedActor.IsValid() ? RequestedActor->GetSensorId() : FString();
+	FString Error;
+	if (!RequestedActor.IsValid() || RequestedActor.Get() != GetSelectedSensorActor() || !ValidateState(PendingState, Error) || !RequestedActor->ApplyEditableState(PendingState, Error))
+	{
+		FVirtualSensorEditableState CurrentRuntimeState;
+		CurrentRuntimeState.TargetKind = PendingState.TargetKind;
+		if (ReadSelectedSensorState(CurrentRuntimeState))
+		{
+			PendingState = CurrentRuntimeState;
+		}
+		LastControlMessage = FString::Printf(TEXT("적용 실패: %s"), *Error);
+		RefreshNativeText();
+		return false;
+	}
+	if (bManipulationEnabled)
+		FinishSensorManipulation(false);
+	if (IsWorkspaceOwned() && RequestedActor.IsValid())
+		if (auto* Placement = GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())
+		{
+			if (BeforeId != RequestedActor->GetSensorId())
+				Placement->ForgetSensorIdentity(RequestedActor.Get());
+			else
+				Placement->RecordPoseChange(RequestedActor.Get(), Before, RequestedActor->GetActorTransform());
+			Placement->BeginPlacementPreviewRefresh(RequestedActor.Get());
+		}
+	LastControlMessage = FString::Printf(TEXT("PIE에 적용됨: %s"), *PendingState.SensorId);
+	if (RequestedActor.Get() == GetSelectedSensorActor())
+		RefreshSelectedSensorNow(true);
+	else
+		RefreshPendingState(true);
+	RefreshNativeText();
+	return true;
 }
 
 bool UDxWidgetVirtualSensorSettingsPanel::ApplyPendingTransform()
 {
-    auto* Sensor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
-    const auto Before=IsValid(Sensor)?Sensor->GetActorTransform():FTransform::Identity;
-    FString Error;
-    if (!Sensor || (bManipulationEnabled && ManipulationTarget.Get() != Sensor) ||
-        !Sensor->ApplyEditableTransform(PendingState.ActorTransform, Error))
-    {
-        LastControlMessage = FString::Printf(TEXT("위치 적용 실패: %s"), *Error);
-        RefreshNativeText();
-        return false;
-    }
-    if(IsWorkspaceOwned())if(auto* Placement=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())
-    {Placement->RecordPoseChange(Sensor,Before,Sensor->GetActorTransform());Placement->BeginPlacementPreviewRefresh(Sensor);}
-    LastControlMessage = bManipulationEnabled ? TEXT("조작 중: 경량 미리보기 · 위치 적용됨") : TEXT("위치가 PIE에 반영됨");
-    RefreshNativeText();
-    return true;
+	auto* Sensor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
+	const auto Before = IsValid(Sensor) ? Sensor->GetActorTransform() : FTransform::Identity;
+	FString Error;
+	if (!Sensor || (bManipulationEnabled && ManipulationTarget.Get() != Sensor) ||
+	    !Sensor->ApplyEditableTransform(PendingState.ActorTransform, Error))
+	{
+		LastControlMessage = FString::Printf(TEXT("위치 적용 실패: %s"), *Error);
+		RefreshNativeText();
+		return false;
+	}
+	if (IsWorkspaceOwned())
+		if (auto* Placement = GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())
+		{
+			Placement->RecordPoseChange(Sensor, Before, Sensor->GetActorTransform());
+			Placement->BeginPlacementPreviewRefresh(Sensor);
+		}
+	LastControlMessage = bManipulationEnabled ? TEXT("조작 중: 경량 미리보기 · 위치 적용됨") : TEXT("위치가 PIE에 반영됨");
+	RefreshNativeText();
+	return true;
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::ResetPendingStateToMapValue()
 {
-    const FVirtualSensorEditableState* Initial = InitialStates.Find(PendingState.PersistentActorTag);
-    if (Initial)
-    {
-        PendingState = *Initial;
-        if(ApplyPendingState())LastControlMessage = TEXT("PIE 시작 시점의 맵 값으로 되돌렸습니다.");
-    }
-    else
-    {
-        LastControlMessage = TEXT("선택한 센서의 PIE 시작 값이 없습니다.");
-    }
-    RefreshNativeText();
+	const FVirtualSensorEditableState* Initial = InitialStates.Find(PendingState.PersistentActorTag);
+	if (Initial)
+	{
+		PendingState = *Initial;
+		if (ApplyPendingState())
+			LastControlMessage = TEXT("PIE 시작 시점의 맵 값으로 되돌렸습니다.");
+	}
+	else
+	{
+		LastControlMessage = TEXT("선택한 센서의 PIE 시작 값이 없습니다.");
+	}
+	RefreshNativeText();
 }
 
 bool UDxWidgetVirtualSensorSettingsPanel::QueuePendingStateForSensorTestMap()
 {
-    if(HostActor&&!HostActor->CanQueueMapApply())
-    {
-        LastControlMessage=TEXT("이 맵에서는 맵 저장 예약을 사용할 수 없습니다 · 저장 위치 또는 전체 배치를 사용하세요.");RefreshNativeText();return false;
-    }
-    if (!ApplyPendingState() || !HostActor)
-    {
-        if (!HostActor)
-        {
-            LastControlMessage = TEXT("맵 저장 예약 실패: HostActor가 연결되지 않았습니다.");
-            RefreshNativeText();
-        }
-        return false;
-    }
-    HostActor->QueueSensorStateForMapApply(PendingState);
-    LastControlMessage = TEXT("SensorTestMap 저장 대기: PIE를 종료하면 맵에 저장됩니다.");
-    RefreshNativeText();
-    return true;
+	if (HostActor && !HostActor->CanQueueMapApply())
+	{
+		LastControlMessage = TEXT("이 맵에서는 맵 저장 예약을 사용할 수 없습니다 · 저장 위치 또는 전체 배치를 사용하세요.");
+		RefreshNativeText();
+		return false;
+	}
+	if (!ApplyPendingState() || !HostActor)
+	{
+		if (!HostActor)
+		{
+			LastControlMessage = TEXT("맵 저장 예약 실패: HostActor가 연결되지 않았습니다.");
+			RefreshNativeText();
+		}
+		return false;
+	}
+	HostActor->QueueSensorStateForMapApply(PendingState);
+	LastControlMessage = TEXT("SensorTestMap 저장 대기: PIE를 종료하면 맵에 저장됩니다.");
+	RefreshNativeText();
+	return true;
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::NudgeSelectedSensor(FVector TranslationDelta, FRotator RotationDelta)
 {
-    SetSensorManipulationEnabled(true);
-    if(!bManipulationEnabled)return;
-    PendingState.ActorTransform = AVirtualSensorTransformGizmoActor::ApplyKeyboardDelta(PendingState.ActorTransform, CoordinateSpace, TranslationDelta, RotationDelta);
-    ApplyPendingTransform();
+	SetSensorManipulationEnabled(true);
+	if (!bManipulationEnabled)
+		return;
+	PendingState.ActorTransform = AVirtualSensorTransformGizmoActor::ApplyKeyboardDelta(PendingState.ActorTransform, CoordinateSpace, TranslationDelta, RotationDelta);
+	ApplyPendingTransform();
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::SetPlacementInputMode(EVirtualSensorPlacementInputMode Mode)
 {
-    PlacementInputMode=Mode;
-    if(auto* I=OwnedInteraction()){I->SetInputMode(Mode,TranslationSpeedCmPerSecond,RotationSpeedDegreesPerSecond);return;}
-    if(GizmoActor)GizmoActor->ConfigureResponsivePlacement(IsWorkspaceOwned(),Mode,TranslationSpeedCmPerSecond,RotationSpeedDegreesPerSecond);
+	PlacementInputMode = Mode;
+	if (auto* I = OwnedInteraction())
+	{
+		I->SetInputMode(Mode, TranslationSpeedCmPerSecond, RotationSpeedDegreesPerSecond);
+		return;
+	}
+	if (GizmoActor)
+		GizmoActor->ConfigureResponsivePlacement(IsWorkspaceOwned(), Mode, TranslationSpeedCmPerSecond, RotationSpeedDegreesPerSecond);
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::SetSensorManipulationEnabled(bool bEnabled)
 {
-    if(auto* I=OwnedInteraction())
-    {if(bEnabled&&!SensorManager){LastControlMessage=TEXT("조작할 장비를 선택하세요.");return;}I->SetInputMode(PlacementInputMode,TranslationSpeedCmPerSecond,RotationSpeedDegreesPerSecond);if(auto* G=I->GetExistingGizmo())G->SetStepSizes(TranslationStepCm,RotationStepDegrees);I->SetManipulation(bEnabled,this,LastControlMessage);SynchronizeInteractionState();RefreshNativeText();return;}
-    if (!bEnabled)
-    {
-        FinishSensorManipulation(true);
-        return;
-    }
-    auto* Target = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
-    if (bManipulationEnabled && ManipulationTarget.Get() == Target && IsValid(Target) && Target->IsInteractiveManipulationActive()) return;
-    FinishSensorManipulation(false);
-    FString PlacementReason;
-    if(IsWorkspaceOwned()){InteractionRequest.CameraPreviewInterval=1.f/15;InteractionRequest.LidarPreviewInterval=.1f;}
-    if (!IsValid(Target) || !Target->CanEditSensorPlacement(PlacementReason) || !Target->BeginInteractiveManipulation(InteractionRequest))
-    {
-        LastControlMessage = PlacementReason.IsEmpty()?TEXT("센서 조작을 시작할 수 없습니다: 유효한 센서를 선택하세요."):PlacementReason;
-        RefreshNativeText();
-        return;
-    }
-    ManipulationTarget = Target;
-    Target->OnDataCollectionStarting.AddUObject(this,&ThisClass::HandleManipulationExitRequested);
-    bManipulationEnabled = true;
-    SpawnGizmoIfNeeded();
-    if (GizmoActor)
-    {
-        GizmoActor->ConfigureResponsivePlacement(IsWorkspaceOwned(),PlacementInputMode,TranslationSpeedCmPerSecond,RotationSpeedDegreesPerSecond);
-        GizmoActor->BindTarget(Target);
-        GizmoActor->SetManipulationEnabled(true);
-    }
-    BeginMonitorFollowForManipulation();
-    LastControlMessage = TEXT("조작 중: 경량 미리보기 (WASD/QE 이동, 방향키/Z/C 회전)");
-    RefreshNativeText();
+	if (auto* I = OwnedInteraction())
+	{
+		if (bEnabled && !SensorManager)
+		{
+			LastControlMessage = TEXT("조작할 장비를 선택하세요.");
+			return;
+		}
+		I->SetInputMode(PlacementInputMode, TranslationSpeedCmPerSecond, RotationSpeedDegreesPerSecond);
+		if (auto* G = I->GetExistingGizmo())
+			G->SetStepSizes(TranslationStepCm, RotationStepDegrees);
+		I->SetManipulation(bEnabled, this, LastControlMessage);
+		SynchronizeInteractionState();
+		RefreshNativeText();
+		return;
+	}
+	if (!bEnabled)
+	{
+		FinishSensorManipulation(true);
+		return;
+	}
+	auto* Target = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
+	if (bManipulationEnabled && ManipulationTarget.Get() == Target && IsValid(Target) && Target->IsInteractiveManipulationActive())
+		return;
+	FinishSensorManipulation(false);
+	FString PlacementReason;
+	if (IsWorkspaceOwned())
+	{
+		InteractionRequest.CameraPreviewInterval = 1.f / 15;
+		InteractionRequest.LidarPreviewInterval = .1f;
+	}
+	if (!IsValid(Target) || !Target->CanEditSensorPlacement(PlacementReason) || !Target->BeginInteractiveManipulation(InteractionRequest))
+	{
+		LastControlMessage = PlacementReason.IsEmpty() ? TEXT("센서 조작을 시작할 수 없습니다: 유효한 센서를 선택하세요.") : PlacementReason;
+		RefreshNativeText();
+		return;
+	}
+	ManipulationTarget = Target;
+	Target->OnDataCollectionStarting.AddUObject(this, &ThisClass::HandleManipulationExitRequested);
+	bManipulationEnabled = true;
+	SpawnGizmoIfNeeded();
+	if (GizmoActor)
+	{
+		GizmoActor->ConfigureResponsivePlacement(IsWorkspaceOwned(), PlacementInputMode, TranslationSpeedCmPerSecond, RotationSpeedDegreesPerSecond);
+		GizmoActor->BindTarget(Target);
+		GizmoActor->SetManipulationEnabled(true);
+	}
+	BeginMonitorFollowForManipulation();
+	LastControlMessage = TEXT("조작 중: 경량 미리보기 (WASD/QE 이동, 방향키/Z/C 회전)");
+	RefreshNativeText();
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::HandleManipulationExitRequested()
 {
-    FinishSensorManipulation(true);
+	FinishSensorManipulation(true);
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::FinishSensorManipulation(bool bRestoreMonitorView)
 {
-    if(auto* I=OwnedInteraction()){I->Finish(bRestoreMonitorView);SynchronizeInteractionState();return;}
-    const bool bWasManipulating = bManipulationEnabled || ManipulationTarget.IsValid();
-    if (ManipulationTarget.IsValid() && ManipulationTarget.Get() != GetSelectedSensorActor()) bRestoreMonitorView = false;
-    if (IsValid(GizmoActor)) GizmoActor->SetManipulationEnabled(false);
-    bManipulationEnabled = false;
-    if (auto* Target = ManipulationTarget.Get())
-    {
-        Target->OnDataCollectionStarting.RemoveAll(this);Target->EndInteractiveManipulation();
-        if(IsWorkspaceOwned())if(auto* Placement=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())Placement->BeginPlacementPreviewRefresh(Target);
-    }
-    ManipulationTarget.Reset();
-    if (!bRestoreMonitorView) bRestoreMonitorViewAfterManipulation = false;
-    EndMonitorFollowForManipulation();
-    if (bWasManipulating)
-    {
-        LastControlMessage = TEXT("조작 종료: 원래 센서 설정·실행 상태 복원");
-        RefreshNativeText();
-    }
+	if (auto* I = OwnedInteraction())
+	{
+		I->Finish(bRestoreMonitorView);
+		SynchronizeInteractionState();
+		return;
+	}
+	const bool bWasManipulating = bManipulationEnabled || ManipulationTarget.IsValid();
+	if (ManipulationTarget.IsValid() && ManipulationTarget.Get() != GetSelectedSensorActor())
+		bRestoreMonitorView = false;
+	if (IsValid(GizmoActor))
+		GizmoActor->SetManipulationEnabled(false);
+	bManipulationEnabled = false;
+	if (auto* Target = ManipulationTarget.Get())
+	{
+		Target->OnDataCollectionStarting.RemoveAll(this);
+		Target->EndInteractiveManipulation();
+		if (IsWorkspaceOwned())
+			if (auto* Placement = GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())
+				Placement->BeginPlacementPreviewRefresh(Target);
+	}
+	ManipulationTarget.Reset();
+	if (!bRestoreMonitorView)
+		bRestoreMonitorViewAfterManipulation = false;
+	EndMonitorFollowForManipulation();
+	if (bWasManipulating)
+	{
+		LastControlMessage = TEXT("조작 종료: 원래 센서 설정·실행 상태 복원");
+		RefreshNativeText();
+	}
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::BeginMonitorFollowForManipulation()
 {
-    if (!SensorManager) return;
-    const EVirtualSensorViewMode DesiredMode = PendingState.TargetKind == EVirtualSensorTargetKind::Lidar
-        ? EVirtualSensorViewMode::Lidar
-        : EVirtualSensorViewMode::Camera;
-    if (!bMonitorAutoFollowingManipulation)
-    {
-        MonitorViewBeforeManipulation = static_cast<uint8>(SensorManager->GetViewMode());
-    }
-    AutoFollowMonitorView = static_cast<uint8>(DesiredMode);
-    bMonitorAutoFollowingManipulation = true;
-    bRestoreMonitorViewAfterManipulation = true;
-    SensorManager->SetViewMode(DesiredMode);
+	if (!SensorManager)
+		return;
+	const EVirtualSensorViewMode DesiredMode = PendingState.TargetKind == EVirtualSensorTargetKind::Lidar
+	                                               ? EVirtualSensorViewMode::Lidar
+	                                               : EVirtualSensorViewMode::Camera;
+	if (!bMonitorAutoFollowingManipulation)
+	{
+		MonitorViewBeforeManipulation = static_cast<uint8>(SensorManager->GetViewMode());
+	}
+	AutoFollowMonitorView = static_cast<uint8>(DesiredMode);
+	bMonitorAutoFollowingManipulation = true;
+	bRestoreMonitorViewAfterManipulation = true;
+	SensorManager->SetViewMode(DesiredMode);
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::EndMonitorFollowForManipulation()
 {
-    if (SensorManager && bRestoreMonitorViewAfterManipulation && bMonitorAutoFollowingManipulation &&
-        static_cast<uint8>(SensorManager->GetViewMode()) == AutoFollowMonitorView)
-    {
-        SensorManager->SetViewMode(static_cast<EVirtualSensorViewMode>(MonitorViewBeforeManipulation));
-    }
-    bMonitorAutoFollowingManipulation = false;
-    bRestoreMonitorViewAfterManipulation = false;
+	if (SensorManager && bRestoreMonitorViewAfterManipulation && bMonitorAutoFollowingManipulation &&
+	    static_cast<uint8>(SensorManager->GetViewMode()) == AutoFollowMonitorView)
+	{
+		SensorManager->SetViewMode(static_cast<EVirtualSensorViewMode>(MonitorViewBeforeManipulation));
+	}
+	bMonitorAutoFollowingManipulation = false;
+	bRestoreMonitorViewAfterManipulation = false;
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::SetSensorGizmoMode(EVirtualSensorGizmoMode InMode)
 {
-    GizmoMode = InMode;
-    if(auto* I=OwnedInteraction()){I->SetMode(InMode);return;}
-    if (GizmoActor) GizmoActor->SetGizmoMode(InMode);
+	GizmoMode = InMode;
+	if (auto* I = OwnedInteraction())
+	{
+		I->SetMode(InMode);
+		return;
+	}
+	if (GizmoActor)
+		GizmoActor->SetGizmoMode(InMode);
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::SetSensorCoordinateSpace(EVirtualSensorCoordinateSpace InSpace)
 {
-    CoordinateSpace = InSpace;
-    if(auto* I=OwnedInteraction()){I->SetSpace(InSpace);return;}
-    if (GizmoActor) GizmoActor->SetCoordinateSpace(InSpace);
+	CoordinateSpace = InSpace;
+	if (auto* I = OwnedInteraction())
+	{
+		I->SetSpace(InSpace);
+		return;
+	}
+	if (GizmoActor)
+		GizmoActor->SetCoordinateSpace(InSpace);
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::SetProjectionDebugEnabled(bool bEnabled)
 {
-    bProjectionDebugEnabled = bEnabled;
-    SpawnGizmoIfNeeded();
-    if (GizmoActor) GizmoActor->SetProjectionDebugEnabled(bEnabled);
-    LastControlMessage = bEnabled ? TEXT("선택 센서의 투사 범위를 표시합니다.") : TEXT("투사 범위 표시를 껐습니다.");
-    RefreshNativeText();
+	bProjectionDebugEnabled = bEnabled;
+	SpawnGizmoIfNeeded();
+	if (GizmoActor)
+		GizmoActor->SetProjectionDebugEnabled(bEnabled);
+	LastControlMessage = bEnabled ? TEXT("선택 센서의 투사 범위를 표시합니다.") : TEXT("투사 범위 표시를 껐습니다.");
+	RefreshNativeText();
 }
 
 FString UDxWidgetVirtualSensorSettingsPanel::GetControlStatusText() const
 {
-    const FVector Location = PendingState.ActorTransform.GetLocation();
-    const FRotator Rotation = PendingState.ActorTransform.Rotator();
-    return FString::Printf(TEXT("%s%s\n대상=%s  SensorId=%s\n위치(cm): X %.1f  Y %.1f  Z %.1f\n회전: P %.1f  Y %.1f  R %.1f\n품질=%s\n%s"),
-        *LastControlMessage,
-        *(IsWorkspaceOwned()&&!PlacementPreviewStatus.Message.IsEmpty()?TEXT("\n")+PlacementPreviewStatus.Message:FString()),
-        PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? TEXT("카메라") : TEXT("LiDAR"),
-        *PendingState.SensorId,
-        Location.X, Location.Y, Location.Z,
-        Rotation.Pitch, Rotation.Yaw, Rotation.Roll,
-        *QualityText(PendingState.SimulationQuality),
-        *BuildDeviceSpecText());
+	const FVector Location = PendingState.ActorTransform.GetLocation();
+	const FRotator Rotation = PendingState.ActorTransform.Rotator();
+	return FString::Printf(TEXT("%s%s\n대상=%s  SensorId=%s\n위치(cm): X %.1f  Y %.1f  Z %.1f\n회전: P %.1f  Y %.1f  R %.1f\n품질=%s\n%s"),
+	                       *LastControlMessage,
+	                       *(IsWorkspaceOwned() && !PlacementPreviewStatus.Message.IsEmpty() ? TEXT("\n") + PlacementPreviewStatus.Message : FString()),
+	                       PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? TEXT("카메라") : TEXT("LiDAR"),
+	                       *PendingState.SensorId,
+	                       Location.X, Location.Y, Location.Z,
+	                       Rotation.Pitch, Rotation.Yaw, Rotation.Roll,
+	                       *QualityText(PendingState.SimulationQuality),
+	                       *BuildDeviceSpecText());
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::OpenOwnedSettingsSection(bool bAdvanced)
 {
-    if (!IsWorkspaceOwned() || (WidgetTree && WidgetTree->RootWidget)) return;
-    if(bAdvanced) SelectOwnedSettingsTab(2); // Ordinary reopening keeps the session selection.
-    if (bAdvanced) bShowAdvanced = true;
+	if (!IsWorkspaceOwned() || (WidgetTree && WidgetTree->RootWidget))
+		return;
+	if (bAdvanced)
+		SelectOwnedSettingsTab(2); // Ordinary reopening keeps the session selection.
+	if (bAdvanced)
+		bShowAdvanced = true;
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::SelectOwnedSettingsTab(int32 Tab)
 {
-    if(!SupportsOwnedDocking())return;
-    WorkspaceSettingsTab=FMath::Clamp(Tab,0,2);
-    bOwnedSettingHelpOpen=false;NextOwnedSettingsRefresh=0;
-    if(OwnedSettingsScroll)OwnedSettingsScroll->ScrollToStart();
+	if (!SupportsOwnedDocking())
+		return;
+	WorkspaceSettingsTab = FMath::Clamp(Tab, 0, 2);
+	bOwnedSettingHelpOpen = false;
+	NextOwnedSettingsRefresh = 0;
+	if (OwnedSettingsScroll)
+		OwnedSettingsScroll->ScrollToStart();
 }
 FText UDxWidgetVirtualSensorSettingsPanel::GetPanelBackLabel() const
 {
-    if(SupportsOwnedDocking()&&GetToolWorkspace()->IsSidebarMode()&&WorkspaceSettingsTab!=0)
-        return SensorToolUiText::BackSettings();
-    return Super::GetPanelBackLabel();
+	if (SupportsOwnedDocking() && GetToolWorkspace()->IsSidebarMode() && WorkspaceSettingsTab != 0)
+		return SensorToolUiText::BackSettings();
+	return Super::GetPanelBackLabel();
 }
 bool UDxWidgetVirtualSensorSettingsPanel::CanNavigatePanelBack() const
-{return SupportsOwnedDocking()&&GetToolWorkspace()->IsSidebarMode()&&WorkspaceSettingsTab!=0?true:Super::CanNavigatePanelBack();}
+{
+	return SupportsOwnedDocking() && GetToolWorkspace()->IsSidebarMode() && WorkspaceSettingsTab != 0 ? true : Super::CanNavigatePanelBack();
+}
 bool UDxWidgetVirtualSensorSettingsPanel::NavigatePanelBack()
 {
-    if(SupportsOwnedDocking()&&GetToolWorkspace()->IsSidebarMode()&&WorkspaceSettingsTab!=0){SelectOwnedSettingsTab(0);return true;}
-    return Super::NavigatePanelBack();
+	if (SupportsOwnedDocking() && GetToolWorkspace()->IsSidebarMode() && WorkspaceSettingsTab != 0)
+	{
+		SelectOwnedSettingsTab(0);
+		return true;
+	}
+	return Super::NavigatePanelBack();
 }
 
 TSharedRef<SWidget> UDxWidgetVirtualSensorSettingsPanel::RebuildWidget()
 {
-    if (WidgetTree && WidgetTree->RootWidget)
-    {
-        return Super::RebuildWidget();
-    }
+	if (WidgetTree && WidgetTree->RootWidget)
+	{
+		return Super::RebuildWidget();
+	}
 
-    NativeQualityOptions = {
-        MakeShared<EVirtualSensorSimulationQuality>(EVirtualSensorSimulationQuality::Debug),
-        MakeShared<EVirtualSensorSimulationQuality>(EVirtualSensorSimulationQuality::RealTimePreview),
-        MakeShared<EVirtualSensorSimulationQuality>(EVirtualSensorSimulationQuality::Balanced),
-        MakeShared<EVirtualSensorSimulationQuality>(EVirtualSensorSimulationQuality::FullSpec),
-        MakeShared<EVirtualSensorSimulationQuality>(EVirtualSensorSimulationQuality::Custom)
-    };
-    NativeCameraProfileOptions = {
-        MakeShared<EVirtualCameraDeviceProfile>(EVirtualCameraDeviceProfile::Generic),
-        MakeShared<EVirtualCameraDeviceProfile>(EVirtualCameraDeviceProfile::IntelRealSenseD455)
-    };
-    NativeLidarProfileOptions = {
-        MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::Generic),
-        MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::LivoxMid360S),
-        MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::IYOBOT_MLX80),
-        MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE)
-    };
-    NativeLidarBackendOptions={MakeShared<EVirtualLidarAcquisitionBackend>(EVirtualLidarAcquisitionBackend::Auto),MakeShared<EVirtualLidarAcquisitionBackend>(EVirtualLidarAcquisitionBackend::HardwareRayTracing),MakeShared<EVirtualLidarAcquisitionBackend>(EVirtualLidarAcquisitionBackend::AccurateCpuTrace)};
-    RestoreSettingsUiPreferences();
-    if(IsWorkspaceOwned())return BuildOwnedSettingsWidget();
-    return SNew(SBorder)
-    .BorderImage(GetToolPanelBrush())
-    .BorderBackgroundColor(GetToolPanelColor())
-    .ForegroundColor(GetToolTextColor())
-    .Padding(10.0f)
-    [
-        SNew(SVerticalBox)
-        + SVerticalBox::Slot().AutoHeight()[ BuildToolPanelHeader(LOCTEXT("SettingsWorkspaceTitle","센서 설정")) ]
-        + SVerticalBox::Slot().AutoHeight().Padding(0,8)
-        [ SNew(SWrapBox).UseAllottedSize(true).Visibility_Lambda([this](){return GetPanelBodyVisibility();})
-          + SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("TabBasic","기본 설정")).OnClicked_Lambda([this](){WorkspaceSettingsTab=0;return FReply::Handled();})]
-          + SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("TabPose","배치 작업공간")).OnClicked_Lambda([this](){if(IsWorkspaceOwned())GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Placement,true);else WorkspaceSettingsTab=1;return FReply::Handled();})]
-          + SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("TabAdvanced","고급 설정")).OnClicked_Lambda([this](){WorkspaceSettingsTab=2;bShowAdvanced=true;return FReply::Handled();})]
-        ]
-        + SVerticalBox::Slot().AutoHeight().Padding(2.0f, 5.0f, 2.0f, 0.0f)[ SNewSensorTool(STextBlock).Visibility_Lambda([this](){return GetPanelBodyVisibility();}).ColorAndOpacity(GetToolAccentColor()).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("선택: %s · SensorId: %s"), PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? TEXT("카메라") : TEXT("LiDAR"), PendingState.SensorId.IsEmpty() ? TEXT("없음") : *PendingState.SensorId)); }) ]
-        + SVerticalBox::Slot().FillHeight(1.0f).Padding(0.0f, 8.0f, 0.0f, 0.0f)
-        [
-            SNew(SScrollBox).Visibility_Lambda([this]() { return GetPanelBodyVisibility(); })
-            + SScrollBox::Slot()
-            [
-                SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f)
-                [
-                    SNewSensorTool(SEditableTextBox)
-                    .Style(&GetToolInputStyle())
-                    .HintText(LOCTEXT("SensorIdHint", "SensorId"))
-                    .Visibility_Lambda([this](){return IsWorkspaceOwned()?EVisibility::Collapsed:EVisibility::Visible;})
-                    .Text_Lambda([this]() { return FText::FromString(PendingState.SensorId); })
-                    .OnTextCommitted_Lambda([this](const FText& Text, ETextCommit::Type) { PendingState.SensorId = Text.ToString().TrimStartAndEnd(); ApplyPendingState(); })
-                ]
-                + SVerticalBox::Slot().AutoHeight()[ SNew(SVerticalBox).Visibility_Lambda([this](){return !IsWorkspaceOwned()&&WorkspaceSettingsTab==1?EVisibility::Visible:EVisibility::Collapsed;})
-+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 2.0f)[ SNewSensorTool(STextBlock).Text(LOCTEXT("ManipulationSection", "위치·회전 조작")) ]
-                + SVerticalBox::Slot().AutoHeight()
-                [
-                    SNew(SWrapBox).UseAllottedSize(true)
-                    + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(bManipulationEnabled ? TEXT("조작 종료") : TEXT("센서 조작 시작")); }).OnClicked_Lambda([this]() { SetSensorManipulationEnabled(!bManipulationEnabled); return FReply::Handled(); }) ]
-                    + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(GizmoMode == EVirtualSensorGizmoMode::Translate ? TEXT("모드: 이동") : TEXT("모드: 회전")); }).OnClicked_Lambda([this]() { SetSensorGizmoMode(GizmoMode == EVirtualSensorGizmoMode::Translate ? EVirtualSensorGizmoMode::Rotate : EVirtualSensorGizmoMode::Translate); return FReply::Handled(); }) ]
-                    + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(CoordinateSpace == EVirtualSensorCoordinateSpace::Local ? TEXT("좌표: 로컬") : TEXT("좌표: 월드")); }).OnClicked_Lambda([this]() { SetSensorCoordinateSpace(CoordinateSpace == EVirtualSensorCoordinateSpace::Local ? EVirtualSensorCoordinateSpace::World : EVirtualSensorCoordinateSpace::Local); return FReply::Handled(); }) ]
-                    + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(bGizmoVisible ? TEXT("기즈모 숨기기") : TEXT("기즈모 보이기")); }).OnClicked_Lambda([this]() { bGizmoVisible = !bGizmoVisible; if (GizmoActor) GizmoActor->SetGizmoVisible(bGizmoVisible); return FReply::Handled(); }) ]
-                ]
-                + SVerticalBox::Slot().AutoHeight()
-                [
-                    SNew(SCheckBox)
-                    .IsChecked_Lambda([this]() { return bProjectionDebugEnabled ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
-                    .OnCheckStateChanged_Lambda([this](ECheckBoxState State) { SetProjectionDebugEnabled(State == ECheckBoxState::Checked); })
-                    [ SNewSensorTool(STextBlock).Text(LOCTEXT("ProjectionDebug", "선택 센서 투사 범위 표시")) ]
-                ]
-                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LocationX", "위치 X (cm)"), [this]() { return PendingState.ActorTransform.GetLocation().X; }, [this](float V) { FVector L = PendingState.ActorTransform.GetLocation(); L.X = V; PendingState.ActorTransform.SetLocation(L); }, -100000.0f, 100000.0f, true, NAME_None, true) ]
-                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LocationY", "위치 Y (cm)"), [this]() { return PendingState.ActorTransform.GetLocation().Y; }, [this](float V) { FVector L = PendingState.ActorTransform.GetLocation(); L.Y = V; PendingState.ActorTransform.SetLocation(L); }, -100000.0f, 100000.0f, true, NAME_None, true) ]
-                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LocationZ", "위치 Z (cm)"), [this]() { return PendingState.ActorTransform.GetLocation().Z; }, [this](float V) { FVector L = PendingState.ActorTransform.GetLocation(); L.Z = V; PendingState.ActorTransform.SetLocation(L); }, -100000.0f, 100000.0f, true, NAME_None, true) ]
-                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("Pitch", "Pitch (도)"), [this]() { return PendingState.ActorTransform.Rotator().Pitch; }, [this](float V) { FRotator R = PendingState.ActorTransform.Rotator(); R.Pitch = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f, true, NAME_None, true) ]
-                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("Yaw", "Yaw (도)"), [this]() { return PendingState.ActorTransform.Rotator().Yaw; }, [this](float V) { FRotator R = PendingState.ActorTransform.Rotator(); R.Yaw = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f, true, NAME_None, true) ]
-                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("Roll", "Roll (도)"), [this]() { return PendingState.ActorTransform.Rotator().Roll; }, [this](float V) { FRotator R = PendingState.ActorTransform.Rotator(); R.Roll = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f, true, NAME_None, true) ]
-                + SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).Visibility_Lambda([this](){return IsWorkspaceOwned()?EVisibility::Visible:EVisibility::Collapsed;}).Text_Lambda([this](){return FText::FromString(PlacementInputMode==EVirtualSensorPlacementInputMode::Continuous?TEXT("입력: 연속 이동"):TEXT("입력: 정밀 단위"));}).OnClicked_Lambda([this](){SetPlacementInputMode(PlacementInputMode==EVirtualSensorPlacementInputMode::Continuous?EVirtualSensorPlacementInputMode::Precision:EVirtualSensorPlacementInputMode::Continuous);return FReply::Handled();})]
-                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("MoveStep", "이동 단위 (cm)"), [this]() { return TranslationStepCm; }, [this](float V) { TranslationStepCm = V; }, 1.0f, 1000.0f, false) ]
-                + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("RotateStep", "회전 단위 (도)"), [this]() { return RotationStepDegrees; }, [this](float V) { RotationStepDegrees = V; }, 0.1f, 90.0f, false) ]
-                + SVerticalBox::Slot().AutoHeight()[SNew(SVerticalBox).Visibility_Lambda([this](){return IsWorkspaceOwned()&&PlacementInputMode==EVirtualSensorPlacementInputMode::Continuous?EVisibility::Visible:EVisibility::Collapsed;})
-                    +SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("PlacementSpeed","이동 속도 (cm/s)"),[this](){return TranslationSpeedCmPerSecond;},[this](float V){TranslationSpeedCmPerSecond=V;SetPlacementInputMode(PlacementInputMode);},1,100000,false)]
-                    +SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("PlacementRotateSpeed","회전 속도 (도/s)"),[this](){return RotationSpeedDegreesPerSecond;},[this](float V){RotationSpeedDegreesPerSecond=V;SetPlacementInputMode(PlacementInputMode);},.1f,720,false)]
-                    +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("PlacementNavigationHelp","RMB + WASD/QE: 관찰 시점 · Shift ×5 / Ctrl ×0.2 · 입력창에서는 단축키 차단"))]]
-                + SVerticalBox::Slot().AutoHeight().Padding(0,8)[BuildPoseBookmarkControls()]
-                + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f)[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(bKeyboardHelpExpanded ? TEXT("단축키 도움말 접기") : TEXT("단축키 도움말 펼치기")); }).OnClicked_Lambda([this]() { bKeyboardHelpExpanded = !bKeyboardHelpExpanded; SaveSettingsUiPreferences(); return FReply::Handled(); }) ]
-                + SVerticalBox::Slot().AutoHeight().Padding(4.0f, 0.0f, 4.0f, 6.0f)[ SNewSensorTool(STextBlock).Visibility_Lambda([this]() { return bKeyboardHelpExpanded ? EVisibility::Visible : EVisibility::Collapsed; }).ColorAndOpacity(GetToolMutedColor()).AutoWrapText(true).Text(LOCTEXT("KeyboardHelp", "W/S 전후 · A/D 좌우 · Q/E 높이 · 방향키 Pitch/Yaw · Z/C Roll\nShift 5배 · Ctrl 0.2배 · Esc 조작 종료\n기즈모: 빨강 X · 초록 Y · 파랑 Z")) ]
+	NativeQualityOptions = {
+	    MakeShared<EVirtualSensorSimulationQuality>(EVirtualSensorSimulationQuality::Debug),
+	    MakeShared<EVirtualSensorSimulationQuality>(EVirtualSensorSimulationQuality::RealTimePreview),
+	    MakeShared<EVirtualSensorSimulationQuality>(EVirtualSensorSimulationQuality::Balanced),
+	    MakeShared<EVirtualSensorSimulationQuality>(EVirtualSensorSimulationQuality::FullSpec),
+	    MakeShared<EVirtualSensorSimulationQuality>(EVirtualSensorSimulationQuality::Custom)};
+	NativeCameraProfileOptions = {
+	    MakeShared<EVirtualCameraDeviceProfile>(EVirtualCameraDeviceProfile::Generic),
+	    MakeShared<EVirtualCameraDeviceProfile>(EVirtualCameraDeviceProfile::IntelRealSenseD455)};
+	NativeLidarProfileOptions = {
+	    MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::Generic),
+	    MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::LivoxMid360S),
+	    MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::IYOBOT_MLX80),
+	    MakeShared<EVirtualLidarDeviceProfile>(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE)};
+	NativeLidarBackendOptions = {MakeShared<EVirtualLidarAcquisitionBackend>(EVirtualLidarAcquisitionBackend::Auto), MakeShared<EVirtualLidarAcquisitionBackend>(EVirtualLidarAcquisitionBackend::HardwareRayTracing), MakeShared<EVirtualLidarAcquisitionBackend>(EVirtualLidarAcquisitionBackend::AccurateCpuTrace)};
+	RestoreSettingsUiPreferences();
+	if (IsWorkspaceOwned())
+		return BuildOwnedSettingsWidget();
+	return SNew(SBorder)
+	    .BorderImage(GetToolPanelBrush())
+	    .BorderBackgroundColor(GetToolPanelColor())
+	    .ForegroundColor(GetToolTextColor())
+	    .Padding(10.0f)
+	        [SNew(SVerticalBox) + SVerticalBox::Slot().AutoHeight()[BuildToolPanelHeader(LOCTEXT("SettingsWorkspaceTitle", "센서 설정"))] + SVerticalBox::Slot().AutoHeight().Padding(0, 8)[SNew(SWrapBox).UseAllottedSize(true).Visibility_Lambda([this]()
+	                                                                                                                                                                                                                                               { return GetPanelBodyVisibility(); }) +
+	                                                                                                                                                                                        SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("TabBasic", "기본 설정")).OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                                                         {WorkspaceSettingsTab=0;return FReply::Handled(); })] +
+	                                                                                                                                                                                        SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("TabPose", "배치 작업공간")).OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                                                            {if(IsWorkspaceOwned())GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Placement,true);else WorkspaceSettingsTab=1;return FReply::Handled(); })] +
+	                                                                                                                                                                                        SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("TabAdvanced", "고급 설정")).OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                                                            {WorkspaceSettingsTab=2;bShowAdvanced=true;return FReply::Handled(); })]] +
+	         SVerticalBox::Slot().AutoHeight().Padding(2.0f, 5.0f, 2.0f, 0.0f)[SNewSensorTool(STextBlock).Visibility_Lambda([this]()
+	                                                                                                                        { return GetPanelBodyVisibility(); })
+	                                                                               .ColorAndOpacity(GetToolAccentColor())
+	                                                                               .Text_Lambda([this]()
+	                                                                                            { return FText::FromString(FString::Printf(TEXT("선택: %s · SensorId: %s"), PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? TEXT("카메라") : TEXT("LiDAR"), PendingState.SensorId.IsEmpty() ? TEXT("없음") : *PendingState.SensorId)); })] +
+	         SVerticalBox::Slot().FillHeight(1.0f).Padding(0.0f, 8.0f, 0.0f, 0.0f)
+	             [SNew(SScrollBox).Visibility_Lambda([this]()
+	                                                 { return GetPanelBodyVisibility(); }) +
+	              SScrollBox::Slot()
+	                  [SNew(SVerticalBox) + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f)[SNewSensorTool(SEditableTextBox).Style(&GetToolInputStyle()).HintText(LOCTEXT("SensorIdHint", "SensorId")).Visibility_Lambda([this]()
+	                                                                                                                                                                                                                           { return IsWorkspaceOwned() ? EVisibility::Collapsed : EVisibility::Visible; })
+	                                                                                                  .Text_Lambda([this]()
+	                                                                                                               { return FText::FromString(PendingState.SensorId); })
+	                                                                                                  .OnTextCommitted_Lambda([this](const FText& Text, ETextCommit::Type)
+	                                                                                                                          { PendingState.SensorId = Text.ToString().TrimStartAndEnd(); ApplyPendingState(); })] +
+	                   SVerticalBox::Slot().AutoHeight()[SNew(SVerticalBox).Visibility_Lambda([this]()
+	                                                                                          { return !IsWorkspaceOwned() && WorkspaceSettingsTab == 1 ? EVisibility::Visible : EVisibility::Collapsed; }) +
+	                                                     SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 2.0f)[SNewSensorTool(STextBlock).Text(LOCTEXT("ManipulationSection", "위치·회전 조작"))] + SVerticalBox::Slot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true) + SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                                                                 { return FText::FromString(bManipulationEnabled ? TEXT("조작 종료") : TEXT("센서 조작 시작")); })
+	                                                                                                                                                                                                                                                                                                          .OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                            { SetSensorManipulationEnabled(!bManipulationEnabled); return FReply::Handled(); })] +
+	                                                                                                                                                                                                                                              SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                          { return FText::FromString(GizmoMode == EVirtualSensorGizmoMode::Translate ? TEXT("모드: 이동") : TEXT("모드: 회전")); })
+	                                                                                                                                                                                                                                                                   .OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                                                     { SetSensorGizmoMode(GizmoMode == EVirtualSensorGizmoMode::Translate ? EVirtualSensorGizmoMode::Rotate : EVirtualSensorGizmoMode::Translate); return FReply::Handled(); })] +
+	                                                                                                                                                                                                                                              SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                          { return FText::FromString(CoordinateSpace == EVirtualSensorCoordinateSpace::Local ? TEXT("좌표: 로컬") : TEXT("좌표: 월드")); })
+	                                                                                                                                                                                                                                                                   .OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                                                     { SetSensorCoordinateSpace(CoordinateSpace == EVirtualSensorCoordinateSpace::Local ? EVirtualSensorCoordinateSpace::World : EVirtualSensorCoordinateSpace::Local); return FReply::Handled(); })] +
+	                                                                                                                                                                                                                                              SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                          { return FText::FromString(bGizmoVisible ? TEXT("기즈모 숨기기") : TEXT("기즈모 보이기")); })
+	                                                                                                                                                                                                                                                                   .OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                                                     { bGizmoVisible = !bGizmoVisible; if (GizmoActor) GizmoActor->SetGizmoVisible(bGizmoVisible); return FReply::Handled(); })]] +
+	                                                     SVerticalBox::Slot().AutoHeight()
+	                                                         [SNew(SCheckBox)
+	                                                              .IsChecked_Lambda([this]()
+	                                                                                { return bProjectionDebugEnabled ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+	                                                              .OnCheckStateChanged_Lambda([this](ECheckBoxState State)
+	                                                                                          { SetProjectionDebugEnabled(State == ECheckBoxState::Checked); })
+	                                                                  [SNewSensorTool(STextBlock).Text(LOCTEXT("ProjectionDebug", "선택 센서 투사 범위 표시"))]] +
+	                                                     SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("LocationX", "위치 X (cm)"), [this]()
+	                                                                                                    { return PendingState.ActorTransform.GetLocation().X; }, [this](float V)
+	                                                                                                    { FVector L = PendingState.ActorTransform.GetLocation(); L.X = V; PendingState.ActorTransform.SetLocation(L); }, -100000.0f, 100000.0f, true, NAME_None, true)] +
+	                                                     SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("LocationY", "위치 Y (cm)"), [this]()
+	                                                                                                    { return PendingState.ActorTransform.GetLocation().Y; }, [this](float V)
+	                                                                                                    { FVector L = PendingState.ActorTransform.GetLocation(); L.Y = V; PendingState.ActorTransform.SetLocation(L); }, -100000.0f, 100000.0f, true, NAME_None, true)] +
+	                                                     SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("LocationZ", "위치 Z (cm)"), [this]()
+	                                                                                                    { return PendingState.ActorTransform.GetLocation().Z; }, [this](float V)
+	                                                                                                    { FVector L = PendingState.ActorTransform.GetLocation(); L.Z = V; PendingState.ActorTransform.SetLocation(L); }, -100000.0f, 100000.0f, true, NAME_None, true)] +
+	                                                     SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("Pitch", "Pitch (도)"), [this]()
+	                                                                                                    { return PendingState.ActorTransform.Rotator().Pitch; }, [this](float V)
+	                                                                                                    { FRotator R = PendingState.ActorTransform.Rotator(); R.Pitch = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f, true, NAME_None, true)] +
+	                                                     SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("Yaw", "Yaw (도)"), [this]()
+	                                                                                                    { return PendingState.ActorTransform.Rotator().Yaw; }, [this](float V)
+	                                                                                                    { FRotator R = PendingState.ActorTransform.Rotator(); R.Yaw = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f, true, NAME_None, true)] +
+	                                                     SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("Roll", "Roll (도)"), [this]()
+	                                                                                                    { return PendingState.ActorTransform.Rotator().Roll; }, [this](float V)
+	                                                                                                    { FRotator R = PendingState.ActorTransform.Rotator(); R.Roll = V; PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180.0f, 180.0f, true, NAME_None, true)] +
+	                                                     SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).Visibility_Lambda([this]()
+	                                                                                                                                 { return IsWorkspaceOwned() ? EVisibility::Visible : EVisibility::Collapsed; })
+	                                                                                           .Text_Lambda([this]()
+	                                                                                                        { return FText::FromString(PlacementInputMode == EVirtualSensorPlacementInputMode::Continuous ? TEXT("입력: 연속 이동") : TEXT("입력: 정밀 단위")); })
+	                                                                                           .OnClicked_Lambda([this]()
+	                                                                                                             {SetPlacementInputMode(PlacementInputMode==EVirtualSensorPlacementInputMode::Continuous?EVirtualSensorPlacementInputMode::Precision:EVirtualSensorPlacementInputMode::Continuous);return FReply::Handled(); })] +
+	                                                     SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("MoveStep", "이동 단위 (cm)"), [this]()
+	                                                                                                    { return TranslationStepCm; }, [this](float V)
+	                                                                                                    { TranslationStepCm = V; }, 1.0f, 1000.0f, false)] +
+	                                                     SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("RotateStep", "회전 단위 (도)"), [this]()
+	                                                                                                    { return RotationStepDegrees; }, [this](float V)
+	                                                                                                    { RotationStepDegrees = V; }, 0.1f, 90.0f, false)] +
+	                                                     SVerticalBox::Slot().AutoHeight()[SNew(SVerticalBox).Visibility_Lambda([this]()
+	                                                                                                                            { return IsWorkspaceOwned() && PlacementInputMode == EVirtualSensorPlacementInputMode::Continuous ? EVisibility::Visible : EVisibility::Collapsed; }) +
+	                                                                                       SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("PlacementSpeed", "이동 속도 (cm/s)"), [this]()
+	                                                                                                                                      { return TranslationSpeedCmPerSecond; }, [this](float V)
+	                                                                                                                                      {TranslationSpeedCmPerSecond=V;SetPlacementInputMode(PlacementInputMode); }, 1, 100000, false)] +
+	                                                                                       SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("PlacementRotateSpeed", "회전 속도 (도/s)"), [this]()
+	                                                                                                                                      { return RotationSpeedDegreesPerSecond; }, [this](float V)
+	                                                                                                                                      {RotationSpeedDegreesPerSecond=V;SetPlacementInputMode(PlacementInputMode); }, .1f, 720, false)] +
+	                                                                                       SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("PlacementNavigationHelp", "RMB + WASD/QE: 관찰 시점 · Shift ×5 / Ctrl ×0.2 · 입력창에서는 단축키 차단"))]] +
+	                                                     SVerticalBox::Slot().AutoHeight().Padding(0, 8)[BuildPoseBookmarkControls()] + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f)[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                     { return FText::FromString(bKeyboardHelpExpanded ? TEXT("단축키 도움말 접기") : TEXT("단축키 도움말 펼치기")); })
+	                                                                                                                                                                                              .OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                { bKeyboardHelpExpanded = !bKeyboardHelpExpanded; SaveSettingsUiPreferences(); return FReply::Handled(); })] +
+	                                                     SVerticalBox::Slot().AutoHeight().Padding(4.0f, 0.0f, 4.0f, 6.0f)[SNewSensorTool(STextBlock).Visibility_Lambda([this]()
+	                                                                                                                                                                    { return bKeyboardHelpExpanded ? EVisibility::Visible : EVisibility::Collapsed; })
+	                                                                                                                           .ColorAndOpacity(GetToolMutedColor())
+	                                                                                                                           .AutoWrapText(true)
+	                                                                                                                           .Text(LOCTEXT("KeyboardHelp", "W/S 전후 · A/D 좌우 · Q/E 높이 · 방향키 Pitch/Yaw · Z/C Roll\nShift 5배 · Ctrl 0.2배 · Esc 조작 종료\n기즈모: 빨강 X · 초록 Y · 파랑 Z"))]
 
-]
-+ SVerticalBox::Slot().AutoHeight()[ SNew(SVerticalBox).Visibility_Lambda([this](){return WorkspaceSettingsTab==0?EVisibility::Visible:EVisibility::Collapsed;})
-+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 2.0f)[ SNewSensorTool(STextBlock).Text(LOCTEXT("BasicSection", "기본 센서 설정 (입력 확정 즉시 반영)")) ]
-                + SVerticalBox::Slot().AutoHeight()
-                [
-                    SNew(SComboBox<TSharedPtr<EVirtualSensorSimulationQuality>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2))
-                    .OptionsSource(&NativeQualityOptions)
-                    .OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualSensorSimulationQuality> Item) { return SNewSensorTool(STextBlock).Text(FText::FromString(Item.IsValid() ? QualityText(*Item) : TEXT("없음"))); })
-                    .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualSensorSimulationQuality> Item, ESelectInfo::Type) { if (Item.IsValid()) { SelectSettingHelp(TEXT("SimulationQuality")); SetSelectedSimulationQuality(*Item); } })
-                    [ SNewSensorTool(STextBlock).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("시뮬레이션 품질: %s"), *QualityText(PendingState.SimulationQuality))); }) ]
-                ]
-                + SVerticalBox::Slot().AutoHeight()
-                [
-                    SNew(SComboBox<TSharedPtr<EVirtualCameraDeviceProfile>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2))
-                    .Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? EVisibility::Visible : EVisibility::Collapsed; })
-                    .OptionsSource(&NativeCameraProfileOptions)
-                    .OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualCameraDeviceProfile> Item) { return SNewSensorTool(STextBlock).Text(FText::FromString(Item.IsValid() ? CameraProfileText(*Item) : TEXT("없음"))); })
-                    .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualCameraDeviceProfile> Item, ESelectInfo::Type) { if (Item.IsValid()) { PendingState.CameraProfile = *Item; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::FullSpec; ApplySelectedProfileAndQualityPreset(); } })
-                    [ SNewSensorTool(STextBlock).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("장비 프로필: %s"), *CameraProfileText(PendingState.CameraProfile))); }) ]
-                ]
-                + SVerticalBox::Slot().AutoHeight()
-                [
-                    SNew(SComboBox<TSharedPtr<EVirtualLidarDeviceProfile>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned()?FMargin(FSensorOwnedPresentationStyle::Gap,6):FMargin(4,2))
-                    .Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Lidar ? EVisibility::Visible : EVisibility::Collapsed; })
-                    .OptionsSource(&NativeLidarProfileOptions)
-                    .OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualLidarDeviceProfile> Item) { return SNewSensorTool(STextBlock).Text(FText::FromString(Item.IsValid() ? LidarProfileText(*Item) : TEXT("없음"))); })
-                    .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualLidarDeviceProfile> Item, ESelectInfo::Type) { if (Item.IsValid()) { PendingState.LidarProfile = *Item; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::FullSpec; ApplySelectedProfileAndQualityPreset(); } })
-                    [ SNewSensorTool(STextBlock).Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("장비 프로필: %s"), *LidarProfileText(PendingState.LidarProfile))); }) ]
-                ]
-                + SVerticalBox::Slot().AutoHeight()
-                [
-                    SNew(SVerticalBox).Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? EVisibility::Visible : EVisibility::Collapsed; })
-                    + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("CameraInterval", "카메라 캡처 주기 (초)"), [this]() { return PendingState.CameraCaptureInterval; }, [this](float V) { PendingState.CameraCaptureInterval = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 0.033f, 60.0f, true, TEXT("CameraInterval")) ]
-                    + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("CameraWidth", "카메라 가로 해상도"), [this]() { return PendingState.CameraResolution.X; }, [this](int32 V) { PendingState.CameraResolution.X = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 160, 4096, TEXT("CameraWidth")) ]
-                    + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("CameraHeight", "카메라 세로 해상도"), [this]() { return PendingState.CameraResolution.Y; }, [this](int32 V) { PendingState.CameraResolution.Y = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 90, 2160, TEXT("CameraHeight")) ]
-                ]
-                + SVerticalBox::Slot().AutoHeight()
-                [
-                    SNew(SVerticalBox).Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Lidar ? EVisibility::Visible : EVisibility::Collapsed; })
-                    + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LidarInterval", "LiDAR 스캔 주기 (초)"), [this]() { return PendingState.LidarScanInterval; }, [this](float V) { PendingState.LidarScanInterval = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 0.033f, 60.0f, true, TEXT("LidarInterval")) ]
-                    + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("LidarRange", "LiDAR 최대 거리 (cm, 150m=15000)"), [this]() { return PendingState.LidarMaxDistance; }, [this](float V) { PendingState.LidarMaxDistance = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 10.0f, 20000.0f, true, TEXT("LidarRange")) ]
-                ]
+	] + SVerticalBox::Slot().AutoHeight()[SNew(SVerticalBox).Visibility_Lambda([this]()
+	                                                                           { return WorkspaceSettingsTab == 0 ? EVisibility::Visible : EVisibility::Collapsed; }) +
+	                                      SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 2.0f)[SNewSensorTool(STextBlock).Text(LOCTEXT("BasicSection", "기본 센서 설정 (입력 확정 즉시 반영)"))] + SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualSensorSimulationQuality>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned() ? FMargin(FSensorOwnedPresentationStyle::Gap, 6) : FMargin(4, 2)).OptionsSource(&NativeQualityOptions).OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualSensorSimulationQuality> Item)
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   { return SNewSensorTool(STextBlock).Text(FText::FromString(Item.IsValid() ? QualityText(*Item) : TEXT("없음"))); })
+	                                                                                                                                                                                                                                                  .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualSensorSimulationQuality> Item, ESelectInfo::Type)
+	                                                                                                                                                                                                                                                                             { if (Item.IsValid()) { SelectSettingHelp(TEXT("SimulationQuality")); SetSelectedSimulationQuality(*Item); } })[SNewSensorTool(STextBlock).Text_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                         { return FText::FromString(FString::Printf(TEXT("시뮬레이션 품질: %s"), *QualityText(PendingState.SimulationQuality))); })]] +
+	                                      SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualCameraDeviceProfile>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned() ? FMargin(FSensorOwnedPresentationStyle::Gap, 6) : FMargin(4, 2)).Visibility_Lambda([this]()
+	                                                                                                                                                                                                                                                                                              { return PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? EVisibility::Visible : EVisibility::Collapsed; })
+	                                                                            .OptionsSource(&NativeCameraProfileOptions)
+	                                                                            .OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualCameraDeviceProfile> Item)
+	                                                                                                     { return SNewSensorTool(STextBlock).Text(FText::FromString(Item.IsValid() ? CameraProfileText(*Item) : TEXT("없음"))); })
+	                                                                            .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualCameraDeviceProfile> Item, ESelectInfo::Type)
+	                                                                                                       { if (Item.IsValid()) { PendingState.CameraProfile = *Item; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::FullSpec; ApplySelectedProfileAndQualityPreset(); } })[SNewSensorTool(STextBlock).Text_Lambda([this]()
+	                                                                                                                                                   { return FText::FromString(FString::Printf(TEXT("장비 프로필: %s"), *CameraProfileText(PendingState.CameraProfile))); })]] +
+	                                      SVerticalBox::Slot().AutoHeight()[SNew(SComboBox<TSharedPtr<EVirtualLidarDeviceProfile>>).ComboBoxStyle(&GetToolComboBoxStyle()).ContentPadding(IsWorkspaceOwned() ? FMargin(FSensorOwnedPresentationStyle::Gap, 6) : FMargin(4, 2)).Visibility_Lambda([this]()
+	                                                                                                                                                                                                                                                                                             { return PendingState.TargetKind == EVirtualSensorTargetKind::Lidar ? EVisibility::Visible : EVisibility::Collapsed; })
+	                                                                            .OptionsSource(&NativeLidarProfileOptions)
+	                                                                            .OnGenerateWidget_Lambda([this](TSharedPtr<EVirtualLidarDeviceProfile> Item)
+	                                                                                                     { return SNewSensorTool(STextBlock).Text(FText::FromString(Item.IsValid() ? LidarProfileText(*Item) : TEXT("없음"))); })
+	                                                                            .OnSelectionChanged_Lambda([this](TSharedPtr<EVirtualLidarDeviceProfile> Item, ESelectInfo::Type)
+	                                                                                                       { if (Item.IsValid()) { PendingState.LidarProfile = *Item; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::FullSpec; ApplySelectedProfileAndQualityPreset(); } })[SNewSensorTool(STextBlock).Text_Lambda([this]()
+	                                                                                                                                                   { return FText::FromString(FString::Printf(TEXT("장비 프로필: %s"), *LidarProfileText(PendingState.LidarProfile))); })]] +
+	                                      SVerticalBox::Slot().AutoHeight()[SNew(SVerticalBox).Visibility_Lambda([this]()
+	                                                                                                             { return PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? EVisibility::Visible : EVisibility::Collapsed; }) +
+	                                                                        SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("CameraInterval", "카메라 캡처 주기 (초)"), [this]()
+	                                                                                                                       { return PendingState.CameraCaptureInterval; }, [this](float V)
+	                                                                                                                       { PendingState.CameraCaptureInterval = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 0.033f, 60.0f, true, TEXT("CameraInterval"))] +
+	                                                                        SVerticalBox::Slot().AutoHeight()[MakeIntRow(LOCTEXT("CameraWidth", "카메라 가로 해상도"), [this]()
+	                                                                                                                     { return PendingState.CameraResolution.X; }, [this](int32 V)
+	                                                                                                                     { PendingState.CameraResolution.X = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 160, 4096, TEXT("CameraWidth"))] +
+	                                                                        SVerticalBox::Slot().AutoHeight()[MakeIntRow(LOCTEXT("CameraHeight", "카메라 세로 해상도"), [this]()
+	                                                                                                                     { return PendingState.CameraResolution.Y; }, [this](int32 V)
+	                                                                                                                     { PendingState.CameraResolution.Y = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 90, 2160, TEXT("CameraHeight"))]] +
+	                                      SVerticalBox::Slot().AutoHeight()[SNew(SVerticalBox).Visibility_Lambda([this]()
+	                                                                                                             { return PendingState.TargetKind == EVirtualSensorTargetKind::Lidar ? EVisibility::Visible : EVisibility::Collapsed; }) +
+	                                                                        SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("LidarInterval", "LiDAR 스캔 주기 (초)"), [this]()
+	                                                                                                                       { return PendingState.LidarScanInterval; }, [this](float V)
+	                                                                                                                       { PendingState.LidarScanInterval = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 0.033f, 60.0f, true, TEXT("LidarInterval"))] +
+	                                                                        SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("LidarRange", "LiDAR 최대 거리 (cm, 150m=15000)"), [this]()
+	                                                                                                                       { return PendingState.LidarMaxDistance; }, [this](float V)
+	                                                                                                                       { PendingState.LidarMaxDistance = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 10.0f, 20000.0f, true, TEXT("LidarRange"))]]
 
-]
-                + SVerticalBox::Slot().AutoHeight()
-                [
-                    SNew(SVerticalBox).Visibility_Lambda([this]() { return WorkspaceSettingsTab==2 ? EVisibility::Visible : EVisibility::Collapsed; })
-                    + SVerticalBox::Slot().AutoHeight()
-                    [
-                        SNew(SVerticalBox).Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? EVisibility::Visible : EVisibility::Collapsed; })
-                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("CameraFov", "카메라 FOV (도)"), [this]() { return PendingState.CameraFov; }, [this](float V) { PendingState.CameraFov = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 5.0f, 170.0f, true, TEXT("CameraFov")) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("JpegQuality", "JPEG 품질"), [this]() { return PendingState.CameraJpegQuality; }, [this](int32 V) { PendingState.CameraJpegQuality = V; }, 1, 100, TEXT("JpegQuality")) ]
-                    ]
-                    + SVerticalBox::Slot().AutoHeight()
-                    [
-                        SNew(SVerticalBox).Visibility_Lambda([this]() { return PendingState.TargetKind == EVirtualSensorTargetKind::Lidar ? EVisibility::Visible : EVisibility::Collapsed; })
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("HorizontalSamples", "LiDAR 수평 샘플 수"), [this]() { return PendingState.LidarHorizontalSamples; }, [this](int32 V) { PendingState.LidarHorizontalSamples = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 1, 1440, TEXT("HorizontalSamples")) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("VerticalChannels", "LiDAR 수직 채널 수"), [this]() { return PendingState.LidarVerticalChannels; }, [this](int32 V) { PendingState.LidarVerticalChannels = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 1, 256, TEXT("VerticalChannels")) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("HorizontalFov", "LiDAR 수평 FOV (도)"), [this]() { return PendingState.LidarHorizontalFov; }, [this](float V) { PendingState.LidarHorizontalFov = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 1.0f, 360.0f, true, TEXT("HorizontalFov")) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("VerticalMin", "LiDAR 수직 최소 각도"), [this]() { return PendingState.LidarMinVerticalAngle; }, [this](float V) { PendingState.LidarMinVerticalAngle = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, -90.0f, 89.0f, true, TEXT("VerticalMin")) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeFloatRow(LOCTEXT("VerticalMax", "LiDAR 수직 최대 각도"), [this]() { return PendingState.LidarMaxVerticalAngle; }, [this](float V) { PendingState.LidarMaxVerticalAngle = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, -89.0f, 90.0f, true, TEXT("VerticalMax")) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("PreviewStride", "미리보기 점 간격"), [this]() { return PendingState.PreviewPointStride; }, [this](int32 V) { PendingState.PreviewPointStride = V; }, 1, 100, TEXT("PreviewStride")) ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("PreviewMax", "미리보기 최대 점 수"), [this]() { return PendingState.MaxPreviewPoints; }, [this](int32 V) { PendingState.MaxPreviewPoints = V; }, 0, 1000000, TEXT("PreviewMax")) ]
-                        + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).ToolTipText(SettingHelpTooltip(TEXT("PreviewHitOnly"))).IsChecked_Lambda([this]() { return PendingState.bPreviewHitOnly ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SelectSettingHelp(TEXT("PreviewHitOnly")); PendingState.bPreviewHitOnly = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNewSensorTool(STextBlock).Text(LOCTEXT("PreviewHitOnly", "미리보기에서 검출점만 표시")) ] ]
-                        + SVerticalBox::Slot().AutoHeight()[ SNew(SCheckBox).ToolTipText(SettingHelpTooltip(TEXT("MultiHit"))).IsChecked_Lambda([this]() { return PendingState.bUseMultiHit ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; }).OnCheckStateChanged_Lambda([this](ECheckBoxState V) { SelectSettingHelp(TEXT("MultiHit")); PendingState.bUseMultiHit = V == ECheckBoxState::Checked; ApplyPendingState(); })[ SNewSensorTool(STextBlock).Text(LOCTEXT("MultiHit", "다중 검출 사용 (고부하)")) ] ]
-                        + SVerticalBox::Slot().AutoHeight()[ MakeIntRow(LOCTEXT("MaxHits", "광선당 최대 검출 수"), [this]() { return PendingState.MaxHitsPerRay; }, [this](int32 V) { PendingState.MaxHitsPerRay = V; }, 1, 16, TEXT("MaxHits")) ]
-                    ]
-                    + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 5.0f)[ SNewSensorTool(STextBlock).Visibility_Lambda([this](){return IsWorkspaceOwned()?EVisibility::Collapsed:EVisibility::Visible;}).Text(LOCTEXT("RealSource", "외부 센서 소스")) ]
-                    + SVerticalBox::Slot().AutoHeight()
-                    [
-                        SNew(SWrapBox).UseAllottedSize(true).Visibility_Lambda([this](){return IsWorkspaceOwned()?EVisibility::Collapsed:EVisibility::Visible;})
-                        + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("StartSources", "전체 시작")).OnClicked_Lambda([this]() { StartAllRealSensorSources(); return FReply::Handled(); }) ]
-                        + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("StopSources", "전체 중지")).OnClicked_Lambda([this]() { StopAllRealSensorSources(); return FReply::Handled(); }) ]
-                        + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("PushSource", "선택 Source 1회 주입")).ToolTipText(LOCTEXT("PushSourceTip", "입력 프레임을 선택 센서에 주입합니다. 외부 서버 전송은 PCD 전송 화면에서 실행합니다.")).OnClicked_Lambda([this]() { PushSelectedRealSensorSource(); return FReply::Handled(); }) ]
-                        + SWrapBox::Slot()[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]() { return FText::FromString(HostActor && HostActor->IsScreenDebugLogVisible() ? TEXT("화면 디버그 로그 숨기기") : TEXT("화면 디버그 로그 표시")); }).OnClicked_Lambda([this]() { if (HostActor) HostActor->SetScreenDebugLogVisible(!HostActor->IsScreenDebugLogVisible()); return FReply::Handled(); }) ]
-                    ]
-                ]
-                + SVerticalBox::Slot().AutoHeight()[BuildOwnedAdministrativeControls()]
-                + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)
-                [
-                    SNew(SBorder).Visibility_Lambda([this](){return SelectedSettingHelpKey.IsNone()||(IsWorkspaceOwned()&&!bOwnedSettingHelpOpen)?EVisibility::Collapsed:EVisibility::Visible;})
-                    .BorderImage(GetToolPanelBrush())
-                    .BorderBackgroundColor(GetToolSectionColor())
-                    .Padding(8.0f)
-                    [
-                        SNew(SVerticalBox)
-                        + SVerticalBox::Slot().AutoHeight()[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("LoadSummaryTitle", "현재 설정 예상 부하")) ]
-                        + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 7.0f)[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(GetCurrentLoadSummaryText()); }) ]
-                        + SVerticalBox::Slot().AutoHeight()[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("SettingHelpTitle", "선택한 설정 도움말")) ]
-                        + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 0.0f)[ SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).AutoWrapText(true).Text_Lambda([this]() { return FText::FromString(GetSelectedSettingHelpText()); }) ]
-                        + SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).Visibility_Lambda([this](){return IsWorkspaceOwned()?EVisibility::Visible:EVisibility::Collapsed;}).Text(LOCTEXT("CloseOwnedHelp","도움말 닫기")).OnClicked_Lambda([this](){bOwnedSettingHelpOpen=false;return FReply::Handled();})]
-                    ]
-                ]
-                + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)
-                [
-                    SNew(SHorizontalBox).Visibility_Lambda([this](){return IsWorkspaceOwned()?EVisibility::Collapsed:EVisibility::Visible;})
-                    + SHorizontalBox::Slot().FillWidth(1.0f)[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("ResetValues", "PIE 시작값으로 되돌리기")).OnClicked_Lambda([this]() { ResetPendingStateToMapValue(); return FReply::Handled(); }) ]
-                    + SHorizontalBox::Slot().FillWidth(1.0f)[ SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("ApplyMap", "SensorTestMap에 저장 예약")).IsEnabled_Lambda([this](){return HostActor&&HostActor->CanQueueMapApply();}).ToolTipText(LOCTEXT("PortableLegacyMapReason","다른 맵에서는 사용할 수 없습니다. 저장 위치 또는 전체 배치를 사용하세요.")).OnClicked_Lambda([this]() { QueuePendingStateForSensorTestMap(); return FReply::Handled(); }) ]
-                ]
-                + SVerticalBox::Slot().AutoHeight()[ SAssignSensorTool(NativeStatusText, STextBlock).ColorAndOpacity_Lambda([this]() { return LastControlMessage.Contains(TEXT("실패")) ? FVirtualSensorUiStyle::Error : (LastControlMessage.Contains(TEXT("대기")) || LastControlMessage.Contains(TEXT("갱신")) ? FVirtualSensorUiStyle::Warning : FVirtualSensorUiStyle::Success); }).AutoWrapText(true).Text(FText::FromString(GetControlStatusText())) ]
-            ]
-        ]
-    ];
+	] + SVerticalBox::Slot().AutoHeight()[SNew(SVerticalBox).Visibility_Lambda([this]()
+	                                                                           { return WorkspaceSettingsTab == 2 ? EVisibility::Visible : EVisibility::Collapsed; }) +
+	                                      SVerticalBox::Slot().AutoHeight()[SNew(SVerticalBox).Visibility_Lambda([this]()
+	                                                                                                             { return PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? EVisibility::Visible : EVisibility::Collapsed; }) +
+	                                                                        SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("CameraFov", "카메라 FOV (도)"), [this]()
+	                                                                                                                       { return PendingState.CameraFov; }, [this](float V)
+	                                                                                                                       { PendingState.CameraFov = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 5.0f, 170.0f, true, TEXT("CameraFov"))] +
+	                                                                        SVerticalBox::Slot().AutoHeight()[MakeIntRow(LOCTEXT("JpegQuality", "JPEG 품질"), [this]()
+	                                                                                                                     { return PendingState.CameraJpegQuality; }, [this](int32 V)
+	                                                                                                                     { PendingState.CameraJpegQuality = V; }, 1, 100, TEXT("JpegQuality"))]] +
+	                                      SVerticalBox::Slot().AutoHeight()[SNew(SVerticalBox).Visibility_Lambda([this]()
+	                                                                                                             { return PendingState.TargetKind == EVirtualSensorTargetKind::Lidar ? EVisibility::Visible : EVisibility::Collapsed; }) +
+	                                                                        SVerticalBox::Slot().AutoHeight()[MakeIntRow(LOCTEXT("HorizontalSamples", "LiDAR 수평 샘플 수"), [this]()
+	                                                                                                                     { return PendingState.LidarHorizontalSamples; }, [this](int32 V)
+	                                                                                                                     { PendingState.LidarHorizontalSamples = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 1, 1440, TEXT("HorizontalSamples"))] +
+	                                                                        SVerticalBox::Slot().AutoHeight()[MakeIntRow(LOCTEXT("VerticalChannels", "LiDAR 수직 채널 수"), [this]()
+	                                                                                                                     { return PendingState.LidarVerticalChannels; }, [this](int32 V)
+	                                                                                                                     { PendingState.LidarVerticalChannels = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 1, 256, TEXT("VerticalChannels"))] +
+	                                                                        SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("HorizontalFov", "LiDAR 수평 FOV (도)"), [this]()
+	                                                                                                                       { return PendingState.LidarHorizontalFov; }, [this](float V)
+	                                                                                                                       { PendingState.LidarHorizontalFov = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, 1.0f, 360.0f, true, TEXT("HorizontalFov"))] +
+	                                                                        SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("VerticalMin", "LiDAR 수직 최소 각도"), [this]()
+	                                                                                                                       { return PendingState.LidarMinVerticalAngle; }, [this](float V)
+	                                                                                                                       { PendingState.LidarMinVerticalAngle = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, -90.0f, 89.0f, true, TEXT("VerticalMin"))] +
+	                                                                        SVerticalBox::Slot().AutoHeight()[MakeFloatRow(LOCTEXT("VerticalMax", "LiDAR 수직 최대 각도"), [this]()
+	                                                                                                                       { return PendingState.LidarMaxVerticalAngle; }, [this](float V)
+	                                                                                                                       { PendingState.LidarMaxVerticalAngle = V; PendingState.SimulationQuality = EVirtualSensorSimulationQuality::Custom; }, -89.0f, 90.0f, true, TEXT("VerticalMax"))] +
+	                                                                        SVerticalBox::Slot().AutoHeight()[MakeIntRow(LOCTEXT("PreviewStride", "미리보기 점 간격"), [this]()
+	                                                                                                                     { return PendingState.PreviewPointStride; }, [this](int32 V)
+	                                                                                                                     { PendingState.PreviewPointStride = V; }, 1, 100, TEXT("PreviewStride"))] +
+	                                                                        SVerticalBox::Slot().AutoHeight()[MakeIntRow(LOCTEXT("PreviewMax", "미리보기 최대 점 수"), [this]()
+	                                                                                                                     { return PendingState.MaxPreviewPoints; }, [this](int32 V)
+	                                                                                                                     { PendingState.MaxPreviewPoints = V; }, 0, 1000000, TEXT("PreviewMax"))] +
+	                                                                        SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).ToolTipText(SettingHelpTooltip(TEXT("PreviewHitOnly"))).IsChecked_Lambda([this]()
+	                                                                                                                                                                                                   { return PendingState.bPreviewHitOnly ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+	                                                                                                              .OnCheckStateChanged_Lambda([this](ECheckBoxState V)
+	                                                                                                                                          { SelectSettingHelp(TEXT("PreviewHitOnly")); PendingState.bPreviewHitOnly = V == ECheckBoxState::Checked; ApplyPendingState(); })[SNewSensorTool(STextBlock).Text(LOCTEXT("PreviewHitOnly", "미리보기에서 검출점만 표시"))]] +
+	                                                                        SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).ToolTipText(SettingHelpTooltip(TEXT("MultiHit"))).IsChecked_Lambda([this]()
+	                                                                                                                                                                                             { return PendingState.bUseMultiHit ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+	                                                                                                              .OnCheckStateChanged_Lambda([this](ECheckBoxState V)
+	                                                                                                                                          { SelectSettingHelp(TEXT("MultiHit")); PendingState.bUseMultiHit = V == ECheckBoxState::Checked; ApplyPendingState(); })[SNewSensorTool(STextBlock).Text(LOCTEXT("MultiHit", "다중 검출 사용 (고부하)"))]] +
+	                                                                        SVerticalBox::Slot().AutoHeight()[MakeIntRow(LOCTEXT("MaxHits", "광선당 최대 검출 수"), [this]()
+	                                                                                                                     { return PendingState.MaxHitsPerRay; }, [this](int32 V)
+	                                                                                                                     { PendingState.MaxHitsPerRay = V; }, 1, 16, TEXT("MaxHits"))]] +
+	                                      SVerticalBox::Slot().AutoHeight().Padding(0.0f, 5.0f)[SNewSensorTool(STextBlock).Visibility_Lambda([this]()
+	                                                                                                                                         { return IsWorkspaceOwned() ? EVisibility::Collapsed : EVisibility::Visible; })
+	                                                                                                .Text(LOCTEXT("RealSource", "외부 센서 소스"))] +
+	                                      SVerticalBox::Slot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).Visibility_Lambda([this]()
+	                                                                                                                               { return IsWorkspaceOwned() ? EVisibility::Collapsed : EVisibility::Visible; }) +
+	                                                                        SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("StartSources", "전체 시작")).OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                    { StartAllRealSensorSources(); return FReply::Handled(); })] +
+	                                                                        SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("StopSources", "전체 중지")).OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                   { StopAllRealSensorSources(); return FReply::Handled(); })] +
+	                                                                        SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("PushSource", "선택 Source 1회 주입")).ToolTipText(LOCTEXT("PushSourceTip", "입력 프레임을 선택 센서에 주입합니다. 외부 서버 전송은 PCD 전송 화면에서 실행합니다.")).OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                                           { PushSelectedRealSensorSource(); return FReply::Handled(); })] +
+	                                                                        SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text_Lambda([this]()
+	                                                                                                                                                                                                    { return FText::FromString(HostActor && HostActor->IsScreenDebugLogVisible() ? TEXT("화면 디버그 로그 숨기기") : TEXT("화면 디버그 로그 표시")); })
+	                                                                                             .OnClicked_Lambda([this]()
+	                                                                                                               { if (HostActor) HostActor->SetScreenDebugLogVisible(!HostActor->IsScreenDebugLogVisible()); return FReply::Handled(); })]]] +
+	                   SVerticalBox::Slot().AutoHeight()[BuildOwnedAdministrativeControls()] + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)[SNew(SBorder).Visibility_Lambda([this]()
+	                                                                                                                                                                                             { return SelectedSettingHelpKey.IsNone() || (IsWorkspaceOwned() && !bOwnedSettingHelpOpen) ? EVisibility::Collapsed : EVisibility::Visible; })
+	                                                                                                                                                                 .BorderImage(GetToolPanelBrush())
+	                                                                                                                                                                 .BorderBackgroundColor(GetToolSectionColor())
+	                                                                                                                                                                 .Padding(8.0f)[SNew(SVerticalBox) + SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("LoadSummaryTitle", "현재 설정 예상 부하"))] + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 7.0f)[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).AutoWrapText(true).Text_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     { return FText::FromString(GetCurrentLoadSummaryText()); })] +
+	                                                                                                                                                                                SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("SettingHelpTitle", "선택한 설정 도움말"))] + SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f, 0.0f, 0.0f)[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolTextColor()).AutoWrapText(true).Text_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              { return FText::FromString(GetSelectedSettingHelpText()); })] +
+	                                                                                                                                                                                SVerticalBox::Slot().AutoHeight()[SNewSensorTool(SButton).Visibility_Lambda([this]()
+	                                                                                                                                                                                                                                                            { return IsWorkspaceOwned() ? EVisibility::Visible : EVisibility::Collapsed; })
+	                                                                                                                                                                                                                      .Text(LOCTEXT("CloseOwnedHelp", "도움말 닫기"))
+	                                                                                                                                                                                                                      .OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                        {bOwnedSettingHelpOpen=false;return FReply::Handled(); })]]] +
+	                   SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[SNew(SHorizontalBox).Visibility_Lambda([this]()
+	                                                                                                                { return IsWorkspaceOwned() ? EVisibility::Collapsed : EVisibility::Visible; }) +
+	                                                                         SHorizontalBox::Slot().FillWidth(1.0f)[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("ResetValues", "PIE 시작값으로 되돌리기")).OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                                                        { ResetPendingStateToMapValue(); return FReply::Handled(); })] +
+	                                                                         SHorizontalBox::Slot().FillWidth(1.0f)[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle()).ForegroundColor(GetToolTextColor()).Text(LOCTEXT("ApplyMap", "SensorTestMap에 저장 예약")).IsEnabled_Lambda([this]()
+	                                                                                                                                                                                                                                                                                       { return HostActor && HostActor->CanQueueMapApply(); })
+	                                                                                                                    .ToolTipText(LOCTEXT("PortableLegacyMapReason", "다른 맵에서는 사용할 수 없습니다. 저장 위치 또는 전체 배치를 사용하세요."))
+	                                                                                                                    .OnClicked_Lambda([this]()
+	                                                                                                                                      { QueuePendingStateForSensorTestMap(); return FReply::Handled(); })]] +
+	                   SVerticalBox::Slot().AutoHeight()[SAssignSensorTool(NativeStatusText, STextBlock).ColorAndOpacity_Lambda([this]()
+	                                                                                                                            { return LastControlMessage.Contains(TEXT("실패")) ? FVirtualSensorUiStyle::Error : (LastControlMessage.Contains(TEXT("대기")) || LastControlMessage.Contains(TEXT("갱신")) ? FVirtualSensorUiStyle::Warning : FVirtualSensorUiStyle::Success); })
+	                                                         .AutoWrapText(true)
+	                                                         .Text(FText::FromString(GetControlStatusText()))]]]];
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::RefreshOwnedSettingsText()
 {
-    if(!IsWorkspaceOwned()||(WidgetTree&&WidgetTree->RootWidget)||!IsVisible()||IsPanelCollapsed())return;
-    if(WorkspaceSettingsTab==2&&GetWorld())if(auto* Control=GetWorld()->GetSubsystem<UAutomationControlSubsystem>())OwnedAutomationText=FText::FromString(Control->GetPresentationStatus());
-    auto* Actor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());FString LockReason;
-    bOwnedCanEdit=Actor&&Actor->CanEditSensorConfiguration(LockReason);
-    auto* W=GetToolWorkspace();
-    // Read only the selected Actor when its configuration changes. Reuse the
-    // toolbar's 5Hz activity cache; hidden tabs never format API/job details.
-    if(OwnedActivitySensor.Get()!=Actor||OwnedActivityRevision!=(Actor?Actor->GetConfigurationRevision():INDEX_NONE))
-    {
-        OwnedActivitySensor=Actor;OwnedActivityRevision=Actor?Actor->GetConfigurationRevision():INDEX_NONE;
-        FVirtualSensorEditableState State;OwnedAdvancedSensorCount=OwnedAutoFileCount=0;
-        if(Actor&&Actor->ReadEditableState(State))
-        {
-            if(State.TargetKind==EVirtualSensorTargetKind::Camera)OwnedAdvancedSensorCount=int32(State.bCameraGroundTruth);
-            else
-            {
-                OwnedAdvancedSensorCount=int32(State.bLidarPointTime)+int32(State.bLidarMotionDistortion)+int32(State.bLidarMaterialResponse)+int32(State.bUseMultiHit);
-                OwnedAutoFileCount=int32(State.bExportCsvOnScan)+int32(State.bExportJsonLinesOnScan)+int32(State.bExportPcdOnScan);
-            }
-        }
-    }
-    const auto* Bar=Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());
-    const auto* Data=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
-    const auto* Control=GetWorld()?GetWorld()->GetSubsystem<UAutomationControlSubsystem>():nullptr;
-    const auto* TestSet=GetWorld()?GetWorld()->GetSubsystem<UAgentTestSetSubsystem>():nullptr;
-    const int32 Counts[]={0,OwnedAdvancedSensorCount+int32(Actor&&Actor->FindComponentByClass<UVirtualImuComp>()),
-        OwnedAutoFileCount+(Data?Data->GetOwnedDatasetEnabledCount():0)+int32((Control&&Control->IsApiEnabled())||(Bar&&!Bar->GetGlobalStatus().Automation.IsEmpty()))+int32(TestSet&&TestSet->HasItems()&&!TestSet->IsComplete())};
-    for(int32 I=0;I<3;++I)if(Counts[I]!=OwnedTabEnabledCounts[I])
-    {
-        OwnedTabEnabledCounts[I]=Counts[I];
-        OwnedTabActivity[I]=Counts[I]?FText::Format(LOCTEXT("OwnedEnabledCount","{0}개 켜짐"),Counts[I]):FText::GetEmpty();
-    }
-    FString MeasureReason;bOwnedCanMeasure=Actor&&Actor->CanEditSensorPlacement(MeasureReason);
-    const bool Measuring=Actor&&Actor->IsSensorRunning();
-    if(OwnedMeasureText.IsEmpty()||Measuring!=bOwnedMeasuring){bOwnedMeasuring=Measuring;OwnedMeasureText=Measuring?SensorToolUiText::StopMeasurement():SensorToolUiText::StartMeasurement();}
-    OwnedSelectionText=FText::FromString(Actor?(PendingState.TargetKind==EVirtualSensorTargetKind::Camera?TEXT("Camera · "):TEXT("LiDAR · "))+PendingState.SensorId:TEXT("장비 없음 · 배치에서 장비를 선택하세요"));
-    OwnedProfileText=FText::FromString(PendingState.TargetKind==EVirtualSensorTargetKind::Camera?CameraProfileText(PendingState.CameraProfile):LidarProfileText(PendingState.LidarProfile));
-    OwnedQualityText=FText::FromString(OwnedQualityLabel(PendingState.SimulationQuality));
-    if(WorkspaceSettingsTab==1)if(const auto* Lidar=Cast<AVirtualLidarSensorActor>(Actor))OwnedLidarBackendText=LidarBackendText(Lidar->ScanComp->AcquisitionBackend);
-    FString Message=LastControlMessage;
-    Message.ReplaceInline(TEXT("현재 PIE 값을 불러왔습니다."),TEXT("현재 장비 설정을 불러왔습니다."));
-    Message.ReplaceInline(TEXT("PIE에 적용됨"),TEXT("장비 설정 적용됨"));
-    OwnedStatusText=FText::FromString(SensorToolUiText::UserReason(!Actor?FString(TEXT("장비를 배치나 상단 목록에서 선택하세요")):!bOwnedCanEdit?LockReason:Message));
-    if(NativeStatusText)NativeStatusText->SetText(OwnedStatusText);
-    if(WorkspaceSettingsTab==1)
-    {
-        OwnedIdentityText=FText::FromString(PendingState.SensorId);
-        OwnedDebugLogText=HostActor&&HostActor->IsScreenDebugLogVisible()?LOCTEXT("OwnedHideDebug","화면 디버그 로그 숨기기"):LOCTEXT("OwnedShowDebug","화면 디버그 로그 표시");
-    }
-    // Detailed formatting is requested only by an open help area. The old
-    // Blueprint diagnostics getters retain their full information and contract.
-    if(bOwnedSettingHelpOpen)
-    {
-        const auto* Help=FindSettingHelp(SelectedSettingHelpKey);
-        OwnedHelpText=Help?FText::Format(LOCTEXT("OwnedHelpDetail","{0}\n{1}\n성능 영향: {2}\n권장값: {3}\n{4}"),Help->Label,
-            FText::FromString(SensorToolUiText::UserReason(Help->Description.ToString())),OwnedSettingImpact(SelectedSettingHelpKey),
-            FText::FromString(SensorToolUiText::UserReason(Help->RecommendedValue.ToString())),FText::FromString(SensorToolUiText::UserReason(Help->Caution.ToString()))):FText::GetEmpty();
-        if(!SensorLidarHelp::Detail(SelectedSettingHelpKey).IsEmpty())OwnedHelpText=SensorLidarHelp::Detail(SelectedSettingHelpKey);
-        OwnedLoadText=WorkspaceSettingsTab==1?FText::FromString(GetCurrentLoadSummaryText()):FText::GetEmpty();
-        if(SelectedSettingHelpKey==TEXT("DeviceProfile"))OwnedHelpText=FText::FromString(OwnedHelpText.ToString()+TEXT("\n")+BuildDeviceSpecText());
-    }
+	if (!IsWorkspaceOwned() || (WidgetTree && WidgetTree->RootWidget) || !IsVisible() || IsPanelCollapsed())
+		return;
+	if (WorkspaceSettingsTab == 2 && GetWorld())
+		if (auto* Control = GetWorld()->GetSubsystem<UAutomationControlSubsystem>())
+			OwnedAutomationText = FText::FromString(Control->GetPresentationStatus());
+	auto* Actor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
+	FString LockReason;
+	bOwnedCanEdit = Actor && Actor->CanEditSensorConfiguration(LockReason);
+	auto* W = GetToolWorkspace();
+	// Read only the selected Actor when its configuration changes. Reuse the
+	// toolbar's 5Hz activity cache; hidden tabs never format API/job details.
+	if (OwnedActivitySensor.Get() != Actor || OwnedActivityRevision != (Actor ? Actor->GetConfigurationRevision() : INDEX_NONE))
+	{
+		OwnedActivitySensor = Actor;
+		OwnedActivityRevision = Actor ? Actor->GetConfigurationRevision() : INDEX_NONE;
+		FVirtualSensorEditableState State;
+		OwnedAdvancedSensorCount = OwnedAutoFileCount = 0;
+		if (Actor && Actor->ReadEditableState(State))
+		{
+			if (State.TargetKind == EVirtualSensorTargetKind::Camera)
+				OwnedAdvancedSensorCount = int32(State.bCameraGroundTruth);
+			else
+			{
+				OwnedAdvancedSensorCount = int32(State.bLidarPointTime) + int32(State.bLidarMotionDistortion) + int32(State.bLidarMaterialResponse) + int32(State.bUseMultiHit);
+				OwnedAutoFileCount = int32(State.bExportCsvOnScan) + int32(State.bExportJsonLinesOnScan) + int32(State.bExportPcdOnScan);
+			}
+		}
+	}
+	const auto* Bar = Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());
+	const auto* Data = Cast<UDxWidgetVirtualSensorCaptureExportPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
+	const auto* Control = GetWorld() ? GetWorld()->GetSubsystem<UAutomationControlSubsystem>() : nullptr;
+	const auto* TestSet = GetWorld() ? GetWorld()->GetSubsystem<UAgentTestSetSubsystem>() : nullptr;
+	const int32 Counts[] = {0, OwnedAdvancedSensorCount + int32(Actor && Actor->FindComponentByClass<UVirtualImuComp>()),
+	                        OwnedAutoFileCount + (Data ? Data->GetOwnedDatasetEnabledCount() : 0) + int32((Control && Control->IsApiEnabled()) || (Bar && !Bar->GetGlobalStatus().Automation.IsEmpty())) + int32(TestSet && TestSet->HasItems() && !TestSet->IsComplete())};
+	for (int32 I = 0; I < 3; ++I)
+		if (Counts[I] != OwnedTabEnabledCounts[I])
+		{
+			OwnedTabEnabledCounts[I] = Counts[I];
+			OwnedTabActivity[I] = Counts[I] ? FText::Format(LOCTEXT("OwnedEnabledCount", "{0}개 켜짐"), Counts[I]) : FText::GetEmpty();
+		}
+	FString MeasureReason;
+	bOwnedCanMeasure = Actor && Actor->CanEditSensorPlacement(MeasureReason);
+	const bool Measuring = Actor && Actor->IsSensorRunning();
+	if (OwnedMeasureText.IsEmpty() || Measuring != bOwnedMeasuring)
+	{
+		bOwnedMeasuring = Measuring;
+		OwnedMeasureText = Measuring ? SensorToolUiText::StopMeasurement() : SensorToolUiText::StartMeasurement();
+	}
+	OwnedSelectionText = FText::FromString(Actor ? (PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? TEXT("Camera · ") : TEXT("LiDAR · ")) + PendingState.SensorId : TEXT("장비 없음 · 배치에서 장비를 선택하세요"));
+	OwnedProfileText = FText::FromString(PendingState.TargetKind == EVirtualSensorTargetKind::Camera ? CameraProfileText(PendingState.CameraProfile) : LidarProfileText(PendingState.LidarProfile));
+	OwnedQualityText = FText::FromString(OwnedQualityLabel(PendingState.SimulationQuality));
+	if (WorkspaceSettingsTab == 1)
+		if (const auto* Lidar = Cast<AVirtualLidarSensorActor>(Actor))
+			OwnedLidarBackendText = LidarBackendText(Lidar->ScanComp->AcquisitionBackend);
+	FString Message = LastControlMessage;
+	Message.ReplaceInline(TEXT("현재 PIE 값을 불러왔습니다."), TEXT("현재 장비 설정을 불러왔습니다."));
+	Message.ReplaceInline(TEXT("PIE에 적용됨"), TEXT("장비 설정 적용됨"));
+	OwnedStatusText = FText::FromString(SensorToolUiText::UserReason(!Actor ? FString(TEXT("장비를 배치나 상단 목록에서 선택하세요")) : !bOwnedCanEdit ? LockReason
+	                                                                                                                                                   : Message));
+	if (NativeStatusText)
+		NativeStatusText->SetText(OwnedStatusText);
+	if (WorkspaceSettingsTab == 1)
+	{
+		OwnedIdentityText = FText::FromString(PendingState.SensorId);
+		OwnedDebugLogText = HostActor && HostActor->IsScreenDebugLogVisible() ? LOCTEXT("OwnedHideDebug", "화면 디버그 로그 숨기기") : LOCTEXT("OwnedShowDebug", "화면 디버그 로그 표시");
+	}
+	// Detailed formatting is requested only by an open help area. The old
+	// Blueprint diagnostics getters retain their full information and contract.
+	if (bOwnedSettingHelpOpen)
+	{
+		const auto* Help = FindSettingHelp(SelectedSettingHelpKey);
+		OwnedHelpText = Help ? FText::Format(LOCTEXT("OwnedHelpDetail", "{0}\n{1}\n성능 영향: {2}\n권장값: {3}\n{4}"), Help->Label,
+		                                     FText::FromString(SensorToolUiText::UserReason(Help->Description.ToString())), OwnedSettingImpact(SelectedSettingHelpKey),
+		                                     FText::FromString(SensorToolUiText::UserReason(Help->RecommendedValue.ToString())), FText::FromString(SensorToolUiText::UserReason(Help->Caution.ToString())))
+		                     : FText::GetEmpty();
+		if (!SensorLidarHelp::Detail(SelectedSettingHelpKey).IsEmpty())
+			OwnedHelpText = SensorLidarHelp::Detail(SelectedSettingHelpKey);
+		OwnedLoadText = WorkspaceSettingsTab == 1 ? FText::FromString(GetCurrentLoadSummaryText()) : FText::GetEmpty();
+		if (SelectedSettingHelpKey == TEXT("DeviceProfile"))
+			OwnedHelpText = FText::FromString(OwnedHelpText.ToString() + TEXT("\n") + BuildDeviceSpecText());
+	}
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::OpenOwnedSettingHelp(FName Key)
 {
-    bOwnedSettingHelpOpen=true;SelectSettingHelp(Key);
-    if(OwnedSettingsScroll)OwnedSettingsScroll->ScrollToEnd();
+	bOwnedSettingHelpOpen = true;
+	SelectSettingHelp(Key);
+	if (OwnedSettingsScroll)
+		OwnedSettingsScroll->ScrollToEnd();
 }
 TSharedRef<SWidget> UDxWidgetVirtualSensorSettingsPanel::BuildOwnedSettingDetail(FName Key)
 {
-    const auto Impact=OwnedSettingImpact(Key),Tip=OwnedSettingTooltip(Key);
-    return SNew(SHorizontalBox)
-        +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[SNew(SBorder)
-          .BorderImage(FSensorOwnedPresentationStyle::ChipBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(FMargin(FSensorOwnedPresentationStyle::Gap,2)).ToolTipText(Tip)
-          [SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Text(Impact)]]
-        +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton())
-          .Text(LOCTEXT("OwnedInfo","ⓘ")).ToolTipText(Tip).OnClicked_Lambda([this,Key](){OpenOwnedSettingHelp(Key);return FReply::Handled();})];
+	const auto Impact = OwnedSettingImpact(Key), Tip = OwnedSettingTooltip(Key);
+	return SNew(SHorizontalBox) + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[SNew(SBorder).BorderImage(FSensorOwnedPresentationStyle::ChipBrush()).BorderBackgroundColor(GetToolSectionColor()).Padding(FMargin(FSensorOwnedPresentationStyle::Gap, 2)).ToolTipText(Tip)[SNewSensorTool(STextBlock).ColorAndOpacity(GetToolMutedColor()).Text(Impact)]] + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[SNewSensorTool(SButton).ButtonStyle(&FSensorOwnedPresentationStyle::HeaderButton()).Text(LOCTEXT("OwnedInfo", "ⓘ")).ToolTipText(Tip).OnClicked_Lambda([this, Key]()
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   {OpenOwnedSettingHelp(Key);return FReply::Handled(); })];
 }
 TSharedRef<SWidget> UDxWidgetVirtualSensorSettingsPanel::BuildOwnedSettingsWidget()
-{ return FDeviceSensorSettingsBody::BuildOwnedSettingsWidget(*this); }
+{
+	return FDeviceSensorSettingsBody::BuildOwnedSettingsWidget(*this);
+}
 
 bool UDxWidgetVirtualSensorSettingsPanel::OpenOwnedSettingsOwner(bool bDataset)
 {
-    if(!SupportsOwnedDocking())return false;
-    auto* W=GetToolWorkspace();
-    if(bDataset){if(auto* Data=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Data)))return Data->OpenOwnedDatasetSettings();}
-    else if(auto* Placement=Cast<UDxWidgetVirtualSensorPlacementPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Placement)))return Placement->OpenOwnedImuSettings();
-    return false;
+	if (!SupportsOwnedDocking())
+		return false;
+	auto* W = GetToolWorkspace();
+	if (bDataset)
+	{
+		if (auto* Data = Cast<UDxWidgetVirtualSensorCaptureExportPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Data)))
+			return Data->OpenOwnedDatasetSettings();
+	}
+	else if (auto* Placement = Cast<UDxWidgetVirtualSensorPlacementPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Placement)))
+		return Placement->OpenOwnedImuSettings();
+	return false;
 }
 
 TSharedRef<SWidget> UDxWidgetVirtualSensorSettingsPanel::BuildOwnedAutomationControls()
 {
-    if(!IsWorkspaceOwned())return SNullWidget::NullWidget;
-    auto Utilities=SNew(SVerticalBox).Visibility_Lambda([this](){return WorkspaceSettingsTab==2?EVisibility::Visible:EVisibility::Collapsed;});
-    Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SVerticalBox)
-      +SVerticalBox::Slot().AutoHeight().Padding(0,6)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("AutomationGroup","자동화 · API / 일괄 실행"))]
-      +SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).CheckBoxContentUsesAutoWidth(false)
-        .IsChecked_Lambda([this](){auto* C=GetWorld()?GetWorld()->GetSubsystem<UAutomationControlSubsystem>():nullptr;return C&&C->IsApiEnabled()?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
-        .OnCheckStateChanged_Lambda([this](ECheckBoxState V){if(auto* C=GetWorld()->GetSubsystem<UAutomationControlSubsystem>()){C->SetApiEnabled(V==ECheckBoxState::Checked);OwnedAutomationText=FText::FromString(C->GetPresentationStatus());}})
-        [SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this,On=SensorToolUiText::OptionState(LOCTEXT("AutomationEnable","외부 제어 API"),true),Off=SensorToolUiText::OptionState(LOCTEXT("AutomationEnable","외부 제어 API"),false)](){auto* C=GetWorld()?GetWorld()->GetSubsystem<UAutomationControlSubsystem>():nullptr;return C&&C->IsApiEnabled()?On:Off;})]]
-      +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return OwnedAutomationText;})
-        .ToolTipText(LOCTEXT("AutomationHelp","기본 꺼짐 · 이 PC의 127.0.0.1에서만 받습니다. 켜면 외부 프로그램이 센서와 생성 작업을 제어할 수 있습니다. 인증은 설정 파일 또는 환경변수로 지정합니다. API를 꺼도 이미 접수한 작업은 계속되며 기존 PCD 출력 정책은 유지됩니다."))]
-      +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("AutomationNext","기본 꺼짐 · 켜짐은 요청 대기 상태입니다. 접수한 API 작업·일괄 실행은 하단에도 표시됩니다. API를 꺼도 이미 접수한 작업은 계속됩니다."))]];
-    Utilities->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton)
-      .OnClicked_Lambda([this](){OpenOwnedSettingsOwner(true);return FReply::Handled();})
-      [SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("OwnedDatasetLink","데이터셋 생성·형식 설정 열기"))]];
-    Utilities->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor())
-      .Text(LOCTEXT("OwnedDatasetLinkHint","대상·조건·COCO / KITTI 3D는 기존 파일 저장 화면에서 설정합니다. 열기만으로 생성을 시작하지 않습니다."))];
-    Utilities->AddSlot().AutoHeight().Padding(0,8)[SNewSensorTool(SButton)
-      .OnClicked_Lambda([this](){if(auto* W=GetToolWorkspace())W->OpenTestSet();return FReply::Handled();})
-      [SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("OwnedTestSetLink","시나리오 테스트셋 열기"))]];
-    return Utilities;
+	if (!IsWorkspaceOwned())
+		return SNullWidget::NullWidget;
+	auto Utilities = SNew(SVerticalBox).Visibility_Lambda([this]()
+	                                                      { return WorkspaceSettingsTab == 2 ? EVisibility::Visible : EVisibility::Collapsed; });
+	Utilities->AddSlot().AutoHeight().Padding(0, 6)[SNew(SVerticalBox) + SVerticalBox::Slot().AutoHeight().Padding(0, 6)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolAccentColor()).Text(LOCTEXT("AutomationGroup", "자동화 · API / 일괄 실행"))] + SVerticalBox::Slot().AutoHeight()[SNew(SCheckBox).CheckBoxContentUsesAutoWidth(false).IsChecked_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                                {auto* C=GetWorld()?GetWorld()->GetSubsystem<UAutomationControlSubsystem>():nullptr;return C&&C->IsApiEnabled()?ECheckBoxState::Checked:ECheckBoxState::Unchecked; })
+	                                                                                                                                                                                                                                                                                                               .OnCheckStateChanged_Lambda([this](ECheckBoxState V)
+	                                                                                                                                                                                                                                                                                                                                           {if(auto* C=GetWorld()->GetSubsystem<UAutomationControlSubsystem>()){C->SetApiEnabled(V==ECheckBoxState::Checked);OwnedAutomationText=FText::FromString(C->GetPresentationStatus());} })[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this, On = SensorToolUiText::OptionState(LOCTEXT("AutomationEnable", "외부 제어 API"), true), Off = SensorToolUiText::OptionState(LOCTEXT("AutomationEnable", "외부 제어 API"), false)]()
+	                                                                                                                                                                                                                                                                                                                                                                                                          {auto* C=GetWorld()?GetWorld()->GetSubsystem<UAutomationControlSubsystem>():nullptr;return C&&C->IsApiEnabled()?On:Off; })]] +
+	                                                SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this]()
+	                                                                                                                                            { return OwnedAutomationText; })
+	                                                                                      .ToolTipText(LOCTEXT("AutomationHelp", "기본 꺼짐 · 이 PC의 127.0.0.1에서만 받습니다. 켜면 외부 프로그램이 센서와 생성 작업을 제어할 수 있습니다. 인증은 설정 파일 또는 환경변수로 지정합니다. API를 꺼도 이미 접수한 작업은 계속되며 기존 PCD 출력 정책은 유지됩니다."))] +
+	                                                SVerticalBox::Slot().AutoHeight().Padding(0, 4)[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("AutomationNext", "기본 꺼짐 · 켜짐은 요청 대기 상태입니다. 접수한 API 작업·일괄 실행은 하단에도 표시됩니다. API를 꺼도 이미 접수한 작업은 계속됩니다."))]];
+	Utilities->AddSlot().AutoHeight().Padding(0, 8)[SNewSensorTool(SButton)
+	                                                    .OnClicked_Lambda([this]()
+	                                                                      {OpenOwnedSettingsOwner(true);return FReply::Handled(); })
+	                                                        [SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("OwnedDatasetLink", "데이터셋 생성·형식 설정 열기"))]];
+	Utilities->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedDatasetLinkHint", "대상·조건·COCO / KITTI 3D는 기존 파일 저장 화면에서 설정합니다. 열기만으로 생성을 시작하지 않습니다."))];
+	Utilities->AddSlot().AutoHeight().Padding(0, 8)[SNewSensorTool(SButton)
+	                                                    .OnClicked_Lambda([this]()
+	                                                                      {if(auto* W=GetToolWorkspace())W->OpenTestSet();return FReply::Handled(); })
+	                                                        [SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("OwnedTestSetLink", "시나리오 테스트셋 열기"))]];
+	return Utilities;
 }
 
 TSharedRef<SWidget> UDxWidgetVirtualSensorSettingsPanel::BuildOwnedAdministrativeControls()
 {
-    if(!IsWorkspaceOwned())return SNullWidget::NullWidget;
-    auto Utilities=SNew(SVerticalBox);
-    Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SExpandableArea).InitiallyCollapsed(true)
-      .Visibility_Lambda([this](){return PendingState.TargetKind==EVirtualSensorTargetKind::Lidar?EVisibility::Visible:EVisibility::Collapsed;})
-      .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("JsonPolicy","LiDAR 호환 JSON 생성"))]
-      .BodyContent()[SNew(SCheckBox)
-        .IsChecked_Lambda([this](){return PendingState.CompatibilityOutputPolicy==EVirtualLidarCompatibilityOutputPolicy::WhenRequested?ECheckBoxState::Checked:ECheckBoxState::Unchecked;})
-        .OnCheckStateChanged_Lambda([this](ECheckBoxState Value){
+	if (!IsWorkspaceOwned())
+		return SNullWidget::NullWidget;
+	auto Utilities = SNew(SVerticalBox);
+	Utilities->AddSlot().AutoHeight().Padding(0, 6)[SNew(SExpandableArea).InitiallyCollapsed(true).Visibility_Lambda([this]()
+	                                                                                                                 { return PendingState.TargetKind == EVirtualSensorTargetKind::Lidar ? EVisibility::Visible : EVisibility::Collapsed; })
+	                                                    .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("JsonPolicy", "LiDAR 호환 JSON 생성"))]
+	                                                    .BodyContent()[SNew(SCheckBox).IsChecked_Lambda([this]()
+	                                                                                                    { return PendingState.CompatibilityOutputPolicy == EVirtualLidarCompatibilityOutputPolicy::WhenRequested ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+	                                                                       .OnCheckStateChanged_Lambda([this](ECheckBoxState Value)
+	                                                                                                   {
             auto* Actor=SensorManager?SensorManager->GetSelectedSensorActorByKind(EVirtualSensorKind::Lidar):nullptr;
             FVirtualSensorEditableState State;FString Error;
             if(Actor&&Actor->ReadEditableState(State)){
@@ -1042,442 +1293,685 @@ TSharedRef<SWidget> UDxWidgetVirtualSensorSettingsPanel::BuildOwnedAdministrativ
                 if(Actor->ApplyEditableState(State,Error)){PendingState.CompatibilityOutputPolicy=State.CompatibilityOutputPolicy;LastControlMessage=TEXT("JSON 생성 정책 적용 · 측정 상태 유지");}
                 else LastControlMessage=TEXT("JSON 정책 적용 실패: ")+Error;
             }else LastControlMessage=TEXT("선택한 LiDAR를 사용할 수 없습니다.");
-            RefreshNativeText();
-        })
-        [SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("JsonDemandOnly","필요한 출력만 생성 · PCD/미리보기는 계속 동작"))]]];
-    Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SExpandableArea).InitiallyCollapsed(true)
-      .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedIdentity","센서 식별 정보 변경"))]
-      .BodyContent()[SNew(SVerticalBox)
-        +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedIdentityHelp","SensorId는 전송·세션에서 센서를 구분하는 식별자입니다. 일반 측정값 조정과 별개입니다."))]
-        +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNewSensorTool(SEditableTextBox).Style(&GetToolInputStyle()).HintText(LOCTEXT("OwnedSensorId","SensorId"))
-          .Text_Lambda([this](){return OwnedIdentityText;})
-          .OnTextCommitted_Lambda([this](const FText& T,ETextCommit::Type){PendingState.SensorId=T.ToString().TrimStartAndEnd();ApplyPendingState();})]
-      ]];
-    Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SExpandableArea).InitiallyCollapsed(true)
-      .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedExternal","외부 측정 프레임 입력"))]
-      .BodyContent()[SNew(SVerticalBox)
-        +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedExternalHelp","Replay·실장비 adapter에서 가상 센서로 프레임을 받는 기능입니다. 서버 송신이나 Broker 자체 수신 검증을 시작하지 않습니다. 전체 동작은 등록된 외부 입력 Source 모두에 적용됩니다."))]
-        +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6,5))
-          +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedStartInputs","입력 Source 전체 시작")).OnClicked_Lambda([this](){StartAllRealSensorSources();return FReply::Handled();})]
-          +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedStopInputs","입력 Source 전체 중지")).OnClicked_Lambda([this](){StopAllRealSensorSources();return FReply::Handled();})]
-          +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedPushInput","선택 입력 1회 주입")).OnClicked_Lambda([this](){PushSelectedRealSensorSource();return FReply::Handled();})]]
-      ]];
-    Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SExpandableArea).InitiallyCollapsed(true)
-      .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedDebugLogs","개발용 화면 로그"))]
-      .BodyContent()[SNewSensorTool(SButton).IsEnabled_Lambda([this](){return HostActor!=nullptr;}).Text_Lambda([this](){return OwnedDebugLogText;})
-        .OnClicked_Lambda([this](){if(HostActor)HostActor->SetScreenDebugLogVisible(!HostActor->IsScreenDebugLogVisible());return FReply::Handled();})]];
-    Utilities->AddSlot().AutoHeight().Padding(0,6)[SNew(SExpandableArea).InitiallyCollapsed(true)
-      .HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedMapActions","초기화와 원본 맵 반영"))]
-      .BodyContent()[SNew(SVerticalBox)
-        +SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedMapHelp","PIE 시작값 복원은 현재 실행 값만 되돌립니다. 맵 저장 예약은 PIE 종료 시 SensorTestMap 원본에 반영하는 별도 동작입니다."))]
-        +SVerticalBox::Slot().AutoHeight().Padding(0,4)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6,5))
-          +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedRestore","PIE 시작값 복원")).OnClicked_Lambda([this](){ResetPendingStateToMapValue();return FReply::Handled();})]
-          +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedMapQueue","SensorTestMap 저장 예약")).IsEnabled_Lambda([this](){return HostActor&&HostActor->CanQueueMapApply();}).ToolTipText(LOCTEXT("PortableMapQueueReason","다른 맵에서는 사용할 수 없습니다. 저장 위치 또는 전체 배치를 사용하세요.")).OnClicked_Lambda([this](){QueuePendingStateForSensorTestMap();return FReply::Handled();})]]
-      ]];
-    return Utilities;
+            RefreshNativeText(); })[SNewSensorTool(STextBlock).AutoWrapText(true).Text(LOCTEXT("JsonDemandOnly", "필요한 출력만 생성 · PCD/미리보기는 계속 동작"))]]];
+	Utilities->AddSlot().AutoHeight().Padding(0, 6)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedIdentity", "센서 식별 정보 변경"))].BodyContent()[SNew(SVerticalBox) + SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedIdentityHelp", "SensorId는 전송·세션에서 센서를 구분하는 식별자입니다. 일반 측정값 조정과 별개입니다."))] + SVerticalBox::Slot().AutoHeight().Padding(0, 4)[SNewSensorTool(SEditableTextBox).Style(&GetToolInputStyle()).HintText(LOCTEXT("OwnedSensorId", "SensorId")).Text_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                { return OwnedIdentityText; })
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            .OnTextCommitted_Lambda([this](const FText& T, ETextCommit::Type)
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    {PendingState.SensorId=T.ToString().TrimStartAndEnd();ApplyPendingState(); })]]];
+	Utilities->AddSlot().AutoHeight().Padding(0, 6)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedExternal", "외부 측정 프레임 입력"))].BodyContent()[SNew(SVerticalBox) + SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedExternalHelp", "Replay·실장비 adapter에서 가상 센서로 프레임을 받는 기능입니다. 서버 송신이나 Broker 자체 수신 검증을 시작하지 않습니다. 전체 동작은 등록된 외부 입력 Source 모두에 적용됩니다."))] + SVerticalBox::Slot().AutoHeight().Padding(0, 4)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6, 5)) + SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedStartInputs", "입력 Source 전체 시작")).OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  {StartAllRealSensorSources();return FReply::Handled(); })] +
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedStopInputs", "입력 Source 전체 중지")).OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        {StopAllRealSensorSources();return FReply::Handled(); })] +
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedPushInput", "선택 입력 1회 주입")).OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    {PushSelectedRealSensorSource();return FReply::Handled(); })]]]];
+	Utilities->AddSlot().AutoHeight().Padding(0, 6)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedDebugLogs", "개발용 화면 로그"))].BodyContent()[SNewSensorTool(SButton).IsEnabled_Lambda([this]()
+	                                                                                                                                                                                                                                                      { return HostActor != nullptr; })
+	                                                                                                                                                                                                                 .Text_Lambda([this]()
+	                                                                                                                                                                                                                              { return OwnedDebugLogText; })
+	                                                                                                                                                                                                                 .OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                   {if(HostActor)HostActor->SetScreenDebugLogVisible(!HostActor->IsScreenDebugLogVisible());return FReply::Handled(); })]];
+	Utilities->AddSlot().AutoHeight().Padding(0, 6)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("OwnedMapActions", "초기화와 원본 맵 반영"))].BodyContent()[SNew(SVerticalBox) + SVerticalBox::Slot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text(LOCTEXT("OwnedMapHelp", "PIE 시작값 복원은 현재 실행 값만 되돌립니다. 맵 저장 예약은 PIE 종료 시 SensorTestMap 원본에 반영하는 별도 동작입니다."))] + SVerticalBox::Slot().AutoHeight().Padding(0, 4)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6, 5)) + SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedRestore", "PIE 시작값 복원")).OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            {ResetPendingStateToMapValue();return FReply::Handled(); })] +
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OwnedMapQueue", "SensorTestMap 저장 예약")).IsEnabled_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            { return HostActor && HostActor->CanQueueMapApply(); })
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             .ToolTipText(LOCTEXT("PortableMapQueueReason", "다른 맵에서는 사용할 수 없습니다. 저장 위치 또는 전체 배치를 사용하세요."))
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             .OnClicked_Lambda([this]()
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               {QueuePendingStateForSensorTestMap();return FReply::Handled(); })]]]];
+	return Utilities;
 }
 
 bool UDxWidgetVirtualSensorSettingsPanel::ReadSelectedSensorState(FVirtualSensorEditableState& OutState) const
 {
-    const EVirtualSensorKind RequestedKind = OutState.TargetKind == EVirtualSensorTargetKind::Lidar
-        ? EVirtualSensorKind::Lidar
-        : EVirtualSensorKind::Camera;
-    AVirtualSensorActorBase* SensorActor = SensorManager ? SensorManager->GetSelectedSensorActorByKind(RequestedKind) : nullptr;
-    if (!SensorActor || !SensorActor->ReadEditableState(OutState)) return false;
-    OutState.PersistentActorTag = ResolvePersistentActorTag(SensorActor);
-    return true;
+	const EVirtualSensorKind RequestedKind = OutState.TargetKind == EVirtualSensorTargetKind::Lidar
+	                                             ? EVirtualSensorKind::Lidar
+	                                             : EVirtualSensorKind::Camera;
+	AVirtualSensorActorBase* SensorActor = SensorManager ? SensorManager->GetSelectedSensorActorByKind(RequestedKind) : nullptr;
+	if (!SensorActor || !SensorActor->ReadEditableState(OutState))
+		return false;
+	OutState.PersistentActorTag = ResolvePersistentActorTag(SensorActor);
+	return true;
 }
 
 bool UDxWidgetVirtualSensorSettingsPanel::SetSelectedSimulationQuality(EVirtualSensorSimulationQuality NewQuality)
 {
-    PendingState.SimulationQuality = NewQuality;
-    return ApplySelectedProfileAndQualityPreset();
+	PendingState.SimulationQuality = NewQuality;
+	return ApplySelectedProfileAndQualityPreset();
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::ApplyOwnedProfileSelection(EVirtualCameraDeviceProfile CameraProfile, EVirtualLidarDeviceProfile LidarProfile)
 {
-    const auto Previous=PendingState;
-    PendingState.CameraProfile=CameraProfile;
-    PendingState.LidarProfile=LidarProfile;
-    PendingState.SimulationQuality=EVirtualSensorSimulationQuality::FullSpec;
-    if(!ApplySelectedProfileAndQualityPreset())return;
-    const bool Camera=PendingState.TargetKind==EVirtualSensorTargetKind::Camera;
-    LastControlMessage=FString::Printf(TEXT("프로필 기본값 적용: 품질 %s, 주기 %.4g초 (이전 사용자 값: 품질 %s, 주기 %.4g초)"),
-        *SensorToolUiText::UserReason(OwnedQualityLabel(PendingState.SimulationQuality)),Camera?PendingState.CameraCaptureInterval:PendingState.LidarScanInterval,
-        *SensorToolUiText::UserReason(OwnedQualityLabel(Previous.SimulationQuality)),Camera?Previous.CameraCaptureInterval:Previous.LidarScanInterval);
-    // Retain the result until the next settings/selection action. No timer/Tick,
-    // profile contract change, or extra measurement request is introduced.
-    RefreshNativeText();
+	const auto Previous = PendingState;
+	PendingState.CameraProfile = CameraProfile;
+	PendingState.LidarProfile = LidarProfile;
+	PendingState.SimulationQuality = EVirtualSensorSimulationQuality::FullSpec;
+	if (!ApplySelectedProfileAndQualityPreset())
+		return;
+	const bool Camera = PendingState.TargetKind == EVirtualSensorTargetKind::Camera;
+	LastControlMessage = FString::Printf(TEXT("프로필 기본값 적용: 품질 %s, 주기 %.4g초 (이전 사용자 값: 품질 %s, 주기 %.4g초)"),
+	                                     *SensorToolUiText::UserReason(OwnedQualityLabel(PendingState.SimulationQuality)), Camera ? PendingState.CameraCaptureInterval : PendingState.LidarScanInterval,
+	                                     *SensorToolUiText::UserReason(OwnedQualityLabel(Previous.SimulationQuality)), Camera ? Previous.CameraCaptureInterval : Previous.LidarScanInterval);
+	// Retain the result until the next settings/selection action. No timer/Tick,
+	// profile contract change, or extra measurement request is introduced.
+	RefreshNativeText();
 }
 
 bool UDxWidgetVirtualSensorSettingsPanel::ApplySelectedProfileAndQualityPreset()
 {
-    const EVirtualSensorKind RequestedKind = PendingState.TargetKind == EVirtualSensorTargetKind::Lidar
-        ? EVirtualSensorKind::Lidar
-        : EVirtualSensorKind::Camera;
-    AVirtualSensorActorBase* SensorActor = SensorManager ? SensorManager->GetSelectedSensorActorByKind(RequestedKind) : nullptr;
-    FString Error;
-    FVirtualSensorEditableState AppliedState;
-    if (!SensorActor || !SensorActor->ApplyProfileAndSimulationQuality(PendingState, AppliedState, Error))
-    {
-        if (!SensorActor && Error.IsEmpty()) Error = TEXT("선택한 V2 센서 Actor를 사용할 수 없습니다.");
-        LastControlMessage = FString::Printf(TEXT("프리셋 적용 실패: %s"), *Error);
-        RefreshNativeText();
-        return false;
-    }
-    AppliedState.PersistentActorTag = ResolvePersistentActorTag(SensorActor);
-    if(bManipulationEnabled)FinishSensorManipulation(false);
-    PendingState = AppliedState;
-    LastControlMessage = TEXT("장비 프로필과 시뮬레이션 품질을 PIE에 적용했습니다.");
-    RefreshSelectedSensorNow(true);
-    RefreshNativeText();
-    return true;
+	const EVirtualSensorKind RequestedKind = PendingState.TargetKind == EVirtualSensorTargetKind::Lidar
+	                                             ? EVirtualSensorKind::Lidar
+	                                             : EVirtualSensorKind::Camera;
+	AVirtualSensorActorBase* SensorActor = SensorManager ? SensorManager->GetSelectedSensorActorByKind(RequestedKind) : nullptr;
+	FString Error;
+	FVirtualSensorEditableState AppliedState;
+	if (!SensorActor || !SensorActor->ApplyProfileAndSimulationQuality(PendingState, AppliedState, Error))
+	{
+		if (!SensorActor && Error.IsEmpty())
+			Error = TEXT("선택한 V2 센서 Actor를 사용할 수 없습니다.");
+		LastControlMessage = FString::Printf(TEXT("프리셋 적용 실패: %s"), *Error);
+		RefreshNativeText();
+		return false;
+	}
+	AppliedState.PersistentActorTag = ResolvePersistentActorTag(SensorActor);
+	if (bManipulationEnabled)
+		FinishSensorManipulation(false);
+	PendingState = AppliedState;
+	LastControlMessage = TEXT("장비 프로필과 시뮬레이션 품질을 PIE에 적용했습니다.");
+	RefreshSelectedSensorNow(true);
+	RefreshNativeText();
+	return true;
 }
 
 bool UDxWidgetVirtualSensorSettingsPanel::ApplyStateToRuntime(const FVirtualSensorEditableState& State, FString& OutError)
 {
-    const EVirtualSensorKind RequestedKind = State.TargetKind == EVirtualSensorTargetKind::Lidar
-        ? EVirtualSensorKind::Lidar
-        : EVirtualSensorKind::Camera;
-    AVirtualSensorActorBase* SensorActor = SensorManager ? SensorManager->GetSelectedSensorActorByKind(RequestedKind) : nullptr;
-    if (!SensorActor)
-    {
-        OutError = TEXT("선택한 V2 센서 Actor를 사용할 수 없습니다.");
-        return false;
-    }
-    return SensorActor->ApplyEditableState(State, OutError);
+	const EVirtualSensorKind RequestedKind = State.TargetKind == EVirtualSensorTargetKind::Lidar
+	                                             ? EVirtualSensorKind::Lidar
+	                                             : EVirtualSensorKind::Camera;
+	AVirtualSensorActorBase* SensorActor = SensorManager ? SensorManager->GetSelectedSensorActorByKind(RequestedKind) : nullptr;
+	if (!SensorActor)
+	{
+		OutError = TEXT("선택한 V2 센서 Actor를 사용할 수 없습니다.");
+		return false;
+	}
+	return SensorActor->ApplyEditableState(State, OutError);
 }
 
 bool UDxWidgetVirtualSensorSettingsPanel::ValidateState(const FVirtualSensorEditableState& State, FString& OutError) const
 {
-    if (!GetWorld()) { OutError = TEXT("World를 사용할 수 없습니다"); return false; }
-    const UVirtualCameraCaptureComp* SelectedCamera = State.TargetKind == EVirtualSensorTargetKind::Camera && SensorManager ? SensorManager->GetSelectedCamera() : nullptr;
-    const UVirtualLidarScanComp* SelectedLidar = State.TargetKind == EVirtualSensorTargetKind::Lidar && SensorManager ? SensorManager->GetSelectedLidar() : nullptr;
-    TArray<FString> OtherSensorIds;
-    for (TActorIterator<AVirtualCameraSensorActor> It(GetWorld()); It; ++It)
-    {
-        const UVirtualCameraCaptureComp* Comp = It->CaptureComp;
-        if (Comp && Comp != SelectedCamera) OtherSensorIds.Add(Comp->SensorId);
-    }
-    for (TActorIterator<AVirtualLidarSensorActor> It(GetWorld()); It; ++It)
-    {
-        const UVirtualLidarScanComp* Comp = It->ScanComp;
-        if (Comp && Comp != SelectedLidar) OtherSensorIds.Add(Comp->SensorId);
-    }
-    if (!ValidateEditableStateValues(State, OtherSensorIds, OutError)) return false;
-    const EVirtualSensorKind RequestedKind = State.TargetKind == EVirtualSensorTargetKind::Lidar
-        ? EVirtualSensorKind::Lidar
-        : EVirtualSensorKind::Camera;
-    AVirtualSensorActorBase* SensorActor = SensorManager ? SensorManager->GetSelectedSensorActorByKind(RequestedKind) : nullptr;
-    return SensorActor ? SensorActor->ValidateEditableState(State, OutError) : false;
+	if (!GetWorld())
+	{
+		OutError = TEXT("World를 사용할 수 없습니다");
+		return false;
+	}
+	const UVirtualCameraCaptureComp* SelectedCamera = State.TargetKind == EVirtualSensorTargetKind::Camera && SensorManager ? SensorManager->GetSelectedCamera() : nullptr;
+	const UVirtualLidarScanComp* SelectedLidar = State.TargetKind == EVirtualSensorTargetKind::Lidar && SensorManager ? SensorManager->GetSelectedLidar() : nullptr;
+	TArray<FString> OtherSensorIds;
+	for (TActorIterator<AVirtualCameraSensorActor> It(GetWorld()); It; ++It)
+	{
+		const UVirtualCameraCaptureComp* Comp = It->CaptureComp;
+		if (Comp && Comp != SelectedCamera)
+			OtherSensorIds.Add(Comp->SensorId);
+	}
+	for (TActorIterator<AVirtualLidarSensorActor> It(GetWorld()); It; ++It)
+	{
+		const UVirtualLidarScanComp* Comp = It->ScanComp;
+		if (Comp && Comp != SelectedLidar)
+			OtherSensorIds.Add(Comp->SensorId);
+	}
+	if (!ValidateEditableStateValues(State, OtherSensorIds, OutError))
+		return false;
+	const EVirtualSensorKind RequestedKind = State.TargetKind == EVirtualSensorTargetKind::Lidar
+	                                             ? EVirtualSensorKind::Lidar
+	                                             : EVirtualSensorKind::Camera;
+	AVirtualSensorActorBase* SensorActor = SensorManager ? SensorManager->GetSelectedSensorActorByKind(RequestedKind) : nullptr;
+	return SensorActor ? SensorActor->ValidateEditableState(State, OutError) : false;
 }
 
 bool UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(const FVirtualSensorEditableState& State, const TArray<FString>& OtherSensorIds, FString& OutError)
-{ return FDeviceSensorSettingsBody::ValidateEditableStateValues(State,OtherSensorIds,OutError); }
+{
+	return FDeviceSensorSettingsBody::ValidateEditableStateValues(State, OtherSensorIds, OutError);
+}
 
 void UDxWidgetVirtualSensorSettingsPanel::RefreshPendingState(bool bCaptureInitialValue)
 {
-    FVirtualSensorEditableState State;
-    State.TargetKind = PendingState.TargetKind;
-    if (ReadSelectedSensorState(State))
-    {
-        PendingState = State;
-        if (bCaptureInitialValue && !InitialStates.Contains(State.PersistentActorTag))
-        {
-            InitialStates.Add(State.PersistentActorTag, State);
-        }
-        LastControlMessage = TEXT("현재 PIE 값을 불러왔습니다.");
-    }
-    else
-    {
-        LastControlMessage = TEXT("선택한 종류의 센서가 없습니다.");
-    }
-    RefreshNativeText();
+	FVirtualSensorEditableState State;
+	State.TargetKind = PendingState.TargetKind;
+	if (ReadSelectedSensorState(State))
+	{
+		PendingState = State;
+		if (bCaptureInitialValue && !InitialStates.Contains(State.PersistentActorTag))
+		{
+			InitialStates.Add(State.PersistentActorTag, State);
+		}
+		LastControlMessage = TEXT("현재 PIE 값을 불러왔습니다.");
+	}
+	else
+	{
+		LastControlMessage = TEXT("선택한 종류의 센서가 없습니다.");
+	}
+	RefreshNativeText();
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::RefreshNativeText()
 {
-    if(IsWorkspaceOwned()){RefreshOwnedSettingsText();return;}
-    if (NativeStatusText.IsValid()) NativeStatusText->SetText(FText::FromString(GetControlStatusText()));
+	if (IsWorkspaceOwned())
+	{
+		RefreshOwnedSettingsText();
+		return;
+	}
+	if (NativeStatusText.IsValid())
+		NativeStatusText->SetText(FText::FromString(GetControlStatusText()));
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::SpawnGizmoIfNeeded()
 {
-    if(auto* I=OwnedInteraction()){const bool NewGizmo=!IsValid(I->GetExistingGizmo());GizmoActor=I->GetGizmo(this);I->SetInputMode(PlacementInputMode,TranslationSpeedCmPerSecond,RotationSpeedDegreesPerSecond);if(NewGizmo)I->SetLegacyOptions(TranslationStepCm,RotationStepDegrees,bGizmoVisible,bProjectionDebugEnabled);return;}
-    if (IsValid(GizmoActor) || !GetWorld()) return;
-    GizmoActor = GetWorld()->SpawnActor<AVirtualSensorTransformGizmoActor>();
-    if (!GizmoActor) return;
-    GizmoActor->SetInputOwner(this);
-    GizmoActor->ConfigureResponsivePlacement(IsWorkspaceOwned(),PlacementInputMode,TranslationSpeedCmPerSecond,RotationSpeedDegreesPerSecond);
-    GizmoActor->OnTransformChanged.AddUObject(this, &UDxWidgetVirtualSensorSettingsPanel::HandleGizmoTransformChanged);
-    GizmoActor->OnTransformCommitted.AddUObject(this, &UDxWidgetVirtualSensorSettingsPanel::HandleGizmoTransformCommitted);
-    GizmoActor->OnTransformGestureStarted.AddUObject(this,&ThisClass::HandleGizmoGestureStarted);
-    GizmoActor->OnUndoRequested.AddWeakLambda(this,[this](){UndoSelectedSensorPlacement();});
-    GizmoActor->OnRedoRequested.AddWeakLambda(this,[this](){RedoSelectedSensorPlacement();});
-    GizmoActor->OnManipulationExitRequested.AddUObject(this, &UDxWidgetVirtualSensorSettingsPanel::HandleManipulationExitRequested);
-    GizmoActor->SetGizmoMode(GizmoMode);
-    GizmoActor->SetCoordinateSpace(CoordinateSpace);
-    GizmoActor->SetGizmoVisible(bGizmoVisible);
-    GizmoActor->SetManipulationEnabled(bManipulationEnabled);
-    GizmoActor->SetProjectionDebugEnabled(bProjectionDebugEnabled);
-    GizmoActor->SetStepSizes(TranslationStepCm, RotationStepDegrees);
+	if (auto* I = OwnedInteraction())
+	{
+		const bool NewGizmo = !IsValid(I->GetExistingGizmo());
+		GizmoActor = I->GetGizmo(this);
+		I->SetInputMode(PlacementInputMode, TranslationSpeedCmPerSecond, RotationSpeedDegreesPerSecond);
+		if (NewGizmo)
+			I->SetLegacyOptions(TranslationStepCm, RotationStepDegrees, bGizmoVisible, bProjectionDebugEnabled);
+		return;
+	}
+	if (IsValid(GizmoActor) || !GetWorld())
+		return;
+	GizmoActor = GetWorld()->SpawnActor<AVirtualSensorTransformGizmoActor>();
+	if (!GizmoActor)
+		return;
+	GizmoActor->SetInputOwner(this);
+	GizmoActor->ConfigureResponsivePlacement(IsWorkspaceOwned(), PlacementInputMode, TranslationSpeedCmPerSecond, RotationSpeedDegreesPerSecond);
+	GizmoActor->OnTransformChanged.AddUObject(this, &UDxWidgetVirtualSensorSettingsPanel::HandleGizmoTransformChanged);
+	GizmoActor->OnTransformCommitted.AddUObject(this, &UDxWidgetVirtualSensorSettingsPanel::HandleGizmoTransformCommitted);
+	GizmoActor->OnTransformGestureStarted.AddUObject(this, &ThisClass::HandleGizmoGestureStarted);
+	GizmoActor->OnUndoRequested.AddWeakLambda(this, [this]()
+	                                          { UndoSelectedSensorPlacement(); });
+	GizmoActor->OnRedoRequested.AddWeakLambda(this, [this]()
+	                                          { RedoSelectedSensorPlacement(); });
+	GizmoActor->OnManipulationExitRequested.AddUObject(this, &UDxWidgetVirtualSensorSettingsPanel::HandleManipulationExitRequested);
+	GizmoActor->SetGizmoMode(GizmoMode);
+	GizmoActor->SetCoordinateSpace(CoordinateSpace);
+	GizmoActor->SetGizmoVisible(bGizmoVisible);
+	GizmoActor->SetManipulationEnabled(bManipulationEnabled);
+	GizmoActor->SetProjectionDebugEnabled(bProjectionDebugEnabled);
+	GizmoActor->SetStepSizes(TranslationStepCm, RotationStepDegrees);
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::SyncGizmoTarget()
 {
-    if(auto* I=OwnedInteraction()){I->SynchronizeSelection();GizmoActor=I->GetGizmo(this);LastSyncedSensorActor=I->Selected();return;}
-    if (!GizmoActor) return;
-    AActor* SelectedActor = GetSelectedSensorActor();
-    if (bManipulationEnabled && ManipulationTarget.Get() != SelectedActor) FinishSensorManipulation(false);
-    GizmoActor->BindTarget(SelectedActor);
-    LastSyncedSensorActor = SelectedActor;
-    GizmoActor->SetProjectionDebugEnabled(bProjectionDebugEnabled);
+	if (auto* I = OwnedInteraction())
+	{
+		I->SynchronizeSelection();
+		GizmoActor = I->GetGizmo(this);
+		LastSyncedSensorActor = I->Selected();
+		return;
+	}
+	if (!GizmoActor)
+		return;
+	AActor* SelectedActor = GetSelectedSensorActor();
+	if (bManipulationEnabled && ManipulationTarget.Get() != SelectedActor)
+		FinishSensorManipulation(false);
+	GizmoActor->BindTarget(SelectedActor);
+	LastSyncedSensorActor = SelectedActor;
+	GizmoActor->SetProjectionDebugEnabled(bProjectionDebugEnabled);
 }
 
 AActor* UDxWidgetVirtualSensorSettingsPanel::GetSelectedSensorActor() const
 {
-    if (!SensorManager) return nullptr;
-    const EVirtualSensorKind RequestedKind = PendingState.TargetKind == EVirtualSensorTargetKind::Lidar
-        ? EVirtualSensorKind::Lidar
-        : EVirtualSensorKind::Camera;
-    return SensorManager->GetSelectedSensorActorByKind(RequestedKind);
+	if (!SensorManager)
+		return nullptr;
+	const EVirtualSensorKind RequestedKind = PendingState.TargetKind == EVirtualSensorTargetKind::Lidar
+	                                             ? EVirtualSensorKind::Lidar
+	                                             : EVirtualSensorKind::Camera;
+	return SensorManager->GetSelectedSensorActorByKind(RequestedKind);
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::HandleGizmoTransformChanged(const FTransform& Transform)
 {
-    if (Transform.ContainsNaN() || !bManipulationEnabled || !ManipulationTarget.IsValid()) return;
-    PendingState.ActorTransform = Transform;
-    LastControlMessage = TEXT("미리보기 갱신 중...");
+	if (Transform.ContainsNaN() || !bManipulationEnabled || !ManipulationTarget.IsValid())
+		return;
+	PendingState.ActorTransform = Transform;
+	LastControlMessage = TEXT("미리보기 갱신 중...");
 	LastControlMessage = TEXT("조작 중: 경량 미리보기");
-    RefreshNativeText();
+	RefreshNativeText();
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::HandleGizmoTransformCommitted(const FTransform& Transform)
 {
-    if (Transform.ContainsNaN() || !bManipulationEnabled || !ManipulationTarget.IsValid()) return;
-    if(IsWorkspaceOwned())if(auto* Placement=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())
-    {Placement->CommitGesture(ManipulationTarget.Get());Placement->BeginPlacementPreviewRefresh(ManipulationTarget.Get());}
-    PendingState.ActorTransform = Transform;
+	if (Transform.ContainsNaN() || !bManipulationEnabled || !ManipulationTarget.IsValid())
+		return;
+	if (IsWorkspaceOwned())
+		if (auto* Placement = GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())
+		{
+			Placement->CommitGesture(ManipulationTarget.Get());
+			Placement->BeginPlacementPreviewRefresh(ManipulationTarget.Get());
+		}
+	PendingState.ActorTransform = Transform;
 	LastControlMessage = TEXT("조작 위치가 PIE에 반영됨");
-    LastControlMessage = FString::Printf(TEXT("PIE에 적용됨: %s"), *PendingState.SensorId);
-    RefreshNativeText();
+	LastControlMessage = FString::Printf(TEXT("PIE에 적용됨: %s"), *PendingState.SensorId);
+	RefreshNativeText();
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::HandleGizmoGestureStarted()
-{if(IsWorkspaceOwned()&&ManipulationTarget.IsValid())if(auto* P=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())P->BeginGesture(ManipulationTarget.Get());}
-
-FString UDxWidgetVirtualSensorSettingsPanel::RequestSaveSelectedSensorPose(const FString& Name,const FString& Existing)
 {
-    if(auto* I=OwnedInteraction()){LastPoseRequest=I->SavePose(Name,Existing);PoseRequestRevision=PoseInteractionRevision;return LastPoseRequest;}
-    auto* P=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>():nullptr;
-    if(!P)return FString();LastPoseRequest=P->RequestSaveSensorPose(Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()),Name,Existing);PoseRequestRevision=PoseInteractionRevision;
-    LastControlMessage=P->GetPoseSaveStatus(LastPoseRequest).Message;RefreshNativeText();return LastPoseRequest;
+	if (IsWorkspaceOwned() && ManipulationTarget.IsValid())
+		if (auto* P = GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>())
+			P->BeginGesture(ManipulationTarget.Get());
+}
+
+FString UDxWidgetVirtualSensorSettingsPanel::RequestSaveSelectedSensorPose(const FString& Name, const FString& Existing)
+{
+	if (auto* I = OwnedInteraction())
+	{
+		LastPoseRequest = I->SavePose(Name, Existing);
+		PoseRequestRevision = PoseInteractionRevision;
+		return LastPoseRequest;
+	}
+	auto* P = GetWorld() ? GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>() : nullptr;
+	if (!P)
+		return FString();
+	LastPoseRequest = P->RequestSaveSensorPose(Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()), Name, Existing);
+	PoseRequestRevision = PoseInteractionRevision;
+	LastControlMessage = P->GetPoseSaveStatus(LastPoseRequest).Message;
+	RefreshNativeText();
+	return LastPoseRequest;
 }
 bool UDxWidgetVirtualSensorSettingsPanel::ApplySelectedSensorPoseBookmark(const FString& Id)
 {
-    if(auto* I=OwnedInteraction()){const bool Ok=I->ApplyBookmark(Id,LastControlMessage);if(Ok){SelectPoseBookmark(Id);RefreshPendingState(false);}return Ok;}
-    auto* Sensor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());if(!Sensor||!GetWorld())return false;
-    if(GizmoActor){GizmoActor->FinishPlacementGesture();GizmoActor->BlockHeldPlacementKeys();}
-    FString Reason;const bool Ok=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()->ApplySensorPoseBookmark(Sensor,Id,Reason);
-    if(Ok){SelectPoseBookmark(Id);RefreshPendingState(false);LastControlMessage=TEXT("저장 위치로 이동");}
-    else LastControlMessage=Reason;RefreshNativeText();return Ok;
+	if (auto* I = OwnedInteraction())
+	{
+		const bool Ok = I->ApplyBookmark(Id, LastControlMessage);
+		if (Ok)
+		{
+			SelectPoseBookmark(Id);
+			RefreshPendingState(false);
+		}
+		return Ok;
+	}
+	auto* Sensor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
+	if (!Sensor || !GetWorld())
+		return false;
+	if (GizmoActor)
+	{
+		GizmoActor->FinishPlacementGesture();
+		GizmoActor->BlockHeldPlacementKeys();
+	}
+	FString Reason;
+	const bool Ok = GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()->ApplySensorPoseBookmark(Sensor, Id, Reason);
+	if (Ok)
+	{
+		SelectPoseBookmark(Id);
+		RefreshPendingState(false);
+		LastControlMessage = TEXT("저장 위치로 이동");
+	}
+	else
+		LastControlMessage = Reason;
+	RefreshNativeText();
+	return Ok;
 }
 bool UDxWidgetVirtualSensorSettingsPanel::UndoSelectedSensorPlacement()
 {
-    if(auto* I=OwnedInteraction()){const bool Ok=I->Undo(LastControlMessage);if(Ok)RefreshPendingState(false);return Ok;}
-    auto* Sensor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());if(!Sensor||!GetWorld())return false;
-    if(GizmoActor){GizmoActor->FinishPlacementGesture();GizmoActor->BlockHeldPlacementKeys();}
-    FString Reason;const bool Ok=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()->UndoSensorPlacement(Sensor,Reason);
-    if(Ok){RefreshPendingState(false);LastControlMessage=TEXT("센서 위치 되돌리기 완료");}else LastControlMessage=Reason;RefreshNativeText();return Ok;
+	if (auto* I = OwnedInteraction())
+	{
+		const bool Ok = I->Undo(LastControlMessage);
+		if (Ok)
+			RefreshPendingState(false);
+		return Ok;
+	}
+	auto* Sensor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
+	if (!Sensor || !GetWorld())
+		return false;
+	if (GizmoActor)
+	{
+		GizmoActor->FinishPlacementGesture();
+		GizmoActor->BlockHeldPlacementKeys();
+	}
+	FString Reason;
+	const bool Ok = GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()->UndoSensorPlacement(Sensor, Reason);
+	if (Ok)
+	{
+		RefreshPendingState(false);
+		LastControlMessage = TEXT("센서 위치 되돌리기 완료");
+	}
+	else
+		LastControlMessage = Reason;
+	RefreshNativeText();
+	return Ok;
 }
 bool UDxWidgetVirtualSensorSettingsPanel::RedoSelectedSensorPlacement()
 {
-    if(auto* I=OwnedInteraction()){const bool Ok=I->Redo(LastControlMessage);if(Ok)RefreshPendingState(false);return Ok;}
-    auto* Sensor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());if(!Sensor||!GetWorld())return false;
-    if(GizmoActor){GizmoActor->FinishPlacementGesture();GizmoActor->BlockHeldPlacementKeys();}
-    FString Reason;const bool Ok=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()->RedoSensorPlacement(Sensor,Reason);
-    if(Ok){RefreshPendingState(false);LastControlMessage=TEXT("센서 위치 다시 적용 완료");}else LastControlMessage=Reason;RefreshNativeText();return Ok;
+	if (auto* I = OwnedInteraction())
+	{
+		const bool Ok = I->Redo(LastControlMessage);
+		if (Ok)
+			RefreshPendingState(false);
+		return Ok;
+	}
+	auto* Sensor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
+	if (!Sensor || !GetWorld())
+		return false;
+	if (GizmoActor)
+	{
+		GizmoActor->FinishPlacementGesture();
+		GizmoActor->BlockHeldPlacementKeys();
+	}
+	FString Reason;
+	const bool Ok = GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()->RedoSensorPlacement(Sensor, Reason);
+	if (Ok)
+	{
+		RefreshPendingState(false);
+		LastControlMessage = TEXT("센서 위치 다시 적용 완료");
+	}
+	else
+		LastControlMessage = Reason;
+	RefreshNativeText();
+	return Ok;
 }
 void UDxWidgetVirtualSensorSettingsPanel::SelectPoseBookmark(const FString& Id)
 {
-    auto* P=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>():nullptr;
-    auto* Sensor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
-    if(!P||!Sensor)return;
-    const auto Rows=P->GetSensorPoseBookmarks(Sensor);
-    const auto* Row=Rows.FindByPredicate([&](const auto& B){return B.BookmarkId==Id;});
-    if(!Row)return;
-    ++PoseInteractionRevision;SelectedPoseId=Row->BookmarkId;PoseName=Row->Name;PendingPoseDeleteId.Reset();
-    if(PoseNameInput)PoseNameInput->SetText(FText::FromString(PoseName));
+	auto* P = GetWorld() ? GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>() : nullptr;
+	auto* Sensor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
+	if (!P || !Sensor)
+		return;
+	const auto Rows = P->GetSensorPoseBookmarks(Sensor);
+	const auto* Row = Rows.FindByPredicate([&](const auto& B)
+	                                       { return B.BookmarkId == Id; });
+	if (!Row)
+		return;
+	++PoseInteractionRevision;
+	SelectedPoseId = Row->BookmarkId;
+	PoseName = Row->Name;
+	PendingPoseDeleteId.Reset();
+	if (PoseNameInput)
+		PoseNameInput->SetText(FText::FromString(PoseName));
 }
 void UDxWidgetVirtualSensorSettingsPanel::RefreshPoseRows()
 {
-    auto* Sensor=Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());auto* P=GetWorld()?GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>():nullptr;if(!P)return;
-    const FString CurrentId=Sensor?Sensor->GetSensorId():FString();
-    const auto CurrentKind=Sensor?Sensor->GetSensorKind():EVirtualSensorKind::Camera;
-    if(PoseRowsSensor.Get()!=Sensor||PoseRowsSensorId!=CurrentId||PoseRowsKind!=CurrentKind)
-    {
-        if(PoseRowsSensor.IsValid()&&PoseRowsSensor.Get()!=Sensor)P->CancelPlacementPreviewRefresh(PoseRowsSensor.Get());
-        PoseRowsSensor=Sensor;PoseRowsSensorId=CurrentId;PoseRowsKind=CurrentKind;PoseRowsRevision=-1;
-        ++PoseInteractionRevision;SelectedPoseId.Reset();PendingPoseDeleteId.Reset();PoseName.Reset();LastPoseRequest.Reset();
-        if(PoseNameInput)PoseNameInput->SetText(FText::GetEmpty());
-    }
-    if(PoseRowsRevision!=P->GetLibraryRevision())
-    {PoseRows=P->GetSensorPoseBookmarks(Sensor);PoseRowsRevision=P->GetLibraryRevision();if(!SelectedPoseId.IsEmpty()&&!PoseRows.ContainsByPredicate([this](const auto& B){return B.BookmarkId==SelectedPoseId;}))SelectedPoseId.Reset();}
-    bPoseEditable=P->CanEditSensorPlacement(Sensor,PoseLockReason);bPoseUndoAvailable=P->CanUndoSensorPlacement(Sensor);bPoseRedoAvailable=P->CanRedoSensorPlacement(Sensor);
-    const auto Preview=P->GetPlacementPreviewStatus(Sensor);
-    if(Preview.State!=PlacementPreviewStatus.State||Preview.RequestId!=PlacementPreviewStatus.RequestId)
-    {PlacementPreviewStatus=Preview;RefreshNativeText();}
-    if(!LastPoseRequest.IsEmpty()){const auto S=P->GetPoseSaveStatus(LastPoseRequest);LastControlMessage=S.Message;if(S.State!=EVirtualSensorPoseSaveState::Writing){if(PoseRequestRevision==PoseInteractionRevision&&PoseRows.ContainsByPredicate([&](const auto& B){return B.BookmarkId==S.BookmarkId;}))SelectPoseBookmark(S.BookmarkId);LastPoseRequest.Reset();}RefreshNativeText();}
+	auto* Sensor = Cast<AVirtualSensorActorBase>(GetSelectedSensorActor());
+	auto* P = GetWorld() ? GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>() : nullptr;
+	if (!P)
+		return;
+	const FString CurrentId = Sensor ? Sensor->GetSensorId() : FString();
+	const auto CurrentKind = Sensor ? Sensor->GetSensorKind() : EVirtualSensorKind::Camera;
+	if (PoseRowsSensor.Get() != Sensor || PoseRowsSensorId != CurrentId || PoseRowsKind != CurrentKind)
+	{
+		if (PoseRowsSensor.IsValid() && PoseRowsSensor.Get() != Sensor)
+			P->CancelPlacementPreviewRefresh(PoseRowsSensor.Get());
+		PoseRowsSensor = Sensor;
+		PoseRowsSensorId = CurrentId;
+		PoseRowsKind = CurrentKind;
+		PoseRowsRevision = -1;
+		++PoseInteractionRevision;
+		SelectedPoseId.Reset();
+		PendingPoseDeleteId.Reset();
+		PoseName.Reset();
+		LastPoseRequest.Reset();
+		if (PoseNameInput)
+			PoseNameInput->SetText(FText::GetEmpty());
+	}
+	if (PoseRowsRevision != P->GetLibraryRevision())
+	{
+		PoseRows = P->GetSensorPoseBookmarks(Sensor);
+		PoseRowsRevision = P->GetLibraryRevision();
+		if (!SelectedPoseId.IsEmpty() && !PoseRows.ContainsByPredicate([this](const auto& B)
+		                                                               { return B.BookmarkId == SelectedPoseId; }))
+			SelectedPoseId.Reset();
+	}
+	bPoseEditable = P->CanEditSensorPlacement(Sensor, PoseLockReason);
+	bPoseUndoAvailable = P->CanUndoSensorPlacement(Sensor);
+	bPoseRedoAvailable = P->CanRedoSensorPlacement(Sensor);
+	const auto Preview = P->GetPlacementPreviewStatus(Sensor);
+	if (Preview.State != PlacementPreviewStatus.State || Preview.RequestId != PlacementPreviewStatus.RequestId)
+	{
+		PlacementPreviewStatus = Preview;
+		RefreshNativeText();
+	}
+	if (!LastPoseRequest.IsEmpty())
+	{
+		const auto S = P->GetPoseSaveStatus(LastPoseRequest);
+		LastControlMessage = S.Message;
+		if (S.State != EVirtualSensorPoseSaveState::Writing)
+		{
+			if (PoseRequestRevision == PoseInteractionRevision && PoseRows.ContainsByPredicate([&](const auto& B)
+			                                                                                   { return B.BookmarkId == S.BookmarkId; }))
+				SelectPoseBookmark(S.BookmarkId);
+			LastPoseRequest.Reset();
+		}
+		RefreshNativeText();
+	}
 }
 void UDxWidgetVirtualSensorSettingsPanel::RefreshWorkspacePlacementControls()
 {
-    if(!IsWorkspaceOwned())return;
-    SynchronizeWorkspaceSelection();RefreshPoseRows();
-    if(bManipulationEnabled&&(!ManipulationTarget.IsValid()||!IsValid(GizmoActor)||!GizmoActor->IsManipulationEnabled()))FinishSensorManipulation(true);
+	if (!IsWorkspaceOwned())
+		return;
+	SynchronizeWorkspaceSelection();
+	RefreshPoseRows();
+	if (bManipulationEnabled && (!ManipulationTarget.IsValid() || !IsValid(GizmoActor) || !GizmoActor->IsManipulationEnabled()))
+		FinishSensorManipulation(true);
 }
 TSharedRef<SWidget> UDxWidgetVirtualSensorSettingsPanel::BuildWorkspacePlacementControls()
 {
-    auto Box=SNew(SVerticalBox);
-    Box->AddSlot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8,8))
-        +SWrapBox::Slot()[SNewSensorTool(SButton).Text_Lambda([this](){return FText::FromString(bManipulationEnabled?TEXT("조작 종료 · Esc"):TEXT("이동·회전 시작"));}).OnClicked_Lambda([this](){SetSensorManipulationEnabled(!bManipulationEnabled);return FReply::Handled();})]
-        +SWrapBox::Slot()[SNewSensorTool(SButton).Text_Lambda([this](){return FText::FromString(GizmoMode==EVirtualSensorGizmoMode::Translate?TEXT("이동 모드"):TEXT("회전 모드"));}).OnClicked_Lambda([this](){SetSensorGizmoMode(GizmoMode==EVirtualSensorGizmoMode::Translate?EVirtualSensorGizmoMode::Rotate:EVirtualSensorGizmoMode::Translate);return FReply::Handled();})]
-        +SWrapBox::Slot()[SNewSensorTool(SButton).Text_Lambda([this](){return FText::FromString(CoordinateSpace==EVirtualSensorCoordinateSpace::Local?TEXT("로컬 좌표"):TEXT("월드 좌표"));}).OnClicked_Lambda([this](){SetSensorCoordinateSpace(CoordinateSpace==EVirtualSensorCoordinateSpace::Local?EVirtualSensorCoordinateSpace::World:EVirtualSensorCoordinateSpace::Local);return FReply::Handled();})]
-        +SWrapBox::Slot()[SNewSensorTool(SButton).Text_Lambda([this](){return FText::FromString(PlacementInputMode==EVirtualSensorPlacementInputMode::Continuous?TEXT("연속 이동"):TEXT("정밀 단위"));}).OnClicked_Lambda([this](){SetPlacementInputMode(PlacementInputMode==EVirtualSensorPlacementInputMode::Continuous?EVirtualSensorPlacementInputMode::Precision:EVirtualSensorPlacementInputMode::Continuous);return FReply::Handled();})]];
-    Box->AddSlot().AutoHeight().Padding(0,8)[BuildPoseBookmarkControls()];
-    auto Numeric=SNew(SVerticalBox);
-    for(int32 Axis=0;Axis<3;++Axis)
-    {
-        const FString Label=FString::Printf(TEXT("위치 %c · cm"),TEXT('X')+Axis);
-        Numeric->AddSlot().AutoHeight()[MakeFloatRow(FText::FromString(Label),[this,Axis](){return float(PendingState.ActorTransform.GetLocation()[Axis]);},[this,Axis](float V){auto P=PendingState.ActorTransform.GetLocation();P[Axis]=V;PendingState.ActorTransform.SetLocation(P);},-100000,100000,true,NAME_None,true)];
-    }
-    const FText Labels[]={LOCTEXT("PosePitch","Pitch · °"),LOCTEXT("PoseYaw","Yaw · °"),LOCTEXT("PoseRoll","Roll · °")};
-    for(int32 Axis=0;Axis<3;++Axis)Numeric->AddSlot().AutoHeight()[MakeFloatRow(Labels[Axis],[this,Axis](){const auto R=PendingState.ActorTransform.Rotator();return float(Axis==0?R.Pitch:Axis==1?R.Yaw:R.Roll);},[this,Axis](float V){auto R=PendingState.ActorTransform.Rotator();if(Axis==0)R.Pitch=V;else if(Axis==1)R.Yaw=V;else R.Roll=V;PendingState.ActorTransform.SetRotation(R.Quaternion());},-180,180,true,NAME_None,true)];
-    Box->AddSlot().AutoHeight().Padding(0,8)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("NumericPose","위치·회전 숫자 입력"))].BodyContent()[Numeric]];
-    Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this](){return FText::FromString(LastControlMessage+(PlacementPreviewStatus.Message.IsEmpty()?FString():TEXT("\n")+PlacementPreviewStatus.Message));})];
-    return Box;
+	auto Box = SNew(SVerticalBox);
+	Box->AddSlot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8, 8)) + SWrapBox::Slot()[SNewSensorTool(SButton).Text_Lambda([this]()
+	                                                                                                                                                          { return FText::FromString(bManipulationEnabled ? TEXT("조작 종료 · Esc") : TEXT("이동·회전 시작")); })
+	                                                                                                                          .OnClicked_Lambda([this]()
+	                                                                                                                                            {SetSensorManipulationEnabled(!bManipulationEnabled);return FReply::Handled(); })] +
+	                            SWrapBox::Slot()[SNewSensorTool(SButton).Text_Lambda([this]()
+	                                                                                 { return FText::FromString(GizmoMode == EVirtualSensorGizmoMode::Translate ? TEXT("이동 모드") : TEXT("회전 모드")); })
+	                                                 .OnClicked_Lambda([this]()
+	                                                                   {SetSensorGizmoMode(GizmoMode==EVirtualSensorGizmoMode::Translate?EVirtualSensorGizmoMode::Rotate:EVirtualSensorGizmoMode::Translate);return FReply::Handled(); })] +
+	                            SWrapBox::Slot()[SNewSensorTool(SButton).Text_Lambda([this]()
+	                                                                                 { return FText::FromString(CoordinateSpace == EVirtualSensorCoordinateSpace::Local ? TEXT("로컬 좌표") : TEXT("월드 좌표")); })
+	                                                 .OnClicked_Lambda([this]()
+	                                                                   {SetSensorCoordinateSpace(CoordinateSpace==EVirtualSensorCoordinateSpace::Local?EVirtualSensorCoordinateSpace::World:EVirtualSensorCoordinateSpace::Local);return FReply::Handled(); })] +
+	                            SWrapBox::Slot()[SNewSensorTool(SButton).Text_Lambda([this]()
+	                                                                                 { return FText::FromString(PlacementInputMode == EVirtualSensorPlacementInputMode::Continuous ? TEXT("연속 이동") : TEXT("정밀 단위")); })
+	                                                 .OnClicked_Lambda([this]()
+	                                                                   {SetPlacementInputMode(PlacementInputMode==EVirtualSensorPlacementInputMode::Continuous?EVirtualSensorPlacementInputMode::Precision:EVirtualSensorPlacementInputMode::Continuous);return FReply::Handled(); })]];
+	Box->AddSlot().AutoHeight().Padding(0, 8)[BuildPoseBookmarkControls()];
+	auto Numeric = SNew(SVerticalBox);
+	for (int32 Axis = 0; Axis < 3; ++Axis)
+	{
+		const FString Label = FString::Printf(TEXT("위치 %c · cm"), TEXT('X') + Axis);
+		Numeric->AddSlot().AutoHeight()[MakeFloatRow(FText::FromString(Label), [this, Axis]()
+		                                             { return float(PendingState.ActorTransform.GetLocation()[Axis]); }, [this, Axis](float V)
+		                                             {auto P=PendingState.ActorTransform.GetLocation();P[Axis]=V;PendingState.ActorTransform.SetLocation(P); }, -100000, 100000, true, NAME_None, true)];
+	}
+	const FText Labels[] = {LOCTEXT("PosePitch", "Pitch · °"), LOCTEXT("PoseYaw", "Yaw · °"), LOCTEXT("PoseRoll", "Roll · °")};
+	for (int32 Axis = 0; Axis < 3; ++Axis)
+		Numeric->AddSlot().AutoHeight()[MakeFloatRow(Labels[Axis], [this, Axis]()
+		                                             {const auto R=PendingState.ActorTransform.Rotator();return float(Axis==0?R.Pitch:Axis==1?R.Yaw:R.Roll); }, [this, Axis](float V)
+		                                             {auto R=PendingState.ActorTransform.Rotator();if(Axis==0)R.Pitch=V;else if(Axis==1)R.Yaw=V;else R.Roll=V;PendingState.ActorTransform.SetRotation(R.Quaternion()); }, -180, 180, true, NAME_None, true)];
+	Box->AddSlot().AutoHeight().Padding(0, 8)[SNew(SExpandableArea).InitiallyCollapsed(true).HeaderContent()[SNewSensorTool(STextBlock).Text(LOCTEXT("NumericPose", "위치·회전 숫자 입력"))].BodyContent()[Numeric]];
+	Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).ColorAndOpacity(GetToolMutedColor()).Text_Lambda([this]()
+	                                                                                                                           { return FText::FromString(LastControlMessage + (PlacementPreviewStatus.Message.IsEmpty() ? FString() : TEXT("\n") + PlacementPreviewStatus.Message)); })];
+	return Box;
 }
 TSharedRef<SWidget> UDxWidgetVirtualSensorSettingsPanel::BuildPoseBookmarkControls()
 {
-    if(!IsWorkspaceOwned())return SNullWidget::NullWidget;
-    auto Box=SNew(SVerticalBox).Visibility_Lambda([this](){return IsWorkspaceOwned()?EVisibility::Visible:EVisibility::Collapsed;});
-    Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).Text(LOCTEXT("PoseBookmarksTitle","저장 위치 · 선택 센서"))];
-    Box->AddSlot().AutoHeight().Padding(0,4)[SAssignSensorTool(PoseNameInput,SEditableTextBox).Style(&GetToolInputStyle()).HintText(LOCTEXT("PoseName","위치 이름 (최대 64자)")).Text(FText::FromString(PoseName)).OnTextChanged_Lambda([this](const FText& T){PoseName=T.ToString();++PoseInteractionRevision;})];
-    Box->AddSlot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(5,4))
-        +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("SavePose","현재 위치 저장")).OnClicked_Lambda([this](){RequestSaveSelectedSensorPose(PoseName);return FReply::Handled();})]
-        +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("UndoPose","되돌리기")).IsEnabled_Lambda([this](){return bPoseUndoAvailable;}).OnClicked_Lambda([this](){UndoSelectedSensorPlacement();return FReply::Handled();})]
-        +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("RedoPose","다시 적용")).IsEnabled_Lambda([this](){return bPoseRedoAvailable;}).OnClicked_Lambda([this](){RedoSelectedSensorPlacement();return FReply::Handled();})]];
-    Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(bPoseEditable?TEXT("목록 선택은 위치를 바꾸지 않습니다. 이동 버튼으로 적용하세요."):PoseLockReason);})];
-    for(int32 I=0;I<UVirtualSensorPlacementSubsystem::MaxBookmarksPerSensor;++I)
-    {
-        auto Row=SNew(SHorizontalBox).Visibility_Lambda([this,I](){return PoseRows.IsValidIndex(I)?EVisibility::Visible:EVisibility::Collapsed;});
-        Row->AddSlot().FillWidth(1)[SNewSensorTool(SButton).Text_Lambda([this,I](){return PoseRows.IsValidIndex(I)?FText::FromString(PoseRows[I].Name):FText::GetEmpty();})
-            .ToolTipText_Lambda([this,I](){return PoseRows.IsValidIndex(I)?FText::FromString(PoseRows[I].Pose.GetLocation().ToString()+TEXT(" cm · ")+PoseRows[I].Pose.Rotator().ToString()):FText::GetEmpty();})
-            .OnClicked_Lambda([this,I](){if(PoseRows.IsValidIndex(I))SelectPoseBookmark(PoseRows[I].BookmarkId);return FReply::Handled();})];
-        Row->AddSlot().AutoWidth().Padding(5,0)[SNewSensorTool(SButton).Text(LOCTEXT("ApplyPose","이동")).IsEnabled_Lambda([this](){return bPoseEditable;}).OnClicked_Lambda([this,I](){if(PoseRows.IsValidIndex(I))ApplySelectedSensorPoseBookmark(PoseRows[I].BookmarkId);return FReply::Handled();})];
-        Box->AddSlot().AutoHeight().Padding(0,3)[Row];
-    }
-    Box->AddSlot().AutoHeight().Padding(0,4)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(5,4)).Visibility_Lambda([this](){return SelectedPoseId.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;})
-        +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OverwritePose","선택 위치 덮어쓰기")).OnClicked_Lambda([this](){RequestSaveSelectedSensorPose(PoseName,SelectedPoseId);return FReply::Handled();})]
-        +SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("RenamePose","이름 변경")).OnClicked_Lambda([this](){if(auto* P=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()){LastPoseRequest=P->RenameSensorPoseBookmark(Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()),SelectedPoseId,PoseName);PoseRequestRevision=PoseInteractionRevision;}return FReply::Handled();})]
-        +SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle(true)).Text_Lambda([this](){return FText::FromString(PendingPoseDeleteId==SelectedPoseId?TEXT("삭제 확인"):TEXT("삭제"));}).OnClicked_Lambda([this](){if(PendingPoseDeleteId==SelectedPoseId){if(auto* P=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()){LastPoseRequest=P->DeleteSensorPoseBookmark(Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()),SelectedPoseId);PoseRequestRevision=PoseInteractionRevision;}PendingPoseDeleteId.Reset();}else PendingPoseDeleteId=SelectedPoseId;return FReply::Handled();})]
-        +SWrapBox::Slot()[SNewSensorTool(SButton).Visibility_Lambda([this](){return PendingPoseDeleteId.IsEmpty()?EVisibility::Collapsed:EVisibility::Visible;}).Text(LOCTEXT("CancelPoseDelete","취소")).OnClicked_Lambda([this](){PendingPoseDeleteId.Reset();return FReply::Handled();})]];
-    return Box;
+	if (!IsWorkspaceOwned())
+		return SNullWidget::NullWidget;
+	auto Box = SNew(SVerticalBox).Visibility_Lambda([this]()
+	                                                { return IsWorkspaceOwned() ? EVisibility::Visible : EVisibility::Collapsed; });
+	Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).Text(LOCTEXT("PoseBookmarksTitle", "저장 위치 · 선택 센서"))];
+	Box->AddSlot().AutoHeight().Padding(0, 4)[SAssignSensorTool(PoseNameInput, SEditableTextBox).Style(&GetToolInputStyle()).HintText(LOCTEXT("PoseName", "위치 이름 (최대 64자)")).Text(FText::FromString(PoseName)).OnTextChanged_Lambda([this](const FText& T)
+	                                                                                                                                                                                                                                       {PoseName=T.ToString();++PoseInteractionRevision; })];
+	Box->AddSlot().AutoHeight()[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(5, 4)) + SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("SavePose", "현재 위치 저장")).OnClicked_Lambda([this]()
+	                                                                                                                                                                                                           {RequestSaveSelectedSensorPose(PoseName);return FReply::Handled(); })] +
+	                            SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("UndoPose", "되돌리기")).IsEnabled_Lambda([this]()
+	                                                                                                                            { return bPoseUndoAvailable; })
+	                                                 .OnClicked_Lambda([this]()
+	                                                                   {UndoSelectedSensorPlacement();return FReply::Handled(); })] +
+	                            SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("RedoPose", "다시 적용")).IsEnabled_Lambda([this]()
+	                                                                                                                             { return bPoseRedoAvailable; })
+	                                                 .OnClicked_Lambda([this]()
+	                                                                   {RedoSelectedSensorPlacement();return FReply::Handled(); })]];
+	Box->AddSlot().AutoHeight()[SNewSensorTool(STextBlock).AutoWrapText(true).Text_Lambda([this]()
+	                                                                                      { return FText::FromString(bPoseEditable ? TEXT("목록 선택은 위치를 바꾸지 않습니다. 이동 버튼으로 적용하세요.") : PoseLockReason); })];
+	for (int32 I = 0; I < UVirtualSensorPlacementSubsystem::MaxBookmarksPerSensor; ++I)
+	{
+		auto Row = SNew(SHorizontalBox).Visibility_Lambda([this, I]()
+		                                                  { return PoseRows.IsValidIndex(I) ? EVisibility::Visible : EVisibility::Collapsed; });
+		Row->AddSlot().FillWidth(1)[SNewSensorTool(SButton).Text_Lambda([this, I]()
+		                                                                { return PoseRows.IsValidIndex(I) ? FText::FromString(PoseRows[I].Name) : FText::GetEmpty(); })
+		                                .ToolTipText_Lambda([this, I]()
+		                                                    { return PoseRows.IsValidIndex(I) ? FText::FromString(PoseRows[I].Pose.GetLocation().ToString() + TEXT(" cm · ") + PoseRows[I].Pose.Rotator().ToString()) : FText::GetEmpty(); })
+		                                .OnClicked_Lambda([this, I]()
+		                                                  {if(PoseRows.IsValidIndex(I))SelectPoseBookmark(PoseRows[I].BookmarkId);return FReply::Handled(); })];
+		Row->AddSlot().AutoWidth().Padding(5, 0)[SNewSensorTool(SButton).Text(LOCTEXT("ApplyPose", "이동")).IsEnabled_Lambda([this]()
+		                                                                                                                     { return bPoseEditable; })
+		                                             .OnClicked_Lambda([this, I]()
+		                                                               {if(PoseRows.IsValidIndex(I))ApplySelectedSensorPoseBookmark(PoseRows[I].BookmarkId);return FReply::Handled(); })];
+		Box->AddSlot().AutoHeight().Padding(0, 3)[Row];
+	}
+	Box->AddSlot().AutoHeight().Padding(0, 4)[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(5, 4)).Visibility_Lambda([this]()
+	                                                                                                                                   { return SelectedPoseId.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible; }) +
+	                                          SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("OverwritePose", "선택 위치 덮어쓰기")).OnClicked_Lambda([this]()
+	                                                                                                                                                         {RequestSaveSelectedSensorPose(PoseName,SelectedPoseId);return FReply::Handled(); })] +
+	                                          SWrapBox::Slot()[SNewSensorTool(SButton).Text(LOCTEXT("RenamePose", "이름 변경")).OnClicked_Lambda([this]()
+	                                                                                                                                             {if(auto* P=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()){LastPoseRequest=P->RenameSensorPoseBookmark(Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()),SelectedPoseId,PoseName);PoseRequestRevision=PoseInteractionRevision;}return FReply::Handled(); })] +
+	                                          SWrapBox::Slot()[SNewSensorTool(SButton).ButtonStyle(&GetToolButtonStyle(true)).Text_Lambda([this]()
+	                                                                                                                                      { return FText::FromString(PendingPoseDeleteId == SelectedPoseId ? TEXT("삭제 확인") : TEXT("삭제")); })
+	                                                               .OnClicked_Lambda([this]()
+	                                                                                 {if(PendingPoseDeleteId==SelectedPoseId){if(auto* P=GetWorld()->GetSubsystem<UVirtualSensorPlacementSubsystem>()){LastPoseRequest=P->DeleteSensorPoseBookmark(Cast<AVirtualSensorActorBase>(GetSelectedSensorActor()),SelectedPoseId);PoseRequestRevision=PoseInteractionRevision;}PendingPoseDeleteId.Reset();}else PendingPoseDeleteId=SelectedPoseId;return FReply::Handled(); })] +
+	                                          SWrapBox::Slot()[SNewSensorTool(SButton).Visibility_Lambda([this]()
+	                                                                                                     { return PendingPoseDeleteId.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible; })
+	                                                               .Text(LOCTEXT("CancelPoseDelete", "취소"))
+	                                                               .OnClicked_Lambda([this]()
+	                                                                                 {PendingPoseDeleteId.Reset();return FReply::Handled(); })]];
+	return Box;
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::RefreshSelectedSensorNow(bool bForce)
 {
-    if (!SensorManager || !GetWorld()) return;
-    const double Now = GetWorld()->GetTimeSeconds();
-    if (!bForce && LastPreviewRefreshTime >= 0.0 && Now - LastPreviewRefreshTime < 0.1) return;
-    LastPreviewRefreshTime = Now;
-    // UI edits only request the scheduler. Legacy explicit one-shot APIs remain synchronous.
-    if(PendingState.TargetKind==EVirtualSensorTargetKind::Lidar)
-    { if(auto* Lidar=SensorManager->GetSelectedLidar();Lidar&&Lidar->IsScanRunning())Lidar->RequestImmediateScheduledScan(); }
-    else
-    { if(auto* Camera=SensorManager->GetSelectedCamera();Camera&&Camera->IsCaptureRunning())Camera->RequestImmediateScheduledCapture(); }
+	if (!SensorManager || !GetWorld())
+		return;
+	const double Now = GetWorld()->GetTimeSeconds();
+	if (!bForce && LastPreviewRefreshTime >= 0.0 && Now - LastPreviewRefreshTime < 0.1)
+		return;
+	LastPreviewRefreshTime = Now;
+	// UI edits only request the scheduler. Legacy explicit one-shot APIs remain synchronous.
+	if (PendingState.TargetKind == EVirtualSensorTargetKind::Lidar)
+	{
+		if (auto* Lidar = SensorManager->GetSelectedLidar(); Lidar && Lidar->IsScanRunning())
+			Lidar->RequestImmediateScheduledScan();
+	}
+	else
+	{
+		if (auto* Camera = SensorManager->GetSelectedCamera(); Camera && Camera->IsCaptureRunning())
+			Camera->RequestImmediateScheduledCapture();
+	}
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::StartAllRealSensorSources()
 {
-    const int32 Count = SensorManager ? SensorManager->StartAllRealSensorSources() : 0;
-    LastControlMessage = FString::Printf(TEXT("외부 센서 소스 %d개를 시작했습니다."), Count);
-    RefreshNativeText();
+	const int32 Count = SensorManager ? SensorManager->StartAllRealSensorSources() : 0;
+	LastControlMessage = FString::Printf(TEXT("외부 센서 소스 %d개를 시작했습니다."), Count);
+	RefreshNativeText();
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::StopAllRealSensorSources()
 {
-    if (SensorManager) SensorManager->StopAllRealSensorSources();
-    LastControlMessage = SensorManager ? TEXT("외부 센서 소스를 모두 중지했습니다.") : TEXT("SensorManager가 연결되지 않았습니다.");
-    RefreshNativeText();
+	if (SensorManager)
+		SensorManager->StopAllRealSensorSources();
+	LastControlMessage = SensorManager ? TEXT("외부 센서 소스를 모두 중지했습니다.") : TEXT("SensorManager가 연결되지 않았습니다.");
+	RefreshNativeText();
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::PushSelectedRealSensorSource()
 {
-    const bool bSucceeded = SensorManager && SensorManager->PushSelectedRealSensorSourceOnce(false);
-    LastControlMessage = bSucceeded
-        ? TEXT("선택한 외부 Source 프레임을 센서에 1회 주입했습니다. 외부 전송은 PCD 전송 화면에서 선택하세요.")
-        : TEXT("선택한 외부 Source 프레임 주입에 실패했습니다. Source 선택과 입력 데이터를 확인하세요.");
-    RefreshNativeText();
+	const bool bSucceeded = SensorManager && SensorManager->PushSelectedRealSensorSourceOnce(false);
+	LastControlMessage = bSucceeded
+	                         ? TEXT("선택한 외부 Source 프레임을 센서에 1회 주입했습니다. 외부 전송은 PCD 전송 화면에서 선택하세요.")
+	                         : TEXT("선택한 외부 Source 프레임 주입에 실패했습니다. Source 선택과 입력 데이터를 확인하세요.");
+	RefreshNativeText();
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::RestoreSettingsUiPreferences()
 {
-    const UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate();
-    if (Preferences)
-    {
-        bKeyboardHelpExpanded = Preferences->bSettingsKeyboardHelpExpanded;
-    }
+	const UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate();
+	if (Preferences)
+	{
+		bKeyboardHelpExpanded = Preferences->bSettingsKeyboardHelpExpanded;
+	}
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::SaveSettingsUiPreferences() const
 {
-    UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate();
-    if (!Preferences) return;
-    Preferences->bSettingsKeyboardHelpExpanded = bKeyboardHelpExpanded;
-    UVirtualSensorUiPreferencesSaveGame::Save(Preferences);
+	UVirtualSensorUiPreferencesSaveGame* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate();
+	if (!Preferences)
+		return;
+	Preferences->bSettingsKeyboardHelpExpanded = bKeyboardHelpExpanded;
+	UVirtualSensorUiPreferencesSaveGame::Save(Preferences);
 }
 
 void UDxWidgetVirtualSensorSettingsPanel::ResetSettingsUiPreferencesToDefault()
 {
-    bKeyboardHelpExpanded = false;
-    SaveSettingsUiPreferences();
+	bKeyboardHelpExpanded = false;
+	SaveSettingsUiPreferences();
 }
 
 FString UDxWidgetVirtualSensorSettingsPanel::BuildDeviceSpecText() const
 {
-    if (!SensorManager) return TEXT("장비 사양을 불러올 수 없습니다");
-    if (PendingState.TargetKind == EVirtualSensorTargetKind::Camera)
-    {
-        const UVirtualCameraCaptureComp* Camera = SensorManager->GetSelectedCamera();
-        if (!Camera) return TEXT("D455를 사용할 수 없습니다");
-        const FVirtualSensorDeviceSpec& Spec = Camera->GetDeviceSpec();
-        return FString::Printf(TEXT("%s %s | Depth FOV %.0fx%.0f | 권장 %.2f-%.1fm | %dx%d @ %.0fHz\n주의: SceneCapture 미리보기는 보정된 Depth Stream이 아닙니다."), *Spec.Manufacturer, *Spec.Model, Spec.HorizontalFovDegrees, Spec.VerticalFovDegrees, Spec.MinRangeCm / 100.0f, Spec.MaxRangeCm / 100.0f, Spec.Width, Spec.Height, Spec.FrameRateHz);
-    }
-    const UVirtualLidarScanComp* Lidar = SensorManager->GetSelectedLidar();
-    if (!Lidar) return TEXT("Mid-360S를 사용할 수 없습니다");
-    const FVirtualSensorDeviceSpec& Spec = Lidar->GetDeviceSpec();
-    return FString::Printf(TEXT("%s %s | FOV %.0fx%.0f | %.1f-%.0fm | %d points/s @ %.0fHz\n런타임 광선 수는 시뮬레이션 품질에서 별도로 제어합니다."), *Spec.Manufacturer, *Spec.Model, Spec.HorizontalFovDegrees, Spec.VerticalFovDegrees, Spec.MinRangeCm / 100.0f, Spec.MaxRangeCm / 100.0f, Spec.PointRate, Spec.FrameRateHz);
+	if (!SensorManager)
+		return TEXT("장비 사양을 불러올 수 없습니다");
+	if (PendingState.TargetKind == EVirtualSensorTargetKind::Camera)
+	{
+		const UVirtualCameraCaptureComp* Camera = SensorManager->GetSelectedCamera();
+		if (!Camera)
+			return TEXT("D455를 사용할 수 없습니다");
+		const FVirtualSensorDeviceSpec& Spec = Camera->GetDeviceSpec();
+		return FString::Printf(TEXT("%s %s | Depth FOV %.0fx%.0f | 권장 %.2f-%.1fm | %dx%d @ %.0fHz\n주의: SceneCapture 미리보기는 보정된 Depth Stream이 아닙니다."), *Spec.Manufacturer, *Spec.Model, Spec.HorizontalFovDegrees, Spec.VerticalFovDegrees, Spec.MinRangeCm / 100.0f, Spec.MaxRangeCm / 100.0f, Spec.Width, Spec.Height, Spec.FrameRateHz);
+	}
+	const UVirtualLidarScanComp* Lidar = SensorManager->GetSelectedLidar();
+	if (!Lidar)
+		return TEXT("Mid-360S를 사용할 수 없습니다");
+	const FVirtualSensorDeviceSpec& Spec = Lidar->GetDeviceSpec();
+	return FString::Printf(TEXT("%s %s | FOV %.0fx%.0f | %.1f-%.0fm | %d points/s @ %.0fHz\n런타임 광선 수는 시뮬레이션 품질에서 별도로 제어합니다."), *Spec.Manufacturer, *Spec.Model, Spec.HorizontalFovDegrees, Spec.VerticalFovDegrees, Spec.MinRangeCm / 100.0f, Spec.MaxRangeCm / 100.0f, Spec.PointRate, Spec.FrameRateHz);
 }
 
 FName UDxWidgetVirtualSensorSettingsPanel::ResolvePersistentActorTag(const AActor* Actor) const
 {
-    if (!Actor) return NAME_None;
-    for (const FName Tag : Actor->Tags)
-    {
-        if (Tag.ToString().StartsWith(TEXT("SensorTestPersistent_"))) return Tag;
-    }
-    return Actor->GetFName();
+	if (!Actor)
+		return NAME_None;
+	for (const FName Tag : Actor->Tags)
+	{
+		if (Tag.ToString().StartsWith(TEXT("SensorTestPersistent_")))
+			return Tag;
+	}
+	return Actor->GetFName();
 }
 
 TSharedRef<SWidget> UDxWidgetVirtualSensorSettingsPanel::MakeFloatRow(const FText& Label, TFunction<float()> Getter, TFunction<void(float)> Setter, float Min, float Max, bool bApplyOnCommit, FName HelpKey, bool bTransformOnly)
-{ return FDeviceSensorSettingsBody::MakeFloatRow(*this,Label,Getter,Setter,Min,Max,bApplyOnCommit,HelpKey,bTransformOnly); }
+{
+	return FDeviceSensorSettingsBody::MakeFloatRow(*this, Label, Getter, Setter, Min, Max, bApplyOnCommit, HelpKey, bTransformOnly);
+}
 
 TSharedRef<SWidget> UDxWidgetVirtualSensorSettingsPanel::MakeIntRow(const FText& Label, TFunction<int32()> Getter, TFunction<void(int32)> Setter, int32 Min, int32 Max, FName HelpKey)
-{ return FDeviceSensorSettingsBody::MakeIntRow(*this,Label,Getter,Setter,Min,Max,HelpKey); }
+{
+	return FDeviceSensorSettingsBody::MakeIntRow(*this, Label, Getter, Setter, Min, Max, HelpKey);
+}
 
 #undef LOCTEXT_NAMESPACE
 
-FText UDxWidgetVirtualSensorSettingsPanel::GetDeviceSettingTooltip(FName Key) const { return OwnedSettingTooltip(Key); }
-bool UDxWidgetVirtualSensorSettingsPanel::OpenDevicePlacementPanel() { if(!GetToolWorkspace())return false;GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Placement,true);return true; }
-void UDxWidgetVirtualSensorSettingsPanel::OpenDeviceMonitorPanel() { if(GetToolWorkspace())GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Monitor,true); }
-void UDxWidgetVirtualSensorSettingsPanel::ToggleDeviceSelectedMeasuring() { if(GetToolWorkspace())if(auto* P=Cast<UDxWidgetVirtualSensorPlacementPanel>(GetToolWorkspace()->GetOwnedPanel(ESensorToolPanelRole::Placement)))P->SetSelectedMeasuring(!bOwnedMeasuring); }
+FText UDxWidgetVirtualSensorSettingsPanel::GetDeviceSettingTooltip(FName Key) const
+{
+	return OwnedSettingTooltip(Key);
+}
+bool UDxWidgetVirtualSensorSettingsPanel::OpenDevicePlacementPanel()
+{
+	if (!GetToolWorkspace())
+		return false;
+	GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Placement, true);
+	return true;
+}
+void UDxWidgetVirtualSensorSettingsPanel::OpenDeviceMonitorPanel()
+{
+	if (GetToolWorkspace())
+		GetToolWorkspace()->SetPanelOpen(ESensorToolPanelRole::Monitor, true);
+}
+void UDxWidgetVirtualSensorSettingsPanel::ToggleDeviceSelectedMeasuring()
+{
+	if (GetToolWorkspace())
+		if (auto* P = Cast<UDxWidgetVirtualSensorPlacementPanel>(GetToolWorkspace()->GetOwnedPanel(ESensorToolPanelRole::Placement)))
+			P->SetSelectedMeasuring(!bOwnedMeasuring);
+}

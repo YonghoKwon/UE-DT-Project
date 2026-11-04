@@ -6,36 +6,42 @@ class UAgentTestSetSubsystem;
 UCLASS()
 class MA0T10_DT_API UDxWidgetAgentTestSet : public UDxWidgetVirtualSensorPanelBase
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 protected:
-    virtual TSharedRef<SWidget> RebuildWidget() override;
-    virtual void NativeTick(const FGeometry& Geometry,float Delta) override;
-    virtual void NativeDestruct() override;
+	virtual TSharedRef<SWidget> RebuildWidget() override;
+	virtual void NativeTick(const FGeometry& Geometry, float Delta) override;
+	virtual void NativeDestruct() override;
+
 private:
-    UAgentTestSetSubsystem* Service() const;
-    FSlateFontInfo Font(int32 Size) const;
-    void Refresh();
-    void SelectScenario(int32 Index);
-    void ShowActionResult(bool Ok,const FString& Error);
-    void BeginDemoSend();
-    void RefreshDemoSend(double Now);
-    TSharedPtr<class SVerticalBox> List;
-    TArray<TSharedPtr<class STextBlock>> Rows;
-    TArray<FString> RowMessages;
-    TArray<FString> RowIds;
-    TArray<uint8> RowStates;
-    FSlateBrush PreviewBrush;
-    FText Summary,DetailText,Status,PreviewText,Timing;
-    float Progress=0;
-    int32 Selected=INDEX_NONE;
-    int64 SeenRevision=-1;
-    double NextRefresh=0,ConfirmUntil=0,ActionFeedbackUntil=0;
-    FText ActionFeedback;
-    // TESTSET-05: presentation only; actual transmission is not implemented.
-    enum class EDemoSend : uint8 { Idle, Sending, Done };
-    EDemoSend DemoSend=EDemoSend::Idle;
-    FString DemoSendSet;
-    FText SendLabel=FText::FromString(TEXT("전송")),SendStatus,SendToast;
-    double SendUntil=0,ToastUntil=0;
-    bool Ready=false,Details=false,PreviewVisible=false;
+	UAgentTestSetSubsystem* Service() const;
+	FSlateFontInfo Font(int32 Size) const;
+	void Refresh();
+	void SelectScenario(int32 Index);
+	void ShowActionResult(bool Ok, const FString& Error);
+	void BeginDemoSend();
+	void RefreshDemoSend(double Now);
+	TSharedPtr<class SVerticalBox> List;
+	TArray<TSharedPtr<class STextBlock>> Rows;
+	TArray<FString> RowMessages;
+	TArray<FString> RowIds;
+	TArray<uint8> RowStates;
+	FSlateBrush PreviewBrush;
+	FText Summary, DetailText, Status, PreviewText, Timing;
+	float Progress = 0;
+	int32 Selected = INDEX_NONE;
+	int64 SeenRevision = -1;
+	double NextRefresh = 0, ConfirmUntil = 0, ActionFeedbackUntil = 0;
+	FText ActionFeedback;
+	// TESTSET-05: presentation only; actual transmission is not implemented.
+	enum class EDemoSend : uint8
+	{
+		Idle,
+		Sending,
+		Done
+	};
+	EDemoSend DemoSend = EDemoSend::Idle;
+	FString DemoSendSet;
+	FText SendLabel = FText::FromString(TEXT("전송")), SendStatus, SendToast;
+	double SendUntil = 0, ToastUntil = 0;
+	bool Ready = false, Details = false, PreviewVisible = false;
 };

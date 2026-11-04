@@ -3,7 +3,6 @@
 
 #include "Core/DxGameStateBase.h"
 
-
 ADxLevelManagerBasic::ADxLevelManagerBasic()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -14,7 +13,6 @@ ADxLevelManagerBasic::ADxLevelManagerBasic()
 void ADxLevelManagerBasic::BeginPlay()
 {
 	Super::BeginPlay();
-	
 }
 
 void ADxLevelManagerBasic::Tick(float DeltaTime)

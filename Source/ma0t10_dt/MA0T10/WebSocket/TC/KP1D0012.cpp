@@ -1,6 +1,5 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "KP1D0012.h"
 
 #include "Kismet/GameplayStatics.h"

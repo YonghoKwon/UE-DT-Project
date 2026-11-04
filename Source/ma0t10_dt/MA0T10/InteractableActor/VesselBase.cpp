@@ -1,6 +1,5 @@
 ﻿#include "VesselBase.h"
 
-
 // Sets default values
 AVesselBase::AVesselBase()
 {
@@ -12,7 +11,6 @@ AVesselBase::AVesselBase()
 void AVesselBase::BeginPlay()
 {
 	Super::BeginPlay();
-	
 }
 
 // Called every frame

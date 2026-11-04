@@ -8,14 +8,15 @@ struct FTrainBatchWorkerState;
 UCLASS()
 class MA0T10_DT_API UTrainBatchWorkerSubsystem : public UWorldSubsystem
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 public:
-    virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
-    virtual void OnWorldBeginPlay(UWorld& World) override;
-    virtual void Deinitialize() override;
+	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
+	virtual void OnWorldBeginPlay(UWorld& World) override;
+	virtual void Deinitialize() override;
+
 private:
-    TSharedPtr<FTrainBatchWorkerState> State;
-    FTimerHandle Timer;
-    void Pump();
-    void Finish(const FString& Phase,const FString& Error=FString());
+	TSharedPtr<FTrainBatchWorkerState> State;
+	FTimerHandle Timer;
+	void Pump();
+	void Finish(const FString& Phase, const FString& Error = FString());
 };
