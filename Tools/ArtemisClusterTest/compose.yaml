@@ -1,0 +1,61 @@
+# Local functional reproduction only; never run alongside Unreal perf/memory gates.
+# Credentials and generated broker/health-check config are in ignored .local/.
+x-broker: &broker
+  image: ${ARTEMIS_IMAGE:-apache/activemq-artemis:2.42.0-alpine}
+  env_file: .local/test.env
+  environment:
+    ANONYMOUS_LOGIN: "false"
+    EXTRA_ARGS: "--http-host 0.0.0.0 --relax-jolokia --nio --no-autotune --java-memory 512M --role amq"
+  mem_limit: 768m
+  cpus: 2
+  labels:
+    ue-dt.scope: data-if-10-local
+  networks: [brokers]
+
+services:
+  live-a:
+    <<: *broker
+    hostname: live-a
+    ports: ["127.0.0.1:27617:61616", "127.0.0.1:28161:8161"]
+    volumes:
+      - live-a-data:/var/lib/artemis-instance
+      - ./.local/config/live-a:/var/lib/artemis-instance/etc-override:ro
+  live-b:
+    <<: *broker
+    hostname: live-b
+    ports: ["127.0.0.1:27618:61616", "127.0.0.1:28162:8161"]
+    volumes:
+      - live-b-data:/var/lib/artemis-instance
+      - ./.local/config/live-b:/var/lib/artemis-instance/etc-override:ro
+  backup-a:
+    <<: *broker
+    hostname: backup-a
+    ports: ["127.0.0.1:27619:61616", "127.0.0.1:28163:8161"]
+    volumes:
+      - backup-a-data:/var/lib/artemis-instance
+      - ./.local/config/backup-a:/var/lib/artemis-instance/etc-override:ro
+  backup-b:
+    <<: *broker
+    hostname: backup-b
+    ports: ["127.0.0.1:27620:61616", "127.0.0.1:28164:8161"]
+    volumes:
+      - backup-b-data:/var/lib/artemis-instance
+      - ./.local/config/backup-b:/var/lib/artemis-instance/etc-override:ro
+  vip:
+    image: haproxy:3.0-alpine
+    ports: ["127.0.0.1:27616:61616"]
+    volumes:
+      - ./.local/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on: [live-a, live-b, backup-a, backup-b]
+    mem_limit: 128m
+    labels:
+      ue-dt.scope: data-if-10-local
+    networks: [brokers]
+
+networks:
+  brokers: {}
+volumes:
+  live-a-data: {}
+  live-b-data: {}
+  backup-a-data: {}
+  backup-b-data: {}
