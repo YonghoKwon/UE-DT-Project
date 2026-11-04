@@ -26,7 +26,7 @@ function Write-Fixture([string]$Path,[string]$Marker,[int]$Port) {
     New-Item -ItemType Directory -Path (Split-Path $Path) -Force | Out-Null
     $lines = [Collections.Generic.List[string]]::new()
     $lines.Add('[/Script/DTCore.DTCoreSettings]')
-    $lines.Add("WebSocketUrl=ws://127.0.0.1:$Port")
+    $lines.Add(('WebSocketUrl="ws://127.0.0.1:{0}"' -f $Port))
     $lines.Add('!DataChannels=ClearArray')
     $lines.Add(('+DataChannels=(ChannelName="sensor",ChannelClass="/Script/DeviceRuntime.DxDeviceSensorStompChannel",Url="ws://127.0.0.1:{0}",bAutoConnect=False,bUseDefaultCredentials=False)' -f ($Port+1)))
     $lines.Add(('+DataChannels=(ChannelName="sensor-bulk",ChannelClass="/Script/DeviceRuntime.DxDeviceSensorBulkChannel",Url="tcp://127.0.0.1:{0}",bAutoConnect=False,bUseDefaultCredentials=False)' -f ($Port+2)))

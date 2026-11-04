@@ -104,7 +104,7 @@ DTCore는 연결·등록·재연결·상태를 담당한다. 토픽 정책은 �
 ```ini
 [/Script/DTCore.DTCoreSettings]
 ; 연결만 설정한다. Default는 예약 이름이므로 DataChannels에 넣지 않는다.
-WebSocketUrl=ws://127.0.0.1:61614
+WebSocketUrl="ws://127.0.0.1:61614"
 +DataChannels=(ChannelName="sensor",ChannelClass="/Script/DeviceRuntime.DxDeviceSensorStompChannel",Url="ws://127.0.0.1:61614",bAutoConnect=False,bUseDefaultCredentials=False,LoginOverrideKey="SensorLogin",PasscodeOverrideKey="SensorPasscode")
 +DataChannels=(ChannelName="sensor-bulk",ChannelClass="/Script/DeviceRuntime.DxDeviceSensorBulkChannel",Url="tcp://127.0.0.1:61616",bAutoConnect=False,bUseDefaultCredentials=False,LoginOverrideKey="BulkLogin",PasscodeOverrideKey="BulkPasscode")
 
@@ -117,6 +117,9 @@ WebSocketUrl=ws://127.0.0.1:61614
 
 `camera`/`lidar`/`pointcloud`/`imu`/`ack`는 송신 코드가 참조하는 별칭이다.
 추가 별칭은 임의로 정할 수 있다. 같은 채널의 같은 destination은 한 번만 구독한다.
+`sensor/ack`는 기존 ACK callback을 공유한다. 명시한 `bSubscribe=False`는 ACK 구독도
+끄며, 이 항목이 없거나 destination이 비어 있으면 기존 AckTopic 동작을 유지한다.
+URL은 따옴표로 감싼다(UE ini의 `//` 주석 해석 방지).
 서로 다른 채널의 `bSubscribe=True` destination이 겹치면 시작 경고와 모니터 상태 문구를
 표시하되 동작을 막지 않는다. 기본값은 기존 이름이며 기본 자동 재수신은 계속 꺼져 있다.
 수신 JSON은 registry의 `OnTopicMessage(ChannelName, Alias, Message)`로 프로젝트가 처리한다.
@@ -134,8 +137,12 @@ Windows/ma0t10_dt/Config/Windows/WindowsGame.ini
 ```
 
 자격증명 값은 넣지 않는다. 인증은 기존 Runtime Override 키 방식으로 별도 관리한다.
-저장된 사용자 설정이 같은 키를 덮어쓸 수 있으므로 새 설정 적용 검증은 별도 UserDir에서
-먼저 한다. 연결 URL과 토픽을 각각 식별 가능한 시험값으로 바꾸고 재시작 후 확인한다.
+패키지의 pak 설정만 사용하면 이 loose 배치가 반영되지 않아, DTDevice가 시작 시 두 파일을
+물리 디스크에서 읽는다(파일당 2MiB 이하). 채널 연결·토픽 속성만 메모리에 덮어쓰며
+다른 섹션, 직접 비밀번호 값, 맵 설정은 가져오거나 저장하지 않는다.
+우선순위는 플랫폼 loose → 공통 loose → 기존 pak/사용자 설정이다.
+연결의 Runtime Override 키 해석은 그 이후에도 기존 DTCore 규칙을 따른다.
+연결 URL과 토픽을 각각 식별 가능한 시험값으로 바꾸고 같은 UserDir로 재시작해 확인한다.
 Development의 `-NullRHI -DeviceChannelConfigProbe`는 읽기 전용 snapshot을
 패키지 `Saved/Reports/device-channel-config.json`에 남기고 종료한다.
 snapshot은 연결 URL을 loopback 시험값 외에는 가리고 인증값을 기록하지 않는다.
