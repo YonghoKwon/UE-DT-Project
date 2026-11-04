@@ -103,3 +103,7 @@ DTCore와 UE 기본 규칙을 따릅니다. 대부분 이미 맞아 있으므로
 ## 7. 8-1 반영 결과 (2026-11-04)
 
 확정 명단28 Comp +18 Dx 타입, reflected 컴포넌트 참조45개와 직접 redirect를 반영했다. 실제 명단 소유 분포는 Comp 플러그인22/과제6이다. 명단의 `UVirtualCameraCaptureComponent` 누락은 범위에 임의 추가하지 않았다(그 Actor의 CaptureComponent 멤버는 CaptureComp로 통일). 공유 테스트 선언 헤더는 컨테이너 이름을 유지한다. inventory는 이전 이름→최종 이름 근거로 보존한다. 기존 serialized subobject 이름·SaveGame·wire·테스트 ID·로그 문구·enum67개 본문은 유지했다. 나머지 코드 스타일 일괄 정리는 8-2 범위로 남긴다.
+
+## 8. r52b 누락 보완 (2026-11-04)
+
+USceneCaptureComponent2D 기반 두 타입이 inventory의 endswith(Component) 판별 때문에 누락된 원인을 수정했다. VirtualCameraCaptureComp와 VirtualLidarGpuDepthProjectionComp까지 반영하여 전체 컴포넌트33개 중 추가 변경 후보0이다. 8-1 변경 타입은 Comp30+Dx18=48개, reflected 컴포넌트 참조 속성47개다. 위7절의 CameraCapture 명단 밖 유지 판단은 이 보완으로 대체한다. 기존 파일/클래스 alias의 NewName은 모두 최종 이름이며 같은 package PropertyRedirects를 유지한다. 이름만 변경하므로 r52b에서는 사용자 결정에 따라 ABAB/장시간 메모리를 재실행하지 않는다.

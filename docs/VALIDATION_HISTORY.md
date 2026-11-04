@@ -1032,3 +1032,11 @@ Two-hourx2, original five pairs8MiB, RTonABAB2%, Shipping/full release/night wer
 - release C++490Success/45Skip/0Fail. 최초 WBP 단계는 이전 Python class API 기대값으로 실패; runtime 소스 변화 없이 최종 API로 갱신 후 동일7개 parent 검사·메모리 compile/save0 PASS. 남은 rendered vocabulary PASS. 원래 실패 manifest와 완료 집계 release-completed.json을 함께 보존. 기존530개 테스트 경로 누락0, Naming01 호환1개 추가.
 - QA-02 RT ProjectDefault ABAB3blocks(12runs, A/B각6), visible1920×1080, Camera1+LiDAR1, MLX80Native, warm10s+measure60s: FPS46.6494→46.7106(악화−0.13124%), enginep95 29.5505→29.5403ms(−0.03436%), GT7.22648→7.20009ms(−0.36525%),2% PASS. 기준7aefff54/후보68eea66b. Naming alias는 소유 기준본 헤더·계측 전처리 연결만 제공하고 원래 runtime source와 공통 instrument bytes/판정식 유지. 영상·외부 Unreal/build 중첩 없음.
 - host 테스트 맵10개 읽기전용 load/hash PASS, LogLinker/LogCoreRedirects Warning/Error0. DTCore/에셋/개인설정 보호, Samples/PixelStreaming 생성untracked 보존, 장시간 메모리 미수행(사용자 범위). 상세 Saved/Reports/NAMING-01/RESULT.md/result.json/merge-check.json.
+
+## 2026-11-04 — NAMING-01 r52b / Component2D 누락 보완
+
+- 기준54191454/DTDevicefac5dc2, DTCorebc60f05 고정. inventory 엔진 기반명 Component 포함 판별로 Component2D 직접·간접 상속을 포착한다. CameraCapture/DepthProjection2개 Comp 명명·h/cpp4개 git mv, GpuDepthProjectionComp/TargetCameraComp 및 same-package alias 반영. 기존 VirtualCameraComp/Act alias NewName도 최종 연결, NewName에 옛 두 타입 없음.
+- inventory 재생성341types/135classes/component33/rename0. 미누락 fixture unit1+기존 naming unit4 PASS. 전체48타입/47속성 direct/terminal 호환 자동화 포함 관련23Success.
+- host Editor/Development 및 TestHost Editor/Development 빌드 PASS. TestHost 기본19건18Success/1기존opt-inSkip, startup oracle16 exact native/RHI PASS.
+- release1회 Valid:490Success/45semanticSkip/0Fail, WBP7 메모리 compile/save0 및 vocabulary 포함17단계 PASS. r52 기존531개 test 경로와 완전히 동일, 추가/누락0. 맵10개 read-only load/hash PASS, LogLinker/LogCoreRedirects Warning/Error0.
+- 사용자 명시 결정으로 r52b ABAB 및 장시간 메모리 재실행 없음. r52 perf를 새 통과로 세지 않음. Source 생산 문자열·test-ID 변경0, 맵·에셋 저장/stage0, 보호 설정·DTCore 유지. 상세 Saved/Reports/NAMING-01/r52b/RESULT.md/result.json/merge-check.json.

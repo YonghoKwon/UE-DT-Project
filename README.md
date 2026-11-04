@@ -1455,3 +1455,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level pe
 확정 명단의 Component28개와 Dx 위젯18개를 새 이름으로 통일하고, 컴포넌트 참조 속성45개에 같은 package PropertyRedirects를 제공했다. 기존 class redirect도 최종 이름으로 직접 연결한다. 폴더 명단206개 중 이미 제자리에 있던21개를 유지하고 나머지를 분류했다(타입 파일명 변경을 합친 host 경로 변경196개, DTDevice49개). `Scenario/` 업무는 `Ship`, `Coil`, `Slab/Scenario`, `Training`, `Dataset`, `Agent`, `Manager/Automation`, `Common`으로 나뉜다. UI는 Common/Freeview/Topview/Main 하위로 정리했다. `Sensor/Tool`·`Diagnostics`와 새 UI/Main 하위 패널은 이동 전과 같은 L3 응용 역할이며 센서 Runtime L1이 아니다. allowlist0 유지.
 
 기존 테스트530개 경로 누락0, Naming01 호환 검증1개 추가. release C++490 Success/45 Skip/0 Fail, WBP7 메모리 compile/save0, TestHost 및 테스트 맵10개 load/hash PASS. RT-on ABAB2% PASS(FPS−0.131%, p95−0.034%, GT−0.365% 악화율). 맵/에셋 저장 없음, 장시간 메모리는 범위 제외. 상세 `Saved/Reports/NAMING-01/RESULT.md`.
+
+#### NAMING-01 r52b 누락 보완
+
+USceneCaptureComponent2D 기반 `UVirtualCameraCaptureComp`·`UVirtualLidarGpuDepthProjectionComp`도 통일했다. inventory 판별을 보완한 재생성 결과 component33개/남은 후보0이다. 전체 변경 타입48개(Comp30+Dx18), 컴포넌트 참조 속성47개를 직접 alias로 연결한다. r52의 CameraCapture 명단 밖 유지 판단은 해소됐다. host/TestHost Editor·Development, 관련23개, release490Success/45Skip/0Fail, 테스트531경로 동일·누락0, 맵10개 load/hash·Linker/CoreRedirect 경고0을 확인했다. 이번은 이름만 바뀌는2개 보완이므로 사용자 결정에 따라 ABAB는 재실행하지 않았다. 상세 `Saved/Reports/NAMING-01/r52b/RESULT.md`.
