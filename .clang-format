@@ -1,0 +1,35 @@
+# STYLE-02: DTCore 소스 모양(탭 들여쓰기, Allman 중괄호)을 기준으로 한 포맷 규칙.
+# include 순서·문자열·주석 내용은 바꾸지 않는다.
+Language: Cpp
+BasedOnStyle: Microsoft
+UseTab: ForIndentation
+TabWidth: 4
+IndentWidth: 4
+ContinuationIndentWidth: 4
+ColumnLimit: 0
+BreakBeforeBraces: Allman
+AccessModifierOffset: -4
+NamespaceIndentation: None
+IndentCaseLabels: true
+PointerAlignment: Left
+SortIncludes: Never
+IncludeBlocks: Preserve
+ReflowComments: false
+BreakStringLiterals: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortLambdasOnASingleLine: Inline
+AllowShortEnumsOnASingleLine: false
+AlignTrailingComments: false
+AlignConsecutiveAssignments: None
+AlignConsecutiveDeclarations: None
+AlignEscapedNewlines: DontAlign
+FixNamespaceComments: false
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+LineEnding: DeriveCRLF
+InsertNewlineAtEOF: true
+StatementMacros: [GENERATED_BODY, GENERATED_UCLASS_BODY, GENERATED_USTRUCT_BODY, GENERATED_UINTERFACE_BODY, GENERATED_IINTERFACE_BODY, UPROPERTY, UFUNCTION, UENUM, UCLASS, USTRUCT, UINTERFACE, UMETA, UPARAM, IMPLEMENT_SIMPLE_AUTOMATION_TEST, IMPLEMENT_COMPLEX_AUTOMATION_TEST, IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST, IMPLEMENT_MODULE, IMPLEMENT_PRIMARY_GAME_MODULE, IMPLEMENT_GAME_MODULE, DECLARE_LOG_CATEGORY_EXTERN, DEFINE_LOG_CATEGORY, DEFINE_LOG_CATEGORY_STATIC, DEFINE_LATENT_AUTOMATION_COMMAND, DEFINE_LATENT_AUTOMATION_COMMAND_ONE_PARAMETER, DEFINE_LATENT_AUTOMATION_COMMAND_TWO_PARAMETER, DECLARE_DELEGATE, DECLARE_MULTICAST_DELEGATE, DECLARE_DYNAMIC_DELEGATE, DECLARE_DYNAMIC_MULTICAST_DELEGATE]
