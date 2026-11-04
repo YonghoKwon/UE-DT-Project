@@ -29,7 +29,8 @@ foreach ($relativePath in $requiredSource) {
     }
 }
 
-$legacyPattern = '\b(AVirtualCameraAct|UVirtualCameraComp|AVirtualSensorAct|UVirtualLidarSensorComp|AVirtualSensorManager|UVirtualSensorPerformanceSubsystem|UVirtualSensorDataTransportComp|UVirtualSensorRecorderComp|URealSensorSourceComp|UVirtualSensorDraggableWidgetBase|UVirtualSensorMonitorWidget|UVirtualSensorSettingsWidget|UVirtualSensorCaptureExportWidget|AVirtualSensorMonitorHostActor)\b'
+# NAMING-01 made UVirtualSensorRecorderComp and URealSensorSourceComp current names again (Comp suffix rule).
+$legacyPattern = '\b(AVirtualCameraAct|UVirtualCameraComp|AVirtualSensorAct|UVirtualLidarSensorComp|AVirtualSensorManager|UVirtualSensorPerformanceSubsystem|UVirtualSensorDataTransportComp|UVirtualSensorDraggableWidgetBase|UVirtualSensorMonitorWidget|UVirtualSensorSettingsWidget|UVirtualSensorCaptureExportWidget|AVirtualSensorMonitorHostActor)\b'
 $scanRoots = @("Source", "Scripts", "docs", "README.md", "AGENTS.md")
 $legacyHits = & rg -n --pcre2 $legacyPattern @scanRoots `
     --glob '!Scripts/setup_sensor_test_map.py' `
