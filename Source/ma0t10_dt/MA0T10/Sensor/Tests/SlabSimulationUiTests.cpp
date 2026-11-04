@@ -1,12 +1,12 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "SensorWorkspaceForeignFixture.h"
-#include "ma0t10_dt/MA0T10/UI/SlabScenarioChartWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tests/DxWidgetSensorWorkspaceForeignFixture.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Slab/SlabScenarioChartWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabChartsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabProgressPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabScenarioReplayPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "Components/TextBlock.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabChartDecimationTest, "MA0T10.Slab.Chart.NativeDecimation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -38,12 +38,12 @@ bool FSlabPanelIsolationTest::RunTest(const FString&)
 {
 	auto* World = FAutomationEditorCommonUtils::CreateNewMap();
 	auto* Workspace = World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-	auto* Foreign = NewObject<USensorWorkspaceForeignFixture>(World);
+	auto* Foreign = NewObject<UDxWidgetSensorWorkspaceForeignFixture>(World);
 	auto* Text = NewObject<UTextBlock>(Foreign);
 	const auto OriginalFont = Text->GetFont(); const auto Size = Foreign->GetEffectivePanelSize();
-	auto* Charts = NewObject<USlabChartsPanelWidget>(World);
-	auto* Progress = NewObject<USlabProgressPanelWidget>(World);
-	auto* Replay = NewObject<USlabScenarioReplayPanelWidget>(World);
+	auto* Charts = NewObject<UDxWidgetSlabChartsPanel>(World);
+	auto* Progress = NewObject<UDxWidgetSlabProgressPanel>(World);
+	auto* Replay = NewObject<UDxWidgetSlabScenarioReplayPanel>(World);
 	TestEqual(TEXT("existing enum ordinal preserved"), static_cast<uint8>(ESensorToolPanelRole::Replay), uint8(3));
 	TestTrue(TEXT("new roles appended"), static_cast<uint8>(ESensorToolPanelRole::SlabCharts) > 3);
 	TestFalse(TEXT("shared parent does not imply ownership"), Workspace->RegisterOwnedPanel(ESensorToolPanelRole::SlabCharts, Foreign));
@@ -74,7 +74,7 @@ bool FSlabWorkspaceDeferredLayoutTest::RunTest(const FString&)
 {
 	auto* World = FAutomationEditorCommonUtils::CreateNewMap();
 	auto* Workspace = World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-	auto* Progress = NewObject<USlabProgressPanelWidget>(World);
+	auto* Progress = NewObject<UDxWidgetSlabProgressPanel>(World);
 	const auto Role = ESensorToolPanelRole::SlabProgress;
 	const auto OriginalPreferences = Workspace->Preferences->Panels;
 	auto& Saved = Workspace->Preferences->Panels.FindOrAdd(Role);

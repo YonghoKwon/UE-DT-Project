@@ -3,11 +3,11 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetTrigger.h"
+#include "ma0t10_dt/MA0T10/Agent/AgentTestSetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Agent/AgentTestSetTrigger.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/WebSocket/TC/FactoryAgentScenarioTC.h"
 #include "Core/DxWidgetSubsystem.h"
@@ -24,7 +24,7 @@
 
 namespace
 {
-TArray<FString> SendFeedbackText(UAgentTestSetWidget* Widget)
+TArray<FString> SendFeedbackText(UDxWidgetAgentTestSet* Widget)
 {TArray<FString> Text;if(Widget)SensorPresentationTests::VisibleText(Widget->TakeWidget(),Text);return Text;}
 TMap<FString,FString> WindowTestFiles(const FString& Root)
 {
@@ -55,7 +55,7 @@ public:
             for(TActorIterator<AVirtualSensorActorBase> It(World);It;++It)It->StopSensor();
             for(TActorIterator<AVirtualLidarSensorActor> It(World);It;++It)if(It->GetSensorId()==TEXT("SLAB-LIDAR-001"))Lidar=*It;
             if(!Slab||!Lidar){Test->AddError(TEXT("window fixture missing Slab/LiDAR"));return Finish();}
-            auto* Scan=Lidar->ScanComponent.Get();Scan->bEnableRangeNoise=false;
+            auto* Scan=Lidar->ScanComp.Get();Scan->bEnableRangeNoise=false;
             Slab->SetSensorOutputs(FVirtualSlabSensorOutputSelection::ObservationOnly());
             Service=World->GetSubsystem<UAgentTestSetSubsystem>();Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
             Dx=World->GetGameInstance()->GetSubsystem<UDxWidgetSubsystem>();Raw=World->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
@@ -263,7 +263,7 @@ private:
     }
     bool Finish(){if(Raw)Raw->OnTransportObservation.Remove(Observation);if(TC)TC->RemoveFromRoot();return true;}
     FAutomationTestBase* Test;UWorld* World=nullptr;ASlabActor* Slab=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;
-    UAgentTestSetSubsystem* Service=nullptr;UVirtualSensorToolWorkspaceSubsystem* Workspace=nullptr;UAgentTestSetWidget* Widget=nullptr;
+    UAgentTestSetSubsystem* Service=nullptr;UVirtualSensorToolWorkspaceSubsystem* Workspace=nullptr;UDxWidgetAgentTestSet* Widget=nullptr;
     UDxWidgetSubsystem* Dx=nullptr;UVirtualSensorHighThroughputTransportSubsystem* Raw=nullptr;UFactoryAgentScenarioTC* TC=nullptr;
     FDelegateHandle Observation;TMap<FString,FString> Files;FString Transport,Report,FullInput,Root,RunId;FVector2D Position,Size;
     int32 Phase=0,Mode=0,Cycle=0,NetworkEvents=0,Events=0;int64 Revision=0;bool Running=false;double Started=FPlatformTime::Seconds(),At=0,CaptureAt=0;

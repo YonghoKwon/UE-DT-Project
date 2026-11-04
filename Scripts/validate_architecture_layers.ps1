@@ -30,8 +30,11 @@ function Get-Layer([string]$Path) {
         '^DeviceRuntime/(Sensor|Camera|Core|Transport)/' { return 1 }
         '^DeviceUI/' { return 3 }
         '^Contracts/' { return 0 }
+        # NAMING-01: 이동 전 계층을 유지한다. Tool/probe와 새 Main 하위 패널은 기존 UI(L3)다.
+        '^(Sensor/Tool|Diagnostics)/' { return 3 }
+        '^UI/Main/(Sensor|Ship|Coil|Slab)/' { return 3 }
         '^(Sensor|Camera|Core)/' { return 1 }
-        '^(Scenario|Slab|WebSocket|Crane|Manager|Player|Api|InteractableActor)/' { return 2 }
+        '^(Scenario|Ship|Coil|Training|Dataset|Agent|Common|Slab|WebSocket|Crane|Manager|Player|Api|InteractableActor)/' { return 2 }
         '^UI/Main/' { return 2 }
         '^UI/' { return 3 }
         default { return $null }

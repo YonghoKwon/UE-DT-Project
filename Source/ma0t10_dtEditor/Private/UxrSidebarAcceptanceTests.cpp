@@ -3,11 +3,11 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "Tests/AutomationCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
 #include "UnrealClient.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
@@ -26,7 +26,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarOwnershipTest,"MA0T10.UXR09.SidebarOwne
 bool FSidebarOwnershipTest::RunTest(const FString&)
 {
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-    auto* P=NewObject<UVirtualSensorPlacementPanelWidget>(World);auto* S=NewObject<UVirtualSensorSettingsPanelWidget>(World);auto* D=NewObject<UVirtualSensorCaptureExportPanelWidget>(World);
+    auto* P=NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);auto* S=NewObject<UDxWidgetVirtualSensorSettingsPanel>(World);auto* D=NewObject<UDxWidgetVirtualSensorCaptureExportPanel>(World);
     W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,P);W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,S);W->RegisterOwnedPanel(ESensorToolPanelRole::Data,D);
     TestTrue(TEXT("native workspace defaults to sidebar"),W->IsSidebarMode());
     W->SetPanelOpen(ESensorToolPanelRole::Placement,true);W->SetPanelOpen(ESensorToolPanelRole::Settings,true);
@@ -47,7 +47,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSidebarFontTokensTest,"MA0T10.UXR09.LateOwnedF
 bool FSidebarFontTokensTest::RunTest(const FString&)
 {
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-    auto* P=NewObject<UVirtualSensorPlacementPanelWidget>(World);auto Text=SNew(STextBlock).Font(FCoreStyle::GetDefaultFontStyle("Regular",30));
+    auto* P=NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);auto Text=SNew(STextBlock).Font(FCoreStyle::GetDefaultFontStyle("Regular",30));
     P->RegisterSensorNativeFont(Text,STextBlock::FArguments());
     TestEqual(TEXT("unowned control retains its font"),Text->GetFont().Size,30.f);
     W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,P);P->ApplySensorToolFontScale(1);Text->SlatePrepass(1);
@@ -63,7 +63,7 @@ bool FSidebarSupplementDesignTest::RunTest(const FString&)
     const float Contrast=(FSensorOwnedPresentationStyle::Text().GetLuminance()+.05f)/(FSensorOwnedPresentationStyle::Selection().GetLuminance()+.05f);
     TestTrue(TEXT("selected equipment card text contrast is at least 4.5:1"),Contrast>=4.5f);
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-    auto* P=NewObject<UVirtualSensorPlacementPanelWidget>(World);P->Initialize();W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,P);
+    auto* P=NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);P->Initialize();W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,P);
     TArray<FString> Texts;int32 InvalidationRoots=0;
     TFunction<void(const TSharedRef<SWidget>&)> Visit=[&](const TSharedRef<SWidget>& Item)
     {
@@ -110,7 +110,7 @@ public:
             if(View==5){W->CollapseSidebar();FSlateApplication::Get().PushMenu(Bar->TakeWidget(),FWidgetPath(),Bar->BuildToolsMenu(),FVector2D(100,100),FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));}
             if(View==6)W->CollapseSidebar();
             if(View==7){W->SetPanelOpen(ESensorToolPanelRole::Placement,true);W->SetPanelOpen(ESensorToolPanelRole::Monitor,true);}
-            if(View==8){Bar->OpenOwnedDestination(ESensorToolDestination::Placement);W->SetPanelOpen(ESensorToolPanelRole::Settings,true);Cast<UVirtualSensorSettingsPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Settings))->SelectOwnedSettingsTab(0);}
+            if(View==8){Bar->OpenOwnedDestination(ESensorToolDestination::Placement);W->SetPanelOpen(ESensorToolPanelRole::Settings,true);Cast<UDxWidgetVirtualSensorSettingsPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Settings))->SelectOwnedSettingsTab(0);}
             ReadyAt=FPlatformTime::Seconds()+1;return false;
         }
         if(FPlatformTime::Seconds()<ReadyAt)return false;

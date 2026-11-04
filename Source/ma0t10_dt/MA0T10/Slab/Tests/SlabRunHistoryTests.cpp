@@ -1,9 +1,9 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
@@ -21,7 +21,7 @@ bool FSlabRunHistoryTest::RunTest(const FString&)
  FVirtualSlabSessionStatus Status;Status.RunId=Run;Status.State=EVirtualSlabSessionState::Completed;Results->Finalize(Status);
  for(auto& Write:Results->Writes)Write.Wait();Results->Tick(0);
  FSlabRunDeliverySummary Before;Results->GetRunResult(Run,Before);TestNotEqual(TEXT("real save failure visible"),Before.SaveState,FString(TEXT("저장 완료")));
- auto* Panel=NewObject<UVirtualSensorCaptureExportPanelWidget>(W);W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->RegisterOwnedPanel(ESensorToolPanelRole::Data,Panel);
+ auto* Panel=NewObject<UDxWidgetVirtualSensorCaptureExportPanel>(W);W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>()->RegisterOwnedPanel(ESensorToolPanelRole::Data,Panel);
  Panel->OpenOwnedTab(ESensorOwnedDataTab::Results);auto Content=Panel->BuildRunResultsContent();Panel->RefreshRunResults();
  TestTrue(TEXT("select stored in-memory result"),Panel->SelectScenarioRunResult(Run));Panel->RefreshRunResults();
  TestTrue(TEXT("UUID details shown"),Panel->OwnedRunResultsText.Contains(Run)&&Panel->OwnedRunResultsText.Contains(Scenario));

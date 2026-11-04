@@ -2,26 +2,26 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Core/VirtualSensorFileSaveSubsystem.h"
 #include "Device/Core/VirtualSensorLayoutSubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "GameFramework/PlayerController.h"
 #include "Camera/PlayerCameraManager.h"
 #include "JsonObjectConverter.h"
 #include "Misc/FileHelper.h"
-#include "Device/Sensor/VirtualSensorRecorderComponent.h"
+#include "Device/Sensor/VirtualSensorRecorderComp.h"
 
 namespace {
 struct FDemandProof {int32 Acquired=0,Derived=0,Manual=0,Cancelled=0;int64 ManualFrame=-1;bool Coherent=false;FString ExportPath;};
 class FWaitDemandOutput:public IAutomationLatentCommand
 {
-    FAutomationTestBase* Test;TWeakObjectPtr<UVirtualLidarScanComponent> Sensor;TSharedRef<FDemandProof> Proof;
+    FAutomationTestBase* Test;TWeakObjectPtr<UVirtualLidarScanComp> Sensor;TSharedRef<FDemandProof> Proof;
     TFunction<void()> Advance;double Started=FPlatformTime::Seconds();int32 Stage=0;
 public:
-    FWaitDemandOutput(FAutomationTestBase* T,UVirtualLidarScanComponent* C,TSharedRef<FDemandProof> P,TFunction<void()> A):Test(T),Sensor(C),Proof(P),Advance(MoveTemp(A)){}
+    FWaitDemandOutput(FAutomationTestBase* T,UVirtualLidarScanComp* C,TSharedRef<FDemandProof> P,TFunction<void()> A):Test(T),Sensor(C),Proof(P),Advance(MoveTemp(A)){}
     bool Update() override
     {
         if(!Sensor.IsValid()||FPlatformTime::Seconds()-Started>5){Test->AddError(TEXT("JSON demand fixture timed out"));return true;}
@@ -59,7 +59,7 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarDemandPolicyTest,"MA0T10.LidarOutput.DemandPolicy",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLidarDemandPolicyTest::RunTest(const FString&)
 {
-    auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* A=W->SpawnActor<AVirtualLidarSensorActor>();auto* C=A->ScanComponent.Get();C->StopScan();C->OutputMode=EVirtualLidarOutputMode::None;
+    auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* A=W->SpawnActor<AVirtualLidarSensorActor>();auto* C=A->ScanComp.Get();C->StopScan();C->OutputMode=EVirtualLidarOutputMode::None;
     TestEqual(TEXT("existing classes remain legacy"),C->CompatibilityOutputPolicy,EVirtualLidarCompatibilityOutputPolicy::LegacyAlways);
     FVirtualSensorEditableState State;A->ReadEditableState(State);const auto Revision=UVirtualSensorFileSaveSubsystem::GetSensorSaveRevision(A);
     const auto Generation=C->GetFileCaptureRevision();State.CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::WhenRequested;FString Reason;
@@ -79,7 +79,7 @@ bool FLidarDemandPolicyTest::RunTest(const FString&)
     TestEqual(TEXT("missing old policy stays legacy"),Old.CompatibilityOutputPolicy,EVirtualLidarCompatibilityOutputPolicy::LegacyAlways);
     FScriptDelegate BlueprintConsumer;BlueprintConsumer.BindUFunction(A,TEXT("HandleLidarFrame"));C->OnScanCompleted.Add(BlueprintConsumer);
     TestTrue(TEXT("Blueprint completion listener explicitly needs JSON"),C->GetCompatibilityOutputStatus().bRequested);C->OnScanCompleted.Remove(BlueprintConsumer);
-    auto* Recorder=NewObject<UVirtualSensorRecorderComponent>(A);C->SetRecorderComponent(Recorder);
+    auto* Recorder=NewObject<UVirtualSensorRecorderComp>(A);C->SetRecorderComponent(Recorder);
     TestFalse(TEXT("recorder pointer alone does not require JSON"),C->GetCompatibilityOutputStatus().bRequested);
     Recorder->StartRecording();TestTrue(TEXT("active recording requires JSON"),C->GetCompatibilityOutputStatus().bRequested);Recorder->StopRecording();C->SetRecorderComponent(nullptr);
     auto* Owner=W->SpawnActor<AActor>();C->RegisterCompatibilityJsonConsumer(Owner);Owner->Destroy();
@@ -87,7 +87,7 @@ bool FLidarDemandPolicyTest::RunTest(const FString&)
     auto P=MakeShared<FDemandProof>();C->OnFrameAcquiredNative.AddLambda([P](int64){++P->Acquired;});
     C->OnDerivedFrameCompletedNative.AddLambda([P](const auto&){++P->Derived;});
     C->OnCompatibilityRequestCompletedNative.AddLambda([P](const FString&,bool Success,const FVirtualSensorFrameEnvelope& Frame,const FString&){if(Success){++P->Manual;P->ManualFrame=Frame.FrameId;TSharedPtr<FJsonObject> Body;P->Coherent=Frame.HasJsonPayload()&&FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(*Frame.JsonPayload),Body)&&int64(Body->GetNumberField(TEXT("frameId")))==Frame.FrameId&&Body->GetStringField(TEXT("timestampUtc"))==Frame.TimestampUtc.ToIso8601()&&Frame.LidarFrameSnapshot->FrameId==Frame.FrameId;}else ++P->Cancelled;});
-    TWeakObjectPtr<UVirtualLidarScanComponent> Weak(C);
+    TWeakObjectPtr<UVirtualLidarScanComp> Weak(C);
     auto Measure=[Weak](){auto* S=Weak.Get();S->ScheduledScanWidth=1;S->ScheduledScanHeight=1;S->bScheduledGenerateHeatmap=false;S->ActiveAcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;
         auto& Point=S->ScheduledPoints.AddDefaulted_GetRef();Point.bHit=true;Point.Distance=100;Point.WorldLocation=FVector(100,0,0);S->ScheduledScanStartTime=FPlatformTime::Seconds();S->ScheduledAcquisitionStartUnixNanoseconds=(FDateTime::UtcNow()-FDateTime(1970,1,1)).GetTicks()*100;S->CompleteScheduledScan(S->GetWorld()->GetTimeSeconds());};
     for(int32 I=0;I<10;++I){C->bExportPcdOnScan=I==9;Measure();}P->ExportPath=C->GetLastPointCloudExportPath();C->bExportPcdOnScan=false;
@@ -100,8 +100,8 @@ bool FLidarDemandPolicyTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarDemandRoutingTest,"MA0T10.LidarOutput.DemandRoutingAndDuplication",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLidarDemandRoutingTest::RunTest(const FString&)
 {
-    auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* Coordinator=W->SpawnActor<AVirtualSensorCoordinator>();auto* Publisher=Coordinator->StreamPublisherComponent.Get();
-    auto Profile=Coordinator->SharedTransportComponent->GetTransportProfile();Profile.BrokerUrl=TEXT("ws://127.0.0.1:61616");Coordinator->SharedTransportComponent->ConfigureTransportProfile(Profile);Coordinator->SharedTransportComponent->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+    auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* Coordinator=W->SpawnActor<AVirtualSensorCoordinator>();auto* Publisher=Coordinator->StreamPublisherComp.Get();
+    auto Profile=Coordinator->SharedTransportComp->GetTransportProfile();Profile.BrokerUrl=TEXT("ws://127.0.0.1:61616");Coordinator->SharedTransportComp->ConfigureTransportProfile(Profile);Coordinator->SharedTransportComp->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
     FVirtualSensorStreamConfig Global;Global.StreamKind=EVirtualSensorStreamKind::LidarPayload;Global.bEnabled=true;Global.TransportBackend=EVirtualSensorStreamTransportBackend::EngineStompCompatibility;Publisher->ConfigureStream(Global);
     TestTrue(TEXT("wildcard compatibility needs JSON"),Publisher->NeedsCompatibilityLidarOutput(TEXT("one")));
     auto Exact=Global;Exact.SensorId=TEXT("one");Exact.TransportBackend=EVirtualSensorStreamTransportBackend::TcpStompHighThroughput;Publisher->ConfigureStream(Exact);

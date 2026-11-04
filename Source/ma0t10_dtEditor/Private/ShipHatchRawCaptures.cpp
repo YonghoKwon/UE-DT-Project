@@ -4,12 +4,12 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMonitorHost.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/DxWidgetShipHatchMonitor.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
@@ -44,7 +44,7 @@ class FRawCaptureRun final:public IAutomationLatentCommand
  {S.EndGrabWork();S.ResetGrabPose();S.SetGrabVisible(false);S.Seed=19019;S.bCoal=Coal;S.FillMin=S.FillMax=Fill;T->TestTrue(TEXT("capture uses production generation"),S.Regenerate(false));Digs=0;}
  bool DigAt(AShipHatchSimulation& S,FVector2D XY)
  {const auto P=S.GetActorTransform();const bool Ok=S.Dig(P.TransformPosition(FVector(XY,S.HoldDepth+10)*100),P.TransformVectorNoScale(FVector(0,0,-1)),5,3);if(Ok)++Digs;return Ok;}
- void Frame(AShipHatchMonitorHost& H,AShipHatchSimulation& S,UShipHatchMonitorWidget& M)
+ void Frame(AShipHatchMonitorHost& H,AShipHatchSimulation& S,UDxWidgetShipHatchMonitor& M)
  {
   if(auto* PC=M.GetOwningPlayer())for(const auto& C:PlayerHides)PC->HiddenPrimitiveComponents.RemoveSingle(C);PlayerHides.Reset();
   M.SetFreeCamera(false);M.SelectView(0);M.SetSplitView(false);M.SetModelPresentation(true);M.SetRenderOpacity(Shot>=5&&Shot<=7?1:0);
@@ -88,7 +88,7 @@ class FRawCaptureRun final:public IAutomationLatentCommand
   if(Shot==13)M.SetFreeCamera(true);
   Changed=FPlatformTime::Seconds();
  }
- bool Capture(UWorld& W,AShipHatchMonitorHost& H,AShipHatchSimulation& S,UShipHatchMonitorWidget& M)
+ bool Capture(UWorld& W,AShipHatchMonitorHost& H,AShipHatchSimulation& S,UDxWidgetShipHatchMonitor& M)
  {
   const bool Ui=Shot>=5&&Shot<=7;TArray<FColor> Pixels;FIntVector Size;bool Ok=false;
   if(Ui)Ok=FSlateApplication::Get().TakeScreenshot(W.GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,Size);
@@ -109,7 +109,7 @@ class FRawCaptureRun final:public IAutomationLatentCommand
   R->SetNumberField(TEXT("cab_y_m"),S.CabY);R->SetNumberField(TEXT("cab_target_y_m"),S.CabDestinationY());R->SetBoolField(TEXT("cab_moving"),S.IsCabMoving());R->SetBoolField(TEXT("cab_ready"),S.IsCabReady());R->SetBoolField(TEXT("grab_work_active"),S.IsGrabWorkActive());R->SetArrayField(TEXT("grab_lip_hold_m"),RawVector(S.GrabLip()));R->SetNumberField(TEXT("grab_open_fraction"),S.GrabOpening());
   R->SetStringField(TEXT("grab_capture_scope"),Shot==3?TEXT("safe posed lowering after centered-cab gate; not continuous-cycle evidence"):Shot==4?TEXT("closed safe pose after real production Dig; not continuous-cycle evidence"):TEXT("not a grab-action capture"));
   TArray<TSharedPtr<FJsonValue>> Sensors;const TCHAR* Ids[3]={TEXT("os_lidar_boom"),TEXT("os_lidar_cabin_01"),TEXT("os_lidar_cabin_02")};
-  for(int I=0;I<3;++I){const auto* C=S.SensorAt(I)->ScanComponent.Get();const auto F=C->GetLastFrameSnapshot();auto D=MakeShared<FJsonObject>();T->TestTrue(TEXT("Ouster sensor ID retained"),C->SensorId==Ids[I]);T->TestTrue(TEXT("Ouster Rev7 profile retained"),S.FieldProfiles[I]==8);T->TestTrue(TEXT("actual sensor frame uses HWRT"),F&&F->AcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing);D->SetStringField(TEXT("sensor_id"),C->SensorId);D->SetStringField(TEXT("model"),C->DeviceSpec.Model);D->SetNumberField(TEXT("profile"),S.FieldProfiles[I]);D->SetStringField(TEXT("backend"),C->GetRuntimeStatus().ActiveAcquisitionBackend);D->SetNumberField(TEXT("measured_hz"),C->GetRuntimeStatus().MeasuredAcquisitionRateHz);D->SetNumberField(TEXT("frame_id"),F?double(F->FrameId):0);D->SetNumberField(TEXT("rays"),F?F->RequestedRayCount:0);D->SetStringField(TEXT("acquisition_utc"),F?F->GetAcquisitionStartUtc().ToIso8601():TEXT(""));Sensors.Add(MakeShared<FJsonValueObject>(D));}
+  for(int I=0;I<3;++I){const auto* C=S.SensorAt(I)->ScanComp.Get();const auto F=C->GetLastFrameSnapshot();auto D=MakeShared<FJsonObject>();T->TestTrue(TEXT("Ouster sensor ID retained"),C->SensorId==Ids[I]);T->TestTrue(TEXT("Ouster Rev7 profile retained"),S.FieldProfiles[I]==8);T->TestTrue(TEXT("actual sensor frame uses HWRT"),F&&F->AcquisitionBackend==EVirtualLidarAcquisitionBackend::HardwareRayTracing);D->SetStringField(TEXT("sensor_id"),C->SensorId);D->SetStringField(TEXT("model"),C->DeviceSpec.Model);D->SetNumberField(TEXT("profile"),S.FieldProfiles[I]);D->SetStringField(TEXT("backend"),C->GetRuntimeStatus().ActiveAcquisitionBackend);D->SetNumberField(TEXT("measured_hz"),C->GetRuntimeStatus().MeasuredAcquisitionRateHz);D->SetNumberField(TEXT("frame_id"),F?double(F->FrameId):0);D->SetNumberField(TEXT("rays"),F?F->RequestedRayCount:0);D->SetStringField(TEXT("acquisition_utc"),F?F->GetAcquisitionStartUtc().ToIso8601():TEXT(""));Sensors.Add(MakeShared<FJsonValueObject>(D));}
   R->SetArrayField(TEXT("sensors"),Sensors);RawJson(FString(Names[Shot])+TEXT(".json"),R);++Images;return true;
  }
 public:

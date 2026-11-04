@@ -4,11 +4,11 @@
 #include "Misc/FileHelper.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
-#include "Device/Sensor/LidarCsvReplaySourceComponent.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
+#include "Device/Sensor/LidarCsvReplaySourceComp.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiHostActor.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
 #include "DeviceUI/VirtualSensorUiStyle.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVirtualSensorMonitorHostFallbackTest, "MA0T10.SensorMonitor.HostNativeFallback", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -25,20 +25,20 @@ bool FVirtualSensorMonitorHostFallbackTest::RunTest(const FString& Parameters)
 
     HostActor->MonitorWidgetClass = nullptr;
     HostActor->bUseNativeMonitorWidgetFallback = true;
-    TestEqual(TEXT("native fallback class"), HostActor->GetEffectiveMonitorWidgetClass(), TSubclassOf<UVirtualSensorMonitorPanelWidget>(UVirtualSensorMonitorPanelWidget::StaticClass()));
+    TestEqual(TEXT("native fallback class"), HostActor->GetEffectiveMonitorWidgetClass(), TSubclassOf<UDxWidgetVirtualSensorMonitorPanel>(UDxWidgetVirtualSensorMonitorPanel::StaticClass()));
 
     HostActor->bUseNativeMonitorWidgetFallback = false;
     TestNull(TEXT("fallback disabled returns null"), HostActor->GetEffectiveMonitorWidgetClass().Get());
 
-    HostActor->MonitorWidgetClass = UVirtualSensorMonitorPanelWidget::StaticClass();
-    TestEqual(TEXT("explicit class wins"), HostActor->GetEffectiveMonitorWidgetClass(), TSubclassOf<UVirtualSensorMonitorPanelWidget>(UVirtualSensorMonitorPanelWidget::StaticClass()));
+    HostActor->MonitorWidgetClass = UDxWidgetVirtualSensorMonitorPanel::StaticClass();
+    TestEqual(TEXT("explicit class wins"), HostActor->GetEffectiveMonitorWidgetClass(), TSubclassOf<UDxWidgetVirtualSensorMonitorPanel>(UDxWidgetVirtualSensorMonitorPanel::StaticClass()));
     return true;
 }
 
 bool FVirtualSensorMonitorCameraStatusTextTest::RunTest(const FString& Parameters)
 {
-    UVirtualCameraCaptureComponent* CameraComp = NewObject<UVirtualCameraCaptureComponent>();
-    UVirtualSensorMonitorPanelWidget* MonitorWidget = NewObject<UVirtualSensorMonitorPanelWidget>();
+    UVirtualCameraCaptureComp* CameraComp = NewObject<UVirtualCameraCaptureComp>();
+    UDxWidgetVirtualSensorMonitorPanel* MonitorWidget = NewObject<UDxWidgetVirtualSensorMonitorPanel>();
     TestNotNull(TEXT("camera component"), CameraComp);
     TestNotNull(TEXT("monitor widget"), MonitorWidget);
     if (!CameraComp || !MonitorWidget)
@@ -88,9 +88,9 @@ bool FVirtualSensorMonitorCameraStatusTextTest::RunTest(const FString& Parameter
 
 bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters)
 {
-    ULidarCsvReplaySourceComponent* ReplayComp = NewObject<ULidarCsvReplaySourceComponent>();
-    UVirtualLidarScanComponent* LidarComp = NewObject<UVirtualLidarScanComponent>();
-    UVirtualSensorMonitorPanelWidget* MonitorWidget = NewObject<UVirtualSensorMonitorPanelWidget>();
+    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
+    UVirtualLidarScanComp* LidarComp = NewObject<UVirtualLidarScanComp>();
+    UDxWidgetVirtualSensorMonitorPanel* MonitorWidget = NewObject<UDxWidgetVirtualSensorMonitorPanel>();
     TestNotNull(TEXT("CSV replay component"), ReplayComp);
     TestNotNull(TEXT("LiDAR component"), LidarComp);
     TestNotNull(TEXT("monitor widget"), MonitorWidget);
@@ -185,9 +185,9 @@ bool FVirtualSensorMonitorLidarStatusTextTest::RunTest(const FString& Parameters
 
 bool FVirtualSensorMonitorPerformanceWarningStatusTest::RunTest(const FString& Parameters)
 {
-    ULidarCsvReplaySourceComponent* ReplayComp = NewObject<ULidarCsvReplaySourceComponent>();
-    UVirtualLidarScanComponent* LidarComp = NewObject<UVirtualLidarScanComponent>();
-    UVirtualSensorMonitorPanelWidget* MonitorWidget = NewObject<UVirtualSensorMonitorPanelWidget>();
+    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
+    UVirtualLidarScanComp* LidarComp = NewObject<UVirtualLidarScanComp>();
+    UDxWidgetVirtualSensorMonitorPanel* MonitorWidget = NewObject<UDxWidgetVirtualSensorMonitorPanel>();
     TestNotNull(TEXT("CSV replay component"), ReplayComp);
     TestNotNull(TEXT("LiDAR component"), LidarComp);
     TestNotNull(TEXT("monitor widget"), MonitorWidget);
@@ -230,9 +230,9 @@ bool FVirtualSensorMonitorPerformanceWarningStatusTest::RunTest(const FString& P
 
 bool FVirtualSensorMonitorServerPayloadExportTest::RunTest(const FString& Parameters)
 {
-    ULidarCsvReplaySourceComponent* ReplayComp = NewObject<ULidarCsvReplaySourceComponent>();
-    UVirtualLidarScanComponent* LidarComp = NewObject<UVirtualLidarScanComponent>();
-    UVirtualSensorMonitorPanelWidget* MonitorWidget = NewObject<UVirtualSensorMonitorPanelWidget>();
+    ULidarCsvReplaySourceComp* ReplayComp = NewObject<ULidarCsvReplaySourceComp>();
+    UVirtualLidarScanComp* LidarComp = NewObject<UVirtualLidarScanComp>();
+    UDxWidgetVirtualSensorMonitorPanel* MonitorWidget = NewObject<UDxWidgetVirtualSensorMonitorPanel>();
     TestNotNull(TEXT("CSV replay component"), ReplayComp);
     TestNotNull(TEXT("LiDAR component"), LidarComp);
     TestNotNull(TEXT("monitor widget"), MonitorWidget);
@@ -281,7 +281,7 @@ bool FVirtualSensorMonitorThemeAndLidarModesTest::RunTest(const FString& Paramet
     TestTrue(TEXT("panel is intentionally translucent"), FVirtualSensorUiStyle::PanelBackground.A > 0.9f && FVirtualSensorUiStyle::PanelBackground.A < 1.0f);
     TestTrue(TEXT("primary text meets contrast target"), FVirtualSensorUiStyle::ContrastRatio(FVirtualSensorUiStyle::PrimaryText, FVirtualSensorUiStyle::PanelBackground) >= 4.5f);
 
-    UVirtualLidarScanComponent* Lidar = NewObject<UVirtualLidarScanComponent>();
+    UVirtualLidarScanComp* Lidar = NewObject<UVirtualLidarScanComp>();
     Lidar->SemanticClassRules.Reset();
     FVirtualLidarSemanticClassRule Rule;
     Rule.Label = TEXT("Slab");
@@ -291,13 +291,13 @@ bool FVirtualSensorMonitorThemeAndLidarModesTest::RunTest(const FString& Paramet
     FVirtualLidarPoint Point;
     Point.bHit = true;
     Point.SemanticLabel = TEXT("Slab");
-    const FColor SemanticColor = UVirtualSensorMonitorPanelWidget::ResolveLidarPointDisplayColor(Lidar, EVirtualLidarViewMode::ActorClassColor, Point, 0.5f);
+    const FColor SemanticColor = UDxWidgetVirtualSensorMonitorPanel::ResolveLidarPointDisplayColor(Lidar, EVirtualLidarViewMode::ActorClassColor, Point, 0.5f);
     TestEqual(TEXT("semantic mode uses configured class color"), SemanticColor, Rule.DisplayColor.ToFColor(true));
-    TestEqual(TEXT("hit mask shows a hit as white"), UVirtualSensorMonitorPanelWidget::ResolveLidarPointDisplayColor(Lidar, EVirtualLidarViewMode::HitMask, Point, 0.5f), FColor::White);
+    TestEqual(TEXT("hit mask shows a hit as white"), UDxWidgetVirtualSensorMonitorPanel::ResolveLidarPointDisplayColor(Lidar, EVirtualLidarViewMode::HitMask, Point, 0.5f), FColor::White);
     Point.bHit = false;
-    TestEqual(TEXT("hit mask shows a miss as black"), UVirtualSensorMonitorPanelWidget::ResolveLidarPointDisplayColor(Lidar, EVirtualLidarViewMode::HitMask, Point, 1.0f), FColor::Black);
+    TestEqual(TEXT("hit mask shows a miss as black"), UDxWidgetVirtualSensorMonitorPanel::ResolveLidarPointDisplayColor(Lidar, EVirtualLidarViewMode::HitMask, Point, 1.0f), FColor::Black);
 
-    UVirtualSensorMonitorPanelWidget* Monitor = NewObject<UVirtualSensorMonitorPanelWidget>();
+    UDxWidgetVirtualSensorMonitorPanel* Monitor = NewObject<UDxWidgetVirtualSensorMonitorPanel>();
     Monitor->BindVirtualLidar(Lidar);
     Monitor->SetLidarViewMode(EVirtualLidarViewMode::ActorClassColor);
     TestTrue(TEXT("semantic mode has Korean help"), Monitor->GetLidarViewModeDescription().Contains(TEXT("SemanticLabel")));

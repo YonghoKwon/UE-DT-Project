@@ -1,11 +1,11 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "SensorPresentationTestHelpers.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolUiText.h"
+#include "ma0t10_dt/MA0T10/UI/Tests/SensorPresentationTestHelpers.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Common/SensorToolUiText.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
@@ -21,12 +21,12 @@ bool FSensorPreviewPresentationTest::RunTest(const FString&)
     TestTrue(TEXT("long equipment titles shorten only identity"),SensorToolUiText::CompactEquipmentTitle(LongTitle).Len()<LongTitle.Len());
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* C=World->SpawnActor<AVirtualSensorCoordinator>();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();W->SetCoordinator(C);
     auto* Camera=World->SpawnActor<AVirtualCameraSensorActor>();auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>();Camera->StopSensor();Lidar->StopSensor();C->DiscoverSensorsInLevel();
-    auto* Placement=NewObject<UVirtualSensorPlacementPanelWidget>(World);W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,Placement);
-    auto* Monitor=NewObject<UVirtualSensorMonitorPanelWidget>(World);Monitor->bPersistMonitorPreferences=false;W->RegisterOwnedPanel(ESensorToolPanelRole::Monitor,Monitor);Monitor->BindSensorManager(C);Monitor->Initialize();Monitor->SetVisibility(ESlateVisibility::Visible);const auto Slate=Monitor->TakeWidget();
+    auto* Placement=NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,Placement);
+    auto* Monitor=NewObject<UDxWidgetVirtualSensorMonitorPanel>(World);Monitor->bPersistMonitorPreferences=false;W->RegisterOwnedPanel(ESensorToolPanelRole::Monitor,Monitor);Monitor->BindSensorManager(C);Monitor->Initialize();Monitor->SetVisibility(ESlateVisibility::Visible);const auto Slate=Monitor->TakeWidget();
     for(auto* Actor:TArray<AVirtualSensorActorBase*>{Camera,Lidar})
     {
         const int64 Before=Actor->GetSensorRuntimeStatus().FrameId;
-        C->SelectSensorActor(Actor);if(Actor==Camera){Monitor->BindVirtualCamera(Camera->CaptureComponent);Monitor->ShowCameraView();}else{Monitor->BindVirtualLidar(Lidar->ScanComponent);Monitor->ShowLidarView();}
+        C->SelectSensorActor(Actor);if(Actor==Camera){Monitor->BindVirtualCamera(Camera->CaptureComp);Monitor->ShowCameraView();}else{Monitor->BindVirtualLidar(Lidar->ScanComp);Monitor->ShowLidarView();}
         Monitor->RefreshOwnedMonitorText();
         TestFalse(TEXT("preview title never embeds the warning marker"),Monitor->OwnedMonitorStatus.ToString().Contains(TEXT("⚠")));
         TestTrue(TEXT("stopped preview clears the separate warning text"),Monitor->OwnedMonitorWarning.IsEmpty());
@@ -45,7 +45,7 @@ bool FSensorPreviewPresentationTest::RunTest(const FString&)
         const FString Warning=Monitor->BuildOwnedMeasurementWarning();TestEqual(TEXT("warning is preserved separately with full text"),Monitor->OwnedMonitorWarning.ToString(),Warning.IsEmpty()?FString():TEXT("⚠ ")+Warning);
         TestFalse(TEXT("measuring title excludes the warning marker"),Monitor->OwnedMonitorStatus.ToString().Contains(TEXT("⚠")));Actor->StopSensor();
     }
-    Lidar->ScanComponent->AcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;Lidar->ScanComponent->HorizontalSamples=8;Lidar->ScanComponent->VerticalChannels=4;
+    Lidar->ScanComp->AcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;Lidar->ScanComp->HorizontalSamples=8;Lidar->ScanComp->VerticalChannels=4;
     const int64 CompatibilityBefore=Lidar->GetSensorRuntimeStatus().FrameId;Monitor->RefreshLidarPreviewWithoutTransport(true);
     TestTrue(TEXT("explicit compatibility capture retains its synchronous acquisition"),Lidar->GetSensorRuntimeStatus().FrameId>CompatibilityBefore);
     Monitor->bOwnedAdvancedMenuOpen=false;Monitor->bMonitorDetailsExpanded=true;Monitor->OwnedRendererText=FText::FromString(TEXT("closed diagnostics sentinel"));Monitor->RefreshOwnedMonitorText();TestEqual(TEXT("closed view menu does not assemble diagnostics"),Monitor->OwnedRendererText.ToString(),FString(TEXT("closed diagnostics sentinel")));

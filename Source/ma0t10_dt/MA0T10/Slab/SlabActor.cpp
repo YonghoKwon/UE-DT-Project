@@ -1,23 +1,23 @@
 #include "SlabActor.h"
-#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetTrigger.h"
-#include "ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Agent/AgentTestSetTrigger.h"
+#include "ma0t10_dt/MA0T10/Agent/AgentTestSetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Dataset/VirtualDatasetSubsystem.h"
 #include "Device/Core/VirtualSensorHitchDiagnostics.h"
 #include "SlabScenarioCodec.h"
-#include "SlabDataSyncComponent.h"
-#include "SlabMotionComponent.h"
-#include "SlabVisualizationComponent.h"
-#include "SlabMetricsComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabDataSyncComp.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabMotionComp.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComp.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabMetricsComp.h"
 #include "SlabTrackReferenceActor.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
 #include "Core/DxProcessSubsystem.h"
 #include "Core/DTCoreSettings.h"
 #include "WebSocket/TransactionCodeStruct.h"
 #include "WebSocket/TransactionCodeMessage.h"
 #include "ma0t10_dt/MA0T10/WebSocket/TC/FactoryAgentScenarioTC.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
 #include "SlabUiRegistry.h"
 #include "EngineUtils.h"
@@ -38,10 +38,10 @@ ASlabActor::ASlabActor()
 	SlabMesh->SetMobility(EComponentMobility::Movable); SlabMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	SlabMesh->SetCollisionResponseToAllChannels(ECR_Block); SlabMesh->SetGenerateOverlapEvents(false); SlabMesh->SetSimulatePhysics(false);
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(TEXT("/Engine/BasicShapes/Cube.Cube")); SlabMesh->SetStaticMesh(Cube.Object);
-	DataSyncComponent=CreateDefaultSubobject<USlabDataSyncComponent>(TEXT("SlabDataSync"));
-	MotionComponent=CreateDefaultSubobject<USlabMotionComponent>(TEXT("SlabMotion"));
-	VisualizationComponent=CreateDefaultSubobject<USlabVisualizationComponent>(TEXT("SlabVisualization"));
-	MetricsComponent=CreateDefaultSubobject<USlabMetricsComponent>(TEXT("SlabMetrics"));
+	DataSyncComp=CreateDefaultSubobject<USlabDataSyncComp>(TEXT("SlabDataSync"));
+	MotionComp=CreateDefaultSubobject<USlabMotionComp>(TEXT("SlabMotion"));
+	VisualizationComp=CreateDefaultSubobject<USlabVisualizationComp>(TEXT("SlabVisualization"));
+	MetricsComp=CreateDefaultSubobject<USlabMetricsComp>(TEXT("SlabMetrics"));
 	SurfaceMaterial=TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/MA0T10/Slab/Materials/M_SlabSurfacePlain.M_SlabSurfacePlain")));
 	HighlightMode=EHighlightMode::IndividualMesh; DisplayName=TEXT("시나리오 Slab");
 }
@@ -52,14 +52,14 @@ void ASlabActor::BeginPlay()
 	InitialPlacementTransform=GetActorTransform();
 	bInitialPlacementCaptured=!InitialPlacementTransform.ContainsNaN();
 	Super::BeginPlay(); InitialTrackTransform=InitialPlacementTransform; InitialTrackTransform.SetScale3D(FVector::OneVector);
-	MotionComponent->OnPoseApplied.BindUObject(this,&ASlabActor::OnSlabPoseApplied);
-	UpdateDimensions(); UpdateAppearance(); VisualizationComponent->ConfigureDisplay(AnalysisDisplaySettings); VisualizationComponent->UpdateGeometry(GetSizeCm());
+	MotionComp->OnPoseApplied.BindUObject(this,&ASlabActor::OnSlabPoseApplied);
+	UpdateDimensions(); UpdateAppearance(); VisualizationComp->ConfigureDisplay(AnalysisDisplaySettings); VisualizationComp->UpdateGeometry(GetSizeCm());
 	if(UGameInstance* GI=GetGameInstance())
 	{
 		if(auto* Process=GI->GetSubsystem<UDxProcessSubsystem>())
 		{
 			if(ReceiverId.IsEmpty()||Process->FindComponent(ReceiverId)) ReportFailure(TEXT("Slab 수신 ID가 비었거나 중복되었습니다."));
-			else { Process->RegisterComponent(ReceiverId,DataSyncComponent); bRegistered=true; }
+			else { Process->RegisterComponent(ReceiverId,DataSyncComp); bRegistered=true; }
 		}
 		if(bRegistered) if(auto* Replay=GI->GetSubsystem<USlabScenarioReplaySubsystem>()) Replay->RegisterPlaybackAdapter(this);
 	}
@@ -72,7 +72,7 @@ void ASlabActor::EndPlay(const EEndPlayReason::Type Reason)
 	{
 		if(auto* Replay=GI->GetSubsystem<USlabScenarioReplaySubsystem>()) Replay->UnregisterPlaybackAdapter(this);
 		if(auto* Process=GI->GetSubsystem<UDxProcessSubsystem>())
-			if(bRegistered&&Process->FindComponent(ReceiverId)==DataSyncComponent) Process->UnregisterComponent(ReceiverId);
+			if(bRegistered&&Process->FindComponent(ReceiverId)==DataSyncComp) Process->UnregisterComponent(ReceiverId);
 	}
 	Scenario.Reset(); Super::EndPlay(Reason);
 }
@@ -113,8 +113,8 @@ bool ASlabActor::SubmitScenarioJson(const FString& Json)
 		{
 			if(!Weak.IsValid()||Weak->bEnding||Weak->ParseGeneration!=Revision) return;
 			Weak->bParsing=false;
-            if(Demo)Weak->DataSyncComponent->ReceiveTestSetTrigger(DemoTrigger);
-			else if(Parsed.IsValid()) Weak->DataSyncComponent->ReceiveSlabScenario(Parsed); else Weak->ReportFailure(Error);
+            if(Demo)Weak->DataSyncComp->ReceiveTestSetTrigger(DemoTrigger);
+			else if(Parsed.IsValid()) Weak->DataSyncComp->ReceiveSlabScenario(Parsed); else Weak->ReportFailure(Error);
 		});
 	}); return true;
 }
@@ -217,9 +217,9 @@ bool ASlabActor::StartScenario(FSlabScenarioDataPtr Data,const FString& RunUUID,
 	Status.RowCount=Data->Rows.Num(); Status.DurationSec=Data->DurationSec; Status.bReplay=bReplay;
 	Status.TransmissionWarning=TransmissionWarning.IsEmpty()?FString():TEXT("선택 출력 미송신 · ")+TransmissionWarning+TEXT(" 이번 실행은 관찰만 진행합니다.");
 	Status.Message=Data->bDimensionsChanged?TEXT("재생 중 · 첫 행의 치수를 고정 적용합니다."):TEXT("재생 중 · 위치와 각도를 시간 기준으로 보간합니다.");
-	SlabMesh->SetRelativeScale3D(Size/100); VisualizationComponent->UpdateGeometry(Size);
+	SlabMesh->SetRelativeScale3D(Size/100); VisualizationComp->UpdateGeometry(Size);
 	if(bReplay&&!Replay->NotifyPlaybackStarted(RunUUID)) { Status.State=ESlabSimulationState::Failed; return false; }
-	if(!MotionComponent->StartPlayback(Data,GetTrackTransform(),Size,PositionUnit))
+	if(!MotionComp->StartPlayback(Data,GetTrackTransform(),Size,PositionUnit))
 	{ if(IsSimulationActive()) FinishSimulation(true,TEXT("Slab 이동 컴포넌트를 시작하지 못했습니다.")); return false; }
 	if(Status.State!=ESlabSimulationState::Playing) return false;
 	SetActorTickEnabled(Session->GetSlabSensorSessionStatus().ExecutionPolicy==ESlabExecutionPolicy::RequireData);
@@ -232,7 +232,7 @@ FTransform ASlabActor::GetTrackTransform() const
 }
 FVector ASlabActor::GetSizeCm() const
 {
-	if(IsSimulationActive()&&MotionComponent->IsPlaybackRunning()) return MotionComponent->GetSlabSizeCm();
+	if(IsSimulationActive()&&MotionComp->IsPlaybackRunning()) return MotionComp->GetSlabSizeCm();
 	const FVector Raw=Scenario.IsValid()&&!Scenario->Rows.IsEmpty()?FVector(Scenario->Rows[0].Length,Scenario->Rows[0].Width,Scenario->Rows[0].Thickness):InitialDimensions;
 	return FVector(FSlabScenarioCodec::ToCm(Raw.X,DimensionUnit),FSlabScenarioCodec::ToCm(Raw.Y,DimensionUnit),FSlabScenarioCodec::ToCm(Raw.Z,DimensionUnit));
 }
@@ -245,20 +245,20 @@ bool ASlabActor::ApplyDatasetGeometry(const FVector& SizeCm)
 }
 FTransform ASlabActor::MakePose(const FSlabScenarioRow& Row) const
 {
-	const bool bPlayback=IsSimulationActive()&&MotionComponent->IsPlaybackRunning();
-	return USlabMotionComponent::BuildPose(Row,bPlayback?MotionComponent->GetPlaybackTrack():GetTrackTransform(),GetSizeCm(),
-		bPlayback?MotionComponent->GetPlaybackPositionUnit():PositionUnit);
+	const bool bPlayback=IsSimulationActive()&&MotionComp->IsPlaybackRunning();
+	return USlabMotionComp::BuildPose(Row,bPlayback?MotionComp->GetPlaybackTrack():GetTrackTransform(),GetSizeCm(),
+		bPlayback?MotionComp->GetPlaybackPositionUnit():PositionUnit);
 }
 FSlabMetrics ASlabActor::CalculateMetricsForRow(const FSlabScenarioRow& Row) const
 {
-	const FTransform Track=IsSimulationActive()&&MotionComponent->IsPlaybackRunning()?MotionComponent->GetPlaybackTrack():GetTrackTransform();
-	return USlabMetricsComponent::Calculate(Row,MakePose(Row),GetSizeCm(),Track,TrackReference?TrackReference->LeftRailYcm:0,
+	const FTransform Track=IsSimulationActive()&&MotionComp->IsPlaybackRunning()?MotionComp->GetPlaybackTrack():GetTrackTransform();
+	return USlabMetricsComp::Calculate(Row,MakePose(Row),GetSizeCm(),Track,TrackReference?TrackReference->LeftRailYcm:0,
 		TrackReference?TrackReference->RightRailYcm:0,TrackReference&&TrackReference->HasValidRails());
 }
-FSlabMetrics ASlabActor::GetCurrentMetrics() const { return MetricsComponent->GetMetrics(); }
+FSlabMetrics ASlabActor::GetCurrentMetrics() const { return MetricsComp->GetMetrics(); }
 FVector ASlabActor::GetTrackLocalPositionCm() const
 {
-	const auto Track=IsSimulationActive()&&MotionComponent->IsPlaybackRunning()?MotionComponent->GetPlaybackTrack():GetTrackTransform();
+	const auto Track=IsSimulationActive()&&MotionComp->IsPlaybackRunning()?MotionComp->GetPlaybackTrack():GetTrackTransform();
 	return Track.InverseTransformPositionNoScale(GetActorLocation());
 }
 uint32 ASlabActor::GetMetricsConfigurationHash() const
@@ -277,10 +277,10 @@ void ASlabActor::OnSlabPoseApplied(const FSlabScenarioRow& Row,int32 Index,doubl
 	if(Index+1<Scenario->Rows.Num())
 	{
 		const auto& A=Scenario->Rows[Index]; const auto& B=Scenario->Rows[Index+1];
-		Metrics.SpeedCmPerSec=FSlabScenarioCodec::ToCm((B.CenterX-A.CenterX)/(B.ElapsedSec-A.ElapsedSec),MotionComponent->GetPlaybackPositionUnit());
+		Metrics.SpeedCmPerSec=FSlabScenarioCodec::ToCm((B.CenterX-A.CenterX)/(B.ElapsedSec-A.ElapsedSec),MotionComp->GetPlaybackPositionUnit());
 	}
-	MetricsComponent->Update(Metrics);
-	VisualizationComponent->UpdateAnalysis(Row,Metrics,Status,GetSizeCm(),MotionComponent->GetPlaybackTrack(),
+	MetricsComp->Update(Metrics);
+	VisualizationComp->UpdateAnalysis(Row,Metrics,Status,GetSizeCm(),MotionComp->GetPlaybackTrack(),
 		TrackReference?TrackReference->LeftRailYcm:0,TrackReference?TrackReference->RightRailYcm:0,TrackReference&&TrackReference->HasValidRails(),TrackReference?TrackReference->RailLengthCm:0);
 	if(Index!=LastNotifiedIndex)
 	{
@@ -294,7 +294,7 @@ void ASlabActor::OnSlabPoseApplied(const FSlabScenarioRow& Row,int32 Index,doubl
 }
 void ASlabActor::AdvanceSimulation(double DeltaSeconds)
 {
-	MotionComponent->AdvancePlayback(DeltaSeconds);
+	MotionComp->AdvancePlayback(DeltaSeconds);
 }
 bool ASlabActor::SetSimulationPaused(bool bPaused)
 {
@@ -304,7 +304,7 @@ bool ASlabActor::SetSimulationPaused(bool bPaused)
 	if(Session&&!Session->SetSlabSensorSessionPaused(Status.RunUUID,bPaused)) return false;
 	Status.State=bPaused?ESlabSimulationState::Paused:ESlabSimulationState::Playing;
 	Status.Message=bPaused?TEXT("일시정지 · 센서 세션의 신규 송신을 보류합니다."):TEXT("재생 중");
-	MotionComponent->SetPlaybackPaused(bPaused); OnSlabStateChanged.Broadcast(); return true;
+	MotionComp->SetPlaybackPaused(bPaused); OnSlabStateChanged.Broadcast(); return true;
 }
 void ASlabActor::StopSimulation() { ++ParseGeneration; bParsing=false; if(IsSimulationActive()) FinishSimulation(true); }
 bool ASlabActor::CanResetToInitialPlacement(FString& OutReason) const
@@ -314,7 +314,7 @@ bool ASlabActor::CanResetToInitialPlacement(FString& OutReason) const
 	if(bEnding||!HasActorBegunPlay()||!GetWorld()) { OutReason=TEXT("실행 중인 Slab Actor가 필요합니다."); return false; }
 	if(!bInitialPlacementCaptured) { OutReason=TEXT("레벨의 초기 배치 자세가 준비되지 않았습니다."); return false; }
 	if(bParsing) { OutReason=TEXT("시나리오 데이터를 준비 중입니다."); return false; }
-	if(IsSimulationActive()||(MotionComponent&&MotionComponent->IsPlaybackRunning()))
+	if(IsSimulationActive()||(MotionComp&&MotionComp->IsPlaybackRunning()))
 	{ OutReason=TEXT("중단 후 송신 정리가 끝나면 초기 위치로 복귀할 수 있습니다."); return false; }
 	if(const auto* Replay=GetGameInstance()?GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>():nullptr)
 		if(Replay->IsReplayBusy()) { OutReason=TEXT("재생 준비·재생·송신 정리가 끝난 뒤 사용할 수 있습니다."); return false; }
@@ -329,15 +329,15 @@ bool ASlabActor::CanResetToInitialPlacement(FString& OutReason) const
 bool ASlabActor::ResetToInitialPlacement(FString& OutError)
 {
 	if(!CanResetToInitialPlacement(OutError))return false;
-	if(MotionComponent)MotionComponent->StopPlayback();
+	if(MotionComp)MotionComp->StopPlayback();
 	++ParseGeneration;
 	const bool Moved=SetActorLocationAndRotation(InitialPlacementTransform.GetLocation(),InitialPlacementTransform.GetRotation(),false,nullptr,ETeleportType::TeleportPhysics);
 	if(!Moved) { OutError=TEXT("Slab의 초기 배치 자세를 적용하지 못했습니다."); return false; }
 	// 마지막 형상과 보관 데이터는 유지한다. 이 자세는 새로운 시나리오 프레임이 아니다.
 	Status=FSlabSimulationStatus(); Status.FrameNo=INDEX_NONE; Status.RowIndex=INDEX_NONE;
 	Status.Message=TEXT("초기 배치 복귀 완료 · 대기"); LastNotifiedIndex=INDEX_NONE;
-	if(MetricsComponent)MetricsComponent->Update(FSlabMetrics());
-	if(VisualizationComponent)VisualizationComponent->ClearAnalysis();
+	if(MetricsComp)MetricsComp->Update(FSlabMetrics());
+	if(VisualizationComp)VisualizationComp->ClearAnalysis();
 	OnSlabStateChanged.Broadcast();
 	return true;
 }
@@ -347,7 +347,7 @@ void ASlabActor::FinishSimulation(bool bAborted,const FString& Error)
 	PendingScenario.Reset();SetActorTickEnabled(false);
 	RecordSurfaceUsage(Status.RunUUID);
 	GetWorld()->GetSubsystem<USlabRunResultsSubsystem>()->UpdateProgress(Status.RunUUID,Status.MtlNo,Status.FrameNo,Status.ElapsedSec);
-	MotionComponent->StopPlayback();
+	MotionComp->StopPlayback();
 	if(auto* Replay=GetGameInstance()?GetGameInstance()->GetSubsystem<USlabScenarioReplaySubsystem>():nullptr)
 	{
 		if(Status.bReplay) Replay->NotifyPlaybackFinished(Status.RunUUID,bAborted);
@@ -362,7 +362,7 @@ void ASlabActor::FinishSimulation(bool bAborted,const FString& Error)
 	OnSlabStateChanged.Broadcast();
 }
 bool ASlabActor::SetDimensionUnit(ESlabInputUnit Value)
-{ if(IsSimulationActive()) return false; DimensionUnit=Value; UpdateDimensions(); VisualizationComponent->UpdateGeometry(GetSizeCm()); OnSlabStateChanged.Broadcast(); return true; }
+{ if(IsSimulationActive()) return false; DimensionUnit=Value; UpdateDimensions(); VisualizationComp->UpdateGeometry(GetSizeCm()); OnSlabStateChanged.Broadcast(); return true; }
 bool ASlabActor::SetPositionUnit(ESlabInputUnit Value)
 { if(IsSimulationActive()) return false; PositionUnit=Value; OnSlabStateChanged.Broadcast(); return true; }
 bool ASlabActor::SetSensorOutputs(FVirtualSlabSensorOutputSelection Outputs)
@@ -370,12 +370,12 @@ bool ASlabActor::SetSensorOutputs(FVirtualSlabSensorOutputSelection Outputs)
 bool ASlabActor::SetExecutionOptions(FSlabExecutionOptions Options)
 {if(!FMath::IsFinite(Options.PreparationTimeoutSeconds)||Options.PreparationTimeoutSeconds<1||Options.PreparationTimeoutSeconds>120||IsSimulationActive())return false;ExecutionOptions=Options;OnSlabStateChanged.Broadcast();return true;}
 void ASlabActor::SetHotAppearance(bool bHot) { bHotAppearance=bHot; UpdateAppearance();RecordSurfaceUsage(Status.RunUUID); OnSlabStateChanged.Broadcast(); }
-void ASlabActor::SetDiagnosticHelpersVisible(bool bVisible) { VisualizationComponent->SetHelpersVisible(bVisible); }
-bool ASlabActor::GetDiagnosticHelpersVisible() const { return VisualizationComponent&&VisualizationComponent->GetHelpersVisible(); }
-void ASlabActor::SetDetailedDiagnosticLabels(bool bVisible) { if(VisualizationComponent)VisualizationComponent->SetDetailedLabels(bVisible); }
-bool ASlabActor::GetDetailedDiagnosticLabels() const { return VisualizationComponent&&VisualizationComponent->GetDetailedLabels(); }
+void ASlabActor::SetDiagnosticHelpersVisible(bool bVisible) { VisualizationComp->SetHelpersVisible(bVisible); }
+bool ASlabActor::GetDiagnosticHelpersVisible() const { return VisualizationComp&&VisualizationComp->GetHelpersVisible(); }
+void ASlabActor::SetDetailedDiagnosticLabels(bool bVisible) { if(VisualizationComp)VisualizationComp->SetDetailedLabels(bVisible); }
+bool ASlabActor::GetDetailedDiagnosticLabels() const { return VisualizationComp&&VisualizationComp->GetDetailedLabels(); }
 void ASlabActor::SetAnalysisDisplaySettings(const FSlabAnalysisDisplaySettings& Settings)
-{ AnalysisDisplaySettings=Settings;AnalysisDisplaySettings.Sanitize();VisualizationComponent->ConfigureDisplay(AnalysisDisplaySettings);OnSlabStateChanged.Broadcast(); }
+{ AnalysisDisplaySettings=Settings;AnalysisDisplaySettings.Sanitize();VisualizationComp->ConfigureDisplay(AnalysisDisplaySettings);OnSlabStateChanged.Broadcast(); }
 FSoftObjectPath ASlabActor::ResolveSurfaceMaterialPath(const FSoftObjectPath& Configured)
 {
 	if(Configured.IsNull()||Configured.GetLongPackageName()==TEXT("/Game/MA0T10/Slab/Materials/M_SlabSurface"))
@@ -494,7 +494,7 @@ FSlabSetupValidation ASlabActor::ValidateSlabSetup() const
 		if(Coordinators.Num()!=1) Result.Errors.Add(TEXT("선택된 Topic 송신에는 Coordinator가 정확히 하나 필요합니다."));
 		else
 		{
-			auto* Coordinator=Coordinators[0]; auto* Transport=Coordinator->SharedTransportComponent.Get(); bool bCamera=false,bLidar=false;
+			auto* Coordinator=Coordinators[0]; auto* Transport=Coordinator->SharedTransportComp.Get(); bool bCamera=false,bLidar=false;
 			TSet<FString> Found; for(auto* Sensor:Coordinator->GetSensorActors()) if(IsValid(Sensor)&&(TargetSensorIds.IsEmpty()||TargetSensorIds.Contains(Sensor->GetSensorId())))
 			{ Found.Add(Sensor->GetSensorId()); bCamera|=Sensor->GetSensorKind()==EVirtualSensorKind::Camera; bLidar|=Sensor->GetSensorKind()==EVirtualSensorKind::Lidar; }
 			bool bIds=true; for(const auto& Id:TargetSensorIds) bIds&=Found.Contains(Id);

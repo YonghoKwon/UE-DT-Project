@@ -7,8 +7,8 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPanelBase.h"
 
 namespace
 {
@@ -18,7 +18,7 @@ class FUxrFloatingTitleInput : public IAutomationLatentCommand
     double Started=FPlatformTime::Seconds(),Next=0;
     int32 Phase=0,Case=0;
     const TArray<ESensorToolPanelRole> Roles{ESensorToolPanelRole::Placement,ESensorToolPanelRole::Monitor,ESensorToolPanelRole::Settings,ESensorToolPanelRole::Data,ESensorToolPanelRole::Replay,ESensorToolPanelRole::SlabProgress,ESensorToolPanelRole::SlabCharts};
-    TWeakObjectPtr<UVirtualSensorPanelWidgetBase> Panel;
+    TWeakObjectPtr<UDxWidgetVirtualSensorPanelBase> Panel;
     FVector2D Press,Before;
     static FPointerEvent Pointer(FVector2D Now,FVector2D Last,bool Held,FKey Button=FKey())
     {

@@ -6,15 +6,15 @@
 #include "Engine/GameInstance.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
-#include "ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
-#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabChartsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabProgressPanel.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComp.h"
 #include "Json.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
-#include "ma0t10_dt/MA0T10/Slab/SlabMotionComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabMotionComp.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabTrackReferenceActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
 
 namespace
 {
@@ -55,8 +55,8 @@ public:
 			Slab->SensorOutputs=FVirtualSlabSensorOutputSelection::ObservationOnly();
 			Test->TestFalse(TEXT("before BeginPlay reset rejected"),Slab->CanResetToInitialPlacement(Reason));
 			Slab->FinishSpawning(Placement);
-			auto* Charts=CreateWidget<USlabChartsPanelWidget>(World,USlabChartsPanelWidget::StaticClass());Charts->TakeWidget();Charts->BindSlabActor(Slab);
-			auto* Progress=CreateWidget<USlabProgressPanelWidget>(World,USlabProgressPanelWidget::StaticClass());Progress->BindSlabActor(Slab);
+			auto* Charts=CreateWidget<UDxWidgetSlabChartsPanel>(World,UDxWidgetSlabChartsPanel::StaticClass());Charts->TakeWidget();Charts->BindSlabActor(Slab);
+			auto* Progress=CreateWidget<UDxWidgetSlabProgressPanel>(World,UDxWidgetSlabProgressPanel::StaticClass());Progress->BindSlabActor(Slab);
 			const auto Data=ResetFixture(Unit);Test->TestTrue(TEXT("600 row fixture parsed"),Data.IsValid());
 			Test->TestTrue(TEXT("new bulk starts observation"),Slab->ReceiveScenario(Data));
 			Charts->RefreshChartData();
@@ -71,11 +71,11 @@ public:
 			const auto MeshScale=Slab->SlabMesh->GetRelativeScale3D();auto* Material=Slab->SlabMesh->GetMaterial(0);const auto Mesh=Slab->SlabMesh->GetStaticMesh();
 			Slab->SetActorScale3D(FVector(1.2,.8,1.4));const auto ActorScale=Slab->GetActorScale3D();
 			const auto BeforeSession=Session->GetSlabSensorSessionStatus();const int32 Stored=Archive->GetScenarios().Num();
-			const int32 HelperCount=Slab->FindComponentByClass<USlabVisualizationComponent>()->GetOwnedHelperCount();
+			const int32 HelperCount=Slab->FindComponentByClass<USlabVisualizationComp>()->GetOwnedHelperCount();
 			Test->TestTrue(TEXT("finished reset accepted through progress API"),Progress->ResetSlabToInitialPlacement(Reason));
 			for(int32 I=0;I<3;++I){auto* Chart=Charts->GetChartWidget(I);Test->TestEqual(TEXT("all chart samples hidden after reset"),Chart->GetRevealedSampleCount(),0);Test->TestTrue(TEXT("chart hover cleared"),Chart->GetHoverSummary().IsEmpty());}
 			Charts->BindSlabActor(Slab);for(int32 I=0;I<3;++I)Test->TestEqual(TEXT("chart rebind cannot reveal old results"),Charts->GetChartWidget(I)->GetRevealedSampleCount(),0);
-			Test->TestEqual(TEXT("reset reuses diagnostic pool"),Slab->FindComponentByClass<USlabVisualizationComponent>()->GetOwnedHelperCount(),HelperCount);
+			Test->TestEqual(TEXT("reset reuses diagnostic pool"),Slab->FindComponentByClass<USlabVisualizationComp>()->GetOwnedHelperCount(),HelperCount);
 			TArray<UTextRenderComponent*> Labels;Slab->GetComponents(Labels);for(auto* Label:Labels)Test->TestFalse(TEXT("old 3D analysis labels hidden"),Label->IsVisible());
 			Test->TestTrue(TEXT("exact initial world location"),Slab->GetActorLocation().Equals(Placement.GetLocation(),.1));
 			Test->TestTrue(TEXT("exact initial world rotation"),Slab->GetActorQuat().AngularDistance(Placement.GetRotation())<=FMath::DegreesToRadians(.01));
@@ -89,7 +89,7 @@ public:
 			Test->TestEqual(TEXT("archive retained"),Archive->GetScenarios().Num(),Stored);
 			Test->TestEqual(TEXT("sensor session identity unchanged"),Session->GetSlabSensorSessionStatus().RunId,BeforeSession.RunId);
 			Test->TestEqual(TEXT("sensor session outcome unchanged"),Session->GetSlabSensorSessionStatus().State,BeforeSession.State);
-			const auto Restored=Slab->GetActorTransform();Slab->AdvanceSimulation(1);Slab->FindComponentByClass<USlabMotionComponent>()->TickComponent(.5,ELevelTick::LEVELTICK_All,nullptr);
+			const auto Restored=Slab->GetActorTransform();Slab->AdvanceSimulation(1);Slab->FindComponentByClass<USlabMotionComp>()->TickComponent(.5,ELevelTick::LEVELTICK_All,nullptr);
 			Test->TestTrue(TEXT("old motion cannot move reset slab"),Slab->GetActorTransform().Equals(Restored));
 			Test->TestTrue(TEXT("repeated reset accepted"),Slab->ResetToInitialPlacement(Reason));
 			Test->TestFalse(TEXT("same UUID still deduplicated"),Slab->ReceiveScenario(Data));

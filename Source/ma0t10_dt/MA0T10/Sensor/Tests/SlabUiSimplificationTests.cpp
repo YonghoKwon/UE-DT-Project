@@ -6,12 +6,12 @@
 #include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/SWidget.h"
 #include "Layout/Children.h"
-#include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabScenarioReplayPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabChartsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabProgressPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
-#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComp.h"
 
 namespace
 {
@@ -35,7 +35,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabUiSimplificationTest,"MA0T10.SensorUi.Slab
 bool FSlabUiSimplificationTest::RunTest(const FString&)
 {
 	auto* World=FAutomationEditorCommonUtils::CreateNewMap(); auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-	auto* Replay=NewObject<USlabScenarioReplayPanelWidget>(World); Replay->SelectedUUID=TEXT("selected");
+	auto* Replay=NewObject<UDxWidgetSlabScenarioReplayPanel>(World); Replay->SelectedUUID=TEXT("selected");
 	TestTrue(TEXT("unregistered replay retains actions for all rows"),Replay->AreRowActionsVisible(TEXT("other")));
 	TestTrue(TEXT("replay explicitly registered"),Workspace->RegisterOwnedPanel(ESensorToolPanelRole::Replay,Replay));
 	TestTrue(TEXT("owned selected row exposes actions"),Replay->AreRowActionsVisible(TEXT("selected")));
@@ -49,7 +49,7 @@ bool FSlabUiSimplificationTest::RunTest(const FString&)
 	TestTrue(TEXT("designer replay preserves row actions behavior"),Replay->AreRowActionsVisible(TEXT("other")));
 	Workspace->UnregisterPanel(Replay);
 
-	auto* Charts=NewObject<USlabChartsPanelWidget>(World); Workspace->RegisterOwnedPanel(ESensorToolPanelRole::SlabCharts,Charts); Charts->InitializeCharts(true);
+	auto* Charts=NewObject<UDxWidgetSlabChartsPanel>(World); Workspace->RegisterOwnedPanel(ESensorToolPanelRole::SlabCharts,Charts); Charts->InitializeCharts(true);
 	TestTrue(TEXT("owned native charts enable compact configuration"),Charts->UsesSimplifiedNativeLayout());
 	Charts->SetChartSlotMetric(0,ESlabChartMetric::Angles);
 	const auto OwnedControls=Charts->BuildChartControls(0,true);
@@ -79,9 +79,9 @@ bool FSlabDiagnosticMasterTest::RunTest(const FString&)
 	FSlabAnalysisDisplaySettings S; S.bOutline=false;S.bCross=true;S.bReferencePose=false;S.bCenterline=true;S.bYaw=false;S.bMargins=true;S.bStatus=false;
 	Slab->SetAnalysisDisplaySettings(S);
 	TestTrue(TEXT("master initially enabled"),Slab->GetDiagnosticHelpersVisible());
-	auto* Visual=Slab->FindComponentByClass<USlabVisualizationComponent>(); Visual->UpdateGeometry(FVector(1083,110,25));
+	auto* Visual=Slab->FindComponentByClass<USlabVisualizationComp>(); Visual->UpdateGeometry(FVector(1083,110,25));
 	const int32 HelperCount=Visual->GetOwnedHelperCount();
-	TestEqual(TEXT("bounded analysis helper and background pool created once"),HelperCount,USlabVisualizationComponent::MaxLineHelpers+USlabVisualizationComponent::MaxTextHelpers+USlabVisualizationComponent::MaxLabelBackgrounds);
+	TestEqual(TEXT("bounded analysis helper and background pool created once"),HelperCount,USlabVisualizationComp::MaxLineHelpers+USlabVisualizationComp::MaxTextHelpers+USlabVisualizationComp::MaxLabelBackgrounds);
 	Slab->SetDiagnosticHelpersVisible(false); TestFalse(TEXT("master disabled through Actor API"),Slab->GetDiagnosticHelpersVisible());
 	S.bYaw=true; Slab->SetAnalysisDisplaySettings(S);
 	TestFalse(TEXT("editing a detail cannot override disabled master"),Slab->GetDiagnosticHelpersVisible());
@@ -99,19 +99,19 @@ bool FSlabProgressOutcomeTest::RunTest(const FString&)
 {
 	FSlabSimulationStatus Simulation;Simulation.State=ESlabSimulationState::Completed;Simulation.RunUUID=TEXT("run-a");Simulation.DurationSec=30;Simulation.ElapsedSec=21.4;
 	FVirtualSlabSessionStatus Session;Session.RunId=Simulation.RunUUID;Session.State=EVirtualSlabSessionState::Draining;Session.bAborted=true;
-	TestEqual(TEXT("early stop while draining is not normal completion"),USlabProgressPanelWidget::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("중단됨")));
+	TestEqual(TEXT("early stop while draining is not normal completion"),UDxWidgetSlabProgressPanel::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("중단됨")));
 	Session.State=EVirtualSlabSessionState::Completed;Session.EndReason=EVirtualSlabSessionEndReason::Aborted;
-	TestEqual(TEXT("drained stop keeps stopped label"),USlabProgressPanelWidget::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("중단됨")));
+	TestEqual(TEXT("drained stop keeps stopped label"),UDxWidgetSlabProgressPanel::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("중단됨")));
 	Session.RunId=TEXT("another-run");
-	TestEqual(TEXT("new session cannot turn an earlier partial run into completed"),USlabProgressPanelWidget::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("중단됨")));
+	TestEqual(TEXT("new session cannot turn an earlier partial run into completed"),UDxWidgetSlabProgressPanel::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("중단됨")));
 	Simulation.ElapsedSec=30;
-	TestEqual(TEXT("unrelated abort cannot change complete movement"),USlabProgressPanelWidget::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("움직임 완료")));
+	TestEqual(TEXT("unrelated abort cannot change complete movement"),UDxWidgetSlabProgressPanel::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("움직임 완료")));
 	Session.RunId=Simulation.RunUUID;
-	TestEqual(TEXT("explicit abort at end still reported honestly"),USlabProgressPanelWidget::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("중단됨")));
+	TestEqual(TEXT("explicit abort at end still reported honestly"),UDxWidgetSlabProgressPanel::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("중단됨")));
 	Session.bAborted=false;Session.State=EVirtualSlabSessionState::Incomplete;Session.EndReason=EVirtualSlabSessionEndReason::StreamFailure;
-	TestEqual(TEXT("network failure is separate from completed movement"),USlabProgressPanelWidget::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("움직임 완료")));
+	TestEqual(TEXT("network failure is separate from completed movement"),UDxWidgetSlabProgressPanel::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("움직임 완료")));
 	Simulation.State=ESlabSimulationState::Failed;
-	TestEqual(TEXT("actual movement failure retains priority"),USlabProgressPanelWidget::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("실패")));
+	TestEqual(TEXT("actual movement failure retains priority"),UDxWidgetSlabProgressPanel::ResolveOwnedMovementState(Simulation,Session).ToString(),FString(TEXT("실패")));
 	return true;
 }
 #endif

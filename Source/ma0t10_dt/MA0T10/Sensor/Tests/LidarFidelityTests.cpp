@@ -7,10 +7,10 @@
 #include "Misc/Paths.h"
 #include "Device/Sensor/VirtualLidarFidelity.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualLidarSurfaceResponseComponent.h"
-#include "ma0t10_dt/MA0T10/Slab/SlabMotionComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualLidarSurfaceResponseComp.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabMotionComp.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Core/VirtualSensorAcquisitionBackend.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarFidelityTimingTest,"MA0T10.LidarFidelity.TimingAndMotionTheory",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -58,13 +58,13 @@ bool FLidarFidelityAcquisitionTest::RunTest(const FString&)
     Mesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));
     Wall->SetActorScale3D(FVector(1,200,200));Wall->Tags.Add(TEXT("Slab"));
     Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);Mesh->SetCollisionResponseToAllChannels(ECR_Block);
-    auto* Motion=NewObject<USlabMotionComponent>(Wall);Wall->AddInstanceComponent(Motion);Motion->RegisterComponent();
+    auto* Motion=NewObject<USlabMotionComp>(Wall);Wall->AddInstanceComponent(Motion);Motion->RegisterComponent();
     auto Data=MakeShared<FSlabScenarioData,ESPMode::ThreadSafe>();
     FSlabScenarioRow A,B;A.CenterX=1000;A.ElapsedSec=0;B.CenterX=2000;B.ElapsedSec=1;Data->Rows={A,B};Data->DurationSec=1;
     Motion->OnPoseApplied.BindLambda([](const FSlabScenarioRow&,int32,double,bool){});
     TestTrue(TEXT("known-speed Slab motion starts"),Motion->StartPlayback(Data,FTransform::Identity,FVector(100,20000,20000),ESlabInputUnit::Centimeters));
     auto* Actor=World->SpawnActor<AVirtualLidarSensorActor>();Actor->SetActorLocation(FVector(0,0,10000));
-    auto* Scan=Actor->ScanComponent.Get();Scan->StopScan();
+    auto* Scan=Actor->ScanComp.Get();Scan->StopScan();
     Scan->DeviceProfile=EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE;Scan->HorizontalSamples=16;Scan->VerticalChannels=4;
     Scan->HorizontalFov=2;Scan->MinVerticalAngle=-1;Scan->MaxVerticalAngle=1;Scan->ScanInterval=.05;
     Scan->MaxDistance=5000;Scan->FidelityMode=EVirtualSensorFidelityMode::IdealTruth;Scan->bUseProfileEchoCapability=false;
@@ -100,7 +100,7 @@ bool FLidarFidelityAcquisitionTest::RunTest(const FString&)
         Frame.PointSnapshot=MakeShared<const TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe>(Points);
         FVirtualSensorStreamConfig Config;Config.PointCloudFormat=EVirtualPointCloudStreamFormat::PCD;Config.PcdDataMode=EVirtualPcdDataMode::Binary;
         TArray<uint8> Out;FString Extension,Error;int32 Count;
-        TestTrue(TEXT("production PCD serializer"),UVirtualSensorStreamPublisherComponent::SerializePointCloudFrame(Frame,Config,Extension,Out,Count,Error));return Out;
+        TestTrue(TEXT("production PCD serializer"),UVirtualSensorStreamPublisherComp::SerializePointCloudFrame(Frame,Config,Extension,Out,Count,Error));return Out;
     };
     TestTrue(TEXT("toggle-on/off restores every PCD byte"),Bytes(Baseline)==Bytes(Restored));
     const auto TimedBytes=Bytes(Rolling);
@@ -112,7 +112,7 @@ bool FLidarFidelityAcquisitionTest::RunTest(const FString&)
         for(int32 I=0;I<Rolling.Num();++I){uint64 Offset=0;for(int32 Byte=0;Byte<8;++Byte)Offset|=uint64(TimedBytes[Body+I*33+20+Byte])<<(Byte*8);
             TestEqual(TEXT("actual acquisition offsets survive binary PCD"),int64(Offset),Rolling[I].PointTimeOffsetNanoseconds);}
     }
-    auto* Response=NewObject<UVirtualLidarSurfaceResponseComponent>(Wall);Wall->AddInstanceComponent(Response);Response->RegisterComponent();
+    auto* Response=NewObject<UVirtualLidarSurfaceResponseComp>(Wall);Wall->AddInstanceComponent(Response);Response->RegisterComponent();
     Scan->bEnableMaterialResponse=true;Scan->bEnableRangeNoise=true;
     auto Sample=[&](float Reflectivity,float Cosine,float Range,int32& Misses,double& Signal){
         Response->Reflectivity940Nm=Reflectivity;Scan->InvalidateSurfaceResponseCache();Misses=0;Signal=0;
@@ -141,7 +141,7 @@ bool FLidarFidelityAcquisitionTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarFidelityGpuConversionTest,"MA0T10.LidarFidelity.GpuSnapshotConversion",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLidarFidelityGpuConversionTest::RunTest(const FString&)
 {
-    auto* Scan=NewObject<UVirtualLidarScanComponent>();Scan->DeviceProfile=EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE;
+    auto* Scan=NewObject<UVirtualLidarScanComp>();Scan->DeviceProfile=EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE;
     Scan->HorizontalSamples=32;Scan->VerticalChannels=8;Scan->HorizontalFov=10;Scan->MinVerticalAngle=-1;Scan->MaxVerticalAngle=1;
     Scan->MaxDistance=10000;Scan->ScanInterval=.05;Scan->bEnableRangeNoise=false;Scan->FidelityMode=EVirtualSensorFidelityMode::IdealTruth;
     Scan->bUseRollingPointTimestamps=true;Scan->bEnableMotionDistortion=true;

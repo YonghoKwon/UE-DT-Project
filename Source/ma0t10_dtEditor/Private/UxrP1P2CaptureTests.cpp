@@ -3,17 +3,17 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
-#include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Coil/DxWidgetCoilLoadingMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMonitorHost.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/DxWidgetShipHatchMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/Coil/CoilLoadingSimulation.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Blueprint/WidgetTree.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Components/TextBlock.h"
@@ -56,7 +56,7 @@ void UxrExpandFields(const TSharedRef<SWidget>& W)
     if(W->GetType()==TEXT("SExpandableArea")&&UxrHasText(W,TEXT("필드 상세")))StaticCastSharedRef<SExpandableArea>(W)->SetExpanded(true);
     auto* Children=W->GetChildren();for(int32 I=0;I<Children->Num();++I)UxrExpandFields(Children->GetChildAt(I));
 }
-bool UxrAdditionalChecks(UCoilLoadingMonitor& M)
+bool UxrAdditionalChecks(UDxWidgetCoilLoadingMonitor& M)
 {
     TArray<UWidget*> Widgets;M.WidgetTree->GetAllWidgets(Widgets);
     for(auto* W:Widgets)if(auto* B=Cast<UButton>(W))if(auto* T=Cast<UTextBlock>(B->GetContent()))if(T->GetText().ToString().StartsWith(TEXT("추가 확인"))){B->OnClicked.Broadcast();return true;}
@@ -90,7 +90,7 @@ class FUxrCaptureCommand final:public IAutomationLatentCommand
         const auto Window=FSlateApplication::Get().FindWidgetWindow(View);
         Meta->SetNumberField(TEXT("window_dpi"),Window?Window->GetDPIScaleFactor():0);
         Meta->SetNumberField(TEXT("umg_scale"),UWidgetLayoutLibrary::GetViewportScale(&Monitor));
-        Meta->SetNumberField(TEXT("monitor_font_scale"),Hatch?CastChecked<UShipHatchMonitorWidget>(&Monitor)->GetFontScale():CastChecked<UCoilLoadingMonitor>(&Monitor)->FontScale());
+        Meta->SetNumberField(TEXT("monitor_font_scale"),Hatch?CastChecked<UDxWidgetShipHatchMonitor>(&Monitor)->GetFontScale():CastChecked<UDxWidgetCoilLoadingMonitor>(&Monitor)->FontScale());
         Meta->SetBoolField(TEXT("same_monitor_instance"),OriginalMonitor.Get()==&Monitor);
         Test->TestTrue(TEXT("Capture does not recreate the monitor instance"),OriginalMonitor.Get()==&Monitor);
         auto* Workspace=W.GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
@@ -99,7 +99,7 @@ class FUxrCaptureCommand final:public IAutomationLatentCommand
         Meta->SetBoolField(TEXT("same_navigation_instance"),!OriginalNavigation.IsValid()||OriginalNavigation==Workspace->GetOwnedNavigation());
         if(!Hatch)
         {
-            auto* Coil=CastChecked<UCoilLoadingMonitor>(&Monitor);Meta->SetNumberField(TEXT("unknown_reason_groups"),Coil->DataNeededCount);
+            auto* Coil=CastChecked<UDxWidgetCoilLoadingMonitor>(&Monitor);Meta->SetNumberField(TEXT("unknown_reason_groups"),Coil->DataNeededCount);
             Meta->SetNumberField(TEXT("danger"),Coil->DangerCount);Meta->SetNumberField(TEXT("caution"),Coil->CautionCount);
             ACoilLoadingMonitorHost* Host=nullptr;for(TActorIterator<ACoilLoadingMonitorHost> It(&W);It;++It)Host=*It;
             const auto Inset=Host->GetToolsInset();Meta->SetNumberField(TEXT("tools_inset_left_ui"),Inset.X);Meta->SetNumberField(TEXT("tools_inset_bottom_ui"),Inset.Y);
@@ -164,7 +164,7 @@ public:
             if(!Test->TestTrue(TEXT("Capture requires actual D3D12"),GDynamicRHI&&FString(GDynamicRHI->GetName())==TEXT("D3D12")))return true;
             OriginalMonitor=Monitor;Debug=MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled,false);
             Workspace->SetSidebarMode(true);Workspace->ResetOwnedWorkspaceLayout();Workspace->CollapseSidebar();
-            if(Coil&&Coil->Coordinator&&Coil->Coordinator->StreamPublisherComponent)Coil->Coordinator->StreamPublisherComponent->StopAllStreams(TEXT(""));
+            if(Coil&&Coil->Coordinator&&Coil->Coordinator->StreamPublisherComp)Coil->Coordinator->StreamPublisherComp->StopAllStreams(TEXT(""));
         }
         if(WaitingManual)return FPaths::FileExists(UxrCaptureRoot()/(Hatch?TEXT("manual-hatch-finish.flag"):TEXT("manual-finish.flag")));
         if(!Prepared)
@@ -204,7 +204,7 @@ public:
                     else if(Step<6){Navigation->OpenOwnedDestination(ESensorToolDestination::Placement);Scene=FString::Printf(TEXT("T01-placement-%d"),Font);}
                     else if(Step<12)
                     {
-                        auto* Publisher=Coil->Coordinator->StreamPublisherComponent.Get();Publisher->StopAllStreams(TEXT(""));
+                        auto* Publisher=Coil->Coordinator->StreamPublisherComp.Get();Publisher->StopAllStreams(TEXT(""));
                         FVirtualPcdSendOptions Options;Options.bCompressed=true;Options.Profile=Step<8?EVirtualPcdFieldProfile::Full:Step<10?EVirtualPcdFieldProfile::Compact:EVirtualPcdFieldProfile::Custom;
                         FString Error;Test->TestTrue(TEXT("Transient capture uses existing PCD option setter"),Publisher->SetPcdSendOptions(TEXT(""),Options,true,Error));
                         Navigation->OpenOwnedDestination(ESensorToolDestination::PcdTransfer);

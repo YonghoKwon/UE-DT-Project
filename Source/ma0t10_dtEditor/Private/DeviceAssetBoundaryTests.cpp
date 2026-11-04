@@ -4,7 +4,7 @@
 #include "UObject/UnrealType.h"
 #include "NiagaraSystem.h"
 #include "Device/Core/DeviceSensorAssetSettings.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeviceExplicitAssetPaths,"MA0T10.DeviceBoundary.ExplicitAssetPaths",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FDeviceExplicitAssetPaths::RunTest(const FString&)
@@ -15,7 +15,7 @@ bool FDeviceExplicitAssetPaths::RunTest(const FString&)
     const auto Previous=Settings->LidarPointCloudSystem;
     ON_SCOPE_EXIT {Settings->LidarPointCloudSystem=Previous;};
     Settings->LidarPointCloudSystem=TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(TEXT("/Game/DeviceBoundary/ExplicitHostPath.ExplicitHostPath")));
-    auto* Component=NewObject<UVirtualLidarVisualizationComponent>();
+    auto* Component=NewObject<UVirtualLidarVisualizationComp>();
     auto* Property=FindFProperty<FSoftObjectProperty>(Component->GetClass(),TEXT("NiagaraPointCloudSystem"));
     if(!TestNotNull(TEXT("legacy per-actor soft property preserved"),Property))return false;
     FString Value;Property->ExportText_InContainer(0,Value,Component,Component,Component,PPF_None);

@@ -1,10 +1,10 @@
-#include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
+#include "ma0t10_dt/MA0T10/Coil/CoilLoadingSimulation.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
-#include "ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h"
-#include "ma0t10_dt/MA0T10/UI/CoilLoadingPlanProjection.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Coil/DxWidgetCoilLoadingMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Coil/CoilLoadingPlanProjection.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
 #include "Device/Sensor/VirtualSensorEditableTypes.h"
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
@@ -107,7 +107,7 @@ class FCoilEnvironmentCapture final:public IAutomationLatentCommand
         // Sparse measured points additionally require actual renderer points;
         // the prior populated-scene criterion remains on scene/UI captures.
         if(Q.View!=4)Test->TestTrue(TEXT("existing12 percent populated-pixel criterion"),Bright>Count*.12);
-        else Test->TestTrue(TEXT("measured point view has real visible points"),S.Lidar->VisualizationComponent->GetVisiblePointCount()>100&&Bright>100);
+        else Test->TestTrue(TEXT("measured point view has real visible points"),S.Lidar->VisualizationComp->GetVisiblePointCount()>100&&Bright>100);
         TSet<UStaticMesh*> BodyMeshes;for(TActorIterator<ACoilLoadingBody> I(&W);I;++I)if(I->GetOwner()==&S&&S.Plan().ContainsByPredicate([&](const CoilLoading::FPlacement& P){return I->ActorHasTag(FName(*(TEXT("CoilId=")+P.Spec.CoilId)));}))BodyMeshes.Add(I->Body->GetStaticMesh());
         int Instances=0;TInlineComponentArray<UInstancedStaticMeshComponent*> Bs(&S);for(auto* C:Bs)if(C->ComponentHasTag(TEXT("CoilSettledBatch"))&&BodyMeshes.Contains(C->GetStaticMesh()))Instances+=C->GetInstanceCount();
         Test->TestEqual(TEXT("rendered coil instances match actual loaded plan"),Instances,S.Plan().Num());
@@ -118,8 +118,8 @@ class FCoilEnvironmentCapture final:public IAutomationLatentCommand
         R->SetArrayField(TEXT("camera_hold_m"),EnvironmentVector(Q.Position));R->SetArrayField(TEXT("aim_hold_m"),EnvironmentVector(Q.Aim));R->SetNumberField(TEXT("exposure_bias"),H.ViewCamera->GetCameraComponent()->PostProcessSettings.AutoExposureBias);R->SetStringField(TEXT("state"),Scene==TEXT("lowering")?TEXT("actual Lowering animation frozen; one suspended + one ghost, neither is a placed coil"):TEXT("loaded production plan; Chaos settling not run; next coil excluded from placed count"));
         R->SetStringField(TEXT("maximum_state_note"),TEXT("MaximumTier=5. Warnings do not reject planned placement; unknown manual/strength/TPC remain unknown. No limit was relaxed."));
         R->SetStringField(TEXT("fixture_rejection_note"),TEXT("Initial17th complete row failed production Analyze HatchClearance0.20m swept-gear criterion. Retained16 complete rows. Five tiers were not rejected by product. This is a plan, not a safe-load approval."));
-        R->SetStringField(TEXT("lidar_profile"),TEXT("OusterOS1_64_Rev7 / FullSpec"));R->SetNumberField(TEXT("lidar_visible_points"),S.Lidar->VisualizationComponent->GetVisiblePointCount());R->SetStringField(TEXT("lidar_backend"),S.Lidar->GetSensorRuntimeStatus().ActiveAcquisitionBackend);
-        R->SetNumberField(TEXT("lidar_frame_id"),S.Lidar->GetSensorRuntimeStatus().FrameId);R->SetStringField(TEXT("point_renderer"),S.Lidar->VisualizationComponent->GetActiveRendererName());R->SetStringField(TEXT("point_renderer_fallback"),S.Lidar->VisualizationComponent->GetRendererFallbackReason());
+        R->SetStringField(TEXT("lidar_profile"),TEXT("OusterOS1_64_Rev7 / FullSpec"));R->SetNumberField(TEXT("lidar_visible_points"),S.Lidar->VisualizationComp->GetVisiblePointCount());R->SetStringField(TEXT("lidar_backend"),S.Lidar->GetSensorRuntimeStatus().ActiveAcquisitionBackend);
+        R->SetNumberField(TEXT("lidar_frame_id"),S.Lidar->GetSensorRuntimeStatus().FrameId);R->SetStringField(TEXT("point_renderer"),S.Lidar->VisualizationComp->GetActiveRendererName());R->SetStringField(TEXT("point_renderer_fallback"),S.Lidar->VisualizationComp->GetRendererFallbackReason());
         if(S.Suspended){R->SetArrayField(TEXT("target_hold_m"),EnvironmentVector(Target));R->SetArrayField(TEXT("suspended_hold_m"),EnvironmentVector(S.GetActorTransform().InverseTransformPosition(S.Suspended->GetActorLocation())*.01));R->SetArrayField(TEXT("hook_hold_m"),EnvironmentVector(S.HookPosition()));}
         if(Q.Plot){const auto P=CoilPlan::Build(S.Settings,S.Plan(),S.PreviewPlacement(),S.Analysis(),{},M.PlanCanvas()->GetCachedGeometry().GetLocalSize(),Q.View==2,S.NextRow);R->SetNumberField(TEXT("plan_glyph_count_including_next"),P.Glyphs.Num());R->SetNumberField(TEXT("section_row"),S.NextRow);}
         R->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());TArray64<uint8> Bytes;FImageUtils::PNGCompressImageArray(Size.X,Size.Y,Pixels,Bytes);Test->TestTrue(TEXT("PNG saved"),FFileHelper::SaveArrayToFile(Bytes,*(EnvironmentRoot()/(Q.Name+TEXT(".png")))));EnvironmentJson(Q.Name+TEXT(".json"),R);return !Test->HasAnyErrors();

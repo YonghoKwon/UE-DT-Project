@@ -3,16 +3,16 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolUiText.h"
-#include "ma0t10_dt/MA0T10/UI/SensorPlacementInteraction.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabProgressPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabScenarioReplayPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabChartsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/SensorToolUiText.h"
+#include "ma0t10_dt/MA0T10/UI/Common/SensorPlacementInteraction.h"
 #include "ma0t10_dt/MA0T10/UI/Tests/SensorPresentationTestHelpers.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
@@ -32,8 +32,8 @@ bool FUXR10NavigationTest::RunTest(const FString&)
 {
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
     auto* C=World->SpawnActor<AVirtualSensorCoordinator>();auto* L=World->SpawnActor<AVirtualLidarSensorActor>();C->RegisterSensorActor(L);W->SetCoordinator(C);
-    auto* P=NewObject<UVirtualSensorPlacementPanelWidget>(World);auto* S=NewObject<UVirtualSensorSettingsPanelWidget>(World);auto* D=NewObject<UVirtualSensorCaptureExportPanelWidget>(World);
-    auto* Progress=NewObject<USlabProgressPanelWidget>(World);auto* Replay=NewObject<USlabScenarioReplayPanelWidget>(World);auto* Charts=NewObject<USlabChartsPanelWidget>(World);
+    auto* P=NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);auto* S=NewObject<UDxWidgetVirtualSensorSettingsPanel>(World);auto* D=NewObject<UDxWidgetVirtualSensorCaptureExportPanel>(World);
+    auto* Progress=NewObject<UDxWidgetSlabProgressPanel>(World);auto* Replay=NewObject<UDxWidgetSlabScenarioReplayPanel>(World);auto* Charts=NewObject<UDxWidgetSlabChartsPanel>(World);
     W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,P);W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,S);W->RegisterOwnedPanel(ESensorToolPanelRole::Data,D);
     W->RegisterOwnedPanel(ESensorToolPanelRole::SlabProgress,Progress);W->RegisterOwnedPanel(ESensorToolPanelRole::Replay,Replay);W->RegisterOwnedPanel(ESensorToolPanelRole::SlabCharts,Charts);
     auto* Bar=NewObject<USensorToolToolbarWidget>(World);W->Toolbar=Bar;S->BindSensorManager(C);D->BindSensorManager(C);C->SelectSensorActor(L);
@@ -70,8 +70,8 @@ bool FUXR10NavigationTest::RunTest(const FString&)
     TestTrue(TEXT("width toggle preserves Workspace v1 bytes"),Before==After);TestEqual(TEXT("width toggle returns to original"),W->GetSidebarWidth(),Width);
     TestTrue(TEXT("navigation preserves pose"),Transform.Equals(L->GetActorTransform()));TestEqual(TEXT("navigation preserves sensor revision"),L->GetConfigurationRevision(),Revision);TestEqual(TEXT("navigation preserves running state"),L->IsSensorRunning(),Running);
     W->SetSidebarMode(false);TestTrue(TEXT("floating has no sidebar Back"),S->GetPanelBackLabel().IsEmpty()&&D->GetPanelBackLabel().IsEmpty());
-    auto* Foreign=NewObject<USlabProgressPanelWidget>(World);TestTrue(TEXT("unregistered panel has no Back"),Foreign->GetPanelBackLabel().IsEmpty());
-    W->Toolbar=nullptr;for(auto* Panel:TArray<UVirtualSensorPanelWidgetBase*>{P,S,D,Progress,Replay,Charts})W->UnregisterPanel(Panel);C->Destroy();L->Destroy();return true;
+    auto* Foreign=NewObject<UDxWidgetSlabProgressPanel>(World);TestTrue(TEXT("unregistered panel has no Back"),Foreign->GetPanelBackLabel().IsEmpty());
+    W->Toolbar=nullptr;for(auto* Panel:TArray<UDxWidgetVirtualSensorPanelBase*>{P,S,D,Progress,Replay,Charts})W->UnregisterPanel(Panel);C->Destroy();L->Destroy();return true;
 }
 
 namespace
@@ -118,10 +118,10 @@ class FUXR10ResizeAndRender : public IAutomationLatentCommand
     FAutomationTestBase* Test;double Started=FPlatformTime::Seconds(),Next=0;int32 Phase=0,View=0;bool Requested=false;
     FVector2D Press,Before,Delta;FString Path;FDateTime Previous;TUniquePtr<TGuardValue<bool>> Debug;
     TUniquePtr<FUxr10CursorScope> CursorScope;
-    TWeakObjectPtr<USlabProgressPanelWidget> TracedPanel;
+    TWeakObjectPtr<UDxWidgetSlabProgressPanel> TracedPanel;
     uint64 LastLayoutFrame=MAX_uint64;int32 StableLayoutFrames=0;FVector2D LastLayoutOrigin;
     FDelegateHandle InputTrace;
-    void TraceState(const TCHAR* Stage, USlabProgressPanelWidget* Panel)
+    void TraceState(const TCHAR* Stage, UDxWidgetSlabProgressPanel* Panel)
     {
         auto& App=FSlateApplication::Get();const auto& G=Panel->GetCachedGeometry();
         const auto Window=App.FindWidgetWindow(Panel->GetCachedWidget().ToSharedRef());
@@ -144,7 +144,7 @@ public:
         UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();
         if(!FinalAcceptanceViewportReady(World)||FPlatformTime::Seconds()<Next)return false;
         auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Bar=Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());
-        auto* Panel=Cast<USlabProgressPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress));if(!Bar||!Panel||!W->GetCoordinator())return false;
+        auto* Panel=Cast<UDxWidgetSlabProgressPanel>(W->GetOwnedPanel(ESensorToolPanelRole::SlabProgress));if(!Bar||!Panel||!W->GetCoordinator())return false;
         auto& App=FSlateApplication::Get();
         if(Phase==0)
         {
@@ -223,7 +223,7 @@ public:
                 if(View==2||View==3){Bar->OpenOwnedDestination(ESensorToolDestination::Scenario);W->SetPanelOpen(View==2?ESensorToolPanelRole::Replay:ESensorToolPanelRole::SlabCharts,true);}
                 if(View==4){Bar->OpenOwnedDestination(ESensorToolDestination::Placement);W->SetPanelOpen(ESensorToolPanelRole::Settings,true);}
                 if(View==5)Bar->OpenOwnedDestination(ESensorToolDestination::Compatibility);
-                if(View==6){Bar->OpenOwnedDestination(ESensorToolDestination::PcdTransfer);Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data))->OpenOwnedTab(ESensorOwnedDataTab::Results);}
+                if(View==6){Bar->OpenOwnedDestination(ESensorToolDestination::PcdTransfer);Cast<UDxWidgetVirtualSensorCaptureExportPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Data))->OpenOwnedTab(ESensorOwnedDataTab::Results);}
                 if(View==7)Bar->OpenOwnedDestination(ESensorToolDestination::FileSave);
                 if(View==8){for(int32 I=0;I<7;++I)W->SetPanelOpen(static_cast<ESensorToolPanelRole>(I),false);W->SetPanelOpen(ESensorToolPanelRole::SlabProgress,true);Panel->SetPanelExpandedSize(FVector2D(900,800),true);Panel->SetWorkspacePosition(FVector2D(90,W->GetToolbarReservedTop()+8));}
                 const FString Root=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_UXR_REPORT_ROOT"));Path=(Root.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-10/after"):Root)/FString::Printf(TEXT("rendered-1920x1080-100-%s.png"),Names[View]);
@@ -234,10 +234,10 @@ public:
         if(IFileManager::Get().GetTimeStamp(*Path)<=Previous)return false;
         Test->AddInfo(FString::Printf(TEXT("actual viewport %dx%d, font100; automated render %s"),World->GetGameViewport()->Viewport->GetSizeXY().X,World->GetGameViewport()->Viewport->GetSizeXY().Y,*Path));Requested=false;Phase=8;
         if(++View<9)return false;
-        W->SetSidebarMode(true);Bar->OpenOwnedDestination(ESensorToolDestination::FileSave);auto* Data=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
+        W->SetSidebarMode(true);Bar->OpenOwnedDestination(ESensorToolDestination::FileSave);auto* Data=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Data));
         Test->TestTrue(TEXT("tool Back opens tools menu"),Data->NavigatePanelBack());Test->TestFalse(TEXT("tool Back hides child"),W->IsPanelOpen(ESensorToolPanelRole::Data));App.DismissAllMenus();
         Bar->OpenOwnedDestination(ESensorToolDestination::Placement);W->SetPanelOpen(ESensorToolPanelRole::Settings,true);
-        auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));auto* Actor=W->GetCoordinator()->GetSelectedSensorActor();
+        auto* Settings=Cast<UDxWidgetVirtualSensorSettingsPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));auto* Actor=W->GetCoordinator()->GetSelectedSensorActor();
         Settings->SetSensorManipulationEnabled(true);Test->TestTrue(TEXT("fixture enters manipulation"),Actor->IsInteractiveManipulationActive());
         Settings->SelectOwnedSettingsTab(1);Test->TestTrue(TEXT("local section Back preserves active manipulation"),Settings->NavigatePanelBack()&&Actor->IsInteractiveManipulationActive());
         Test->TestFalse(TEXT("cross-panel Back does not silently end manipulation"),Settings->CanNavigatePanelBack()||Settings->NavigatePanelBack());

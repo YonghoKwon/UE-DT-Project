@@ -3,8 +3,8 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 #include "UnrealClient.h"
@@ -27,7 +27,7 @@ public:
         UWorld* World=nullptr;for(const auto& Context:GEngine->GetWorldContexts())if(Context.WorldType==EWorldType::PIE)World=Context.World();
         if(!FinalAcceptanceViewportReady(World))return false;
         auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-        auto* Data=Cast<UVirtualSensorCaptureExportPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Data));
+        auto* Data=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Data));
         if(!Data)return false;
         const auto Size=World->GetGameViewport()->Viewport->GetSizeXY();const float Scale=Phase<5?1.f:1.5f;
         if(!ReadyAt)

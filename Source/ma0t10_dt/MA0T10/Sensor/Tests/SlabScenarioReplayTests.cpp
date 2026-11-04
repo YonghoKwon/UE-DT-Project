@@ -4,11 +4,11 @@
 #include "Json.h"
 #include "Engine/GameInstance.h"
 #include "VirtualSlabSensorTestDriver.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabReplayCatalogTest,"MA0T10.ScenarioReplay.Catalog",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabReplayCatalogTest::RunTest(const FString&)
@@ -66,7 +66,7 @@ bool FSlabReplayObservationTest::RunTest(const FString&)
 	TestEqual(TEXT("observation does not accumulate pending output"),Session->GetSlabSensorSessionStatus().PendingAcquisitions,0);
 	Session->EndSlabSensorSession(Run,false); Session->Tick(0);
 	TestTrue(TEXT("observation completes"),Session->GetSlabSensorSessionStatus().State==EVirtualSlabSessionState::Completed);
-	for(const auto& S:Manager->StreamPublisherComponent->GetStreamStatuses()) TestFalse(TEXT("no streams auto resume"),S.bEnabled);
+	for(const auto& S:Manager->StreamPublisherComp->GetStreamStatuses()) TestFalse(TEXT("no streams auto resume"),S.bEnabled);
 	Manager->Destroy(); Lidar->Destroy(); return true;
 }
 #endif

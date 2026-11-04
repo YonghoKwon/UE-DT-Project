@@ -7,8 +7,8 @@
 #include "Device/Sensor/DeviceSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeviceCoordinatorFacadeContract,
     "MA0T10.DeviceBoundary.CoordinatorFacadeContract", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -19,7 +19,7 @@ bool FDeviceCoordinatorFacadeContract::RunTest(const FString&)
     for(const TCHAR* Name:{TEXT("OnViewModeChanged"),TEXT("bDiscoverOnBeginPlay"),TEXT("bStartSensorsOnBeginPlay"),
         TEXT("bUseSynchronizedCapture"),TEXT("SynchronizedInterval"),TEXT("StaleSensorSeconds"),
         TEXT("bPointCloudOnlyHideWorld"),TEXT("bPointCloudOnlyAutoSelectLidarView"),TEXT("PointCloudOnlyKeepActorTags"),
-        TEXT("SharedTransportComponent"),TEXT("SharedRecorderComponent"),TEXT("StreamPublisherComponent")})
+        TEXT("SharedTransportComp"),TEXT("SharedRecorderComp"),TEXT("StreamPublisherComp")})
     {
         FProperty* Property=FindFProperty<FProperty>(Class,Name);
         TestNotNull(Name,Property);
@@ -28,7 +28,7 @@ bool FDeviceCoordinatorFacadeContract::RunTest(const FString&)
     UFunction* Bind=Class->FindFunctionByName(TEXT("BindMonitorWidget"));
     TestNotNull(TEXT("legacy BP binding function"),Bind);
     FObjectProperty* Pin=Bind?FindFProperty<FObjectProperty>(Bind,TEXT("MonitorWidget")):nullptr;
-    TestTrue(TEXT("legacy widget pin type preserved"),Pin&&Pin->PropertyClass==UVirtualSensorMonitorPanelWidget::StaticClass());
+    TestTrue(TEXT("legacy widget pin type preserved"),Pin&&Pin->PropertyClass==UDxWidgetVirtualSensorMonitorPanel::StaticClass());
     TestEqual(TEXT("view enum RealWorld"),static_cast<uint8>(EVirtualSensorViewMode::RealWorld),uint8(0));
     TestEqual(TEXT("view enum PointCloudOnly"),static_cast<uint8>(EVirtualSensorViewMode::PointCloudOnly),uint8(3));
     TestEqual(TEXT("legacy summary path"),FVirtualSensorSummary::StaticStruct()->GetPathName(),FString(TEXT("/Script/DeviceRuntime.VirtualSensorSummary")));
@@ -45,7 +45,7 @@ bool FDeviceCoordinatorWeakMonitorLifetime::RunTest(const FString&)
     if(!TestNotNull(TEXT("coordinator facade"),Facade))return false;
     Facade->bDiscoverOnBeginPlay=false; Facade->bStartSensorsOnBeginPlay=false;
     ADeviceSensorCoordinator* Runtime=Facade;
-    TWeakObjectPtr<UVirtualSensorMonitorPanelWidget> Weak=NewObject<UVirtualSensorMonitorPanelWidget>();
+    TWeakObjectPtr<UDxWidgetVirtualSensorMonitorPanel> Weak=NewObject<UDxWidgetVirtualSensorMonitorPanel>();
     Runtime->BindDeviceMonitorView(Weak.Get());
     TestEqual(TEXT("one runtime monitor owner"),Runtime->GetDeviceMonitorOwner(),static_cast<UObject*>(Weak.Get()));
     CollectGarbage(RF_NoFlags);
@@ -53,7 +53,7 @@ bool FDeviceCoordinatorWeakMonitorLifetime::RunTest(const FString&)
     TestNull(TEXT("expired owner is safe"),Runtime->GetDeviceMonitorOwner());
     Runtime->SetViewMode(EVirtualSensorViewMode::Lidar);
     TestEqual(TEXT("facade observes base state"),Facade->GetViewMode(),EVirtualSensorViewMode::Lidar);
-    UVirtualSensorMonitorPanelWidget* Strong=NewObject<UVirtualSensorMonitorPanelWidget>();
+    UDxWidgetVirtualSensorMonitorPanel* Strong=NewObject<UDxWidgetVirtualSensorMonitorPanel>();
     Weak=Strong;
     Facade->BindMonitorWidget(Strong);
     CollectGarbage(RF_NoFlags);
@@ -81,7 +81,7 @@ bool FDeviceCoordinatorEndPlayCleanup::RunTest(const FString&)
     TestTrue(TEXT("real actor initialization before BeginPlay"),Facade->IsActorInitialized());
     Facade->DispatchBeginPlay();
     TestTrue(TEXT("real actor BeginPlay before EndPlay"),Facade->HasActorBegunPlay());
-    Facade->BindMonitorWidget(NewObject<UVirtualSensorMonitorPanelWidget>());
+    Facade->BindMonitorWidget(NewObject<UDxWidgetVirtualSensorMonitorPanel>());
     Facade->RouteEndPlay(EEndPlayReason::EndPlayInEditor);
     TestNull(TEXT("PIE EndPlay unbinds monitor"),Facade->GetDeviceMonitorOwner());
     TestEqual(TEXT("EndPlay clears inventory"),Facade->GetSensorActors().Num(),0);
@@ -101,7 +101,7 @@ bool FDeviceCoordinatorViewStateIsolation::RunTest(const FString&)
     auto* LidarA=World->SpawnActor<AVirtualLidarSensorActor>();
     auto* LidarB=World->SpawnActor<AVirtualLidarSensorActor>();
     A->bPointCloudOnlyHideWorld=false;B->bPointCloudOnlyHideWorld=false;
-    A->RegisterLidar(LidarA->ScanComponent);B->RegisterLidar(LidarB->ScanComponent);
+    A->RegisterLidar(LidarA->ScanComp);B->RegisterLidar(LidarB->ScanComp);
     A->SetPointCloudOnlyMode(true);B->SetPointCloudOnlyMode(true);
     TestEqual(TEXT("first base owns only its snapshot"),A->LidarPointCloudOnlyStates.Num(),1);
     TestEqual(TEXT("second base owns only its snapshot"),B->LidarPointCloudOnlyStates.Num(),1);

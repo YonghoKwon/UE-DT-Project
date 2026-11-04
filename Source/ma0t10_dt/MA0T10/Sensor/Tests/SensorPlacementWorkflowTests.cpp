@@ -2,27 +2,27 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "Device/Core/VirtualSensorFileSaveSubsystem.h"
 #include "Device/Core/VirtualSensorPeriodicFileSaveSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tool/VirtualSensorTransformGizmoActor.h"
 #include "Device/Core/VirtualSensorPlacementMotion.h"
 #include "Device/Core/VirtualSensorPlacementSubsystem.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
 #include "Json.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabRunPlacementSnapshotTest,"MA0T10.Placement.RunPlacementSnapshot",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabRunPlacementSnapshotTest::RunTest(const FString&)
 {
-    auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* S=W->SpawnActor<AVirtualLidarSensorActor>();S->ScanComponent->SensorId=TEXT("run-pose-test");S->StopSensor();
+    auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* S=W->SpawnActor<AVirtualLidarSensorActor>();S->ScanComp->SensorId=TEXT("run-pose-test");S->StopSensor();
     auto* P=W->GetSubsystem<UVirtualSensorPlacementSubsystem>();P->StorageRootOverrideForTests=FPaths::ProjectSavedDir()/TEXT("Reports/SensorPlacementWorkflow/run-fixtures")/FGuid::NewGuid().ToString();
     const FTransform A(FRotator(-45,15,5),FVector(120,240,800),FVector(1,2,3));FString Reason;S->ApplyEditableTransform(A,Reason);
     const FString Request=P->RequestSaveSensorPose(S,TEXT("Run A"));P->FinishWrite(P->PendingWrite->Future.Get(),false);const FString Bookmark=P->GetPoseSaveStatus(Request).BookmarkId;P->ApplySensorPoseBookmark(S,Bookmark,Reason);
@@ -52,7 +52,7 @@ bool FSlabRunPlacementSnapshotTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorPoseLibraryTest,"MA0T10.Placement.PoseLibraryPersistenceAndHistory",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorPoseLibraryTest::RunTest(const FString&)
 {
-    auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* S=W->SpawnActor<AVirtualLidarSensorActor>();S->StopSensor();S->ScanComponent->SensorId=TEXT("bookmark-test");
+    auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* S=W->SpawnActor<AVirtualLidarSensorActor>();S->StopSensor();S->ScanComp->SensorId=TEXT("bookmark-test");
     auto* P=W->GetSubsystem<UVirtualSensorPlacementSubsystem>();
     P->StorageRootOverrideForTests=FPaths::ProjectSavedDir()/TEXT("Reports/SensorPlacementWorkflow/fixtures")/FGuid::NewGuid().ToString(EGuidFormats::Digits);
     const auto Root=P->StorageRootOverrideForTests;
@@ -74,7 +74,7 @@ bool FSensorPoseLibraryTest::RunTest(const FString&)
     const auto PoseBeforeLoad=S->GetActorTransform();TestEqual(TEXT("new instance loads persisted library"),Reload->GetSensorPoseBookmarks(S).Num(),2);
     TestTrue(TEXT("loading never applies a saved pose"),S->GetActorTransform().Equals(PoseBeforeLoad));TestTrue(TEXT("new instance can apply persisted B"),Reload->ApplySensorPoseBookmark(S,IdB,Reason));
     TestEqual(TEXT("duplicate name is explicitly rejected"),P->GetPoseSaveStatus(P->RequestSaveSensorPose(S,TEXT("위치 A"))).State,EVirtualSensorPoseSaveState::Rejected);
-    auto* Publisher=NewObject<UVirtualSensorStreamPublisherComponent>(S);S->SetSharedOutputServices(nullptr,nullptr,Publisher);Publisher->StartStream(EVirtualSensorStreamKind::PointCloud,S->GetSensorId());
+    auto* Publisher=NewObject<UVirtualSensorStreamPublisherComp>(S);S->SetSharedOutputServices(nullptr,nullptr,Publisher);Publisher->StartStream(EVirtualSensorStreamKind::PointCloud,S->GetSensorId());
     const int32 Index=P->HistoryFor(S).Index;TestFalse(TEXT("locked undo is refused"),P->UndoSensorPlacement(S,Reason));TestEqual(TEXT("rejected undo preserves index"),P->HistoryFor(S).Index,Index);
     TestFalse(TEXT("locked bookmark is refused"),P->ApplySensorPoseBookmark(S,IdA,Reason));Publisher->StopAllStreams(S->GetSensorId());
     FString Original;const FString Path=P->StoragePath();FFileHelper::LoadFileToString(Original,*Path);
@@ -86,13 +86,13 @@ bool FSensorPoseLibraryTest::RunTest(const FString&)
     TestEqual(TEXT("twenty-first bookmark rejected"),P->GetPoseSaveStatus(P->RequestSaveSensorPose(S,TEXT("overflow"))).State,EVirtualSensorPoseSaveState::Rejected);
     TestEqual(TEXT("rename writes same bookmark"),Complete(P->RenameSensorPoseBookmark(S,IdA,TEXT("이름 변경 A"))).State,EVirtualSensorPoseSaveState::Saved);
     TestEqual(TEXT("delete writes updated file"),Complete(P->DeleteSensorPoseBookmark(S,IdB)).State,EVirtualSensorPoseSaveState::Saved);TestEqual(TEXT("delete only removes selected bookmark"),P->GetSensorPoseBookmarks(S).Num(),19);
-    auto* Duplicate=W->SpawnActor<AVirtualLidarSensorActor>();Duplicate->ScanComponent->SensorId=S->GetSensorId();
+    auto* Duplicate=W->SpawnActor<AVirtualLidarSensorActor>();Duplicate->ScanComp->SensorId=S->GetSensorId();
     TestFalse(TEXT("duplicate ID cannot recall"),P->ApplySensorPoseBookmark(S,IdA,Reason));Duplicate->Destroy();
     S->ApplyEditableTransform(A,Reason);P->Histories.Reset();
     for(int32 I=0;I<60;++I){const auto Before=S->GetActorTransform();auto After=Before;After.AddToTranslation(FVector(1,0,0));S->ApplyEditableTransform(After,Reason);P->RecordPoseChange(S,Before,After);}
     TestEqual(TEXT("history is bounded to fifty"),P->HistoryFor(S).Commands.Num(),50);
     for(int32 I=0;I<50;++I)TestTrue(TEXT("bounded history undo succeeds"),P->UndoSensorPlacement(S,Reason));TestFalse(TEXT("past history boundary rejected"),P->UndoSensorPlacement(S,Reason));
-    const FString OldId=S->GetSensorId();S->ScanComponent->SensorId=TEXT("new-id");TestEqual(TEXT("renaming ID never guesses old library target"),P->GetSensorPoseBookmarks(S).Num(),0);S->ScanComponent->SensorId=OldId;
+    const FString OldId=S->GetSensorId();S->ScanComp->SensorId=TEXT("new-id");TestEqual(TEXT("renaming ID never guesses old library target"),P->GetSensorPoseBookmarks(S).Num(),0);S->ScanComp->SensorId=OldId;
     FFileHelper::SaveStringToFile(TEXT("{\"version\":999}"),*Path);auto* Bad=NewObject<UVirtualSensorPlacementSubsystem>(W);Bad->StorageRootOverrideForTests=Root;
     TestEqual(TEXT("unsupported file returns no entries"),Bad->GetSensorPoseBookmarks(S).Num(),0);TestEqual(TEXT("unsupported file prevents overwrite"),Bad->GetPoseSaveStatus(Bad->RequestSaveSensorPose(S,TEXT("x"))).State,EVirtualSensorPoseSaveState::Rejected);
     TestTrue(TEXT("canonical map strips PIE prefix"),UWorld::RemovePIEPrefix(TEXT("/Game/Maps/UEDPIE_2_Test"))==TEXT("/Game/Maps/Test"));
@@ -125,18 +125,18 @@ bool FSensorPlacementGateTest::RunTest(const FString&)
 {
     auto* W=FAutomationEditorCommonUtils::CreateNewMap();
     auto* L=W->SpawnActor<AVirtualLidarSensorActor>();auto* Other=W->SpawnActor<AVirtualLidarSensorActor>();auto* C=W->SpawnActor<AVirtualCameraSensorActor>();
-    L->ScanComponent->SensorId=TEXT("placement-A");Other->ScanComponent->SensorId=TEXT("placement-B");C->CaptureComponent->SensorId=TEXT("placement-camera");
-    auto* Publisher=NewObject<UVirtualSensorStreamPublisherComponent>(L);L->SetSharedOutputServices(nullptr,nullptr,Publisher);Other->SetSharedOutputServices(nullptr,nullptr,Publisher);C->SetSharedOutputServices(nullptr,nullptr,Publisher);
+    L->ScanComp->SensorId=TEXT("placement-A");Other->ScanComp->SensorId=TEXT("placement-B");C->CaptureComp->SensorId=TEXT("placement-camera");
+    auto* Publisher=NewObject<UVirtualSensorStreamPublisherComp>(L);L->SetSharedOutputServices(nullptr,nullptr,Publisher);Other->SetSharedOutputServices(nullptr,nullptr,Publisher);C->SetSharedOutputServices(nullptr,nullptr,Publisher);
     L->StopSensor();Other->StopSensor();C->StopSensor();FString Reason;
     const auto Pose=L->GetActorTransform();auto Moved=Pose;Moved.AddToTranslation(FVector(10,20,30));
     TestTrue(TEXT("preview/idle allows pose editing"),L->CanEditSensorPlacement(Reason));
-    const int32 H=L->ScanComponent->HorizontalSamples,V=L->ScanComponent->VerticalChannels;const float Interval=L->ScanComponent->ScanInterval;
+    const int32 H=L->ScanComp->HorizontalSamples,V=L->ScanComp->VerticalChannels;const float Interval=L->ScanComp->ScanInterval;
     TestTrue(TEXT("manipulation starts without starting stopped sensor"),L->BeginInteractiveManipulation(FVirtualSensorInteractionRequest()));
     Publisher->StartStream(EVirtualSensorStreamKind::PointCloud,L->GetSensorId());
     TestFalse(TEXT("data admission finishes manipulation"),L->IsInteractiveManipulationActive());
-    TestEqual(TEXT("data admission restores horizontal spec"),L->ScanComponent->HorizontalSamples,H);
-    TestEqual(TEXT("data admission restores channels"),L->ScanComponent->VerticalChannels,V);
-    TestEqual(TEXT("data admission restores period"),L->ScanComponent->ScanInterval,Interval);
+    TestEqual(TEXT("data admission restores horizontal spec"),L->ScanComp->HorizontalSamples,H);
+    TestEqual(TEXT("data admission restores channels"),L->ScanComp->VerticalChannels,V);
+    TestEqual(TEXT("data admission restores period"),L->ScanComp->ScanInterval,Interval);
     TestFalse(TEXT("manual stream never implicitly starts stopped actor"),L->IsSensorRunning());
     TestFalse(TEXT("exact stream rejects numeric transform"),L->ApplyEditableTransform(Moved,Reason));
     TestTrue(TEXT("rejection does not change pose"),L->GetActorTransform().Equals(Pose));
@@ -150,7 +150,7 @@ bool FSensorPlacementGateTest::RunTest(const FString&)
     TestFalse(TEXT("wildcard locks other matching lidar"),Other->CanEditSensorPlacement(Reason));
     TestTrue(TEXT("lidar wildcard does not lock camera"),C->CanEditSensorPlacement(Reason));
     Publisher->StopAllStreams(TEXT(""));
-    UVirtualSensorStreamPublisherComponent::FReceiptWait Wait;Wait.Message.SensorId=L->GetSensorId();Publisher->WaitingReceipts.Add(TEXT("pending-receipt"),Wait);
+    UVirtualSensorStreamPublisherComp::FReceiptWait Wait;Wait.Message.SensorId=L->GetSensorId();Publisher->WaitingReceipts.Add(TEXT("pending-receipt"),Wait);
     TestFalse(TEXT("receipt drain remains locked after toggle stop"),L->CanEditSensorPlacement(Reason));
     TestTrue(TEXT("other ID is not locked by receipt"),Other->CanEditSensorPlacement(Reason));Publisher->WaitingReceipts.Reset();
 

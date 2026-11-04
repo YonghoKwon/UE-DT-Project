@@ -14,10 +14,10 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
 
 ALidarGeometryValidationRig::ALidarGeometryValidationRig(){PrimaryActorTick.bCanEverTick=true;}
 void ALidarGeometryValidationRig::BeginPlay(){Super::BeginPlay();}
@@ -29,7 +29,7 @@ void ALidarGeometryValidationRig::Tick(float Delta)
     {
         auto* PC=GetWorld()->GetFirstPlayerController();
         if(!PC || !GetWorld()->GetGameViewport()) return;
-        auto* Scan=Sensor->ScanComponent.Get();
+        auto* Scan=Sensor->ScanComp.Get();
         Sensor->StopSensor();
         // Explicitly owned test fixture. Never applies these settings to a production actor.
         Scan->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);
@@ -40,7 +40,7 @@ void ALidarGeometryValidationRig::Tick(float Delta)
         Scan->bEnableSemanticClassification=false;
         Scan->SetPointCloudPreviewEnabled(false);
         if(Coordinator) Coordinator->RegisterLidar(Scan);
-        Monitor=CreateWidget<UVirtualSensorMonitorPanelWidget>(PC);
+        Monitor=CreateWidget<UDxWidgetVirtualSensorMonitorPanel>(PC);
         Monitor->bPersistMonitorPreferences=false;
         Monitor->SetPanelPersistenceKey(NAME_None);
         Monitor->BindSensorManager(Coordinator);
@@ -53,7 +53,7 @@ void ALidarGeometryValidationRig::Tick(float Delta)
         S.ColorMode=ELidarColorMode::GeometrySeparation;
         S.bShowGrid=false; S.bShowDepthEdges=false; S.PointSize=3;
         S.bShowWorldPointCloud=false;
-        Sensor->VisualizationComponent->SetVisualizationSettings(S);
+        Sensor->VisualizationComp->SetVisualizationSettings(S);
         Monitor->SetLidarColorMode(ELidarColorMode::GeometrySeparation);
         Sensor->StartSensor();
         if(ObservationCamera) PC->SetViewTarget(ObservationCamera);
@@ -71,7 +71,7 @@ void ALidarGeometryValidationRig::Tick(float Delta)
                     +SHorizontalBox::Slot().AutoWidth()[Button(TEXT("CPU / GPU"),[this](){ToggleBackend();})]
                     +SHorizontalBox::Slot().AutoWidth()[Button(TEXT("이동 / 정지"),[this](){bMoving=!bMoving;})]
                     +SHorizontalBox::Slot().AutoWidth()[Button(TEXT("형상 / 높이"),[this](){ToggleDisplay();})]
-                    +SHorizontalBox::Slot().AutoWidth()[Button(TEXT("3D 포인트"),[this](){auto* V=Sensor->VisualizationComponent.Get();V->SetWorldPointCloudEnabled(!V->Settings.bShowWorldPointCloud);})]
+                    +SHorizontalBox::Slot().AutoWidth()[Button(TEXT("3D 포인트"),[this](){auto* V=Sensor->VisualizationComp.Get();V->SetWorldPointCloudEnabled(!V->Settings.bShowWorldPointCloud);})]
                     +SHorizontalBox::Slot().AutoWidth()[Button(TEXT("검증 화면 저장"),[this](){SaveEvidence();})]
                 ]
                 +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).AutoWrapText(true).Text_Lambda([this](){return FText::FromString(Status);})]
@@ -86,23 +86,23 @@ void ALidarGeometryValidationRig::Tick(float Delta)
     if(UiElapsed>=.2f)
     {
         UiElapsed=0;
-        const auto& D=Sensor->VisualizationComponent->GetGeometryDiagnostics();
+        const auto& D=Sensor->VisualizationComp->GetGeometryDiagnostics();
         Status=FString::Printf(TEXT("%s · %s · 측정 %.1fHz · %s · 판 %d / 물체 %d / 불명 %d · %.2fms"),
-            Sensor->ScanComponent->AcquisitionBackend==EVirtualLidarAcquisitionBackend::GpuDepthProjection?TEXT("GPU"):TEXT("CPU"),
-            bMoving?TEXT("이동 중"):TEXT("정지"),Sensor->ScanComponent->GetRuntimeStatus().MeasuredCompletionRateHz,
+            Sensor->ScanComp->AcquisitionBackend==EVirtualLidarAcquisitionBackend::GpuDepthProjection?TEXT("GPU"):TEXT("CPU"),
+            bMoving?TEXT("이동 중"):TEXT("정지"),Sensor->ScanComp->GetRuntimeStatus().MeasuredCompletionRateHz,
             *D.Reason,D.PlanePoints,D.ProtrusionPoints,D.UnknownPoints,D.ProcessingMs);
     }
 }
 void ALidarGeometryValidationRig::ToggleBackend()
 {
     Sensor->StopSensor();
-    auto* S=Sensor->ScanComponent.Get();
+    auto* S=Sensor->ScanComp.Get();
     S->AcquisitionBackend=S->AcquisitionBackend==EVirtualLidarAcquisitionBackend::GpuDepthProjection?EVirtualLidarAcquisitionBackend::AccurateCpuTrace:EVirtualLidarAcquisitionBackend::GpuDepthProjection;
     Sensor->StartSensor();
 }
 void ALidarGeometryValidationRig::ToggleDisplay()
 {
-    auto* V=Sensor->VisualizationComponent.Get();
+    auto* V=Sensor->VisualizationComp.Get();
     Monitor->SetLidarColorMode(V->Settings.ColorMode==ELidarColorMode::GeometrySeparation?ELidarColorMode::RelativeHeight:ELidarColorMode::GeometrySeparation);
 }
 void ALidarGeometryValidationRig::EndPlay(const EEndPlayReason::Type Reason)

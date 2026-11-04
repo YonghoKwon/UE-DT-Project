@@ -1,10 +1,10 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "SensorWorkspaceForeignFixture.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tests/DxWidgetSensorWorkspaceForeignFixture.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
 #include "DeviceUI/VirtualSensorUiStyle.h"
 #include "Widgets/Input/SButton.h"
 
@@ -14,14 +14,14 @@ bool FSensorOwnedUiLayoutTest::RunTest(const FString&)
 	TestEqual(TEXT("one toolbar row reserves measured height plus margins"),UVirtualSensorToolWorkspaceSubsystem::CalculateToolbarReservedTop(48,720),64.0f);
 	TestEqual(TEXT("wrapped toolbar reserves two rows"),UVirtualSensorToolWorkspaceSubsystem::CalculateToolbarReservedTop(96,720),112.0f);
 	TestTrue(TEXT("tiny view keeps room for panel bodies"),UVirtualSensorToolWorkspaceSubsystem::CalculateToolbarReservedTop(500,300)<150);
-	TestEqual(TEXT("capture enum maps to file tab"),UVirtualSensorCaptureExportPanelWidget::ResolveOwnedTabIndex(EVirtualSensorCaptureExportTab::Capture),2);
-	TestEqual(TEXT("export enum maps to same file tab"),UVirtualSensorCaptureExportPanelWidget::ResolveOwnedTabIndex(EVirtualSensorCaptureExportTab::Export),2);
+	TestEqual(TEXT("capture enum maps to file tab"),UDxWidgetVirtualSensorCaptureExportPanel::ResolveOwnedTabIndex(EVirtualSensorCaptureExportTab::Capture),2);
+	TestEqual(TEXT("export enum maps to same file tab"),UDxWidgetVirtualSensorCaptureExportPanel::ResolveOwnedTabIndex(EVirtualSensorCaptureExportTab::Export),2);
 	TestEqual(TEXT("connection ordinal stays compatible"),static_cast<uint8>(EVirtualSensorCaptureExportTab::ConnectionLog),uint8(3));
 	auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-	auto* Foreign=NewObject<USensorWorkspaceForeignFixture>(World);auto* ForeignToolbar=NewObject<USensorToolToolbarWidget>(World);
+	auto* Foreign=NewObject<UDxWidgetSensorWorkspaceForeignFixture>(World);auto* ForeignToolbar=NewObject<USensorToolToolbarWidget>(World);
 	const auto ForeignSize=Foreign->GetEffectivePanelSize();
 	TestFalse(TEXT("common toolbar class alone does not grant ownership"),Workspace->OwnsToolbar(ForeignToolbar));
-	auto* Panel=NewObject<UVirtualSensorCaptureExportPanelWidget>(World);
+	auto* Panel=NewObject<UDxWidgetVirtualSensorCaptureExportPanel>(World);
 	TestTrue(TEXT("data panel explicit registration"),Workspace->RegisterOwnedPanel(ESensorToolPanelRole::Data,Panel));
 	const SButton::FArguments Args=SButton::FArguments().ForegroundColor_Lambda([](){return FSlateColor(FLinearColor::Green);});
 	auto Button=SNew(SButton).ForegroundColor_Lambda([](){return FSlateColor(FLinearColor::Green);});

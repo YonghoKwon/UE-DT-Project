@@ -4,15 +4,15 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "Uxr15ToggleTestHelpers.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraGroundTruth.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.h"
+#include "Device/Camera/VirtualCameraGroundTruthComp.h"
+#include "ma0t10_dt/MA0T10/Dataset/VirtualDatasetSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "Engine/DirectionalLight.h"
 #include "Engine/Texture2D.h"
@@ -28,7 +28,7 @@ class FUxr15ToggleRhiCommand final:public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;TWeakObjectPtr<UWorld> World;double Started=FPlatformTime::Seconds(),Next=0;int32 Phase=0,Mode=0,DatasetSnapshots=0;
     AVirtualCameraSensorActor* Camera=nullptr;AVirtualLidarSensorActor* Lidar=nullptr;ASlabActor* Slab=nullptr;ADirectionalLight* Light=nullptr;
-    UVirtualSensorSettingsPanelWidget* Settings=nullptr;UVirtualSensorMonitorPanelWidget* Monitor=nullptr;UVirtualSensorCaptureExportPanelWidget* Data=nullptr;UVirtualDatasetSubsystem* Service=nullptr;
+    UDxWidgetVirtualSensorSettingsPanel* Settings=nullptr;UDxWidgetVirtualSensorMonitorPanel* Monitor=nullptr;UDxWidgetVirtualSensorCaptureExportPanel* Data=nullptr;UVirtualDatasetSubsystem* Service=nullptr;
     TSharedPtr<SWidget> SettingsSlate,TruthControls,DatasetControls;
     FString ExpectedRandom;TArray<FString> Outputs;bool WithTruth=true;
     void ConfigureDataset(bool Enabled)
@@ -59,8 +59,8 @@ class FUxr15ToggleRhiCommand final:public IAutomationLatentCommand
         for(int32 I=0;I+12<=Bytes.Num();++I)if(FMemory::Memcmp(Bytes.GetData()+I,"DATA binary\n",12)==0){Body=I+12;break;}
         bool Nonzero=false;if(Body>=0)for(int32 I=Body;I+33<=Bytes.Num();I+=33)for(int32 J=20;J<28;++J)Nonzero|=Bytes[I+J]!=0;
         Test->TestTrue(TEXT("binary PCD body exists"),Body>=0);Test->TestEqual(TEXT("UI fidelity reaches binary acquisition time offsets"),Nonzero,WithTruth);
-        Test->TestFalse(TEXT("dataset restores original Camera GT after completion"),Camera->CaptureComponent->bGroundTruthEnabled);
-        Test->TestFalse(TEXT("dataset restores original LiDAR fidelity after completion"),Lidar->ScanComponent->bUseRollingPointTimestamps||Lidar->ScanComponent->bEnableMotionDistortion||Lidar->ScanComponent->bEnableMaterialResponse);
+        Test->TestFalse(TEXT("dataset restores original Camera GT after completion"),Camera->CaptureComp->bGroundTruthEnabled);
+        Test->TestFalse(TEXT("dataset restores original LiDAR fidelity after completion"),Lidar->ScanComp->bUseRollingPointTimestamps||Lidar->ScanComp->bEnableMotionDistortion||Lidar->ScanComp->bEnableMaterialResponse);
         return true;
     }
     bool Finish()
@@ -80,18 +80,18 @@ public:
             auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* C=W->GetCoordinator();if(!C)return Finish();C->StopAllSensors();
             Slab=World->SpawnActor<ASlabActor>();Slab->Tags.Add(TEXT("SensorTestManaged"));Slab->SetActorLocation(FVector(1500,0,200));Slab->ApplyDatasetGeometry(FVector(800,200,50));Slab->SetDiagnosticHelpersVisible(false);
             const FVector Origin(1500,-1000,1000);const FTransform Pose((Slab->GetActorLocation()-Origin).Rotation(),Origin);
-            Camera=World->SpawnActor<AVirtualCameraSensorActor>();Camera->Tags.Add(TEXT("SensorTestManaged"));Camera->StopSensor();Camera->SetActorTransform(Pose);Camera->CaptureComponent->SensorId=TEXT("UXR15-CAMERA");Camera->CaptureComponent->SimulationQuality=EVirtualSensorSimulationQuality::Custom;Camera->CaptureComponent->CaptureResolution=FIntPoint(320,180);Camera->CaptureComponent->CaptureInterval=.1f;Camera->CaptureComponent->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;C->RegisterSensorActor(Camera);
-            Lidar=World->SpawnActor<AVirtualLidarSensorActor>();Lidar->Tags.Add(TEXT("SensorTestManaged"));Lidar->StopSensor();Lidar->SetActorTransform(Pose);auto* Scan=Lidar->ScanComponent.Get();Scan->SensorId=TEXT("UXR15-LIDAR");Scan->SimulationQuality=EVirtualSensorSimulationQuality::Custom;Scan->HorizontalSamples=64;Scan->VerticalChannels=16;Scan->HorizontalFov=80;Scan->MinVerticalAngle=-12;Scan->MaxVerticalAngle=12;Scan->ScanInterval=.05;Scan->OutputMode=EVirtualLidarOutputMode::None;Scan->SetCompatibilityOutputPolicy(EVirtualLidarCompatibilityOutputPolicy::WhenRequested);C->RegisterSensorActor(Lidar);
+            Camera=World->SpawnActor<AVirtualCameraSensorActor>();Camera->Tags.Add(TEXT("SensorTestManaged"));Camera->StopSensor();Camera->SetActorTransform(Pose);Camera->CaptureComp->SensorId=TEXT("UXR15-CAMERA");Camera->CaptureComp->SimulationQuality=EVirtualSensorSimulationQuality::Custom;Camera->CaptureComp->CaptureResolution=FIntPoint(320,180);Camera->CaptureComp->CaptureInterval=.1f;Camera->CaptureComp->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;C->RegisterSensorActor(Camera);
+            Lidar=World->SpawnActor<AVirtualLidarSensorActor>();Lidar->Tags.Add(TEXT("SensorTestManaged"));Lidar->StopSensor();Lidar->SetActorTransform(Pose);auto* Scan=Lidar->ScanComp.Get();Scan->SensorId=TEXT("UXR15-LIDAR");Scan->SimulationQuality=EVirtualSensorSimulationQuality::Custom;Scan->HorizontalSamples=64;Scan->VerticalChannels=16;Scan->HorizontalFov=80;Scan->MinVerticalAngle=-12;Scan->MaxVerticalAngle=12;Scan->ScanInterval=.05;Scan->OutputMode=EVirtualLidarOutputMode::None;Scan->SetCompatibilityOutputPolicy(EVirtualLidarCompatibilityOutputPolicy::WhenRequested);C->RegisterSensorActor(Lidar);
             Light=World->SpawnActor<ADirectionalLight>();Light->Tags.Add(TEXT("SensorTestManaged"));Light->GetLightComponent()->SetMobility(EComponentMobility::Movable);
-            Settings=Cast<UVirtualSensorSettingsPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));Monitor=Cast<UVirtualSensorMonitorPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));Data=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data));Service=World->GetSubsystem<UVirtualDatasetSubsystem>();
-            W->SetPanelOpen(ESensorToolPanelRole::Settings,true);W->SetPanelOpen(ESensorToolPanelRole::Monitor,true);C->SelectSensorActor(Camera);W->SynchronizeOwnedSelection();Settings->SelectOwnedSettingsTab(1);SettingsSlate=Settings->TakeWidget();Monitor->BindVirtualCamera(Camera->CaptureComponent);Monitor->ShowCameraView();Monitor->bOwnedAdvancedMenuOpen=true;TruthControls=Monitor->BuildCameraTruthControls();Camera->StartSensor();Next=Now+2;return false;
+            Settings=Cast<UDxWidgetVirtualSensorSettingsPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));Monitor=Cast<UDxWidgetVirtualSensorMonitorPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));Data=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Data));Service=World->GetSubsystem<UVirtualDatasetSubsystem>();
+            W->SetPanelOpen(ESensorToolPanelRole::Settings,true);W->SetPanelOpen(ESensorToolPanelRole::Monitor,true);C->SelectSensorActor(Camera);W->SynchronizeOwnedSelection();Settings->SelectOwnedSettingsTab(1);SettingsSlate=Settings->TakeWidget();Monitor->BindVirtualCamera(Camera->CaptureComp);Monitor->ShowCameraView();Monitor->bOwnedAdvancedMenuOpen=true;TruthControls=Monitor->BuildCameraTruthControls();Camera->StartSensor();Next=Now+2;return false;
         }
         if(Now<Next)return false;
-        auto* Truth=Camera->CaptureComponent->GetGroundTruth();
+        auto* Truth=Camera->CaptureComp->GetGroundTruth();
         if(Phase==0)
         {
-            Test->TestFalse(TEXT("default-off UI has no truth output"),Camera->CaptureComponent->bGroundTruthEnabled);
-            Toggle(SettingsSlate.ToSharedRef(),TEXT("정답 데이터"),Test);Test->TestTrue(TEXT("UI enables actual running Camera and preserves measurement"),Camera->CaptureComponent->bGroundTruthEnabled&&Camera->IsSensorRunning());
+            Test->TestFalse(TEXT("default-off UI has no truth output"),Camera->CaptureComp->bGroundTruthEnabled);
+            Toggle(SettingsSlate.ToSharedRef(),TEXT("정답 데이터"),Test);Test->TestTrue(TEXT("UI enables actual running Camera and preserves measurement"),Camera->CaptureComp->bGroundTruthEnabled&&Camera->IsSensorRunning());
             Click(TruthControls.ToSharedRef(),TEXT("깊이"),Test);Phase=1;return false;
         }
         if(Phase==1)
@@ -110,13 +110,13 @@ public:
         if(Phase==3)
         {
             const TCHAR* Names[]={TEXT("RGB"),TEXT("깊이"),TEXT("의미 분류"),TEXT("객체 구분")};Click(TruthControls.ToSharedRef(),Names[Mode],Test);Monitor->RefreshImageBrush();
-            Test->TestTrue(TEXT("each real UI mode selects its actual output texture"),Monitor->NativeViewBrush.GetResourceObject()==(Mode?static_cast<UObject*>(Truth->Preview(uint8(Mode))):static_cast<UObject*>(Camera->CaptureComponent->GetCameraRenderTarget())));
+            Test->TestTrue(TEXT("each real UI mode selects its actual output texture"),Monitor->NativeViewBrush.GetResourceObject()==(Mode?static_cast<UObject*>(Truth->Preview(uint8(Mode))):static_cast<UObject*>(Camera->CaptureComp->GetCameraRenderTarget())));
             if(++Mode<4){Next=Now+.3;return false;}
-            Toggle(SettingsSlate.ToSharedRef(),TEXT("정답 데이터"),Test);Monitor->RefreshCameraTruth();Monitor->RefreshImageBrush();Test->TestFalse(TEXT("UI off cancels real frame and pending truth"),Camera->CaptureComponent->bGroundTruthEnabled||Truth->LastFrame.IsValid()||Truth->IsBusy());Test->TestTrue(TEXT("off is visible in actual preview state"),Monitor->CameraTruthStatus.ToString().Contains(TEXT("꺼짐")));Test->TestTrue(TEXT("disabled truth mode falls back to actual RGB instead of a white image"),Monitor->NativeViewBrush.GetResourceObject()==Camera->CaptureComponent->GetCameraRenderTarget());Camera->StopSensor();
+            Toggle(SettingsSlate.ToSharedRef(),TEXT("정답 데이터"),Test);Monitor->RefreshCameraTruth();Monitor->RefreshImageBrush();Test->TestFalse(TEXT("UI off cancels real frame and pending truth"),Camera->CaptureComp->bGroundTruthEnabled||Truth->LastFrame.IsValid()||Truth->IsBusy());Test->TestTrue(TEXT("off is visible in actual preview state"),Monitor->CameraTruthStatus.ToString().Contains(TEXT("꺼짐")));Test->TestTrue(TEXT("disabled truth mode falls back to actual RGB instead of a white image"),Monitor->NativeViewBrush.GetResourceObject()==Camera->CaptureComp->GetCameraRenderTarget());Camera->StopSensor();
             Data->DatasetDraft.Name=TEXT("UXR15_toggle");Data->DatasetDraft.Scenes=1;Data->DatasetDraft.SettleFrames=1;Data->DatasetSlab=Slab;Data->DatasetCamera=Camera;Data->DatasetLidar=Lidar;Data->DatasetLight=Light;DatasetControls=Data->BuildOwnedDatasetControls();
             Service->OnSceneSnapshotForTests=[this](const FJsonObject& Label)
             {
-                ++DatasetSnapshots;Test->TestEqual(TEXT("UI dataset Camera truth reaches actual capture component"),Camera->CaptureComponent->bGroundTruthEnabled,WithTruth);Test->TestEqual(TEXT("UI dataset fidelity reaches all scan flags"),Lidar->ScanComponent->bUseRollingPointTimestamps&&Lidar->ScanComponent->bEnableMotionDistortion&&Lidar->ScanComponent->bEnableMaterialResponse,WithTruth);
+                ++DatasetSnapshots;Test->TestEqual(TEXT("UI dataset Camera truth reaches actual capture component"),Camera->CaptureComp->bGroundTruthEnabled,WithTruth);Test->TestEqual(TEXT("UI dataset fidelity reaches all scan flags"),Lidar->ScanComp->bUseRollingPointTimestamps&&Lidar->ScanComp->bEnableMotionDistortion&&Lidar->ScanComp->bEnableMaterialResponse,WithTruth);
                 FString Random;FJsonSerializer::Serialize(Label.GetObjectField(TEXT("random_values")).ToSharedRef(),TJsonWriterFactory<>::Create(&Random));TSharedPtr<FJsonObject> A,B;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Random),A);FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(ExpectedRandom),B);Test->TestTrue(TEXT("all UI range switches affect actual sampled output"),A&&B&&FJsonValue::CompareEqual(FJsonValueObject(A),FJsonValueObject(B)));
             };
             ConfigureDataset(true);Phase=4;return false;

@@ -3,7 +3,7 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabLabelLayout.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
-#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComp.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabLabelLayoutTest,"MA0T10.UI02.PriorityExclusionsAndDistance",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabLabelLayoutTest::RunTest(const FString&)
@@ -38,7 +38,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabLabelLifecycleTest,"MA0T10.UI02.DetailSele
 bool FSlabLabelLifecycleTest::RunTest(const FString&)
 {
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* Slab=World->SpawnActor<ASlabActor>();
-    auto* V=Slab->FindComponentByClass<USlabVisualizationComponent>();
+    auto* V=Slab->FindComponentByClass<USlabVisualizationComp>();
     const int32 Pool=V->GetOwnedHelperCount();const auto Original=Slab->GetAnalysisDisplaySettings();
     TestFalse(TEXT("detail labels initially off"),Slab->GetDetailedDiagnosticLabels());
     for(int32 I=0;I<20;++I){Slab->SetDetailedDiagnosticLabels(true);Slab->SetDiagnosticHelpersVisible(false);Slab->SetDiagnosticHelpersVisible(true);TestTrue(TEXT("master hide preserves detail choice"),Slab->GetDetailedDiagnosticLabels());Slab->SetDetailedDiagnosticLabels(false);}

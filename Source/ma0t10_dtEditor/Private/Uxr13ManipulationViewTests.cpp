@@ -3,10 +3,10 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorPlacementInteraction.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/SensorPlacementInteraction.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
@@ -51,7 +51,7 @@ public:
         {
             AVirtualSensorActorBase* Target=C->GetSelectedSensorActor();if(!Target){Test->AddError(TEXT("UXR13 lost selection"));return true;}
             ViewBefore=C->GetViewMode();
-            auto* Placement=Cast<UVirtualSensorPlacementPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));
+            auto* Placement=Cast<UDxWidgetVirtualSensorPlacementPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));
             const bool bBegan=Placement&&Placement->SetSelectedManipulating(true);
             Test->TestTrue(FString::Printf(TEXT("placement starts 이동·회전 (%s)"),Placement?*Placement->GetPlacementStatusText():TEXT("no panel")),bBegan);
             Test->TestTrue(TEXT("interaction active"),W->GetPlacementInteraction()->IsManipulating());
@@ -63,11 +63,11 @@ public:
             Path=(Root.IsEmpty()?FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-13"):Root)/TEXT("rendered-1920x1080-manipulation-guide.png");
             Phase=1;Next=FPlatformTime::Seconds()+.8;return false;
         }
-        if(Phase==1){if(auto* Pl=Cast<UVirtualSensorPlacementPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Placement)))Test->AddInfo(FString::Printf(TEXT("UXR13 phase1 manipulating=%d status=%s focus=%s"),W->GetPlacementInteraction()->IsManipulating(),*Pl->GetPlacementStatusText(),App.GetKeyboardFocusedWidget().IsValid()?*App.GetKeyboardFocusedWidget()->GetTypeAsString():TEXT("none")));Previous=IFileManager::Get().GetTimeStamp(*Path);App.CloseToolTip();FScreenshotRequest::RequestScreenshot(Path,true,false);Phase=2;return false;}
+        if(Phase==1){if(auto* Pl=Cast<UDxWidgetVirtualSensorPlacementPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Placement)))Test->AddInfo(FString::Printf(TEXT("UXR13 phase1 manipulating=%d status=%s focus=%s"),W->GetPlacementInteraction()->IsManipulating(),*Pl->GetPlacementStatusText(),App.GetKeyboardFocusedWidget().IsValid()?*App.GetKeyboardFocusedWidget()->GetTypeAsString():TEXT("none")));Previous=IFileManager::Get().GetTimeStamp(*Path);App.CloseToolTip();FScreenshotRequest::RequestScreenshot(Path,true,false);Phase=2;return false;}
         if(Phase==2&&IFileManager::Get().GetTimeStamp(*Path)<=Previous)return false;
         Test->AddInfo(FString::Printf(TEXT("UXR13 render %s"),*Path));
         Test->TestTrue(TEXT("still moving when the frame was captured"),W->GetPlacementInteraction()->IsManipulating());
-        auto* Placement=Cast<UVirtualSensorPlacementPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));
+        auto* Placement=Cast<UDxWidgetVirtualSensorPlacementPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));
         Test->TestTrue(TEXT("placement ends 이동·회전"),Placement&&Placement->SetSelectedManipulating(false));
         Test->TestFalse(TEXT("key guide hidden after end"),Bar&&Bar->IsOwnedManipulationActive());
         Test->TestEqual(TEXT("view still unchanged after end"),C->GetViewMode(),ViewBefore);

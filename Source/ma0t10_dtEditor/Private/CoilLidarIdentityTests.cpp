@@ -3,16 +3,16 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
+#include "ma0t10_dt/MA0T10/Coil/CoilLoadingSimulation.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualSensorRecorderComponent.h"
+#include "Device/Sensor/VirtualSensorRecorderComp.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "Device/Core/VirtualSensorLayoutSubsystem.h"
 #include "Device/Core/VirtualSensorPlacementSubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiPreferences.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
 #include "Device/Transport/VirtualPointCloudStreamReceiverTC.h"
 #include "Device/Sensor/VirtualPcdCodec.h"
 #include "EngineUtils.h"
@@ -30,9 +30,9 @@ bool FCoilIdentityRecording::RunTest(const FString&)
     TestEqual(TEXT("exact legacy alias"),VirtualSensorIdentity::Canonical(TEXT("Coil.Quay.XT32")),FString(TEXT("os_lidar_coil_quay")));
     TestEqual(TEXT("custom IDs are preserved"),VirtualSensorIdentity::Canonical(TEXT("Coil.Quay.XT32.custom")),FString(TEXT("Coil.Quay.XT32.custom")));
     FVirtualSensorEditableState State;FString Error;State.TargetKind=EVirtualSensorTargetKind::Lidar;State.SensorId=VirtualSensorIdentity::LegacyCoilQuay;
-    TestFalse(TEXT("old ID cannot bypass UI duplicate validation"),UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(State,{VirtualSensorIdentity::CoilQuay},Error));
+    TestFalse(TEXT("old ID cannot bypass UI duplicate validation"),UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State,{VirtualSensorIdentity::CoilQuay},Error));
     State.SensorId=VirtualSensorIdentity::CoilQuay;
-    TestFalse(TEXT("new ID conflicts with a legacy-loaded peer"),UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(State,{VirtualSensorIdentity::LegacyCoilQuay},Error));
+    TestFalse(TEXT("new ID conflicts with a legacy-loaded peer"),UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(State,{VirtualSensorIdentity::LegacyCoilQuay},Error));
     TMap<FString,int32> BothKeys={{VirtualSensorIdentity::LegacyCoilQuay,2},{VirtualSensorIdentity::CoilQuay,4}};
     VirtualSensorIdentity::MigrateCoilQuayKey(BothKeys);
     TestEqual(TEXT("explicit canonical saved choice wins over legacy fallback"),BothKeys.FindRef(VirtualSensorIdentity::CoilQuay),4);
@@ -44,7 +44,7 @@ bool FCoilIdentityRecording::RunTest(const FString&)
     Frame->SetNumberField(TEXT("frameId"),17);Frame->SetStringField(TEXT("timestampUtc"),TEXT("2026-10-25T00:00:00.000Z"));Frame->SetStringField(TEXT("payloadJson"),Payload);
     auto Session=MakeShared<FJsonObject>();Session->SetArrayField(TEXT("frames"),{MakeShared<FJsonValueObject>(Frame)});
     FString Text;FJsonSerializer::Serialize(Session,TJsonWriterFactory<>::Create(&Text));const FString Path=Directory/TEXT("legacy-recording.json");
-    TestTrue(TEXT("write legacy fixture"),FFileHelper::SaveStringToFile(Text,*Path));auto* Recorder=NewObject<UVirtualSensorRecorderComponent>();
+    TestTrue(TEXT("write legacy fixture"),FFileHelper::SaveStringToFile(Text,*Path));auto* Recorder=NewObject<UVirtualSensorRecorderComp>();
     TestTrue(TEXT("production session loader accepts old ID"),Recorder->LoadSessionFromFile(Path));FVirtualSensorRecordedFrame Loaded;
     TestTrue(TEXT("loaded frame"),Recorder->GetRecordedFrame(0,Loaded));TestEqual(TEXT("recording wrapper canonical"),Loaded.SensorId,FString(VirtualSensorIdentity::CoilQuay));
     TSharedPtr<FJsonObject> Object;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Loaded.PayloadJson),Object);
@@ -92,10 +92,10 @@ public:
         {
             auto* Layout=C.World()->GetSubsystem<UVirtualSensorLayoutSubsystem>();
             auto* Coordinator=Layout?Layout->Coordinator():nullptr;
-            if(!Coordinator||!Coordinator->GetDeviceCoordinatorConfig().StreamPublisherComponent)return false;
+            if(!Coordinator||!Coordinator->GetDeviceCoordinatorConfig().StreamPublisherComp)return false;
             auto* Sensor=It->Lidar.Get();
             Test->TestEqual(TEXT("new scene displays canonical role ID"),Sensor->GetSensorId(),FString(VirtualSensorIdentity::CoilQuay));
-            auto* Publisher=Coordinator->GetDeviceCoordinatorConfig().StreamPublisherComponent;
+            auto* Publisher=Coordinator->GetDeviceCoordinatorConfig().StreamPublisherComp;
             auto Stream=Publisher->GetEffectiveStreamConfig(EVirtualSensorStreamKind::PointCloud,Sensor->GetSensorId());
             Stream.bEnabled=false;Stream.SensorId=VirtualSensorIdentity::LegacyCoilQuay;Publisher->ConfigureStream(Stream);Sensor->StopSensor();
             Test->TestEqual(TEXT("old output configuration resolves to same stream"),Publisher->GetEffectiveStreamConfig(Stream.StreamKind,VirtualSensorIdentity::CoilQuay).SensorId,FString(VirtualSensorIdentity::CoilQuay));

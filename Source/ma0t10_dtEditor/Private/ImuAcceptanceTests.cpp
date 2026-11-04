@@ -5,16 +5,16 @@
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualImuComponent.h"
-#include "Device/Sensor/VirtualSensorRecorderComponent.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualImuComp.h"
+#include "Device/Sensor/VirtualSensorRecorderComp.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Core/VirtualSensorFileSaveSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/Automation/AutomationControlSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Manager/Automation/AutomationControlSubsystem.h"
+#include "ma0t10_dt/MA0T10/Dataset/VirtualDatasetSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "EngineUtils.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
@@ -43,16 +43,16 @@ public:
             if(!Coordinator)return false;
             for(auto* A:Coordinator->GetSensorActors()){A->StopSensor();if(auto* L=Cast<AVirtualLidarSensorActor>(A))Sensor=L;}
             if(!Sensor.IsValid()){Test->AddError(TEXT("IMU fixture LiDAR missing"));return true;}
-            Test->TestNull(TEXT("IMU absent before explicit attachment"),Sensor->FindComponentByClass<UVirtualImuComponent>());
+            Test->TestNull(TEXT("IMU absent before explicit attachment"),Sensor->FindComponentByClass<UVirtualImuComp>());
             Before=Sensor->GetActorTransform();Coordinator->SelectSensorActor(Sensor.Get());Workspace->SynchronizeOwnedSelection();
             Workspace->ResetOwnedWorkspaceLayout();Workspace->SetOwnedPanelFontScale(1);Workspace->SetPanelOpen(ESensorToolPanelRole::Placement,true);
             for(auto Role:{ESensorToolPanelRole::Settings,ESensorToolPanelRole::Data,ESensorToolPanelRole::Replay,ESensorToolPanelRole::Monitor})Workspace->SetPanelOpen(Role,false);
             if(Auto)
             {
-                auto* C=UVirtualImuComponent::Attach(Sensor.Get());FVirtualImuConfig Config;Config.Noise=false;FString Error;C->Configure(Config,Error);C->SetRecording(true);
+                auto* C=UVirtualImuComp::Attach(Sensor.Get());FVirtualImuConfig Config;Config.Noise=false;FString Error;C->Configure(Config,Error);C->SetRecording(true);
                 if(FParse::Param(FCommandLine::Get(),TEXT("ImuBroker")))
                 {
-                    auto* Transport=Coordinator->SharedTransportComponent.Get();auto Profile=Transport->GetTransportProfile();Profile.BrokerUrl=TEXT("ws://127.0.0.1:61616");
+                    auto* Transport=Coordinator->SharedTransportComp.Get();auto Profile=Transport->GetTransportProfile();Profile.BrokerUrl=TEXT("ws://127.0.0.1:61616");
                     Profile.UserName=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_STOMP_USER"));
                     Transport->SetSessionCredentials(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_STOMP_PASSWORD")),TEXT(""));Transport->ConfigureTransportProfile(Profile);Transport->TransportMode=EVirtualSensorTransportMode::StompWebSocket;C->SetPublishing(true);
                 }
@@ -65,14 +65,14 @@ public:
         const double Elapsed=FPlatformTime::Seconds()-Ready,Time=W->GetTimeSeconds()-MotionEpoch;
         if(!Sensor.IsValid()){Test->AddError(TEXT("IMU sensor deleted"));return true;}
         auto Pose=Before;Pose.AddToTranslation(FVector(20*FMath::Sin(2*PI*Time),0,0));Pose.SetRotation(Before.GetRotation()*FQuat(FVector::UpVector,.25*Time));Sensor->SetActorTransform(Pose);
-        auto* C=Sensor->FindComponentByClass<UVirtualImuComponent>();
+        auto* C=Sensor->FindComponentByClass<UVirtualImuComp>();
         if(Auto&&Elapsed>8&&!Requested)
         {
             Test->TestTrue(TEXT("PIE fixed-step samples acquired"),C&&C->SampleCount>1000);
             if(C){C->SetRecording(false);Request=C->SaveCsv();FString Text;FJsonSerializer::Serialize(C->StatusJson(),TJsonWriterFactory<>::Create(&Text));FFileHelper::SaveStringToFile(Text,*(Root()/TEXT("status.json")));}
             if(FParse::Param(FCommandLine::Get(),TEXT("ImuBroker")))
             {
-                bool Received=false;for(const auto& S:Coordinator->StreamPublisherComponent->GetStreamStatuses())if(S.StreamKind==EVirtualSensorStreamKind::Imu){Received|=S.ReceiptReceivedCount>0;Test->TestTrue(TEXT("IMU messages submitted"),S.SubmittedFrameCount>0);}
+                bool Received=false;for(const auto& S:Coordinator->StreamPublisherComp->GetStreamStatuses())if(S.StreamKind==EVirtualSensorStreamKind::Imu){Received|=S.ReceiptReceivedCount>0;Test->TestTrue(TEXT("IMU messages submitted"),S.SubmittedFrameCount>0);}
                 Test->TestTrue(TEXT("Artemis IMU receipt received"),Received);C->SetPublishing(false);
             }
             Requested=true;
@@ -113,8 +113,8 @@ public:
         UWorld* W=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)W=C.World();if(!W||!FinalAcceptanceViewportReady(W))return false;
         auto* Service=W->GetSubsystem<UVirtualDatasetSubsystem>();
         if(Stage==0)
-        {for(TActorIterator<AVirtualLidarSensorActor> I(W);I;++I){Lidar=*I;I->StopSensor();UVirtualImuComponent::Attach(*I);break;}Stage=1;return false;}
-        auto* C=Lidar.IsValid()?Lidar->FindComponentByClass<UVirtualImuComponent>():nullptr;if(!C||!C->HasSample())return false;
+        {for(TActorIterator<AVirtualLidarSensorActor> I(W);I;++I){Lidar=*I;I->StopSensor();UVirtualImuComp::Attach(*I);break;}Stage=1;return false;}
+        auto* C=Lidar.IsValid()?Lidar->FindComponentByClass<UVirtualImuComp>():nullptr;if(!C||!C->HasSample())return false;
         if(Stage==1)
         {
             ASlabActor* Slab=nullptr;AVirtualCameraSensorActor* Camera=nullptr;for(TActorIterator<ASlabActor> I(W);I;++I){Slab=*I;break;}for(TActorIterator<AVirtualCameraSensorActor> I(W);I;++I){Camera=*I;Camera->StopSensor();break;}

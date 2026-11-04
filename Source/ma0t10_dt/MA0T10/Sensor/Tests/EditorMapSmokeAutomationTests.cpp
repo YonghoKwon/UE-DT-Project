@@ -11,12 +11,12 @@
 #include "HAL/FileManager.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiHostActor.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEditorMapAssetsLoadTest, "MA0T10.EditorSmoke.MapAssetsLoad", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEditorMapSensorCompositionTest, "MA0T10.EditorSmoke.MapSensorComposition", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -105,16 +105,16 @@ void AddMapComposition(UWorld* LoadedWorld, FEditorSmokeMapSummary& Summary)
             ++Summary.LidarActorCount;
             const AVirtualLidarSensorActor* LidarActor = CastChecked<AVirtualLidarSensorActor>(Actor);
             Summary.bLidarPlacementRealistic |= FMath::IsNearlyEqual(Actor->GetActorLocation().Z, 150.0f, 1.0f);
-            Summary.bLegacyLidarDebugDisabled |= LidarActor->ScanComponent && !LidarActor->ScanComponent->bDrawDebugRays;
-            Summary.bLidarPointCloudPreviewEnabled |= LidarActor->ScanComponent && LidarActor->ScanComponent->IsPointCloudPreviewEnabled();
+            Summary.bLegacyLidarDebugDisabled |= LidarActor->ScanComp && !LidarActor->ScanComp->bDrawDebugRays;
+            Summary.bLidarPointCloudPreviewEnabled |= LidarActor->ScanComp && LidarActor->ScanComp->IsPointCloudPreviewEnabled();
         }
         if (Actor->IsA<AVirtualCameraSensorActor>())
         {
             ++Summary.CameraActorCount;
             Summary.bCameraPlacementRealistic |= FMath::IsNearlyEqual(Actor->GetActorLocation().Z, 170.0f, 1.0f);
 			const AVirtualCameraSensorActor* CameraActor = CastChecked<AVirtualCameraSensorActor>(Actor);
-			Summary.bOverheadCameraConfigured |= CameraActor->CaptureComponent &&
-				CameraActor->CaptureComponent->SensorId == TEXT("VCAM-TEST-002") &&
+			Summary.bOverheadCameraConfigured |= CameraActor->CaptureComp &&
+				CameraActor->CaptureComp->SensorId == TEXT("VCAM-TEST-002") &&
 				FMath::IsNearlyEqual(Actor->GetActorLocation().Z, 1000.0f, 1.0f) &&
 				FMath::IsNearlyEqual(Actor->GetActorRotation().Pitch, -90.0f, 0.1f);
         }

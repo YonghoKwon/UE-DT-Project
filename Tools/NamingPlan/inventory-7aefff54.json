@@ -1,0 +1,1686 @@
+{
+ "Types": 341,
+ "Rows": [
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualCameraCaptureComponent",
+   "Parent": "USceneCaptureComponent2D",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Camera/VirtualCameraCaptureComponent.h",
+   "Chain": [
+    "UVirtualCameraCaptureComponent",
+    "USceneCaptureComponent2D"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualCameraGroundTruth",
+   "Parent": "UActorComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Camera/VirtualCameraGroundTruth.h",
+   "Chain": [
+    "UVirtualCameraGroundTruth",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": "UVirtualCameraGroundTruthComp",
+   "Note": "component without Comp/Component suffix"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AVirtualCameraSensorActor",
+   "Parent": "AVirtualSensorActorBase",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Camera/VirtualCameraSensorActor.h",
+   "Chain": [
+    "AVirtualCameraSensorActor",
+    "AVirtualSensorActorBase",
+    "AInteractableActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UDeviceSensorAssetSettings",
+   "Parent": "UDeveloperSettings",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Core/DeviceSensorAssetSettings.h",
+   "Chain": [
+    "UDeviceSensorAssetSettings",
+    "UDeveloperSettings"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorFileSaveSubsystem",
+   "Parent": "UTickableWorldSubsystem",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Core/VirtualSensorFileSaveSubsystem.h",
+   "Chain": [
+    "UVirtualSensorFileSaveSubsystem",
+    "UTickableWorldSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorHighThroughputTransportSubsystem",
+   "Parent": "UTickableWorldSubsystem",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Core/VirtualSensorHighThroughputTransportSubsystem.h",
+   "Chain": [
+    "UVirtualSensorHighThroughputTransportSubsystem",
+    "UTickableWorldSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorLayoutSubsystem",
+   "Parent": "UTickableWorldSubsystem",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Core/VirtualSensorLayoutSubsystem.h",
+   "Chain": [
+    "UVirtualSensorLayoutSubsystem",
+    "UTickableWorldSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorOutputPreflight",
+   "Parent": "UBlueprintFunctionLibrary",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Core/VirtualSensorOutputPreflight.h",
+   "Chain": [
+    "UVirtualSensorOutputPreflight",
+    "UBlueprintFunctionLibrary"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorPeriodicFileSaveSubsystem",
+   "Parent": "UTickableWorldSubsystem",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Core/VirtualSensorPeriodicFileSaveSubsystem.h",
+   "Chain": [
+    "UVirtualSensorPeriodicFileSaveSubsystem",
+    "UTickableWorldSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorPlacementSubsystem",
+   "Parent": "UTickableWorldSubsystem",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Core/VirtualSensorPlacementSubsystem.h",
+   "Chain": [
+    "UVirtualSensorPlacementSubsystem",
+    "UTickableWorldSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorSchedulerSubsystem",
+   "Parent": "UTickableWorldSubsystem",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Core/VirtualSensorSchedulerSubsystem.h",
+   "Chain": [
+    "UVirtualSensorSchedulerSubsystem",
+    "UTickableWorldSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorStreamPublisherComponent",
+   "Parent": "UActorComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Core/VirtualSensorStreamPublisherComponent.h",
+   "Chain": [
+    "UVirtualSensorStreamPublisherComponent",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": "UVirtualSensorStreamPublisherComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UCameraJsonLiveSourceComponent",
+   "Parent": "URealSensorSourceComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/CameraJsonLiveSourceComponent.h",
+   "Chain": [
+    "UCameraJsonLiveSourceComponent",
+    "URealSensorSourceComponent",
+    "USceneComponent"
+   ],
+   "Component": true,
+   "Rename": "UCameraJsonLiveSourceComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ACsvPointCloudPreviewActor",
+   "Parent": "AActor",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/CsvPointCloudPreviewActor.h",
+   "Chain": [
+    "ACsvPointCloudPreviewActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ADeviceSensorCoordinator",
+   "Parent": "AActor",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/DeviceSensorCoordinator.h",
+   "Chain": [
+    "ADeviceSensorCoordinator",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ULidarCsvReplaySourceComponent",
+   "Parent": "URealSensorSourceComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/LidarCsvReplaySourceComponent.h",
+   "Chain": [
+    "ULidarCsvReplaySourceComponent",
+    "URealSensorSourceComponent",
+    "USceneComponent"
+   ],
+   "Component": true,
+   "Rename": "ULidarCsvReplaySourceComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ULidarHttpJsonLiveSourceComponent",
+   "Parent": "ULidarJsonLiveSourceComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/LidarHttpJsonLiveSourceComponent.h",
+   "Chain": [
+    "ULidarHttpJsonLiveSourceComponent",
+    "ULidarJsonLiveSourceComponent",
+    "URealSensorSourceComponent",
+    "USceneComponent"
+   ],
+   "Component": true,
+   "Rename": "ULidarHttpJsonLiveSourceComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ULidarJsonLinesReplaySourceComponent",
+   "Parent": "URealSensorSourceComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/LidarJsonLinesReplaySourceComponent.h",
+   "Chain": [
+    "ULidarJsonLinesReplaySourceComponent",
+    "URealSensorSourceComponent",
+    "USceneComponent"
+   ],
+   "Component": true,
+   "Rename": "ULidarJsonLinesReplaySourceComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ULidarJsonLiveSourceComponent",
+   "Parent": "URealSensorSourceComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/LidarJsonLiveSourceComponent.h",
+   "Chain": [
+    "ULidarJsonLiveSourceComponent",
+    "URealSensorSourceComponent",
+    "USceneComponent"
+   ],
+   "Component": true,
+   "Rename": "ULidarJsonLiveSourceComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ULidarPlayerDisplayComponent",
+   "Parent": "ULineBatchComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/LidarPlayerDisplayComponent.h",
+   "Chain": [
+    "ULidarPlayerDisplayComponent",
+    "ULineBatchComponent"
+   ],
+   "Component": true,
+   "Rename": "ULidarPlayerDisplayComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ULidarUdpJsonLiveSourceComponent",
+   "Parent": "ULidarJsonLiveSourceComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/LidarUdpJsonLiveSourceComponent.h",
+   "Chain": [
+    "ULidarUdpJsonLiveSourceComponent",
+    "ULidarJsonLiveSourceComponent",
+    "URealSensorSourceComponent",
+    "USceneComponent"
+   ],
+   "Component": true,
+   "Rename": "ULidarUdpJsonLiveSourceComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "URos2SensorBridgeSourceComponent",
+   "Parent": "URealSensorSourceComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/RealSensorAdapterStubs.h",
+   "Chain": [
+    "URos2SensorBridgeSourceComponent",
+    "URealSensorSourceComponent",
+    "USceneComponent"
+   ],
+   "Component": true,
+   "Rename": "URos2SensorBridgeSourceComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ULivoxLidarSourceComponent",
+   "Parent": "URealSensorSourceComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/RealSensorAdapterStubs.h",
+   "Chain": [
+    "ULivoxLidarSourceComponent",
+    "URealSensorSourceComponent",
+    "USceneComponent"
+   ],
+   "Component": true,
+   "Rename": "ULivoxLidarSourceComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "URealSenseCameraSourceComponent",
+   "Parent": "URealSensorSourceComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/RealSensorAdapterStubs.h",
+   "Chain": [
+    "URealSenseCameraSourceComponent",
+    "URealSensorSourceComponent",
+    "USceneComponent"
+   ],
+   "Component": true,
+   "Rename": "URealSenseCameraSourceComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "URealSensorSourceComponent",
+   "Parent": "USceneComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/RealSensorSourceComponent.h",
+   "Chain": [
+    "URealSensorSourceComponent",
+    "USceneComponent"
+   ],
+   "Component": true,
+   "Rename": "URealSensorSourceComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualImuComponent",
+   "Parent": "USceneComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/VirtualImuComponent.h",
+   "Chain": [
+    "UVirtualImuComponent",
+    "USceneComponent"
+   ],
+   "Component": true,
+   "Rename": "UVirtualImuComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualLidarAnalysisComponent",
+   "Parent": "UActorComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/VirtualLidarAnalysisComponent.h",
+   "Chain": [
+    "UVirtualLidarAnalysisComponent",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": "UVirtualLidarAnalysisComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualLidarExportComponent",
+   "Parent": "UActorComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/VirtualLidarExportComponent.h",
+   "Chain": [
+    "UVirtualLidarExportComponent",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": "UVirtualLidarExportComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualLidarGpuDepthProjectionComponent",
+   "Parent": "USceneCaptureComponent2D",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h",
+   "Chain": [
+    "UVirtualLidarGpuDepthProjectionComponent",
+    "USceneCaptureComponent2D"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualLidarScanComponent",
+   "Parent": "USceneComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/VirtualLidarScanComponent.h",
+   "Chain": [
+    "UVirtualLidarScanComponent",
+    "USceneComponent"
+   ],
+   "Component": true,
+   "Rename": "UVirtualLidarScanComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AVirtualLidarSensorActor",
+   "Parent": "AVirtualSensorActorBase",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/VirtualLidarSensorActor.h",
+   "Chain": [
+    "AVirtualLidarSensorActor",
+    "AVirtualSensorActorBase",
+    "AInteractableActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualLidarSurfaceResponseComponent",
+   "Parent": "UActorComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/VirtualLidarSurfaceResponseComponent.h",
+   "Chain": [
+    "UVirtualLidarSurfaceResponseComponent",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": "UVirtualLidarSurfaceResponseComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualLidarVisualizationComponent",
+   "Parent": "UStatusVisualizerCompBase",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/VirtualLidarVisualizationComponent.h",
+   "Chain": [
+    "UVirtualLidarVisualizationComponent",
+    "UStatusVisualizerCompBase",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": "UVirtualLidarVisualizationComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AVirtualSensorActorBase",
+   "Parent": "AInteractableActor",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/VirtualSensorActorBase.h",
+   "Chain": [
+    "AVirtualSensorActorBase",
+    "AInteractableActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AVirtualSensorExternalSourceHostActor",
+   "Parent": "AActor",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/VirtualSensorExternalSourceHostActor.h",
+   "Chain": [
+    "AVirtualSensorExternalSourceHostActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorOutputComponent",
+   "Parent": "UActorComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/VirtualSensorOutputComponent.h",
+   "Chain": [
+    "UVirtualSensorOutputComponent",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": "UVirtualSensorOutputComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorRecorderComponent",
+   "Parent": "UActorComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/VirtualSensorRecorderComponent.h",
+   "Chain": [
+    "UVirtualSensorRecorderComponent",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": "UVirtualSensorRecorderComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorTransportComponent",
+   "Parent": "UActorComponent",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Sensor/VirtualSensorTransportComponent.h",
+   "Chain": [
+    "UVirtualSensorTransportComponent",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": "UVirtualSensorTransportComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ULidarJsonLiveFrameTC",
+   "Parent": "UTransactionCodeMessage",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Transport/LidarJsonLiveFrameTC.h",
+   "Chain": [
+    "ULidarJsonLiveFrameTC",
+    "UTransactionCodeMessage",
+    "UObject"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualCameraStreamReceiverTC",
+   "Parent": "UTransactionCodeMessage",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Transport/VirtualCameraStreamReceiverTC.h",
+   "Chain": [
+    "UVirtualCameraStreamReceiverTC",
+    "UTransactionCodeMessage",
+    "UObject"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualLidarStreamReceiverTC",
+   "Parent": "UTransactionCodeMessage",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Transport/VirtualLidarStreamReceiverTC.h",
+   "Chain": [
+    "UVirtualLidarStreamReceiverTC",
+    "UTransactionCodeMessage",
+    "UObject"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualPointCloudStreamReceiverTC",
+   "Parent": "UTransactionCodeMessage",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceRuntime/Public/Device/Transport/VirtualPointCloudStreamReceiverTC.h",
+   "Chain": [
+    "UVirtualPointCloudStreamReceiverTC",
+    "UTransactionCodeMessage",
+    "UObject"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ADeviceSensorMonitorHostActor",
+   "Parent": "AActor",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceUI/Public/DeviceUI/DeviceSensorMonitorHostActor.h",
+   "Chain": [
+    "ADeviceSensorMonitorHostActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UDeviceSensorMonitorPanel",
+   "Parent": "UDeviceSensorPanelBase",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceUI/Public/DeviceUI/DeviceSensorMonitorPanel.h",
+   "Chain": [
+    "UDeviceSensorMonitorPanel",
+    "UDeviceSensorPanelBase",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxDeviceSensorMonitorPanel"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UDeviceSensorPanelBase",
+   "Parent": "UDxWidget",
+   "Owner": "DTDevice",
+   "File": "Source/DeviceUI/Public/DeviceUI/DeviceSensorPanelBase.h",
+   "Chain": [
+    "UDeviceSensorPanelBase",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxDeviceSensorPanelBase"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UCraneInfoGetByBittInOracle",
+   "Parent": "UApiMessage",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Api/Handler/CraneInfoGetByBittInOracle.h",
+   "Chain": [
+    "UCraneInfoGetByBittInOracle",
+    "UApiMessage",
+    "UObject"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ACrane",
+   "Parent": "AFacilityBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Crane/Crane.h",
+   "Chain": [
+    "ACrane",
+    "AFacilityBase",
+    "AInteractableActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UCraneDataSyncComp",
+   "Parent": "UDataSyncCompBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Crane/CraneDataSyncComp.h",
+   "Chain": [
+    "UCraneDataSyncComp",
+    "UDataSyncCompBase",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": null
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UCraneMechDriverComp",
+   "Parent": "UMechDriverCompBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Crane/CraneMechDriverComp.h",
+   "Chain": [
+    "UCraneMechDriverComp",
+    "UMechDriverCompBase",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": null
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UCraneStatusVisualizerComp",
+   "Parent": "UStatusVisualizerCompBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Crane/CraneStatusVisualizerComp.h",
+   "Chain": [
+    "UCraneStatusVisualizerComp",
+    "UStatusVisualizerCompBase",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": null
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AFacilityBase",
+   "Parent": "AInteractableActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/InteractableActor/FacilityBase.h",
+   "Chain": [
+    "AFacilityBase",
+    "AInteractableActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AVesselBase",
+   "Parent": "AInteractableActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/InteractableActor/VesselBase.h",
+   "Chain": [
+    "AVesselBase",
+    "AInteractableActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UDxApiServiceTest",
+   "Parent": "UObject",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Manager/DxApiServiceTest.h",
+   "Chain": [
+    "UDxApiServiceTest",
+    "UObject"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ADxLevelManagerBasic",
+   "Parent": "ADxLevelManagerBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Manager/DxLevelManagerBasic.h",
+   "Chain": [
+    "ADxLevelManagerBasic",
+    "ADxLevelManagerBase",
+    "AActor"
+   ],
+   "DxRoot": "ADxLevelManagerBase"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ADxLevelManagerTest",
+   "Parent": "ADxLevelManagerBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Manager/DxLevelManagerTest.h",
+   "Chain": [
+    "ADxLevelManagerTest",
+    "ADxLevelManagerBase",
+    "AActor"
+   ],
+   "DxRoot": "ADxLevelManagerBase"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ADxPlayerControllerTest",
+   "Parent": "ADxPlayerControllerBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Player/DxPlayerControllerTest.h",
+   "Chain": [
+    "ADxPlayerControllerTest",
+    "ADxPlayerControllerBase",
+    "APlayerController"
+   ],
+   "DxRoot": "ADxPlayerControllerBase"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ADxPlayerTest",
+   "Parent": "ADxPlayerBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Player/DxPlayerTest.h",
+   "Chain": [
+    "ADxPlayerTest",
+    "ADxPlayerBase",
+    "APawn"
+   ],
+   "DxRoot": "ADxPlayerBase"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UAgentTestSetSubsystem",
+   "Parent": "UWorldSubsystem",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/AgentTestSetSubsystem.h",
+   "Chain": [
+    "UAgentTestSetSubsystem",
+    "UWorldSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UAutomationControlSubsystem",
+   "Parent": "UWorldSubsystem",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/Automation/AutomationControlSubsystem.h",
+   "Chain": [
+    "UAutomationControlSubsystem",
+    "UWorldSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ACoilLoadingGameMode",
+   "Parent": "AGameModeBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h",
+   "Chain": [
+    "ACoilLoadingGameMode",
+    "AGameModeBase"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UCoilLoadingSaveGame",
+   "Parent": "USaveGame",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h",
+   "Chain": [
+    "UCoilLoadingSaveGame",
+    "USaveGame"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ACoilLoadingBody",
+   "Parent": "AInteractableActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h",
+   "Chain": [
+    "ACoilLoadingBody",
+    "AInteractableActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ACoilLoadingSimulation",
+   "Parent": "AInteractableActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h",
+   "Chain": [
+    "ACoilLoadingSimulation",
+    "AInteractableActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AShipHatchPart",
+   "Parent": "AInteractableActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h",
+   "Chain": [
+    "AShipHatchPart",
+    "AInteractableActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AShipHatchVessel",
+   "Parent": "AInteractableActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h",
+   "Chain": [
+    "AShipHatchVessel",
+    "AInteractableActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AShipHatchSimulation",
+   "Parent": "AInteractableActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h",
+   "Chain": [
+    "AShipHatchSimulation",
+    "AInteractableActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USlabRunResultsSubsystem",
+   "Parent": "UTickableWorldSubsystem",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h",
+   "Chain": [
+    "USlabRunResultsSubsystem",
+    "UTickableWorldSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USlabScenarioReplaySubsystem",
+   "Parent": "UGameInstanceSubsystem",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h",
+   "Chain": [
+    "USlabScenarioReplaySubsystem",
+    "UGameInstanceSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UTrainBatchCoordinatorProbe",
+   "Parent": "UWorldSubsystem",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/Training/TrainBatchCoordinatorProbe.h",
+   "Chain": [
+    "UTrainBatchCoordinatorProbe",
+    "UWorldSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UTrainBatchSubsystem",
+   "Parent": "UWorldSubsystem",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/Training/TrainBatchSubsystem.h",
+   "Chain": [
+    "UTrainBatchSubsystem",
+    "UWorldSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UTrainBatchWorkerSubsystem",
+   "Parent": "UWorldSubsystem",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/Training/TrainBatchWorkerSubsystem.h",
+   "Chain": [
+    "UTrainBatchWorkerSubsystem",
+    "UWorldSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualDatasetSubsystem",
+   "Parent": "UWorldSubsystem",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.h",
+   "Chain": [
+    "UVirtualDatasetSubsystem",
+    "UWorldSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorSlabContextSubsystem",
+   "Parent": "UTickableWorldSubsystem",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h",
+   "Chain": [
+    "UVirtualSensorSlabContextSubsystem",
+    "UTickableWorldSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ALidarGeometryValidationRig",
+   "Parent": "AActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Sensor/Tests/LidarGeometryValidationRig.h",
+   "Chain": [
+    "ALidarGeometryValidationRig",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USensorWorkspaceForeignFixture",
+   "Parent": "UVirtualSensorPanelWidgetBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Sensor/Tests/SensorWorkspaceForeignFixture.h",
+   "Chain": [
+    "USensorWorkspaceForeignFixture",
+    "UVirtualSensorPanelWidgetBase",
+    "UDeviceSensorPanelBase",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetSensorWorkspaceForeignFixture"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ASlabScenarioReplayTestAdapter",
+   "Parent": "AActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioReplayTestAdapter.h",
+   "Chain": [
+    "ASlabScenarioReplayTestAdapter",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ASlabScenarioValidationRig",
+   "Parent": "AActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h",
+   "Chain": [
+    "ASlabScenarioValidationRig",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AVirtualSlabSensorTestDriver",
+   "Parent": "AActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Sensor/Tests/VirtualSlabSensorTestDriver.h",
+   "Chain": [
+    "AVirtualSlabSensorTestDriver",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AVirtualSensorCoordinator",
+   "Parent": "ADeviceSensorCoordinator",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h",
+   "Chain": [
+    "AVirtualSensorCoordinator",
+    "ADeviceSensorCoordinator",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AVirtualSensorStressSceneActor",
+   "Parent": "AActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorStressSceneActor.h",
+   "Chain": [
+    "AVirtualSensorStressSceneActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ASlabActor",
+   "Parent": "AFacilityBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Slab/SlabActor.h",
+   "Chain": [
+    "ASlabActor",
+    "AFacilityBase",
+    "AInteractableActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USlabDataSyncComponent",
+   "Parent": "UDataSyncCompBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Slab/SlabDataSyncComponent.h",
+   "Chain": [
+    "USlabDataSyncComponent",
+    "UDataSyncCompBase",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": "USlabDataSyncComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USlabMetricsComponent",
+   "Parent": "UActorComponent",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Slab/SlabMetricsComponent.h",
+   "Chain": [
+    "USlabMetricsComponent",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": "USlabMetricsComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USlabMotionComponent",
+   "Parent": "UMechDriverCompBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Slab/SlabMotionComponent.h",
+   "Chain": [
+    "USlabMotionComponent",
+    "UMechDriverCompBase",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": "USlabMotionComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ASlabTrackReferenceActor",
+   "Parent": "AActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Slab/SlabTrackReferenceActor.h",
+   "Chain": [
+    "ASlabTrackReferenceActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USlabVisualizationComponent",
+   "Parent": "UStatusVisualizerCompBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h",
+   "Chain": [
+    "USlabVisualizationComponent",
+    "UStatusVisualizerCompBase",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": "USlabVisualizationComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UAgentTestSetWidget",
+   "Parent": "UVirtualSensorPanelWidgetBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/AgentTestSetWidget.h",
+   "Chain": [
+    "UAgentTestSetWidget",
+    "UVirtualSensorPanelWidgetBase",
+    "UDeviceSensorPanelBase",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetAgentTestSet"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UCoilLoadingWarningButton",
+   "Parent": "UButton",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h",
+   "Chain": [
+    "UCoilLoadingWarningButton",
+    "UButton"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UCoilLoadingPlanView",
+   "Parent": "UWidget",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h",
+   "Chain": [
+    "UCoilLoadingPlanView",
+    "UWidget"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UCoilLoadingMonitor",
+   "Parent": "UDxWidget",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h",
+   "Chain": [
+    "UCoilLoadingMonitor",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetCoilLoadingMonitor"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ACoilLoadingMonitorHost",
+   "Parent": "AActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h",
+   "Chain": [
+    "ACoilLoadingMonitorHost",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UDxM7atMainBasic",
+   "Parent": "UDxWidget",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/Main/DxM7atMainBasic.h",
+   "Chain": [
+    "UDxM7atMainBasic",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UDxM7atMainTest",
+   "Parent": "UDxWidget",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/Main/DxM7atMainTest.h",
+   "Chain": [
+    "UDxM7atMainTest",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USensorMapCheckWidget",
+   "Parent": "UDxWidget",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/SensorMapCheckWidget.h",
+   "Chain": [
+    "USensorMapCheckWidget",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetSensorMapCheck"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USensorPlacementInteraction",
+   "Parent": "UObject",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/SensorPlacementInteraction.h",
+   "Chain": [
+    "USensorPlacementInteraction",
+    "UObject"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USensorToolAppearance",
+   "Parent": "USaveGame",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/SensorToolAppearance.h",
+   "Chain": [
+    "USensorToolAppearance",
+    "USaveGame"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USensorToolWorkspaceRootWidget",
+   "Parent": "UUserWidget",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h",
+   "Chain": [
+    "USensorToolWorkspaceRootWidget",
+    "UUserWidget"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USensorToolToolbarWidget",
+   "Parent": "UUserWidget",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h",
+   "Chain": [
+    "USensorToolToolbarWidget",
+    "UUserWidget"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AShipHatchMonitorHost",
+   "Parent": "AActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h",
+   "Chain": [
+    "AShipHatchMonitorHost",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UShipHatchDetailsSection",
+   "Parent": "UVerticalBox",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h",
+   "Chain": [
+    "UShipHatchDetailsSection",
+    "UVerticalBox"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UShipHatchAnalysisView",
+   "Parent": "UWidget",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h",
+   "Chain": [
+    "UShipHatchAnalysisView",
+    "UWidget"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UShipHatchSensorLabelView",
+   "Parent": "UWidget",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h",
+   "Chain": [
+    "UShipHatchSensorLabelView",
+    "UWidget"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UShipHatchMonitorWidget",
+   "Parent": "UDxWidget",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h",
+   "Chain": [
+    "UShipHatchMonitorWidget",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetShipHatchMonitor"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UShipHatchOverlay",
+   "Parent": "ULineBatchComponent",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/ShipHatchOverlay.h",
+   "Chain": [
+    "UShipHatchOverlay",
+    "ULineBatchComponent"
+   ],
+   "Component": true,
+   "Rename": "UShipHatchOverlayComp",
+   "Note": "component without Comp/Component suffix"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USlabChartsPanelWidget",
+   "Parent": "UVirtualSensorPanelWidgetBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h",
+   "Chain": [
+    "USlabChartsPanelWidget",
+    "UVirtualSensorPanelWidgetBase",
+    "UDeviceSensorPanelBase",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetSlabChartsPanel"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USlabProgressPanelWidget",
+   "Parent": "UVirtualSensorPanelWidgetBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h",
+   "Chain": [
+    "USlabProgressPanelWidget",
+    "UVirtualSensorPanelWidgetBase",
+    "UDeviceSensorPanelBase",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetSlabProgressPanel"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USlabScenarioChartWidget",
+   "Parent": "UWidget",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/SlabScenarioChartWidget.h",
+   "Chain": [
+    "USlabScenarioChartWidget",
+    "UWidget"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USlabScenarioReplayPanelWidget",
+   "Parent": "UVirtualSensorPanelWidgetBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h",
+   "Chain": [
+    "USlabScenarioReplayPanelWidget",
+    "UVirtualSensorPanelWidgetBase",
+    "UDeviceSensorPanelBase",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetSlabScenarioReplayPanel"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ASlabScenarioReplayUiHostActor",
+   "Parent": "AActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/SlabScenarioReplayUiHostActor.h",
+   "Chain": [
+    "ASlabScenarioReplayUiHostActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "ASlabSimulationUiHostActor",
+   "Parent": "AActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/SlabSimulationUiHostActor.h",
+   "Chain": [
+    "ASlabSimulationUiHostActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UTrainBatchWidget",
+   "Parent": "UDxWidget",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/TrainBatchWidget.h",
+   "Chain": [
+    "UTrainBatchWidget",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetTrainBatch"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorCaptureExportPanelWidget",
+   "Parent": "UVirtualSensorPanelWidgetBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h",
+   "Chain": [
+    "UVirtualSensorCaptureExportPanelWidget",
+    "UVirtualSensorPanelWidgetBase",
+    "UDeviceSensorPanelBase",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetVirtualSensorCaptureExportPanel"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorMonitorPanelWidget",
+   "Parent": "UVirtualSensorPanelWidgetBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h",
+   "Chain": [
+    "UVirtualSensorMonitorPanelWidget",
+    "UVirtualSensorPanelWidgetBase",
+    "UDeviceSensorPanelBase",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetVirtualSensorMonitorPanel"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorPanelHostComponent",
+   "Parent": "UActorComponent",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/VirtualSensorPanelHostComponent.h",
+   "Chain": [
+    "UVirtualSensorPanelHostComponent",
+    "UActorComponent"
+   ],
+   "Component": true,
+   "Rename": "UVirtualSensorPanelHostComp"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorPanelWidgetBase",
+   "Parent": "UDeviceSensorPanelBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h",
+   "Chain": [
+    "UVirtualSensorPanelWidgetBase",
+    "UDeviceSensorPanelBase",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetVirtualSensorPanelBase"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorPlacementPanelWidget",
+   "Parent": "UVirtualSensorPanelWidgetBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h",
+   "Chain": [
+    "UVirtualSensorPlacementPanelWidget",
+    "UVirtualSensorPanelWidgetBase",
+    "UDeviceSensorPanelBase",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetVirtualSensorPlacementPanel"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorSettingsPanelWidget",
+   "Parent": "UVirtualSensorPanelWidgetBase",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h",
+   "Chain": [
+    "UVirtualSensorSettingsPanelWidget",
+    "UVirtualSensorPanelWidgetBase",
+    "UDeviceSensorPanelBase",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetVirtualSensorSettingsPanel"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AVirtualSensorToolRig",
+   "Parent": "AActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/VirtualSensorToolRig.h",
+   "Chain": [
+    "AVirtualSensorToolRig",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USensorToolWorkspaceSaveGame",
+   "Parent": "USaveGame",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h",
+   "Chain": [
+    "USensorToolWorkspaceSaveGame",
+    "USaveGame"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorToolWorkspaceSubsystem",
+   "Parent": "UTickableWorldSubsystem",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h",
+   "Chain": [
+    "UVirtualSensorToolWorkspaceSubsystem",
+    "UTickableWorldSubsystem"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AVirtualSensorTransformGizmoActor",
+   "Parent": "AActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h",
+   "Chain": [
+    "AVirtualSensorTransformGizmoActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "AVirtualSensorUiHostActor",
+   "Parent": "AActor",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h",
+   "Chain": [
+    "AVirtualSensorUiHostActor",
+    "AActor"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UVirtualSensorUiPreferencesSaveGame",
+   "Parent": "USaveGame",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h",
+   "Chain": [
+    "UVirtualSensorUiPreferencesSaveGame",
+    "USaveGame"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UFactoryAgentScenarioTC",
+   "Parent": "UTransactionCodeMessage",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/WebSocket/TC/FactoryAgentScenarioTC.h",
+   "Chain": [
+    "UFactoryAgentScenarioTC",
+    "UTransactionCodeMessage",
+    "UObject"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UKP1D0012",
+   "Parent": "UTransactionCodeMessage",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/WebSocket/TC/KP1D0012.h",
+   "Chain": [
+    "UKP1D0012",
+    "UTransactionCodeMessage",
+    "UObject"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UTrainBatchScenarioTC",
+   "Parent": "UTransactionCodeMessage",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dt/MA0T10/WebSocket/TC/TrainBatchScenarioTC.h",
+   "Chain": [
+    "UTrainBatchScenarioTC",
+    "UTransactionCodeMessage",
+    "UObject"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UArchitectureMonitorProbe",
+   "Parent": "UVirtualSensorMonitorPanelWidget",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dtEditor/Private/ArchitectureMonitorProbe.h",
+   "Chain": [
+    "UArchitectureMonitorProbe",
+    "UVirtualSensorMonitorPanelWidget",
+    "UVirtualSensorPanelWidgetBase",
+    "UDeviceSensorPanelBase",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetArchitectureMonitorProbe"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UEnsureLidarJsonLiveFrameTransactionCommandlet",
+   "Parent": "UCommandlet",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dtEditor/Private/EnsureLidarJsonLiveFrameTransactionCommandlet.h",
+   "Chain": [
+    "UEnsureLidarJsonLiveFrameTransactionCommandlet",
+    "UCommandlet"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UEnsureSlabScenarioTransactionCommandlet",
+   "Parent": "UCommandlet",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dtEditor/Private/EnsureSlabScenarioTransactionCommandlet.h",
+   "Chain": [
+    "UEnsureSlabScenarioTransactionCommandlet",
+    "UCommandlet"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UMemoryAttributionCommandlet",
+   "Parent": "UCommandlet",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dtEditor/Private/MemoryAttributionCommandlet.h",
+   "Chain": [
+    "UMemoryAttributionCommandlet",
+    "UCommandlet"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UNativeLidarLifetimeCommandlet",
+   "Parent": "",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dtEditor/Private/NativeLidarLifetimeCommandlet.h",
+   "Chain": [
+    "UNativeLidarLifetimeCommandlet",
+    ""
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "URepairTestMapMonitorReferenceCommandlet",
+   "Parent": "UCommandlet",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dtEditor/Private/RepairTestMapMonitorReferenceCommandlet.h",
+   "Chain": [
+    "URepairTestMapMonitorReferenceCommandlet",
+    "UCommandlet"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "USetupVirtualLidarNiagaraAssetsCommandlet",
+   "Parent": "UCommandlet",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dtEditor/Private/SetupVirtualLidarNiagaraAssetsCommandlet.h",
+   "Chain": [
+    "USetupVirtualLidarNiagaraAssetsCommandlet",
+    "UCommandlet"
+   ]
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UDTCoreMainAcceptanceWidget",
+   "Parent": "UDxWidget",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dtEditor/Public/DTCoreContractListener.h",
+   "Chain": [
+    "UDTCoreMainAcceptanceWidget",
+    "UDxWidget",
+    "UUserWidget"
+   ],
+   "DxRoot": "UDxWidget",
+   "DxRename": "UDxWidgetDTCoreMainAcceptance"
+  },
+  {
+   "Kind": "CLASS",
+   "Name": "UDTCoreContractListener",
+   "Parent": "UObject",
+   "Owner": "Project",
+   "File": "Source/ma0t10_dtEditor/Public/DTCoreContractListener.h",
+   "Chain": [
+    "UDTCoreContractListener",
+    "UObject"
+   ]
+  }
+ ]
+}

@@ -6,7 +6,7 @@ class AStaticMeshActor;
 class ACameraActor;
 class AVirtualLidarSensorActor;
 class AVirtualSensorCoordinator;
-class UVirtualSensorMonitorPanelWidget;
+class UDxWidgetVirtualSensorMonitorPanel;
 class SWidget;
 
 /** Dedicated validation map only. No production scenario or topic subscription. */
@@ -24,7 +24,7 @@ public:
     UPROPERTY(EditInstanceOnly) TObjectPtr<AVirtualLidarSensorActor> Sensor;
     UPROPERTY(EditInstanceOnly) TObjectPtr<AVirtualSensorCoordinator> Coordinator;
     UPROPERTY(EditInstanceOnly) TObjectPtr<ACameraActor> ObservationCamera;
-    UPROPERTY(Transient) TObjectPtr<UVirtualSensorMonitorPanelWidget> Monitor;
+    UPROPERTY(Transient) TObjectPtr<UDxWidgetVirtualSensorMonitorPanel> Monitor;
     bool bMoving = true;
     void ToggleBackend();
     void ToggleDisplay();

@@ -7,8 +7,8 @@
 #include "Device/Core/VirtualSensorLayoutSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Engine/Engine.h"
@@ -16,14 +16,14 @@
 #include "Editor/EditorPerformanceSettings.h"
 #include "Components/StaticMeshComponent.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "Device/Core/VirtualSensorPlacementSubsystem.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "PcdDemandAcceptanceFixture.h"
@@ -39,7 +39,7 @@ public:
     {
         for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)return false;
         if(Started<0)Started=FPlatformTime::Seconds();
-        if(FPlatformTime::Seconds()-Started<2||UVirtualCameraCaptureComponent::GetGlobalPendingWorkCountForDiagnostics()>0)
+        if(FPlatformTime::Seconds()-Started<2||UVirtualCameraCaptureComp::GetGlobalPendingWorkCountForDiagnostics()>0)
         {if(FPlatformTime::Seconds()-Started>10){Test->AddError(TEXT("Camera encode jobs did not return after PIE shutdown"));return true;}return false;}
         // Post-performance diagnostic only: never force GC between scenario runs.
         CollectGarbage(RF_NoFlags);
@@ -123,7 +123,7 @@ public:
                 auto* L=Cast<AVirtualLidarSensorActor>(Layout->CreateSensorAtPose(EVirtualSensorKind::Lidar,LP,Error,false));
                 auto* C=Cast<AVirtualCameraSensorActor>(Layout->CreateSensorAtPose(EVirtualSensorKind::Camera,CP,Error,false));
                 if(!L||!C){Test->AddError(Error);return true;}
-                L->VisualizationComponent->SetWorldPointCloudEnabled(false);L->StartSensor();C->StartSensor();Rig->Camera->StartSensor();
+                L->VisualizationComp->SetWorldPointCloudEnabled(false);L->StartSensor();C->StartSensor();Rig->Camera->StartSensor();
                 Slab->TargetSensorIds={Rig->Lidar->GetSensorId(),Rig->Camera->GetSensorId(),L->GetSensorId(),C->GetSensorId()};
                 if(Witness){Witness->Objects.Add(L);Witness->Objects.Add(C);}
                 bLayoutFixtureReady=true;Test->AddInfo(TEXT("Layout API added second Native LiDAR and D455 Camera; exact per-run targets frozen"));
@@ -140,7 +140,7 @@ public:
                 if(PoseSetup==2){BookmarkB=Save.BookmarkId;Test->TestTrue(TEXT("first run recalls A"),P->ApplySensorPoseBookmark(L,BookmarkA,Error));PoseSetup=3;}
             }
             InitialPlacement=Slab->GetActorTransform();
-            if(Witness){for(UObject* Object:{static_cast<UObject*>(World),static_cast<UObject*>(World->GetGameInstance()),static_cast<UObject*>(Raw),static_cast<UObject*>(Session),static_cast<UObject*>(Catalog),static_cast<UObject*>(Slab),static_cast<UObject*>(Rig),static_cast<UObject*>(Rig->Camera.Get()),static_cast<UObject*>(Rig->Lidar.Get()),static_cast<UObject*>(Rig->Camera->CaptureComponent.Get()),static_cast<UObject*>(Rig->Lidar->ScanComponent.Get()),static_cast<UObject*>(World->GetSubsystem<USlabRunResultsSubsystem>())})Witness->Objects.Add(Object);}
+            if(Witness){for(UObject* Object:{static_cast<UObject*>(World),static_cast<UObject*>(World->GetGameInstance()),static_cast<UObject*>(Raw),static_cast<UObject*>(Session),static_cast<UObject*>(Catalog),static_cast<UObject*>(Slab),static_cast<UObject*>(Rig),static_cast<UObject*>(Rig->Camera.Get()),static_cast<UObject*>(Rig->Lidar.Get()),static_cast<UObject*>(Rig->Camera->CaptureComp.Get()),static_cast<UObject*>(Rig->Lidar->ScanComp.Get()),static_cast<UObject*>(World->GetSubsystem<USlabRunResultsSubsystem>())})Witness->Objects.Add(Object);}
             ObservedRaw=Raw;ReceiveHandle=Raw->OnTransportObservation.AddLambda([this](const FVirtualSensorTransportObservation& Data){
                 if(Data.Phase!=EVirtualSensorTransportObservationPhase::Consumed||Data.RunId.IsEmpty()||AuditedRuns.Contains(Data.RunId))return;
                 const FString Key=Data.RunId+TEXT("|")+Data.RequestId;
@@ -148,7 +148,7 @@ public:
                 ActualConsumerRequests.Add(Key);});
             Rig->SaveResourceEvidence(TEXT("warmup"),0);
             if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SENSOR_RESOURCE_PREVIEW_OFF"))==TEXT("1"))
-            {Rig->Lidar->VisualizationComponent->SetWorldPointCloudEnabled(false);Rig->Lidar->ScanComponent->SetPointCloudPreviewEnabled(false);}
+            {Rig->Lidar->VisualizationComp->SetWorldPointCloudEnabled(false);Rig->Lidar->ScanComp->SetPointCloudPreviewEnabled(false);}
 			if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_SLAB_REQUIRE_DATA"))==TEXT("1"))
 			{FSlabExecutionOptions Options;Options.Policy=ESlabExecutionPolicy::RequireData;Test->TestTrue(TEXT("data-required options accepted"),Slab->SetExecutionOptions(Options));}
             Rig->SubmitSynthetic(true);
@@ -164,7 +164,7 @@ public:
         {
             if(FPlatformTime::Seconds()-StoppedAt<3)return false;
             Rig->SaveResourceEvidence(TEXT("sensors-stopped"),CompletedRuns);
-            if(Rig->Camera){const auto C=Rig->Camera->CaptureComponent->GetResourceSnapshot();
+            if(Rig->Camera){const auto C=Rig->Camera->CaptureComp->GetResourceSnapshot();
                 for(const auto* Key:{TEXT("pending_readbacks"),TEXT("pending_encodes"),TEXT("active_encodes"),TEXT("global_encode_jobs"),TEXT("completed_reorder"),TEXT("encode_order"),TEXT("acquisition_snapshots"),TEXT("slab_contexts"),TEXT("readbacks_in_flight")})
                     Test->TestEqual(FString::Printf(TEXT("Camera stopped %s returned"),Key),C.Counts.FindRef(Key),int64(0));}
             return true;
@@ -272,7 +272,7 @@ public:
             Test->TestTrue(TEXT("real finalized A/B runs compare"),Results->GetRunComparison(FirstRun,S.RunUUID,Comparison,Reason));
             Test->TestTrue(TEXT("same source hash captured at both run starts"),!Comparison.A.ScenarioContentHash.IsEmpty()&&Comparison.A.ScenarioContentHash==Comparison.B.ScenarioContentHash);
             const auto* Delta=Comparison.Sensors.FindByPredicate([&](const auto& C){return C.SensorId==Rig->Lidar->GetSensorId();});Test->TestTrue(TEXT("real A/B displacement matches planned 500cm"),Delta&&Delta->bPoseDeltaAvailable&&FMath::Abs(Delta->TranslationDeltaCm-500)<.1);
-            auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Panel=Cast<UVirtualSensorCaptureExportPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Data));
+            auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Panel=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Data));
             Test->TestNotNull(TEXT("actual owned results UI exists"),Panel);
             if(Panel)
             {const auto BeforePose=Rig->Lidar->GetActorTransform();const int64 BeforeSubmit=Submit;Panel->SetActiveTab(EVirtualSensorCaptureExportTab::ConnectionLog);
@@ -315,7 +315,7 @@ public:
     {
         if(FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PLACEMENT_AB_RHI"))!=TEXT("1"))return true;
         UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();if(!World)return false;
-        auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Panel=Cast<UVirtualSensorCaptureExportPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Data));if(!Panel){Test->AddError(TEXT("No owned comparison panel for UI cost check"));return true;}
+        auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Panel=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Data));if(!Panel){Test->AddError(TEXT("No owned comparison panel for UI cost check"));return true;}
         if(At<0){WasOpen=Workspace->IsPanelOpen(ESensorToolPanelRole::Data);Workspace->SetPanelOpen(ESensorToolPanelRole::Data,false);At=FPlatformTime::Seconds();return false;}
         const double Age=FPlatformTime::Seconds()-At;
         if(Age>=1)(Phase==0?Hidden:Visible).Add(FApp::GetDeltaTime()*1000);

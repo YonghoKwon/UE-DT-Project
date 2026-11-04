@@ -39,13 +39,13 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $requiredFiles = @(
-    [PSCustomObject]@{ Label = "LiDAR component header"; Path = "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\VirtualLidarScanComponent.h" },
-    [PSCustomObject]@{ Label = "LiDAR component implementation"; Path = "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarScanComponent.cpp" },
-    [PSCustomObject]@{ Label = "LiDAR visualization implementation"; Path = "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarVisualizationComponent.cpp" },
+    [PSCustomObject]@{ Label = "LiDAR component header"; Path = "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\VirtualLidarScanComp.h" },
+    [PSCustomObject]@{ Label = "LiDAR component implementation"; Path = "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarScanComp.cpp" },
+    [PSCustomObject]@{ Label = "LiDAR visualization implementation"; Path = "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarVisualizationComp.cpp" },
     [PSCustomObject]@{ Label = "LiDAR Niagara system"; Path = "Content\MA0T10\Sensor\VFX\NS_VirtualLidarPointCloud.uasset" },
     [PSCustomObject]@{ Label = "CSV point cloud preview actor header"; Path = "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\CsvPointCloudPreviewActor.h" },
     [PSCustomObject]@{ Label = "Sensor manager implementation"; Path = "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorCoordinator.cpp" },
-    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.cpp" },
+    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\DxWidgetVirtualSensorMonitorPanel.cpp" },
     [PSCustomObject]@{ Label = "Replay automation tests"; Path = "Plugins\DTDevice\Source\DeviceRuntime\Private\Tests\Sensor\LidarReplayAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "Sensor manager automation tests"; Path = "Source\ma0t10_dt\MA0T10\Sensor\Tests\SensorManagerAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "CSV point cloud preview automation tests"; Path = "Plugins\DTDevice\Source\DeviceRuntime\Private\Tests\Sensor\CsvPointCloudPreviewAutomationTests.cpp" },
@@ -59,13 +59,13 @@ foreach ($file in $requiredFiles) {
     Assert-FileExists -Path (Join-Path $ProjectRoot $file.Path) -Label $file.Label
 }
 
-$lidarHeader = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\VirtualLidarScanComponent.h"
-$lidarCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarScanComponent.cpp"
-$visualizationCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarVisualizationComponent.cpp"
+$lidarHeader = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\VirtualLidarScanComp.h"
+$lidarCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarScanComp.cpp"
+$visualizationCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarVisualizationComp.cpp"
 $csvPreviewHeader = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\CsvPointCloudPreviewActor.h"
 $csvPreviewCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\CsvPointCloudPreviewActor.cpp"
 $managerCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\VirtualSensorCoordinator.cpp"
-$monitorCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.cpp"
+$monitorCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\DxWidgetVirtualSensorMonitorPanel.cpp"
 $replayTests = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Tests\Sensor\LidarReplayAutomationTests.cpp"
 $managerTests = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\Sensor\Tests\SensorManagerAutomationTests.cpp"
 $csvPreviewTests = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Tests\Sensor\CsvPointCloudPreviewAutomationTests.cpp"

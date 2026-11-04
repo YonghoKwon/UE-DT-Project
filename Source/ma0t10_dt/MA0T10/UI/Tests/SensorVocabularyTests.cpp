@@ -1,18 +1,18 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "SensorPresentationTestHelpers.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolUiText.h"
-#include "ma0t10_dt/MA0T10/UI/SensorMapCheckWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Tests/SensorPresentationTestHelpers.h"
+#include "ma0t10_dt/MA0T10/UI/Common/SensorToolUiText.h"
+#include "ma0t10_dt/MA0T10/UI/Topview/DxWidgetSensorMapCheck.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabProgressPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabScenarioReplayPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabChartsPanel.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
@@ -98,13 +98,13 @@ bool FSensorVocabularyTest::RunTest(const FString&)
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* C=World->SpawnActor<AVirtualSensorCoordinator>();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();W->SetCoordinator(C);
     auto* Camera=World->SpawnActor<AVirtualCameraSensorActor>();auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>();Camera->StopSensor();Lidar->StopSensor();C->RegisterSensorActor(Camera);C->RegisterSensorActor(Lidar);
     auto* Slab=World->SpawnActor<ASlabActor>();
-    auto* MapCheck=NewObject<USensorMapCheckWidget>(World);MapCheck->Initialize();Inspect(TEXT("map-check"),MapCheck->TakeWidget());
-    auto* Placement=NewObject<UVirtualSensorPlacementPanelWidget>(World);auto* Monitor=NewObject<UVirtualSensorMonitorPanelWidget>(World);auto* Settings=NewObject<UVirtualSensorSettingsPanelWidget>(World);auto* Data=NewObject<UVirtualSensorCaptureExportPanelWidget>(World);
-    auto* Progress=NewObject<USlabProgressPanelWidget>(World);auto* Replay=NewObject<USlabScenarioReplayPanelWidget>(World);auto* Charts=NewObject<USlabChartsPanelWidget>(World);
+    auto* MapCheck=NewObject<UDxWidgetSensorMapCheck>(World);MapCheck->Initialize();Inspect(TEXT("map-check"),MapCheck->TakeWidget());
+    auto* Placement=NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);auto* Monitor=NewObject<UDxWidgetVirtualSensorMonitorPanel>(World);auto* Settings=NewObject<UDxWidgetVirtualSensorSettingsPanel>(World);auto* Data=NewObject<UDxWidgetVirtualSensorCaptureExportPanel>(World);
+    auto* Progress=NewObject<UDxWidgetSlabProgressPanel>(World);auto* Replay=NewObject<UDxWidgetSlabScenarioReplayPanel>(World);auto* Charts=NewObject<UDxWidgetSlabChartsPanel>(World);
     W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,Placement);W->RegisterOwnedPanel(ESensorToolPanelRole::Monitor,Monitor);W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,Settings);W->RegisterOwnedPanel(ESensorToolPanelRole::Data,Data);
     W->RegisterOwnedPanel(ESensorToolPanelRole::SlabProgress,Progress);W->RegisterOwnedPanel(ESensorToolPanelRole::Replay,Replay);W->RegisterOwnedPanel(ESensorToolPanelRole::SlabCharts,Charts);
     Monitor->bPersistMonitorPreferences=false;Monitor->BindSensorManager(C);Settings->BindSensorManager(C);Data->BindSensorManager(C);Data->BindScenarioSlabActor(Slab);Progress->BindSlabActor(Slab);Charts->BindSlabActor(Slab);
-    for(auto* Panel:TArray<UVirtualSensorPanelWidgetBase*>{Placement,Monitor,Settings,Data,Progress,Replay,Charts}){Panel->Initialize();Panel->SetVisibility(ESlateVisibility::Visible);}
+    for(auto* Panel:TArray<UDxWidgetVirtualSensorPanelBase*>{Placement,Monitor,Settings,Data,Progress,Replay,Charts}){Panel->Initialize();Panel->SetVisibility(ESlateVisibility::Visible);}
     // Hold each UMG wrapper until cleanup. Dropping the last wrapper invokes NativeDestruct
     // and unregisters the panel, which would accidentally inspect the legacy path next time.
     const auto PlacementSlate=Placement->TakeWidget();const auto MonitorSlate=Monitor->TakeWidget();const auto SettingsSlate=Settings->TakeWidget();const auto DataSlate=Data->TakeWidget();
@@ -116,7 +116,7 @@ bool FSensorVocabularyTest::RunTest(const FString&)
     {
         const FString Kind=Actor==Camera?TEXT("camera"):TEXT("lidar");C->SelectSensorActor(Actor);
         Inspect(TEXT("placement-")+Kind,PlacementSlate);
-        if(Actor==Camera){Monitor->BindVirtualCamera(Camera->CaptureComponent);Monitor->ShowCameraView();}else{Monitor->BindVirtualLidar(Lidar->ScanComponent);Monitor->ShowLidarView();}
+        if(Actor==Camera){Monitor->BindVirtualCamera(Camera->CaptureComp);Monitor->ShowCameraView();}else{Monitor->BindVirtualLidar(Lidar->ScanComp);Monitor->ShowLidarView();}
         Monitor->RefreshOwnedMonitorText();Inspect(TEXT("preview-")+Kind,MonitorSlate);
         Monitor->bOwnedAdvancedMenuOpen=true;Monitor->bMonitorDetailsExpanded=false;Monitor->RefreshOwnedMonitorText();Inspect(TEXT("preview-")+Kind+TEXT("-view-settings"),Monitor->BuildOwnedAdvancedViewMenu());Monitor->bOwnedAdvancedMenuOpen=false;
         Settings->SynchronizeWorkspaceSelection(true);
@@ -136,7 +136,7 @@ bool FSensorVocabularyTest::RunTest(const FString&)
     TestEqual(TEXT("both owned IMU numeric controls inspected"),OwnedBefore.Num(),2);TestEqual(TEXT("both scaled IMU numeric controls inspected"),OwnedAfter.Num(),2);
     if(OwnedBefore.Num()==2&&OwnedAfter.Num()==2)for(int32 I=0;I<2;++I)TestTrue(TEXT("owned IMU numeric font responds to 150 percent"),OwnedAfter[I].Size>OwnedBefore[I].Size);
     Placement->ApplySensorToolFontScale(OriginalScale);
-    auto* ForeignPlacement=NewObject<UVirtualSensorPlacementPanelWidget>(World);ForeignPlacement->Initialize();
+    auto* ForeignPlacement=NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);ForeignPlacement->Initialize();
     const auto ForeignImu=StaticCastSharedRef<SExpandableArea>(ForeignPlacement->BuildImuSection());ForeignImu->SetExpanded(true);
     ForeignPlacement->ApplySensorToolFontScale(1.5f);const auto ForeignFonts=ImuNumericFonts(ForeignImu);
     TestEqual(TEXT("both foreign IMU numeric controls inspected"),ForeignFonts.Num(),2);
@@ -170,7 +170,7 @@ bool FSensorVocabularyTest::RunTest(const FString&)
     auto Report=MakeShared<FJsonObject>();Report->SetNumberField(TEXT("schemaVersion"),1);Report->SetStringField(TEXT("scope"),TEXT("owned native fixture Slate labels, hints and tooltips; no mouse acceptance"));Report->SetArrayField(TEXT("areas"),Areas);
     const FString ReportPath=FPaths::ConvertRelativePathToFull(FPaths::ProjectDir()/TEXT("Saved/Reports/UXR/UXR-07/visible-text.json"));
     FString Json;FJsonSerializer::Serialize(Report,TJsonWriterFactory<>::Create(&Json));TestTrue(TEXT("text inventory written"),FFileHelper::SaveStringToFile(Json,*ReportPath));AddInfo(TEXT("Visible text report: ")+ReportPath);
-    for(auto* Panel:TArray<UVirtualSensorPanelWidgetBase*>{Placement,Monitor,Settings,Data,Progress,Replay,Charts}){W->UnregisterPanel(Panel);Panel->RemoveFromParent();}
+    for(auto* Panel:TArray<UDxWidgetVirtualSensorPanelBase*>{Placement,Monitor,Settings,Data,Progress,Replay,Charts}){W->UnregisterPanel(Panel);Panel->RemoveFromParent();}
     Camera->Destroy();Lidar->Destroy();Slab->Destroy();C->Destroy();return true;
 }
 #endif

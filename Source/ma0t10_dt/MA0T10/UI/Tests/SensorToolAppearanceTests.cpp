@@ -1,17 +1,17 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include "Components/TextBlock.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiHostActor.h"
 #include "UObject/UnrealType.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolAppearance.h"
+#include "ma0t10_dt/MA0T10/UI/Common/SensorToolAppearance.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorFontIsolationTest, "MA0T10.SensorControl.ToolFontIsolation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FSensorFontIsolationTest::RunTest(const FString& Parameters)
 {
 	auto* Host = NewObject<AVirtualSensorUiHostActor>();
-	auto* Own = NewObject<UVirtualSensorSettingsPanelWidget>();
-	auto* Other = NewObject<UVirtualSensorSettingsPanelWidget>();
+	auto* Own = NewObject<UDxWidgetVirtualSensorSettingsPanel>();
+	auto* Other = NewObject<UDxWidgetVirtualSensorSettingsPanel>();
 	auto* OwnText = NewObject<UTextBlock>(Own);
 	auto* OtherText = NewObject<UTextBlock>(Other);
 	FSlateFontInfo Font = OwnText->GetFont(); Font.Size = 20;

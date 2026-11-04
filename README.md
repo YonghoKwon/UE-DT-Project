@@ -566,7 +566,7 @@ API·일괄·TESTSET 및 검수맵의 `검증: 30초 관찰/PCD`는 해당 실�
 - 현재 형상·스케일·재질과 최대 10개의 보관 목록을 유지한다. 진행률은 0%, 현재 프레임은 `—`, 세 차트와 이전 3D 분석 라벨은 대기로 초기화한다. 표시 선택·선/문자 크기·창 배치는 유지한다.
 - 실행·일시정지·입력 파싱·재생 준비·센서 송신 정리 중에는 비활성화되며 같은 사유를 API에서도 반환한다. 먼저 중단하거나 완료를 기다리고 송신 정리까지 끝낸 뒤 사용한다.
 - 복귀 자체는 새 RunUUID, 센서 세션, 캡처/스캔이나 자동 송신을 만들지 않는다. 이전 receipt·실패 기록은 연결·진단에 남는다. 이후 신규 UUID는 정상 자동 실행하며 기존 목록의 같은 시나리오도 재실행할 수 있다.
-- C++/Blueprint: `ASlabActor::CanResetToInitialPlacement(OutReason)` / `ResetToInitialPlacement(OutError)`. 사용자 WBP는 `USlabProgressPanelWidget::CanResetSlabToInitialPlacement` / `ResetSlabToInitialPlacement`에 버튼을 연결한다. Designer와 기존 binding은 자동 변경하지 않는다.
+- C++/Blueprint: `ASlabActor::CanResetToInitialPlacement(OutReason)` / `ResetToInitialPlacement(OutError)`. 사용자 WBP는 `UDxWidgetSlabProgressPanel::CanResetSlabToInitialPlacement` / `ResetSlabToInitialPlacement`에 버튼을 연결한다. Designer와 기존 binding은 자동 변경하지 않는다.
 
 진행 패널의 **표시 설정**을 펼치면 3D 분석·단위·현재 외형을 바꿀 수 있다. 실행 중 단위 변경 제한과 표시 선택은 기존대로 유지한다. 이 영역을 접거나 창을 숨겨도 시나리오가 중지되지는 않는다. 진행 패널의 3D 분석은 선 기본 4px(2~12), 글자 28px(18~56), 어두운 배경판, signed Margin과 `[침범]`을 제공한다. 음수 Margin은 기하학적 침범이며 안전 기준/AI 판정이 아니다. 보조 표시는 센서 측정에서 제외한다.
 
@@ -638,7 +638,7 @@ Raw TCP STOMP worker가 binary I/O·receipt·자체 수신 검증을 담당한�
 
 **PCD 전송률 자동 조절(PCD-OPT, 사용자 승인 2026-10-15):** Raw TCP PCD는 기본으로 예약 프레임/bytes와 준비 큐를 감시하며, 25% 이상 누적될 때 직렬화 전 신규 프레임을 균등하게 생략해 배수 처리량에 맞춘다. 여유가 생기면 원래 전송률로 복귀하며 측정 주기는 유지한다. `bAutoAdjustPointCloudSendRate` 기본값은 `true`; 데이터 패널의 **고급 → PCD 전송률 자동 조절**에서 끌 수 있다. 상태바는 **"PCD 전송률 조절 중 · 서버 처리량에 맞춤 (n Hz)"**, 진단/로그는 별도 생략 수를 표시한다. 이미 접수한 프레임의 FIFO와 예약 상한은 유지하며, 과부하 중단·자동 재개는 최후 안전장치다. 생략은 기존 Slab 출력 실패로 기록하므로 **데이터 필수 실행은 실패 판정을 유지**한다. receipt를 업무 성공으로 바꾸거나 생략을 성공 처리하지 않는다. wire/SaveGame 버전은 유지한다.
 
-**PCD 과부하 자동 재개(PCD-RESUME, 사용자 결정 2026-10-14):** PCD 발행 큐 과부하는 사용자 중지와 구분해 일시 중단한다. `UVirtualSensorStreamPublisherComponent::bAutoResumePointCloudAfterOverload`는 기본 `true`이며, 초기 쿨다운 `PointCloudOverloadResumeDelaySeconds=2`초, 연속 과부하는 2→4→8→16→30초로 늘어난다(`PointCloudOverloadMaxResumeDelaySeconds=30`, 실제 상한 30초). 쿨다운 뒤 이전 직렬화와 해당 PCD의 worker 예약(소켓 쓰기·receipt 포함)이 모두 비고, 전역 예약 bytes가 한도의 절반 이하이며, 연결·전송 지연이 회복되어야 재개한다. 전체 센서 PCD 설정은 모든 PCD 예약이 비어야 한다. 끊김 중에는 보류하고 연결 회복 뒤 다시 확인한다. WSS는 기존 Engine STOMP 연결과 해당 receipt 배수 조건을 사용한다.
+**PCD 과부하 자동 재개(PCD-RESUME, 사용자 결정 2026-10-14):** PCD 발행 큐 과부하는 사용자 중지와 구분해 일시 중단한다. `UVirtualSensorStreamPublisherComp::bAutoResumePointCloudAfterOverload`는 기본 `true`이며, 초기 쿨다운 `PointCloudOverloadResumeDelaySeconds=2`초, 연속 과부하는 2→4→8→16→30초로 늘어난다(`PointCloudOverloadMaxResumeDelaySeconds=30`, 실제 상한 30초). 쿨다운 뒤 이전 직렬화와 해당 PCD의 worker 예약(소켓 쓰기·receipt 포함)이 모두 비고, 전역 예약 bytes가 한도의 절반 이하이며, 연결·전송 지연이 회복되어야 재개한다. 전체 센서 PCD 설정은 모든 PCD 예약이 비어야 한다. 끊김 중에는 보류하고 연결 회복 뒤 다시 확인한다. WSS는 기존 Engine STOMP 연결과 해당 receipt 배수 조건을 사용한다.
 
 재개는 새 acquisition 프레임부터이며 frame id·시퀀스·PCD bytes를 초기화하거나 폐기한 프레임을 재전송하지 않는다. 중단 때 폐기한 프레임은 Slab failure와 과부하 폐기 수에 남긴다. 실제 receipt가 30초간 계속 진행되면 백오프를 초기화한다(`PointCloudOverloadBackoffResetSeconds=30`); 연결된 채 대기한 시간만으로 초기화하지 않는다. 사용자 중지·송신 끄기·스트림 재설정·종료는 재개 예약을 취소한다. 옵션을 끄면 재시작 전까지 중지하는 기존 정책이다. 상태바는 **"PCD 과부하 · 잠시 후 자동 재개"**, 진단은 최소 대기시간·재개 횟수·폐기 수를 표시하며 실제 연결 경고와 구분한다. 설정은 component UPROPERTY, 재개 상태는 실행 중 임시값이며 기존 Blueprint 함수·세션 SaveGame 버전은 유지한다.
 
@@ -716,9 +716,9 @@ python Scripts/inspect_binary_pcd.py received.pcd --plate-z-m 0
 
 INSP-FIX-4의 **IMU 해제… → 해제 확인**은 같은 영역에 있다. 기록·전송을 끄고 기록된 표본의 CSV 완료 후 해제하며, 저장 실패 시 IMU·표본을 유지한다. 확인 전 취소/선택 변경은 해제하지 않는다. 해제 뒤 `GET /v1/sensors`에는 해당 `imu` 객체가 없다.
 
-**배치 → 장비 선택 → IMU · 부착·설정·미리보기 → 선택 장비에 IMU 부착**을 누른다. Camera/LiDAR의 기존 Actor 루트에 `UVirtualImuComponent`를 붙이며 새 Actor·자산·맵·플러그인을 만들지 않는다. 주파수(100~400Hz, 기본200), 산업용 MEMS 가정 노이즈/이상적 측정, seed를 설정한다. 실시간 비력·각속도·자세와 XYZ 그래프는 영역을 펼쳤을 때만 최대5Hz로 갱신한다. 접기·패널 숨김은 IMU 측정이나 기록을 중지하지 않는다.
+**배치 → 장비 선택 → IMU · 부착·설정·미리보기 → 선택 장비에 IMU 부착**을 누른다. Camera/LiDAR의 기존 Actor 루트에 `UVirtualImuComp`를 붙이며 새 Actor·자산·맵·플러그인을 만들지 않는다. 주파수(100~400Hz, 기본200), 산업용 MEMS 가정 노이즈/이상적 측정, seed를 설정한다. 실시간 비력·각속도·자세와 XYZ 그래프는 영역을 펼쳤을 때만 최대5Hz로 갱신한다. 접기·패널 숨김은 IMU 측정이나 기록을 중지하지 않는다.
 
-부착·설정은 **이번 PIE 세션에만** 적용되며 기존 장비 프로필/전체 배치 SaveGame에 저장되지 않는다. 새 장비를 추가하거나 배치를 복원해도 IMU는 자동 생성되지 않는다. 다른 움직이는 Actor/장면 컴포넌트에는 Blueprint에서 `VirtualImuComponent`를 명시적으로 추가·부착하거나 C++의 `UVirtualImuComponent::Attach(Actor)`를 사용한다. 기존 `VirtualSensorMotionProvider`가 부착 체인에 있으면 센서 원점의 rigid velocity(레버암 포함)를 사용하며, 없으면 세 프레임의 위치와 쿼터니언에서 운동을 재구성한다. 일반 Actor의 출력에는 기존 Recorder/Publisher 참조를 명시적으로 공급한다. 새 DTCore 관리자나 구독 루프는 없다.
+부착·설정은 **이번 PIE 세션에만** 적용되며 기존 장비 프로필/전체 배치 SaveGame에 저장되지 않는다. 새 장비를 추가하거나 배치를 복원해도 IMU는 자동 생성되지 않는다. 다른 움직이는 Actor/장면 컴포넌트에는 Blueprint에서 `VirtualImuComponent`를 명시적으로 추가·부착하거나 C++의 `UVirtualImuComp::Attach(Actor)`를 사용한다. 기존 `VirtualSensorMotionProvider`가 부착 체인에 있으면 센서 원점의 rigid velocity(레버암 포함)를 사용하며, 없으면 세 프레임의 위치와 쿼터니언에서 운동을 재구성한다. 일반 Actor의 출력에는 기존 Recorder/Publisher 참조를 명시적으로 공급한다. 새 DTCore 관리자나 구독 루프는 없다.
 
 좌표는 **센서 로컬 FLU: X 전방/Y 좌측/Z 위쪽**, 월드 기준은 UE 월드 Y를 반전한 오른손 좌표다(지리 ENU를 의미하지 않는다). 비력은 `R⁻¹(a−g)` **m/s²**, 각속도는 오른손 **rad/s**, 자세는 센서→월드 **xyzw 쿼터니언**이다. 정지·수평·무잡음은 `(0,0,+9.81)`, 자유낙하는0이다. 자세는 시뮬레이터 정답이며 IMU 적분·AHRS 추정값이 아니다. UE→FLU에서 벡터는 `(x,-y,z)`, 각속도는 `(-x,y,-z)`, 쿼터니언은 `(-x,y,-z,w)`로 변환한다.
 
@@ -1449,3 +1449,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/verify.ps1 -Level pe
 ### ASSET-MOVE-02 (r51, 2026-11-04)
 
 공통 센서 재질 2개와 Niagara 1개는 `/DTDevice/Sensor/`로 이동했다(원본 바이트 동일, 기존 맵/에셋 resave 없음). 옛 경로는 PackageRedirects로 연결한다. 별도 과제는 플러그인의 [시작 가이드](Plugins/DTDevice/Docs/GettingStarted.md)와 `TestHost/Content/Maps/DTDeviceDemo.umap`을 사용한다. `DeviceSensorMonitorHostActor`는 DTCore에 등록되는 기본 센서 모니터를 명시적으로 연다. 미리보기 조절은 서버 payload를 바꾸지 않는다. release 489 Success/45 Skip/0 Fail, TestHost 19개 경로(기본 18 Success/1 opt-in Skip + loopback 보충 1 Success), 빈 C++ 소비 프로젝트 및 Development 패키지 스모크를 확인했다. 직접 클릭 검증은 Windows Security 창으로 미수행이며 오프스크린 캡처와 구분한다. 상세는 `Saved/Reports/ASSET-MOVE-02/RESULT.md`. 성능·장시간 메모리는 이번 범위에서 실행하지 않았다.
+
+### NAMING-01 8-1 (r52, 2026-11-04)
+
+확정 명단의 Component28개와 Dx 위젯18개를 새 이름으로 통일하고, 컴포넌트 참조 속성45개에 같은 package PropertyRedirects를 제공했다. 기존 class redirect도 최종 이름으로 직접 연결한다. 폴더 명단206개 중 이미 제자리에 있던21개를 유지하고 나머지를 분류했다(타입 파일명 변경을 합친 host 경로 변경196개, DTDevice49개). `Scenario/` 업무는 `Ship`, `Coil`, `Slab/Scenario`, `Training`, `Dataset`, `Agent`, `Manager/Automation`, `Common`으로 나뉜다. UI는 Common/Freeview/Topview/Main 하위로 정리했다. `Sensor/Tool`·`Diagnostics`와 새 UI/Main 하위 패널은 이동 전과 같은 L3 응용 역할이며 센서 Runtime L1이 아니다. allowlist0 유지.
+
+기존 테스트530개 경로 누락0, Naming01 호환 검증1개 추가. release C++490 Success/45 Skip/0 Fail, WBP7 메모리 compile/save0, TestHost 및 테스트 맵10개 load/hash PASS. RT-on ABAB2% PASS(FPS−0.131%, p95−0.034%, GT−0.365% 악화율). 맵/에셋 저장 없음, 장시간 메모리는 범위 제외. 상세 `Saved/Reports/NAMING-01/RESULT.md`.
+
+#### NAMING-01 r52b 누락 보완
+
+USceneCaptureComponent2D 기반 `UVirtualCameraCaptureComp`·`UVirtualLidarGpuDepthProjectionComp`도 통일했다. inventory 판별을 보완한 재생성 결과 component33개/남은 후보0이다. 전체 변경 타입48개(Comp30+Dx18), 컴포넌트 참조 속성47개를 직접 alias로 연결한다. r52의 CameraCapture 명단 밖 유지 판단은 해소됐다. host/TestHost Editor·Development, 관련23개, release490Success/45Skip/0Fail, 테스트531경로 동일·누락0, 맵10개 load/hash·Linker/CoreRedirect 경고0을 확인했다. 이번은 이름만 바뀌는2개 보완이므로 사용자 결정에 따라 ABAB는 재실행하지 않았다. 상세 `Saved/Reports/NAMING-01/r52b/RESULT.md`.

@@ -49,7 +49,7 @@ Editor15분 진단은 기존 분석기에 `--min-seconds 900 --min-tail-seconds 
 
 ## 패키지 진단과 비용
 
-[HatchMemoryRuntimeProbe](../Source/ma0t10_dt/MA0T10/UI/HatchMemoryRuntimeProbe.cpp)는 명시적 `-HatchMemoryRuntimeReport=<새 경로>`가 있을 때만 생성한다. 기본 실행에는 해당 object/tick이 없다. 기존 프로젝트 transport/publisher와 `memory_curve` JSONL 계약을 사용하며 고정10개 태그/상위16개·RSS/Commit/UObject·센서/PCD·이전 표본 GT 비용·footer를 기록한다. 매프레임 Actor 검색·문자열/행 이력 누적·강제 GC/trim은 없다. sample 수집/JSON/write/flush/임시 객체 해제 비용을 포함하며 header/footer·종료 drain은 별도다.
+[HatchMemoryRuntimeProbe](../Source/ma0t10_dt/MA0T10/Diagnostics/HatchMemoryRuntimeProbe.cpp)는 명시적 `-HatchMemoryRuntimeReport=<새 경로>`가 있을 때만 생성한다. 기본 실행에는 해당 object/tick이 없다. 기존 프로젝트 transport/publisher와 `memory_curve` JSONL 계약을 사용하며 고정10개 태그/상위16개·RSS/Commit/UObject·센서/PCD·이전 표본 GT 비용·footer를 기록한다. 매프레임 Actor 검색·문자열/행 이력 누적·강제 GC/trim은 없다. sample 수집/JSON/write/flush/임시 객체 해제 비용을 포함하며 header/footer·종료 drain은 별도다.
 
 샘플 GT 평균/최대ms는 Editor 수정 전2.0313/6.6384, 수정 후2.1865/3.6988, package2.2061/6.3350이다. 이는 수집기의 실제 비용 기록이며 그 자체로 상대2% 성능 통과를 의미하지 않는다.
 

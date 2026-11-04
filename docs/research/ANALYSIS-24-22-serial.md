@@ -98,7 +98,7 @@ HWRT3 추가 비교는 기존 UI/public Actor API로 backend를 명시적으로 
 
 ## 독립 리뷰 R1 — semantic PSO timeout
 
-기존 `PollAcquisition`은 timeout 상태 문자열의 failed를 Failed로 반환하고 `VirtualLidarScanComponentAcquisition.cpp`는 in-flight 해제 및 CPU fallback을 수행했다. 따라서 영구 in-flight 정지로 단정할 수는 없지만, optional 라벨 때문에 정상 깊이 프레임을 버리는 문제는 있었다.
+기존 `PollAcquisition`은 timeout 상태 문자열의 failed를 Failed로 반환하고 `VirtualLidarScanCompAcquisition.cpp`는 in-flight 해제 및 CPU fallback을 수행했다. 따라서 영구 in-flight 정지로 단정할 수는 없지만, optional 라벨 때문에 정상 깊이 프레임을 버리는 문제는 있었다.
 
 PSO가 1초 내 준비되지 않으면 frozen semantic identities를 지우고 semantic staging copy를 생략하며, 이미 캡처한 원래 깊이 프레임은 Completed로 반환한다. 상태는 `미분류 (PSO 대기 초과, 깊이 측정 유지)`다. 같은 scene이 계속 준비되지 않는 다음 프레임은 추가 대기하지 않고 미분류로 완료한다. PSO가 준비된 acquisition은 그 프레임의 새 snapshot으로 라벨을 복구한다. stale ID/depth나 이전 transform을 재사용하지 않는다. 1초는 기존 깊이 texture 초기화 ceiling을 상한으로 재사용한 최초 cold-start 유예이며 장비별 PSO 완료를 보장하는 값이 아니다. 최초 지연은 최대 약1초이며 그 이후 지속 pending 상태에 프레임별1초 지연을 반복하지 않는다. 선택 라벨 target 미준비는 같은1초 ceiling 안에서 다음 poll의 RHI 생성 완료를 기다린 뒤, 초과한 경우에만 미분류로 완료한다. 즉시 미분류로 처리했던 첫 R1 시도는 기존 정확도 회귀 첫 프레임에서 실패해 보존했고, 이 초기화 유예를 복원한 재실행은 같은>=99% 기준으로 통과했다.
 
@@ -110,7 +110,7 @@ startup Error22줄은 수정 전 Editor-game reference와 R1 Development GT-off/
 
 R1 성능 gate는 **미수행**이다. Brave 프로세스의 GPU VideoDecode 사용1%를 여러 번 확인해 base-rules의 다른 GPU 작업 중 측정 금지에 따라 시작하지 않았다. 영상 중지 확인 질문은 대기 중이며 브라우저를 조작하지 않았다. 조건 해제 후 `Scripts/verify.ps1 -Level perf -BaseCommit d2ca1d1 -PerfRayTracing ProjectDefault` 및 `Saved/Reports/ANALYSIS-24-22/review-r1/run-runtime-perf.ps1`로 default Rev7x3 90초 visible/GT-on 60초 visible을 수행해야 한다. 새 성능 값·GT 증가·2% 통과·slot gate 통과를 주장하지 않는다. 전체 release suite, Shipping HWRT3, #22 UI/회사 수용도 기존처럼 별도다.
 
-R1 최종 코드 근거(`Source/ma0t10_dt/MA0T10/` 기준): `Sensor/VirtualLidarGpuDepthProjectionComponent.cpp:167,177,183,268`(유예·미분류·깊이완료), `Sensor/VirtualLidarSemanticScene.cpp:192,203,208`(준비만 poll/조건부1회 flush), `Sensor/VirtualLidarScanComponentAcquisition.cpp:194,199`(기존 Failed fallback), `Sensor/Tests/LidarSemanticPsoTimeoutTests.cpp:60,67,73`(유예/60frame/복구 검사).
+R1 최종 코드 근거(`Source/ma0t10_dt/MA0T10/` 기준): `Sensor/VirtualLidarGpuDepthProjectionComponent.cpp:167,177,183,268`(유예·미분류·깊이완료), `Sensor/VirtualLidarSemanticScene.cpp:192,203,208`(준비만 poll/조건부1회 flush), `Sensor/VirtualLidarScanCompAcquisition.cpp:194,199`(기존 Failed fallback), `Sensor/Tests/LidarSemanticPsoTimeoutTests.cpp:60,67,73`(유예/60frame/복구 검사).
 
 ## 2026-10-24 성능 재개 — fd5fac1 / 7e6e04d
 

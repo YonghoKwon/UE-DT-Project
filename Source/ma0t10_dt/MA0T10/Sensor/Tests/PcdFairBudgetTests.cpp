@@ -1,12 +1,12 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Core/VirtualSensorOutputPreflight.h"
 #include "Serialization/ObjectWriter.h"
 #include "Serialization/ObjectReader.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "Misc/SecureHash.h"
 #include "Misc/CommandLine.h"
@@ -15,10 +15,10 @@
 
 struct FPcdFairBudgetTestAccess
 {
-    static auto& Runtime(UVirtualSensorStreamPublisherComponent* P,const FString& Id)
+    static auto& Runtime(UVirtualSensorStreamPublisherComp* P,const FString& Id)
     {return P->FindOrAddRuntime(EVirtualSensorStreamKind::PointCloud,Id);}
-    static void Update(UVirtualSensorStreamPublisherComponent* P,double Now){P->UpdatePointCloudFairBudgets(Now);}
-    static void Queue(UVirtualSensorStreamPublisherComponent* P,const FString& Route,const FString& Id,int64 FrameId,TArray<uint8>&& Bytes,int32 Points,FDateTime Timestamp)
+    static void Update(UVirtualSensorStreamPublisherComp* P,double Now){P->UpdatePointCloudFairBudgets(Now);}
+    static void Queue(UVirtualSensorStreamPublisherComp* P,const FString& Route,const FString& Id,int64 FrameId,TArray<uint8>&& Bytes,int32 Points,FDateTime Timestamp)
     {
         auto& R=Runtime(P,Route);auto& M=R.PreparedMessageQueue.AddDefaulted_GetRef();
         M.SensorId=Id;M.FrameId=FrameId;M.StreamKind=EVirtualSensorStreamKind::PointCloud;M.TimestampUtc=Timestamp;
@@ -28,13 +28,13 @@ struct FPcdFairBudgetTestAccess
         uint8 Hash[FSHA1::DigestSize];FSHA1::HashBuffer(Bytes.GetData(),Bytes.Num(),Hash);Meta.ChecksumSha1=BytesToHex(Hash,FSHA1::DigestSize).ToLower();
         M.BinaryBody=MakeShared<const TArray<uint8>,ESPMode::ThreadSafe>(MoveTemp(Bytes));
     }
-    static void Prime(UVirtualSensorStreamPublisherComponent* P,double Now)
+    static void Prime(UVirtualSensorStreamPublisherComp* P,double Now)
     {P->PointCloudTokenBucketBytes=P->PointCloudBandwidthLimitMegabytesPerSecond*1048576.;P->LastTokenUpdateSeconds=Now;}
 };
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPcdFairBudgetTest,"MA0T10.SensorStream.PcdFairBudget",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FPcdFairBudgetTest::RunTest(const FString&)
 {
-    auto* P=NewObject<UVirtualSensorStreamPublisherComponent>();
+    auto* P=NewObject<UVirtualSensorStreamPublisherComp>();
     TestEqual(TEXT("new publisher defaults to approved80MiB/s"),P->PointCloudBandwidthLimitMegabytesPerSecond,80.f);
     P->PointCloudBandwidthLimitMegabytesPerSecond=64.f; // Explicit constrained-budget regression.
     auto Configure=[&](const FString& Id,double Bytes)
@@ -98,7 +98,7 @@ bool FPcdFairBudgetTest::RunTest(const FString&)
     Old.PreparedMessageQueue.AddDefaulted_GetRef().SensorId=TEXT("A");
     FPcdFairBudgetTestAccess::Update(P,131.3);
     TestTrue(TEXT("accepted wildcard FIFO drains after exact-route shadowing and input expiry"),OldSensor.FairBytesPerSecond>0);
-    auto* Recent=NewObject<UVirtualSensorStreamPublisherComponent>();auto& RecentRuntime=FPcdFairBudgetTestAccess::Runtime(Recent,TEXT("recent"));
+    auto* Recent=NewObject<UVirtualSensorStreamPublisherComp>();auto& RecentRuntime=FPcdFairBudgetTestAccess::Runtime(Recent,TEXT("recent"));
     RecentRuntime.Status.SubmittedFrameCount=100;FPcdFairBudgetTestAccess::Update(Recent,100);
     RecentRuntime.Status.SubmittedFrameCount=120;FPcdFairBudgetTestAccess::Update(Recent,101);
     TestEqual(TEXT("recent Hz uses new socket counts, not lifetime average"),RecentRuntime.Status.RecentSubmittedHz,20.f);
@@ -111,7 +111,7 @@ bool FPcdFairBudgetTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPcdDefaultBudgetTest,"MA0T10.SensorStream.PcdDefaultBudget",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FPcdDefaultBudgetTest::RunTest(const FString&)
 {
-    auto* P=NewObject<UVirtualSensorStreamPublisherComponent>();
+    auto* P=NewObject<UVirtualSensorStreamPublisherComp>();
     TestEqual(TEXT("publisher default80MiB/s"),P->PointCloudBandwidthLimitMegabytesPerSecond,80.f);
     TestEqual(TEXT("status default80MiB/s"),FVirtualSensorStreamStatus().PcdBudgetMiBPerSecond,80.f);
     TestEqual(TEXT("preflight default80MiB/s"),FVirtualSensorOutputPreflightResult().PcdBudgetMegabytesPerSecond,80.);
@@ -131,9 +131,9 @@ bool FPcdDefaultBudgetTest::RunTest(const FString&)
         TestTrue(TEXT("measured demand does not produce budget warning"),R.Status.PcdRequiredMiBPerSecond<R.Status.PcdBudgetMiBPerSecond);
     }
     // Preserve a serialized component override without a PostLoad/default migration.
-    auto* Configured=NewObject<UVirtualSensorStreamPublisherComponent>();Configured->PointCloudBandwidthLimitMegabytesPerSecond=64.f;
+    auto* Configured=NewObject<UVirtualSensorStreamPublisherComp>();Configured->PointCloudBandwidthLimitMegabytesPerSecond=64.f;
     TArray<uint8> Bytes;FObjectWriter Writer(Configured,Bytes);
-    auto* Restored=NewObject<UVirtualSensorStreamPublisherComponent>();FObjectReader Reader(Restored,Bytes);
+    auto* Restored=NewObject<UVirtualSensorStreamPublisherComp>();FObjectReader Reader(Restored,Bytes);
     TestEqual(TEXT("serialized user64MiB/s survives the new80 default"),Restored->PointCloudBandwidthLimitMegabytesPerSecond,64.f);
     FVirtualSensorStreamConfig C;C.StreamKind=EVirtualSensorStreamKind::PointCloud;C.SensorId=TEXT("custom");C.bEnabled=true;Restored->ConfigureStream(C);
     FPcdFairBudgetTestAccess::Update(Restored,100);
@@ -146,7 +146,7 @@ void FPcdFifoBodyShrinkTest::GetTests(TArray<FString>& Names,TArray<FString>& Co
 bool FPcdFifoBodyShrinkTest::RunTest(const FString& Case)
 {
     auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* C=W->SpawnActor<AVirtualSensorCoordinator>();C->Tags.Add(TEXT("SensorTestManaged"));
-    auto* P=C->StreamPublisherComponent.Get();auto* T=C->SharedTransportComponent.Get();auto* Raw=W->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
+    auto* P=C->StreamPublisherComp.Get();auto* T=C->SharedTransportComp.Get();auto* Raw=W->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
     int32 Port=1;const bool SocketProof=FParse::Value(FCommandLine::Get(),TEXT("PcdFifoRegressionPort="),Port);
     if(SocketProof&&!TestTrue(TEXT("regression broker is unprivileged loopback"),Port>=1024&&Port<=65535)){C->Destroy();return false;}
     FVirtualSensorTransportProfile Profile;Profile.BrokerUrl=FString::Printf(TEXT("tcp://127.0.0.1:%d"),Port);Profile.UserName.Reset();

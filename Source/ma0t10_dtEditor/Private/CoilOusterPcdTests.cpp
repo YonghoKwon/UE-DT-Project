@@ -1,15 +1,15 @@
-#include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
+#include "ma0t10_dt/MA0T10/Coil/CoilLoadingSimulation.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Coil/DxWidgetCoilLoadingMonitor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "EngineUtils.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -23,7 +23,7 @@ namespace
 class FCoilOusterPcdRun final:public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;int Port,Phase=0;double Started=FPlatformTime::Seconds(),Warm=0,Measured=0,NextSample=0;
-    TWeakObjectPtr<AVirtualLidarSensorActor> Sensor;TWeakObjectPtr<UVirtualSensorStreamPublisherComponent> Publisher;
+    TWeakObjectPtr<AVirtualLidarSensorActor> Sensor;TWeakObjectPtr<UVirtualSensorStreamPublisherComp> Publisher;
     int64 BaselineFrame=0;FVirtualSensorStreamStatus Baseline;
     FDateTime MeasurementUtc;double MaximumRequired=0,MaxRawBytes=0,MaxGlobalBytes=0;int MaxQueue=0,WarningSamples=0;
     FVirtualSensorStreamStatus Status() const
@@ -39,12 +39,12 @@ public:
             for(TActorIterator<ACoilLoadingMonitorHost> H(C.World());H;++H)if(H->Simulation&&H->Monitor&&H->Coordinator&&H->Simulation->Lidar)
             {
                 auto& Sim=*H->Simulation;Sensor=Sim.Lidar.Get();
-                if(!Test->TestTrue(TEXT("PCD proof uses actual default Rev7, not a test profile override"),Sensor->ScanComponent->DeviceProfile==EVirtualLidarDeviceProfile::OusterOS1_64_Rev7))return true;
+                if(!Test->TestTrue(TEXT("PCD proof uses actual default Rev7, not a test profile override"),Sensor->ScanComp->DeviceProfile==EVirtualLidarDeviceProfile::OusterOS1_64_Rev7))return true;
                 Test->TestTrue(TEXT("representative base row"),Sim.AddTier());for(int I=0;I<3;++I)Test->TestTrue(TEXT("supported second tier"),Sim.PlaceNext(false));
-                H->Coordinator->StreamPublisherComponent->StopAllStreams(Sensor->GetSensorId());Sensor->StopSensor();
-                auto* Transport=NewObject<UVirtualSensorTransportComponent>(&Sim);Sim.AddInstanceComponent(Transport);Transport->RegisterComponent();Transport->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+                H->Coordinator->StreamPublisherComp->StopAllStreams(Sensor->GetSensorId());Sensor->StopSensor();
+                auto* Transport=NewObject<UVirtualSensorTransportComp>(&Sim);Sim.AddInstanceComponent(Transport);Transport->RegisterComponent();Transport->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
                 FVirtualSensorTransportProfile Profile;Profile.BrokerUrl=FString::Printf(TEXT("tcp://127.0.0.1:%d"),Port);Profile.UserName.Reset();Transport->ConfigureTransportProfile(Profile);Transport->SetSessionCredentials(TEXT(""),TEXT(""));
-                auto* P=NewObject<UVirtualSensorStreamPublisherComponent>(&Sim);Sim.AddInstanceComponent(P);P->SetTransportComponent(Transport);P->RegisterComponent();Publisher=P;
+                auto* P=NewObject<UVirtualSensorStreamPublisherComp>(&Sim);Sim.AddInstanceComponent(P);P->SetTransportComponent(Transport);P->RegisterComponent();Publisher=P;
                 FVirtualPcdSendOptions Options;Options.Profile=EVirtualPcdFieldProfile::Full;Options.bCompressed=false;Options.SendDivisor=1;FString Error;
                 Test->TestTrue(TEXT("full uncompressed single-frame proof options"),P->SetPcdSendOptions(Sensor->GetSensorId(),Options,false,Error));
                 Sensor->SetSharedOutputServices(Transport,nullptr,P);FVirtualSensorStreamConfig Config;Config.StreamKind=EVirtualSensorStreamKind::PointCloud;Config.SensorId=Sensor->GetSensorId();Config.bEnabled=true;P->ConfigureStream(Config);

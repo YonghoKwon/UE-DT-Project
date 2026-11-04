@@ -2,7 +2,7 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "ma0t10_dt/MA0T10/Player/DxPlayerControllerTest.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tool/VirtualSensorTransformGizmoActor.h"
 #include "Device/Sensor/VirtualSensorPlacementInputOwner.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FArchitecturePlacementTest,"MA0T10.Architecture.PlacementInputView",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

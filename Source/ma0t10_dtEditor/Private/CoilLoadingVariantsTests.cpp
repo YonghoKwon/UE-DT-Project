@@ -1,9 +1,9 @@
-#include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
+#include "ma0t10_dt/MA0T10/Coil/CoilLoadingSimulation.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "CoilTestReportPaths.h"
-#include "ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Coil/DxWidgetCoilLoadingMonitor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Sensor/VirtualSensorSemanticLabels.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "Misc/AutomationTest.h"
@@ -87,7 +87,7 @@ public:
             // CRANE-31e: additive observation only; the same instrument is overlaid
             // on both archived revisions for the scene-specific ABAB comparison.
             Report->SetNumberField(TEXT("gpu_mean_ms"),Mean(Gpu));Report->SetNumberField(TEXT("rss_bytes"),FPlatformMemory::GetStats().UsedPhysical);
-            Report->SetStringField(TEXT("sensor_id"),S.Lidar->GetSensorId());Report->SetStringField(TEXT("lidar_profile"),UEnum::GetValueAsString(S.Lidar->ScanComponent->DeviceProfile));
+            Report->SetStringField(TEXT("sensor_id"),S.Lidar->GetSensorId());Report->SetStringField(TEXT("lidar_profile"),UEnum::GetValueAsString(S.Lidar->ScanComp->DeviceProfile));
             Report->SetNumberField(TEXT("samples"),Engine.Num());auto* RayTracing=IConsoleManager::Get().FindConsoleVariable(TEXT("r.RayTracing"));Report->SetBoolField(TEXT("ray_tracing_enabled"),RayTracing&&RayTracing->GetInt()!=0);
             Test->TestTrue(TEXT("stress actually acquires HWRT frames"),Status.FrameId>StartFrame&&Status.ActiveAcquisitionBackend==TEXT("hardware_ray_tracing"));
             int32 Instances=0;TInlineComponentArray<UInstancedStaticMeshComponent*> Batch(&S);for(auto* B:Batch)if(B->ComponentHasTag(TEXT("CoilSettledBatch")))Instances+=B->GetInstanceCount();Test->TestTrue(TEXT("hundreds of bodies and details render by instancing"),Instances>=600);Report->SetNumberField(TEXT("render_instances"),Instances);

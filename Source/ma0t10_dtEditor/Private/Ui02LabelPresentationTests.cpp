@@ -3,11 +3,11 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
-#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComponent.h"
-#include "ma0t10_dt/MA0T10/Slab/SlabMetricsComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabVisualizationComp.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabMetricsComp.h"
 #include "UObject/UnrealType.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -62,8 +62,8 @@ public:
             Status.MtlNo=TEXT("SQ83521 047");Status.FrameNo=120;Status.RowCount=601;Status.State=ESlabSimulationState::Paused;
             Status.ElapsedSec=18;Status.DurationSec=90;Status.Progress=.2;Status.ScenarioUUID=TEXT("UI02-memory");
             FSlabMetrics M;M.LeftAngle=-7;M.CenterOffsetCm=-2;M.MarginLeftCm=-3;M.MarginRightCm=20;M.bMarginsValid=true;
-            Slab->FindComponentByClass<USlabMetricsComponent>()->Update(M);
-            Slab->FindComponentByClass<USlabVisualizationComponent>()->UpdateAnalysis(FSlabScenarioRow(),M,Status,Slab->SlabMesh->Bounds.BoxExtent*2,FTransform(FQuat::Identity,Slab->GetActorLocation()),-70,70,true);
+            Slab->FindComponentByClass<USlabMetricsComp>()->Update(M);
+            Slab->FindComponentByClass<USlabVisualizationComp>()->UpdateAnalysis(FSlabScenarioRow(),M,Status,Slab->SlabMesh->Bounds.BoxExtent*2,FTransform(FQuat::Identity,Slab->GetActorLocation()),-70,70,true);
             Camera=World->SpawnActor<ACameraActor>();PC->SetViewTarget(Camera.Get());
         }
         if(!ReadyAt)

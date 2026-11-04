@@ -11,15 +11,15 @@ $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $requiredSource = @(
     "Plugins/DTDevice/Source/DeviceRuntime/Public/Device/Sensor/VirtualSensorActorBase.h",
-    "Plugins/DTDevice/Source/DeviceRuntime/Public/Device/Sensor/VirtualSensorOutputComponent.h",
+    "Plugins/DTDevice/Source/DeviceRuntime/Public/Device/Sensor/VirtualSensorOutputComp.h",
     "Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h",
     "Plugins/DTDevice/Source/DeviceRuntime/Public/Device/Core/VirtualSensorSchedulerSubsystem.h",
     "Plugins/DTDevice/Source/DeviceRuntime/Public/Device/Camera/VirtualCameraSensorActor.h",
     "Plugins/DTDevice/Source/DeviceRuntime/Public/Device/Camera/VirtualCameraPayloadCodec.h",
     "Plugins/DTDevice/Source/DeviceRuntime/Public/Device/Sensor/VirtualLidarSensorActor.h",
     "Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorStressSceneActor.h",
-    "Source/ma0t10_dt/MA0T10/UI/VirtualSensorPanelHostComponent.h",
-    "Source/ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
+    "Source/ma0t10_dt/MA0T10/UI/Freeview/VirtualSensorPanelHostComp.h",
+    "Source/ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiHostActor.h"
 )
 
 $failures = [System.Collections.Generic.List[string]]::new()

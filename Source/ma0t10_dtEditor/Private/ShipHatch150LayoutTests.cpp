@@ -3,10 +3,10 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchViewTransform.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/DxWidgetShipHatchMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMonitorHost.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchViewTransform.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/Button.h"
@@ -24,15 +24,15 @@
 
 struct FHatch150Probe
 {
-    static TArray<UWidget*> Instances(UShipHatchMonitorWidget& M){TArray<UWidget*> R{M.CargoChoice.Get(),M.HeatView.Get(),M.SectionView.Get()};for(auto C:M.FieldChoices)R.Add(C.Get());return R;}
-    static void Prepare(UShipHatchMonitorWidget& M,int32 Step)
+    static TArray<UWidget*> Instances(UDxWidgetShipHatchMonitor& M){TArray<UWidget*> R{M.CargoChoice.Get(),M.HeatView.Get(),M.SectionView.Get()};for(auto C:M.FieldChoices)R.Add(C.Get());return R;}
+    static void Prepare(UDxWidgetShipHatchMonitor& M,int32 Step)
     {
         if(Step%4==0){M.SetFontPercent(Step<4?100:150);M.SelectView(0);M.SetSplitView(true);M.SetCameraPreset(1);}
         if(Step%4==1)M.MoreToggle->OnClicked.Broadcast();
         if(Step%4==2){M.MoreToggle->OnClicked.Broadcast();M.SectionToggle->OnClicked.Broadcast();}
         if(Step%4==3){M.SectionToggle->OnClicked.Broadcast();M.SelectView(3);M.SetSplitView(true);}
     }
-    static TSharedRef<FJsonObject> Check(FAutomationTestBase& T,UShipHatchMonitorWidget& M,int32 Step)
+    static TSharedRef<FJsonObject> Check(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M,int32 Step)
     {
         auto O=MakeShared<FJsonObject>();const auto Size=M.GetCachedGeometry().GetLocalSize();const auto R=M.GetSceneRect();
         const auto MapSize=M.HeatView->GetCachedGeometry().GetLocalSize();const auto Plot=ShipHatch::FViewTransform::Top(*M.GetAnalysisSettings()).Fit(MapSize,true,M.GetFontScale());
@@ -71,7 +71,7 @@ namespace
 class FHatch150Layout final:public IAutomationLatentCommand
 {
     FAutomationTestBase* Test;int32 Step=0;bool Prepared=false;double Start=FPlatformTime::Seconds(),Changed=0;
-    TWeakObjectPtr<UShipHatchMonitorWidget> Original;TArray<UWidget*> Instances;uint32 SurfaceHash=0;uint64 Revision=0;
+    TWeakObjectPtr<UDxWidgetShipHatchMonitor> Original;TArray<UWidget*> Instances;uint32 SurfaceHash=0;uint64 Revision=0;
     TUniquePtr<TGuardValue<bool>> Messages;
 public:
     explicit FHatch150Layout(FAutomationTestBase* T):Test(T){}

@@ -1,10 +1,10 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabScenarioReplayPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolUiText.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabProgressPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabScenarioReplayPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabChartsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Common/SensorToolUiText.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "Widgets/Layout/SExpandableArea.h"
 
@@ -12,7 +12,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabScenarioScreenTest,"MA0T10.UXR04.ScenarioS
 bool FSlabScenarioScreenTest::RunTest(const FString&)
 {
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-    auto* Slab=World->SpawnActor<ASlabActor>();auto* Progress=NewObject<USlabProgressPanelWidget>(World);auto* Charts=NewObject<USlabChartsPanelWidget>(World);
+    auto* Slab=World->SpawnActor<ASlabActor>();auto* Progress=NewObject<UDxWidgetSlabProgressPanel>(World);auto* Charts=NewObject<UDxWidgetSlabChartsPanel>(World);
     W->RegisterOwnedPanel(ESensorToolPanelRole::SlabProgress,Progress);W->RegisterOwnedPanel(ESensorToolPanelRole::SlabCharts,Charts);
     Progress->BindSlabActor(Slab);Progress->Initialize();const auto Slate=Progress->TakeWidget();Slate->SlatePrepass(1);
     TestTrue(TEXT("display settings are one initially collapsed area"),Progress->OwnedDisplayArea.IsValid()&&!Progress->OwnedDisplayArea->IsExpanded());
@@ -25,7 +25,7 @@ bool FSlabScenarioScreenTest::RunTest(const FString&)
     Progress->bOwnedDetailsExpanded=true;Progress->RefreshOwnedStatus();TestTrue(TEXT("expanded details remain available"),Progress->Detail.Contains(TEXT("실행 UUID")));
     Progress->SetVisibility(ESlateVisibility::Hidden);Progress->Summary=TEXT("hidden summary sentinel");Progress->NativeTick(FGeometry(),.3f);
     TestEqual(TEXT("hidden scenario panel stops display updates"),Progress->Summary,FString(TEXT("hidden summary sentinel")));
-    auto* Replay=NewObject<USlabScenarioReplayPanelWidget>(World);TestEqual(TEXT("default output summary does not duplicate observation policy"),Replay->GetOwnedReplayOutputSummary().ToString(),FString(TEXT("이번 재생 출력: 관찰 전용")));
+    auto* Replay=NewObject<UDxWidgetSlabScenarioReplayPanel>(World);TestEqual(TEXT("default output summary does not duplicate observation policy"),Replay->GetOwnedReplayOutputSummary().ToString(),FString(TEXT("이번 재생 출력: 관찰 전용")));
     TestFalse(TEXT("screen changes do not enable replay output"),Replay->GetReplayOutputs().HasAnyOutput());
     W->UnregisterPanel(Progress);W->UnregisterPanel(Charts);Slab->Destroy();return true;
 }

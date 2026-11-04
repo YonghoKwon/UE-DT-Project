@@ -4,13 +4,13 @@
 #include "Engine/GameInstance.h"
 #include "Json.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabScenarioReplaySubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabScenarioReplaySubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabScenarioArchivePolicyTest,"MA0T10.SlabScenario.ArchiveIdentityAndIsolation",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabScenarioArchivePolicyTest::RunTest(const FString&)
@@ -64,8 +64,8 @@ bool FSlabScenarioOutputPolicyTest::RunTest(const FString&)
 	TestEqual(TEXT("observer finishes without broker"),Session->GetSlabSensorSessionStatus().State,EVirtualSlabSessionState::Completed);
 	auto* Manager=World->SpawnActor<AVirtualSensorCoordinator>(); auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>(); auto* Camera=World->SpawnActor<AVirtualCameraSensorActor>();
 	Manager->RegisterSensorActor(Lidar); Manager->RegisterSensorActor(Camera);
-	auto* Publisher=Manager->StreamPublisherComponent.Get(); Publisher->SetTransportComponent(Manager->SharedTransportComponent);
-	Manager->SharedTransportComponent->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+	auto* Publisher=Manager->StreamPublisherComp.Get(); Publisher->SetTransportComponent(Manager->SharedTransportComp);
+	Manager->SharedTransportComp->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
 	Publisher->StartStream(EVirtualSensorStreamKind::LidarPayload,FString());
 	Publisher->StartStream(EVirtualSensorStreamKind::CameraImage,FString());
 	FVirtualSlabSensorOutputSelection Outputs;

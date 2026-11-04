@@ -103,9 +103,9 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
-$lidarHeader = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\VirtualLidarScanComponent.h"
-$lidarCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarScanComponent.cpp"
-$monitorHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.h"
+$lidarHeader = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Sensor\VirtualLidarScanComp.h"
+$lidarCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Sensor\VirtualLidarScanComp.cpp"
+$monitorHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\DxWidgetVirtualSensorMonitorPanel.h"
 $replayTests = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Tests\Sensor\LidarReplayAutomationTests.cpp"
 $schemaDoc = Join-Path $ProjectRoot "docs\lidar_payload_schema.md"
 $remainingDoc = Join-Path $ProjectRoot "docs\remaining_work.md"

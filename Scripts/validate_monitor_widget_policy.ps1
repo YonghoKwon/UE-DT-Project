@@ -38,8 +38,8 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $requiredFiles = @(
-    [PSCustomObject]@{ Label = "Monitor widget header"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.h" },
-    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.cpp" },
+    [PSCustomObject]@{ Label = "Monitor widget header"; Path = "Source\ma0t10_dt\MA0T10\UI\DxWidgetVirtualSensorMonitorPanel.h" },
+    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\DxWidgetVirtualSensorMonitorPanel.cpp" },
     [PSCustomObject]@{ Label = "Monitor host header"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorUiHostActor.h" },
     [PSCustomObject]@{ Label = "Monitor host implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorUiHostActor.cpp" },
     [PSCustomObject]@{ Label = "Monitor automation tests"; Path = "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp" },
@@ -65,8 +65,8 @@ foreach ($file in $requiredFiles) {
     Assert-FileExists -Path (Join-Path $ProjectRoot $file.Path) -Label $file.Label
 }
 
-$widgetHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.h"
-$widgetCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorMonitorPanelWidget.cpp"
+$widgetHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\DxWidgetVirtualSensorMonitorPanel.h"
+$widgetCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\DxWidgetVirtualSensorMonitorPanel.cpp"
 $hostHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorUiHostActor.h"
 $hostCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorUiHostActor.cpp"
 $testsCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp"

@@ -3,18 +3,18 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/CoilLoadingMonitor.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/Scenario/CoilLoadingSimulation.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Coil/DxWidgetCoilLoadingMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMonitorHost.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/DxWidgetShipHatchMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/Coil/CoilLoadingSimulation.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Blueprint/WidgetTree.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Components/TextBlock.h"
@@ -42,11 +42,11 @@ UButton* P2bButton(UUserWidget& M,const FString& Prefix)
     for(auto* W:Widgets)if(auto* B=Cast<UButton>(W))if(const auto* T=Cast<UTextBlock>(B->GetContent()))if(T->GetText().ToString().StartsWith(Prefix))return B;
     return nullptr;
 }
-void P2bGroup(UShipHatchMonitorWidget& M,const FString& Prefix,bool Expanded)
+void P2bGroup(UDxWidgetShipHatchMonitor& M,const FString& Prefix,bool Expanded)
 {
     if(auto* B=P2bButton(M,Prefix))if(auto* Group=Cast<UShipHatchDetailsSection>(B->GetParent()))if(Group->GetChildAt(1)->IsVisible()!=Expanded)B->OnClicked.Broadcast();
 }
-UScrollBox* P2bToolbarScroll(UShipHatchMonitorWidget& M)
+UScrollBox* P2bToolbarScroll(UDxWidgetShipHatchMonitor& M)
 {const auto* Card=Cast<UBorder>(M.WidgetTree->FindWidget(TEXT("Hatch3dToolbar")));return Card?Cast<UScrollBox>(Card->GetContent()):nullptr;}
 void P2bSlateText(const TSharedRef<SWidget>& W,TArray<FString>& Text)
 {
@@ -72,7 +72,7 @@ class FP2bCapture final:public IAutomationLatentCommand
         Meta->SetStringField(TEXT("dtcore"),TEXT("bc60f05e2d1e64f4ffe1410cf3239fe24cb4d4c9"));Meta->SetNumberField(TEXT("settle_min_seconds"),2);Meta->SetBoolField(TEXT("capture_has_no_submit_or_file_save_calls"),true);
         Meta->SetNumberField(TEXT("client_width"),Size.X);Meta->SetNumberField(TEXT("client_height"),Size.Y);const auto Window=FSlateApplication::Get().FindWidgetWindow(View);
         Meta->SetNumberField(TEXT("window_dpi"),Window?Window->GetDPIScaleFactor():0);Meta->SetNumberField(TEXT("umg_scale"),UWidgetLayoutLibrary::GetViewportScale(&M));
-        Meta->SetNumberField(TEXT("font_percent"),100*(Hatch?CastChecked<UShipHatchMonitorWidget>(&M)->GetFontScale():CastChecked<UCoilLoadingMonitor>(&M)->FontScale()));
+        Meta->SetNumberField(TEXT("font_percent"),100*(Hatch?CastChecked<UDxWidgetShipHatchMonitor>(&M)->GetFontScale():CastChecked<UDxWidgetCoilLoadingMonitor>(&M)->FontScale()));
         Meta->SetBoolField(TEXT("automatic_capture_not_mouse_acceptance"),true);Meta->SetBoolField(TEXT("render_offscreen"),FParse::Param(FCommandLine::Get(),TEXT("RenderOffscreen")));
         Meta->SetBoolField(TEXT("same_monitor_instance"),Original.Get()==&M);Test->TestTrue(TEXT("Same monitor instance through every font and layout change"),Original.Get()==&M);
         TArray<TSharedPtr<FJsonValue>> Labels;TArray<UWidget*> Widgets;M.WidgetTree->GetAllWidgets(Widgets);
@@ -84,7 +84,7 @@ class FP2bCapture final:public IAutomationLatentCommand
         Meta->SetArrayField(TEXT("visible_umg_text"),Labels);
         if(Hatch)
         {
-            auto& Monitor=*CastChecked<UShipHatchMonitorWidget>(&M);const auto* S=Monitor.GetSimulation();Meta->SetStringField(TEXT("status"),Monitor.GetStatusText());Meta->SetBoolField(TEXT("site_visualization"),Monitor.IsSiteVisualization());
+            auto& Monitor=*CastChecked<UDxWidgetShipHatchMonitor>(&M);const auto* S=Monitor.GetSimulation();Meta->SetStringField(TEXT("status"),Monitor.GetStatusText());Meta->SetBoolField(TEXT("site_visualization"),Monitor.IsSiteVisualization());
             Meta->SetNumberField(TEXT("selected_sensor"),S->HighlightedSensor());Meta->SetNumberField(TEXT("surface_hash"),S->Surface().Hash());Meta->SetNumberField(TEXT("revision"),S->Revision());
             TArray<TSharedPtr<FJsonValue>> Sensors;bool AnyRunning=false;
             for(int32 I=0;I<3;++I)if(const auto* A=S->SensorAt(I)){const auto Status=A->GetSensorRuntimeStatus();auto Row=MakeShared<FJsonObject>();Row->SetNumberField(TEXT("index"),I);Row->SetBoolField(TEXT("running"),A->IsSensorRunning());Row->SetNumberField(TEXT("frame_id"),Status.FrameId);Row->SetStringField(TEXT("backend"),Status.ActiveAcquisitionBackend);Row->SetNumberField(TEXT("cached_acquisition_hz"),Status.MeasuredAcquisitionRateHz);Sensors.Add(MakeShared<FJsonValueObject>(Row));AnyRunning|=A->IsSensorRunning();}
@@ -99,7 +99,7 @@ class FP2bCapture final:public IAutomationLatentCommand
         }
         else
         {
-            auto& Monitor=*CastChecked<UCoilLoadingMonitor>(&M);const int32 Font=Monitor.FontScale()>1?18:12;int32 Rows=0;
+            auto& Monitor=*CastChecked<UDxWidgetCoilLoadingMonitor>(&M);const int32 Font=Monitor.FontScale()>1?18:12;int32 Rows=0;
             for(auto* Item:Widgets)if(auto* B=Cast<UCoilLoadingWarningButton>(Item))if(auto* T=Cast<UTextBlock>(B->GetContent())){++Rows;Test->TestEqual(TEXT("Every regenerated actual coil issue row uses the current font"),T->GetFont().Size,float(Font));}
             Meta->SetNumberField(TEXT("issue_rows"),Rows);Meta->SetNumberField(TEXT("issue_font_size"),Font);Meta->SetNumberField(TEXT("unknown_groups"),Monitor.DataNeededCount);Meta->SetNumberField(TEXT("revision"),Monitor.Simulation()->Revision());
             Meta->SetStringField(TEXT("backend"),Monitor.Simulation()->Lidar->GetSensorRuntimeStatus().ActiveAcquisitionBackend);
@@ -129,7 +129,7 @@ public:
         if(!Original.IsValid())
         {
             Test->TestTrue(TEXT("Capture requires real D3D12"),GDynamicRHI&&FString(GDynamicRHI->GetName())==TEXT("D3D12"));Original=Monitor;Debug=MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled,false);
-            if(Coil){Coil->Monitor->LoadMixedExample();auto* Workspace=W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();Workspace->SetSidebarMode(true);Workspace->ResetOwnedWorkspaceLayout();Workspace->CollapseSidebar();Coil->Coordinator->StreamPublisherComponent->StopAllStreams(TEXT(""));}
+            if(Coil){Coil->Monitor->LoadMixedExample();auto* Workspace=W->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();Workspace->SetSidebarMode(true);Workspace->ResetOwnedWorkspaceLayout();Workspace->CollapseSidebar();Coil->Coordinator->StreamPublisherComp->StopAllStreams(TEXT(""));}
         }
         if(!Prepared)
         {

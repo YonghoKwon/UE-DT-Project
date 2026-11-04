@@ -2,7 +2,7 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
-#include "Device/Sensor/VirtualLidarSurfaceResponseComponent.h"
+#include "Device/Sensor/VirtualLidarSurfaceResponseComp.h"
 #include "Components/StaticMeshComponent.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -34,7 +34,7 @@ bool FSlabOxideScaleTest::RunTest(const FString&)
         TestEqual(TEXT("effective path reports displayed oxide"),Slab->GetEffectiveSurfaceMaterialPath(),OxidePath);
         TestEqual(TEXT("configured SurfaceMaterial never changes"),Slab->SurfaceMaterial.ToSoftObjectPath(),Property);
         TestEqual(TEXT("UXR09 opaque oxide coverage parameter applied"),Mid->K2_GetScalarParameterValue(TEXT("Oxidation")),1.f);
-        TestNull(TEXT("visual-only oxide creates no optical component"),Slab->FindComponentByClass<UVirtualLidarSurfaceResponseComponent>());
+        TestNull(TEXT("visual-only oxide creates no optical component"),Slab->FindComponentByClass<UVirtualLidarSurfaceResponseComp>());
         TestTrue(TEXT("same selection is accepted"),Slab->ApplySurfacePreset(ESlabSurfacePreset::OxidationScale,false,Reason));
         TestTrue(TEXT("same selection retains MID"),Slab->SlabMesh->GetMaterial(0)==Mid);
         for(const auto Preset:{ESlabSurfacePreset::HotRed,ESlabSurfacePreset::CooledSteel,ESlabSurfacePreset::AnalysisMatte,ESlabSurfacePreset::Default})
@@ -48,7 +48,7 @@ bool FSlabOxideScaleTest::RunTest(const FString&)
     TestEqual(TEXT("original roughness restored"),Slab->Roughness,Rough);
     TestEqual(TEXT("original emissive restored"),Slab->EmissiveStrength,Emissive);
     TestEqual(TEXT("unrelated original MID override survives"),Original->K2_GetScalarParameterValue(TEXT("Metallic")),.37f);
-    auto* Response=NewObject<UVirtualLidarSurfaceResponseComponent>(Slab);Response->RegisterComponent();
+    auto* Response=NewObject<UVirtualLidarSurfaceResponseComp>(Slab);Response->RegisterComponent();
     Response->Reflectivity940Nm=.31f;Response->IntensityGain=2;
     TestTrue(TEXT("explicit oxide linkage accepted"),Slab->ApplySurfacePreset(ESlabSurfacePreset::OxidationScale,true,Reason));
     TestEqual(TEXT("oxide optical assumption applied"),Response->Reflectivity940Nm,.12f);

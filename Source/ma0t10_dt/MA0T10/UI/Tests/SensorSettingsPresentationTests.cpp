@@ -1,9 +1,9 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "SensorPresentationTestHelpers.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Tests/SensorPresentationTestHelpers.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
@@ -15,7 +15,7 @@ bool FSensorSettingsPresentationTest::RunTest(const FString&)
 {
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* C=World->SpawnActor<AVirtualSensorCoordinator>();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();W->SetCoordinator(C);
     auto* Camera=World->SpawnActor<AVirtualCameraSensorActor>();auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>();Camera->StopSensor();Lidar->StopSensor();C->RegisterSensorActor(Camera);C->RegisterSensorActor(Lidar);
-    auto* Settings=NewObject<UVirtualSensorSettingsPanelWidget>(World);W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,Settings);Settings->BindSensorManager(C);Settings->SetVisibility(ESlateVisibility::Visible);Settings->Initialize();const auto Slate=Settings->TakeWidget();
+    auto* Settings=NewObject<UDxWidgetVirtualSensorSettingsPanel>(World);W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,Settings);Settings->BindSensorManager(C);Settings->SetVisibility(ESlateVisibility::Visible);Settings->Initialize();const auto Slate=Settings->TakeWidget();
     for(auto* Actor:TArray<AVirtualSensorActorBase*>{Camera,Lidar})
     {
         C->SelectSensorActor(Actor);Settings->SynchronizeWorkspaceSelection(true);
@@ -48,7 +48,7 @@ bool FSensorSettingsPresentationTest::RunTest(const FString&)
     Settings->OwnedSelectionText=FText::FromString(TEXT("hidden sentinel"));Settings->SetVisibility(ESlateVisibility::Hidden);Settings->NativeTick(FGeometry(),.3);TestEqual(TEXT("hidden panel does not build captions"),Settings->OwnedSelectionText.ToString(),FString(TEXT("hidden sentinel")));
     Settings->SetVisibility(ESlateVisibility::Visible);Settings->OpenOwnedSettingHelp(TEXT("PreviewStride"));TestTrue(TEXT("info action opens existing help area"),Settings->bOwnedSettingHelpOpen);TestFalse(TEXT("owned detailed help uses current vocabulary"),Settings->OwnedHelpText.ToString().Contains(TEXT("Payload")));
     W->UnregisterPanel(Settings);
-    auto* Designer=NewObject<UVirtualSensorSettingsPanelWidget>(World);Designer->Initialize();Designer->WidgetTree->RootWidget=Designer->WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),TEXT("DesignerSentinel"));W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,Designer);UWidget* Root=Designer->WidgetTree->RootWidget.Get();Designer->OpenOwnedSettingsSection(true);Designer->TakeWidget();TestTrue(TEXT("Designer tree remains unchanged"),Designer->WidgetTree->RootWidget.Get()==Root);
+    auto* Designer=NewObject<UDxWidgetVirtualSensorSettingsPanel>(World);Designer->Initialize();Designer->WidgetTree->RootWidget=Designer->WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),TEXT("DesignerSentinel"));W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,Designer);UWidget* Root=Designer->WidgetTree->RootWidget.Get();Designer->OpenOwnedSettingsSection(true);Designer->TakeWidget();TestTrue(TEXT("Designer tree remains unchanged"),Designer->WidgetTree->RootWidget.Get()==Root);
     W->UnregisterPanel(Designer);W->UnregisterPanel(Settings);Settings->RemoveFromParent();C->Destroy();Camera->Destroy();Lidar->Destroy();return true;
 }
 #endif

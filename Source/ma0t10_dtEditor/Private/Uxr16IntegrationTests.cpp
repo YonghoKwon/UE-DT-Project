@@ -5,15 +5,15 @@
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualImuComponent.h"
+#include "Device/Sensor/VirtualImuComp.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
-#include "ma0t10_dt/MA0T10/Scenario/Automation/AutomationControlSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/Manager/Automation/AutomationControlSubsystem.h"
+#include "ma0t10_dt/MA0T10/Dataset/VirtualDatasetSubsystem.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
 #include "Uxr15ToggleTestHelpers.h"
 #include "EngineUtils.h"
 #include "Misc/FileHelper.h"
@@ -32,10 +32,10 @@ class FUxr16Integration final : public IAutomationLatentCommand
     AVirtualLidarSensorActor* Lidar=nullptr;
     AVirtualCameraSensorActor* Camera=nullptr;
     ASlabActor* Slab=nullptr;
-    UVirtualImuComponent* Imu=nullptr;
+    UVirtualImuComp* Imu=nullptr;
     UVirtualDatasetSubsystem* Dataset=nullptr;
     UAutomationControlSubsystem* Control=nullptr;
-    UVirtualSensorCaptureExportPanelWidget* Panel=nullptr;
+    UDxWidgetVirtualSensorCaptureExportPanel* Panel=nullptr;
     FTransform Before;
     FString Root()const{return FPaths::ProjectSavedDir()/TEXT("Reports/UXR/UXR-16/integration");}
     bool Finish()
@@ -69,9 +69,9 @@ public:
             for(auto* A:C->GetSensorActors()){A->StopSensor();if(auto* L=Cast<AVirtualLidarSensorActor>(A))Lidar=L;if(auto* Cam=Cast<AVirtualCameraSensorActor>(A))Camera=Cam;}
             for(TActorIterator<ASlabActor> It(W);It;++It){It->StopSimulation();Slab=*It;break;}
             if(!Lidar||!Camera||!Slab){Test->AddError(TEXT("Combined fixture targets missing"));return true;}
-            Before=Slab->GetActorTransform();Imu=UVirtualImuComponent::Attach(Camera);SensorRevision=Camera->GetConfigurationRevision();
+            Before=Slab->GetActorTransform();Imu=UVirtualImuComp::Attach(Camera);SensorRevision=Camera->GetConfigurationRevision();
             Control=W->GetSubsystem<UAutomationControlSubsystem>();Dataset=W->GetSubsystem<UVirtualDatasetSubsystem>();
-            Panel=Cast<UVirtualSensorCaptureExportPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Data));
+            Panel=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Data));
             IFileManager::Get().MakeDirectory(*Root(),true);
             FFileHelper::SaveStringToFile(TEXT("{\"schema\":\"ma0t10.job.v1\",\"result_path\":\"batch-result.json\",\"steps\":[{\"op\":\"wait\",\"seconds\":1}]}"),*(Root()/TEXT("batch.json")));
             Test->TestTrue(TEXT("batch admitted without a listener"),Control->StartJob(Root()/TEXT("batch.json"),false));

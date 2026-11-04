@@ -11,7 +11,7 @@ function Inspect-Text([string]$Area,[string]$Text){
  }
 }
 # Only displayed LOCTEXT values are labels; UserReason's internal match tokens are not UI text.
-$source=Get-Content -Raw -Encoding UTF8 "$root/Source/ma0t10_dt/MA0T10/UI/SensorToolUiText.h"
+$source=Get-Content -Raw -Encoding UTF8 "$root/Source/ma0t10_dt/MA0T10/UI/Common/SensorToolUiText.h"
 foreach($match in [regex]::Matches($source,'LOCTEXT\("(?<key>[^"\r\n]+)"\s*,\s*"(?<text>(?:\\.|[^"\\])*)"\)')){
  $count++;Inspect-Text "constant:$($match.Groups['key'].Value)" $match.Groups['text'].Value
 }

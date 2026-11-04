@@ -1,10 +1,10 @@
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
@@ -38,13 +38,13 @@ public:
             Switch=IConsoleManager::Get().FindConsoleVariable(TEXT("ma0t10.LidarCpuSnapshotNormalize"));
             if(!Test->TestNotNull(TEXT("CPU normalization diagnostic switch"),Switch))return true;
             Old=Switch->GetInt();Priority=EConsoleVariableFlags(Switch->GetFlags()&ECVF_SetByMask);Switch->Set(0,Priority);
-            auto* Scan=Sensor->ScanComponent.Get();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
+            auto* Scan=Sensor->ScanComp.Get();Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
             Scan->HorizontalSamples=256;Scan->VerticalChannels=16;Scan->bEnableRangeNoise=false;
             Scan->bEnableMaterialResponse=false;Scan->FidelityMode=EVirtualSensorFidelityMode::IdealTruth;
             Scan->bUseRollingPointTimestamps=false;Scan->bEnableMotionDistortion=false;
             Baseline=Scan->GetRuntimeStatus().FrameId;Sensor->StartSensor();Scan->RequestImmediateScheduledScan();Phase=1;return false;
         }
-        auto* Scan=Sensor->ScanComponent.Get();auto Frame=Scan->GetLastFrameSnapshot();
+        auto* Scan=Sensor->ScanComp.Get();auto Frame=Scan->GetLastFrameSnapshot();
         if(!Frame||Frame->FrameId<=Baseline)return false;
         if(Phase==1)
         {

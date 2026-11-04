@@ -3,15 +3,15 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
 #include "DeviceUI/SensorLidarHelp.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/Tests/SlabScenarioValidationRig.h"
@@ -68,7 +68,7 @@ public:
         if(!FinalAcceptanceViewportReady(World))return false;
         auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* C=W->GetCoordinator();
         auto* Bar=Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());
-        auto* Settings=Cast<UVirtualSensorSettingsPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));
+        auto* Settings=Cast<UDxWidgetVirtualSensorSettingsPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Settings));
         if(!Bar||!C||!Settings)return false;
         const int32 View=Phase%Count;const bool Wide=(Phase/Count)%2!=0;const float Scale=Phase<Count*2?1.f:1.5f;
         if(FParse::Param(FCommandLine::Get(),TEXT("Insp4DualOnly"))&&View!=3)return ++Phase==4*Count;
@@ -77,15 +77,15 @@ public:
         {
             if(!Debug)Debug=MakeUnique<TGuardValue<bool>>(GAreScreenMessagesEnabled,false);
             if(!Prepared){Prepared=true;W->ResetOwnedWorkspaceLayout();for(TActorIterator<ASlabScenarioValidationRig> It(World);It;++It)It->SetValidationControlsVisibleForTests(Manual);
-                auto* Extra=World->SpawnActor<AVirtualCameraSensorActor>();Extra->Tags.Add(TEXT("SensorTestManaged"));Extra->StopSensor();Extra->CaptureComponent->SensorId=TEXT("INSP4-CAMERA-B");Extra->CaptureComponent->CaptureResolution=FIntPoint(640,360);Extra->CaptureComponent->CaptureInterval=.1f;Extra->CaptureComponent->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;C->RegisterSensorActor(Extra);Extra->StartSensor();}
+                auto* Extra=World->SpawnActor<AVirtualCameraSensorActor>();Extra->Tags.Add(TEXT("SensorTestManaged"));Extra->StopSensor();Extra->CaptureComp->SensorId=TEXT("INSP4-CAMERA-B");Extra->CaptureComp->CaptureResolution=FIntPoint(640,360);Extra->CaptureComp->CaptureInterval=.1f;Extra->CaptureComp->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;C->RegisterSensorActor(Extra);Extra->StartSensor();}
             FSlateApplication::Get().DismissAllMenus();W->SetSidebarMode(true);W->SetOwnedPanelFontScale(Scale);
             if(W->IsSidebarWide()!=Wide)W->ToggleSidebarWidth();
             const bool Camera=View==3;
             if(Camera)for(auto* A:C->GetSensorActors())if(A&&A->GetSensorKind()==EVirtualSensorKind::Camera)A->StartSensor();
             for(auto* A:C->GetSensorActors())if(A&&A->GetSensorKind()==(Camera?EVirtualSensorKind::Camera:EVirtualSensorKind::Lidar)){C->SelectSensorActor(A);W->SynchronizeOwnedSelection();break;}
             Bar->OpenOwnedDestination(View<4?ESensorToolDestination::Preview:View==4?ESensorToolDestination::Placement:ESensorToolDestination::SensorSettings);
-            if(View<4){auto* M=Cast<UVirtualSensorMonitorPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));M->SetDualCameraModeEnabled(Camera);if(!Camera)M->SetMonitorPresentation(View==2?EVirtualSensorMonitorPresentation::PointCloudOnly:EVirtualSensorMonitorPresentation::TwoDimensional);}
-            if(View==4){auto* P=Cast<UVirtualSensorPlacementPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));P->AttachSelectedImu();P->OpenOwnedImuSettings();}
+            if(View<4){auto* M=Cast<UDxWidgetVirtualSensorMonitorPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));M->SetDualCameraModeEnabled(Camera);if(!Camera)M->SetMonitorPresentation(View==2?EVirtualSensorMonitorPresentation::PointCloudOnly:EVirtualSensorMonitorPresentation::TwoDimensional);}
+            if(View==4){auto* P=Cast<UDxWidgetVirtualSensorPlacementPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));P->AttachSelectedImu();P->OpenOwnedImuSettings();}
             if(View>=5){Settings->SelectOwnedSettingsTab(View==7?0:1);Scroll(Settings->TakeWidget(),View==6);}
             if(View==7)
             {
@@ -128,7 +128,7 @@ public:
             Path=Root/FString::Printf(TEXT("%dx%d-%d-%s-%s.png"),Size.X,Size.Y,FMath::RoundToInt(Scale*100),Wide?TEXT("wide"):TEXT("narrow"),Names[View]);Previous=IFileManager::Get().GetTimeStamp(*Path);
             auto Record=MakeShared<FJsonObject>();Record->SetStringField(TEXT("capture"),Path);Record->SetNumberField(TEXT("width"),Size.X);Record->SetNumberField(TEXT("height"),Size.Y);Record->SetNumberField(TEXT("font_scale"),Scale);Record->SetNumberField(TEXT("sidebar_width"),W->GetSidebarWidth());Record->SetBoolField(TEXT("wide"),Wide);Record->SetBoolField(TEXT("baseline"),Baseline);Record->SetStringField(TEXT("sensor"),C->GetSelectedSensorActor()?C->GetSelectedSensorActor()->GetSensorId():FString());
             Record->SetNumberField(TEXT("actual_font_scale"),W->GetOwnedPanelFontScale());Record->SetNumberField(TEXT("owned_pixel_scale"),W->GetOwnedPixelScale());
-            if(View==3){auto* M=Cast<UVirtualSensorMonitorPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));Test->TestTrue(TEXT("capture contains dual Camera controls"),M->IsDualCameraModeEnabled());Record->SetNumberField(TEXT("camera_count"),C->GetCameraCount());Record->SetBoolField(TEXT("dual"),M->IsDualCameraModeEnabled());}
+            if(View==3){auto* M=Cast<UDxWidgetVirtualSensorMonitorPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));Test->TestTrue(TEXT("capture contains dual Camera controls"),M->IsDualCameraModeEnabled());Record->SetNumberField(TEXT("camera_count"),C->GetCameraCount());Record->SetBoolField(TEXT("dual"),M->IsDualCameraModeEnabled());}
             auto Window=FSlateApplication::Get().FindWidgetWindow(World->GetGameViewport()->GetGameViewportWidget().ToSharedRef());Record->SetNumberField(TEXT("window_dpi"),Window?Window->GetDPIScaleFactor():0);
             FString Json;FJsonSerializer::Serialize(Record,TJsonWriterFactory<>::Create(&Json));FFileHelper::SaveStringToFile(Json,*FPaths::ChangeExtension(Path,TEXT("json")));
             FSlateApplication::Get().CloseToolTip();FScreenshotRequest::RequestScreenshot(Path,true,false);Requested=true;return false;

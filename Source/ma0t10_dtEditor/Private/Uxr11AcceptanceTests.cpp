@@ -11,12 +11,12 @@
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPanelBase.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
 
 namespace
 {
@@ -29,7 +29,7 @@ class FUxr11NativePointer : public IAutomationLatentCommand
     FTransform PawnBefore;
     FRotator ViewBefore;
     FDelegateHandle Trace;
-    TWeakObjectPtr<UVirtualSensorPanelWidgetBase> Panel;
+    TWeakObjectPtr<UDxWidgetVirtualSensorPanelBase> Panel;
     TWeakObjectPtr<AVirtualSensorActorBase> Selected;
     const bool WasActive=FSlateApplication::Get().IsActive();
     const FVector2D OriginalCursor=FSlateApplication::Get().GetCursorPos();
@@ -172,7 +172,7 @@ bool FUXR11ProfileNoticeTest::RunTest(const FString&)
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
     auto* C=World->SpawnActor<AVirtualSensorCoordinator>();W->SetCoordinator(C);
     auto* Camera=World->SpawnActor<AVirtualCameraSensorActor>();auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>();
-    auto* S=NewObject<UVirtualSensorSettingsPanelWidget>(World);W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,S);
+    auto* S=NewObject<UDxWidgetVirtualSensorSettingsPanel>(World);W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,S);
     TestTrue(TEXT("initialize native settings fixture"),S->Initialize());S->SetVisibility(ESlateVisibility::Visible);const auto Pin=S->TakeWidget();
     C->RegisterSensorActor(Camera);C->RegisterSensorActor(Lidar);
     for(auto* A:TArray<AVirtualSensorActorBase*>{Camera,Lidar})

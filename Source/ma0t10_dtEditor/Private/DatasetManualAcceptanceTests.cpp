@@ -3,14 +3,14 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualDatasetSubsystem.h"
+#include "ma0t10_dt/MA0T10/Dataset/VirtualDatasetSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
@@ -43,15 +43,15 @@ public:
             for(TActorIterator<ASlabActor> It(Candidate);It;++It)It->StopSimulation();for(TActorIterator<AVirtualSensorActorBase> It(Candidate);It;++It)It->StopSensor();
             Slab=Candidate->SpawnActor<ASlabActor>();Slab->Tags.Add(TEXT("SensorTestManaged"));Slab->SetActorLocation(FVector(1500,0,200));Slab->ApplyDatasetGeometry(FVector(800,200,50));Slab->SetDiagnosticHelpersVisible(false);
             Lidar=Candidate->SpawnActor<AVirtualLidarSensorActor>();Lidar->Tags.Add(TEXT("SensorTestManaged"));Lidar->StopSensor();Lidar->SetActorLocation(FVector(1500,-1000,1000));Lidar->SetActorRotation((Slab->GetActorLocation()-Lidar->GetActorLocation()).Rotation());
-            Lidar->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Lidar->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Lidar->ScanComponent->SensorId=TEXT("DATASET-MANUAL-LIDAR");Lidar->ScanComponent->OutputMode=EVirtualLidarOutputMode::None;
-            Camera=Candidate->SpawnActor<AVirtualCameraSensorActor>();Camera->Tags.Add(TEXT("SensorTestManaged"));Camera->StopSensor();Camera->SetActorTransform(Lidar->GetActorTransform());Camera->CaptureComponent->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);Camera->CaptureComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Camera->CaptureComponent->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;
+            Lidar->ScanComp->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Lidar->ScanComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Lidar->ScanComp->SensorId=TEXT("DATASET-MANUAL-LIDAR");Lidar->ScanComp->OutputMode=EVirtualLidarOutputMode::None;
+            Camera=Candidate->SpawnActor<AVirtualCameraSensorActor>();Camera->Tags.Add(TEXT("SensorTestManaged"));Camera->StopSensor();Camera->SetActorTransform(Lidar->GetActorTransform());Camera->CaptureComp->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);Camera->CaptureComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Camera->CaptureComp->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;
             Light=Candidate->SpawnActor<ADirectionalLight>();Light->Tags.Add(TEXT("SensorTestManaged"));Light->GetLightComponent()->SetMobility(EComponentMobility::Movable);
             return false;
         }
         auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* Service=World->GetSubsystem<UVirtualDatasetSubsystem>();
         if(!Ready&&Now-Started>5&&Workspace)
         {
-            auto* Panel=Cast<UVirtualSensorCaptureExportPanelWidget>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Data));if(!Panel)return false;
+            auto* Panel=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(Workspace->GetOwnedPanel(ESensorToolPanelRole::Data));if(!Panel)return false;
             Panel->DatasetDraft.Name=TEXT("DATASET01_manual");Panel->DatasetDraft.Scenes=100;Panel->DatasetDraft.Seed=22015;
             Panel->DatasetSlab=Slab.Get();Panel->DatasetLidar=Lidar.Get();Panel->DatasetCamera=Camera.Get();Panel->DatasetLight=Light.Get();
             Workspace->SetOwnedPanelFontScale(1);Workspace->SetPanelOpen(ESensorToolPanelRole::Data,true);Panel->OpenOwnedTab(ESensorOwnedDataTab::FileSave);

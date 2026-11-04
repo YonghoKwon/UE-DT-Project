@@ -2,12 +2,12 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "Components/InstancedStaticMeshComponent.h"
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabPreviewIsolationTest,"MA0T10.SlabReliability.PreviewHasNoPhysicsOrNavigation",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSlabPreviewIsolationTest::RunTest(const FString&)
 {
- auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* Sensor=W->SpawnActor<AVirtualLidarSensorActor>();Sensor->StopSensor();Sensor->ScanComponent->SetPointCloudPreviewEnabled(true);
+ auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* Sensor=W->SpawnActor<AVirtualLidarSensorActor>();Sensor->StopSensor();Sensor->ScanComp->SetPointCloudPreviewEnabled(true);
  TArray<UInstancedStaticMeshComponent*> Components;Sensor->GetComponents(Components);UInstancedStaticMeshComponent* Preview=nullptr;
  for(auto* C:Components)if(C->GetName()==TEXT("VirtualLidarPointCloudPreview"))Preview=C;
  if(!TestNotNull(TEXT("CPU preview exists"),Preview))return false;

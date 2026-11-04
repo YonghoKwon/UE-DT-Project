@@ -1,11 +1,11 @@
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
 
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Components/LineBatchComponent.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarPreviewIdentityTransformTest,
     "MA0T10.LidarFidelity.PreviewIdentityTransform", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -14,7 +14,7 @@ bool FLidarPreviewIdentityTransformTest::RunTest(const FString&)
 {
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();
     auto* Actor=World->SpawnActor<AVirtualLidarSensorActor>();
-    auto* Scan=Actor->ScanComponent.Get();auto* View=Actor->VisualizationComponent.Get();
+    auto* Scan=Actor->ScanComp.Get();auto* View=Actor->VisualizationComp.Get();
     View->BindScanComponent(Scan);View->SetProjectionPreviewEnabled(false);
     FVirtualLidarPreviewPolicy Policy=Scan->GetPreviewPolicyState();
     Policy.PointStride=1;Policy.MaxPoints=8;Policy.bHitOnly=false;Scan->SetPreviewPolicyState(Policy);

@@ -1,10 +1,10 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "SensorWorkspaceForeignFixture.h"
-#include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tests/DxWidgetSensorWorkspaceForeignFixture.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabProgressPanel.h"
 #include "DeviceUI/VirtualSensorUiStyle.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "Widgets/Text/STextBlock.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorOwnedPresentationTest, "MA0T10.Slab.UI.OwnedPresentationIsolation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -12,8 +12,8 @@ bool FSensorOwnedPresentationTest::RunTest(const FString&)
 {
     UWorld* World=FAutomationEditorCommonUtils::CreateNewMap();
     auto* Workspace=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
-    auto* Owned=NewObject<USlabProgressPanelWidget>(World);
-    auto* Foreign=NewObject<USensorWorkspaceForeignFixture>(World);
+    auto* Owned=NewObject<UDxWidgetSlabProgressPanel>(World);
+    auto* Foreign=NewObject<UDxWidgetSensorWorkspaceForeignFixture>(World);
     const auto GlobalColor=FVirtualSensorUiStyle::PanelBackground;
     const FButtonStyle* GlobalButton=&FVirtualSensorUiStyle::ButtonStyle();
     const auto ForeignSize=Foreign->GetEffectivePanelSize();

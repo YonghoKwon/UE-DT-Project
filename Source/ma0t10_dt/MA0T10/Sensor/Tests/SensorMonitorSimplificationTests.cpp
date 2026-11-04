@@ -1,18 +1,18 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
 #include "Device/Core/VirtualSensorSchedulerSubsystem.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorMonitorRateStateTest,"MA0T10.ResourceLifecycle.MonitorCurrentRateState",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorMonitorRateStateTest::RunTest(const FString&)
 {
-    using M=UVirtualSensorMonitorPanelWidget;
+    using M=UDxWidgetVirtualSensorMonitorPanel;
     FVirtualSensorRuntimeStatus History;History.FrameId=717;History.MeasuredCompletionRateHz=20;
     auto Rate=UVirtualSensorSchedulerSubsystem::EvaluateRate(3,0,1,20,.05f,true,false,false,0);
     auto Text=M::FormatOwnedSensorRate(TEXT("LiDAR"),TEXT("rate-test"),History,true,&Rate);
@@ -35,7 +35,7 @@ bool FSensorMonitorRateStateTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorMonitorOptionApplicabilityTest,"MA0T10.SensorWorkspace.MonitorOptionApplicability",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FSensorMonitorOptionApplicabilityTest::RunTest(const FString&)
 {
-	using M=UVirtualSensorMonitorPanelWidget;
+	using M=UDxWidgetVirtualSensorMonitorPanel;
 	TestTrue(TEXT("range image has image overlays"),M::SupportsRangeOverlays(ELidarMonitorProjectionMode::RangeImage));
 	TestTrue(TEXT("split retains range image overlays"),M::SupportsRangeOverlays(ELidarMonitorProjectionMode::Split));
 	for(auto P:{ELidarMonitorProjectionMode::TopDown,ELidarMonitorProjectionMode::WorldTopDown,ELidarMonitorProjectionMode::Elevation,ELidarMonitorProjectionMode::ForwardSlice})TestFalse(TEXT("non-range projection hides inapplicable overlay controls"),M::SupportsRangeOverlays(P));
@@ -44,7 +44,7 @@ bool FSensorMonitorOptionApplicabilityTest::RunTest(const FString&)
 	TestNotNull(TEXT("legacy export API retained"),M::StaticClass()->FindFunctionByName(TEXT("ExportSelectedSensorServerPayload")));
 	TestNotNull(TEXT("legacy capture API retained"),M::StaticClass()->FindFunctionByName(TEXT("CaptureConfiguredOutputsOnce")));
 	TestNotNull(TEXT("legacy point visibility API retained"),M::StaticClass()->FindFunctionByName(TEXT("SetLidarWorldPointCloudEnabled")));
-	TestNotNull(TEXT("existing settings map-save API retained"),UVirtualSensorSettingsPanelWidget::StaticClass()->FindFunctionByName(TEXT("QueuePendingStateForSensorTestMap")));
+	TestNotNull(TEXT("existing settings map-save API retained"),UDxWidgetVirtualSensorSettingsPanel::StaticClass()->FindFunctionByName(TEXT("QueuePendingStateForSensorTestMap")));
 	return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorMonitorPresentationTest,"MA0T10.SensorWorkspace.MonitorPresentationRoundtrip",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -55,12 +55,12 @@ bool FSensorMonitorPresentationTest::RunTest(const FString&)
 	// CreateNewMap is an editor world and does not run the Coordinator's BeginPlay discovery.
 	// RegisterSensorActor alone registers output services, not its selectable component list.
 	Manager->DiscoverSensorsInLevel();Manager->SetViewMode(EVirtualSensorViewMode::Lidar);Manager->bPointCloudOnlyHideWorld=false;
-	auto* M=NewObject<UVirtualSensorMonitorPanelWidget>(World);M->bPersistMonitorPreferences=false;M->BindSensorManager(Manager);
-	const bool Selected=Manager->GetSelectedLidar()==Lidar->ScanComponent.Get();
+	auto* M=NewObject<UDxWidgetVirtualSensorMonitorPanel>(World);M->bPersistMonitorPreferences=false;M->BindSensorManager(Manager);
+	const bool Selected=Manager->GetSelectedLidar()==Lidar->ScanComp.Get();
 	TestTrue(TEXT("fixture discovers selected LiDAR component as runtime BeginPlay does"),Selected);
 	TestTrue(TEXT("monitor actually bound to selected LiDAR before presentation changes"),M->HasBoundLidar()&&M->IsShowingLidar());
 	if(!Selected||!M->HasBoundLidar()){Manager->Destroy();Lidar->Destroy();return false;}
-	auto* V=Lidar->VisualizationComponent.Get();
+	auto* V=Lidar->VisualizationComp.Get();
 	auto S=V->GetVisualizationSettings();S.ProjectionMode=ELidarMonitorProjectionMode::WorldTopDown;S.ColorMode=ELidarColorMode::RelativeHeight;S.bShowGrid=true;S.bShowDepthEdges=true;S.bAutoHeightRange=false;S.HeightMinMeters=-2;S.HeightMaxMeters=3;V->SetVisualizationSettings(S);
 	M->SetMonitorPresentation(EVirtualSensorMonitorPresentation::TwoDimensional);
 	TestFalse(TEXT("2D does not render world points"),V->GetVisualizationSettings().bShowWorldPointCloud);

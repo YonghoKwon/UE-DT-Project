@@ -1,9 +1,9 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "HAL/PlatformProcess.h"
@@ -12,7 +12,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabTerminalSnapshotTest,"MA0T10.SlabReliabili
 bool FSlabTerminalSnapshotTest::RunTest(const FString&)
 {
  auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* Manager=W->SpawnActor<AVirtualSensorCoordinator>();auto* Sensor=W->SpawnActor<AVirtualLidarSensorActor>();Manager->RegisterSensorActor(Sensor);
- auto* Transport=Manager->SharedTransportComponent.Get();auto P=Transport->GetTransportProfile();P.BrokerUrl=TEXT("tcp://127.0.0.1:1");Transport->ConfigureTransportProfile(P);Transport->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+ auto* Transport=Manager->SharedTransportComp.Get();auto P=Transport->GetTransportProfile();P.BrokerUrl=TEXT("tcp://127.0.0.1:1");Transport->ConfigureTransportProfile(P);Transport->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
  auto* Session=W->GetSubsystem<UVirtualSensorSlabContextSubsystem>();auto* Raw=W->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();auto* Results=W->GetSubsystem<USlabRunResultsSubsystem>();
  const auto Run=Session->BeginSlabSensorSession(FString(),{Sensor->GetSensorId()},true);TestFalse(TEXT("fixture begins"),Run.IsEmpty());Session->NotifySlabFrameApplied(Run,TEXT("SQ83521 047"),15,.75);
  Session->CaptureContext(Sensor->GetSensorId(),41);Session->CaptureContext(Sensor->GetSensorId(),42);

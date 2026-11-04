@@ -1,7 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
-#include "ma0t10_dt/MA0T10/UI/TrainBatchWidget.h"
-#include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/Training/TrainBatchCodec.h"
+#include "ma0t10_dt/MA0T10/UI/Topview/DxWidgetTrainBatch.h"
+#include "ma0t10_dt/MA0T10/Training/TrainBatchSubsystem.h"
+#include "ma0t10_dt/MA0T10/Training/TrainBatchCodec.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "HAL/FileManager.h"
@@ -38,7 +38,7 @@ bool FTrainBatchPartialUiDeliveryTest::RunTest(const FString&)
     // The fixture changes only the mutable UI view cache after explicit activation.
     // Storage/admission and sensor generation are covered by the reused r41c evidence.
     auto& Views=const_cast<TArray<FTrainBatchJobView>&>(Service->Jobs());Views.Add(Job);
-    auto* Widget=NewObject<UTrainBatchWidget>(World);Widget->SelectedJob=Job.Spec.Id;
+    auto* Widget=NewObject<UDxWidgetTrainBatch>(World);Widget->SelectedJob=Job.Spec.Id;
     Widget->StartDelivery(false);
     TestFalse(TEXT("partial job refused by the actual default UI action"),Widget->Delivery.IsValid());
     TestFalse(TEXT("default refusal explains itself"),Widget->DeliveryFeedback.IsEmpty());

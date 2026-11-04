@@ -15,7 +15,7 @@ if not asset:
     raise RuntimeError("Missing replay asset")
 unreal.BlueprintEditorLibrary.compile_blueprint(asset)
 generated = unreal.load_class(None, path + ".WBP_SlabScenarioReplayPanel_C")
-if not generated or not isinstance(unreal.get_default_object(generated), unreal.SlabScenarioReplayPanelWidget):
+if not generated or not isinstance(unreal.get_default_object(generated), unreal.DxWidgetSlabScenarioReplayPanel):
     raise RuntimeError("Incompatible native parent; not saving")
 if not unreal.EditorAssetLibrary.save_loaded_asset(asset, only_if_is_dirty=False):
     raise RuntimeError("Replay WBP save failed")

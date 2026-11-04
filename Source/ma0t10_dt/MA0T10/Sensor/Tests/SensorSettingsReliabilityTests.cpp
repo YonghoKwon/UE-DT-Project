@@ -2,11 +2,11 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
 #include <limits>
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSensorSettingsReliabilityTest,"MA0T10.SensorControl.SettingsStateAndFiniteInputs",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -17,7 +17,7 @@ bool FSensorSettingsReliabilityTest::RunTest(const FString&)
     auto* Camera=World->SpawnActor<AVirtualCameraSensorActor>();
     auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>();
     Manager->DiscoverSensorsInLevel();
-    auto* Panel=NewObject<UVirtualSensorSettingsPanelWidget>(World);
+    auto* Panel=NewObject<UDxWidgetVirtualSensorSettingsPanel>(World);
     Panel->BindSensorManager(Manager);
     FString Error;
     for(auto* Actor:{static_cast<AVirtualSensorActorBase*>(Camera),static_cast<AVirtualSensorActorBase*>(Lidar)})
@@ -46,7 +46,7 @@ bool FSensorSettingsReliabilityTest::RunTest(const FString&)
             auto Invalid=State;Invalid.CameraCaptureInterval=Bad;Invalid.LidarScanInterval=Bad;
             Invalid.ActorTransform.SetLocation(FVector(999,999,999));
             TestFalse(TEXT("invalid scalar rejected by Actor"),Actor->ApplyEditableState(Invalid,Error));
-            TestFalse(TEXT("invalid scalar rejected by UI"),UVirtualSensorSettingsPanelWidget::ValidateEditableStateValues(Invalid,{},Error));
+            TestFalse(TEXT("invalid scalar rejected by UI"),UDxWidgetVirtualSensorSettingsPanel::ValidateEditableStateValues(Invalid,{},Error));
             TestTrue(TEXT("invalid input retains pose"),Actor->GetActorTransform().Equals(Pose));
             TestTrue(TEXT("invalid input retains running state"),Actor->IsSensorRunning());
         }

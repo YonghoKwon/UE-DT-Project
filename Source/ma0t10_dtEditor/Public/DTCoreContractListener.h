@@ -7,7 +7,7 @@
 class UBlueprint;
 
 UCLASS()
-class UDTCoreMainAcceptanceWidget : public UDxWidget
+class UDxWidgetDTCoreMainAcceptance : public UDxWidget
 {
     GENERATED_BODY()
 protected:

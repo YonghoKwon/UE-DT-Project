@@ -3,13 +3,13 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/FileHelper.h"
@@ -35,7 +35,7 @@ public:
 		UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();
 		if(!FinalAcceptanceViewportReady(World))return false;
 		auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* C=W->GetCoordinator();
-		auto* Data=Cast<UVirtualSensorCaptureExportPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Data));auto* Bar=Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());
+		auto* Data=Cast<UDxWidgetVirtualSensorCaptureExportPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Data));auto* Bar=Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());
 		if(!C||!Data||!Bar)return false;
 		if(!Ready)
 		{
@@ -44,7 +44,7 @@ public:
 			for(int32 I=0;I<3;++I)
 			{
 				auto* L=World->SpawnActor<AVirtualLidarSensorActor>();L->Tags.Add(TEXT("SensorTestManaged"));L->StopSensor();
-				L->ScanComponent->SensorId=FString::Printf(TEXT("BANDWIDTH.OS1.%d"),I+1);L->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);L->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);L->ScanComponent->ScanInterval=.05f;C->RegisterSensorActor(L);
+				L->ScanComp->SensorId=FString::Printf(TEXT("BANDWIDTH.OS1.%d"),I+1);L->ScanComp->ApplyDeviceProfile(EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);L->ScanComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);L->ScanComp->ScanInterval=.05f;C->RegisterSensorActor(L);
 				if(I==0)C->SelectSensorActor(L);
 			}
 			W->ResetOwnedWorkspaceLayout();W->SetOwnedPanelFontScale(1.f);W->SetSidebarMode(true);W->SynchronizeOwnedSelection();Bar->OpenOwnedDestination(ESensorToolDestination::PcdTransfer);
@@ -73,7 +73,7 @@ public:
 				FFileHelper::SaveArrayToFile(ControlPng,*(Root()/(FString(TEXT("controls-"))+Names[Phase])));
 			}
 			BeginCleanup(Renderer);
-			if(++Phase<3){FVirtualPcdSendOptions O;O.Profile=Phase==1?EVirtualPcdFieldProfile::Compact:EVirtualPcdFieldProfile::Full;O.bCompressed=Phase==1||C->StreamPublisherComponent->bDefaultPcdCompression;FString Error;Test->TestTrue(TEXT("comparison/default UI options"),C->SetPcdBandwidthOptions(TEXT(""),O,true,Error));Ready=FPlatformTime::Seconds()+2;return false;}
+			if(++Phase<3){FVirtualPcdSendOptions O;O.Profile=Phase==1?EVirtualPcdFieldProfile::Compact:EVirtualPcdFieldProfile::Full;O.bCompressed=Phase==1||C->StreamPublisherComp->bDefaultPcdCompression;FString Error;Test->TestTrue(TEXT("comparison/default UI options"),C->SetPcdBandwidthOptions(TEXT(""),O,true,Error));Ready=FPlatformTime::Seconds()+2;return false;}
 		}
 		if(Manual){FFileHelper::SaveStringToFile(TEXT("Production options ready; automatic preparation/captures are separate from direct input."),*(Root()/TEXT("manual-ready.txt")));return FPaths::FileExists(Root()/TEXT("manual-finish.flag"));}
 		return true;

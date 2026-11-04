@@ -15,16 +15,16 @@
 #include "Misc/Paths.h"
 #include "Core/DxProcessSubsystem.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
-#include "ma0t10_dt/MA0T10/Slab/SlabDataSyncComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabDataSyncComp.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabTrackReferenceActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/SlabSimulationUiHostActor.h"
-#include "ma0t10_dt/MA0T10/UI/SlabChartsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelHostComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Slab/SlabSimulationUiHostActor.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabChartsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabProgressPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/VirtualSensorPanelHostComp.h"
 
 namespace
 {
@@ -89,7 +89,7 @@ public:
 			Shared->World=World; Shared->Controller=World->GetFirstPlayerController(); World->RemoveController(Shared->Controller.Get()); Shared->bControllerRemoved=true;
 			Test->TestNull(TEXT("late-controller precondition"),World->GetFirstPlayerController());
 			auto* NewHost=World->SpawnActorDeferred<ASlabSimulationUiHostActor>(ASlabSimulationUiHostActor::StaticClass(),FTransform::Identity);
-			NewHost->SlabActor=Slab.Get(); NewHost->ChartsWidgetClass=USlabChartsPanelWidget::StaticClass(); NewHost->ProgressWidgetClass=USlabProgressPanelWidget::StaticClass();
+			NewHost->SlabActor=Slab.Get(); NewHost->ChartsWidgetClass=UDxWidgetSlabChartsPanel::StaticClass(); NewHost->ProgressWidgetClass=UDxWidgetSlabProgressPanel::StaticClass();
 			NewHost->FinishSpawning(FTransform::Identity); Host=NewHost;
 			Test->TestNull(TEXT("host does not construct widgets before controller"),Host->ChartsWidget.Get());
 			Test->TestTrue(TEXT("host clearly reports bounded initialization wait"),Host->GetInitializationMessage().Contains(TEXT("준비 대기")));
@@ -109,7 +109,7 @@ public:
 			Test->TestEqual(TEXT("late retry binds progress to explicit actor"),Host->ProgressWidget->GetBoundSlabActor(),Slab.Get());
 			auto* OriginalChart=Host->ChartsWidget.Get(); Host->ShowSimulationPanels();
 			Test->TestEqual(TEXT("repeat show reuses the same widget"),Host->ChartsWidget.Get(),OriginalChart);
-			Test->TestEqual(TEXT("exactly two panels hosted"),Host->PanelHost->GetHostedPanelCount(),2);
+			Test->TestEqual(TEXT("exactly two panels hosted"),Host->PanelHostComp->GetHostedPanelCount(),2);
 			Workspace->SetPanelOpen(ESensorToolPanelRole::SlabCharts,true); Workspace->SetPanelOpen(ESensorToolPanelRole::SlabProgress,true);
 			ScenarioId=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower); Json=FSlabScenarioCodec::MakeSyntheticJson(ScenarioId);
 			Test->TestTrue(TEXT("600-row production SubmitScenarioJson accepted without rig"),Slab->SubmitScenarioJson(Json));

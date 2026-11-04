@@ -9,11 +9,11 @@
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorControlTypes.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorControlTypes.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
 namespace
 {
 class FSlabTcpFaultCheck : public IAutomationLatentCommand
@@ -32,8 +32,8 @@ public:
         if(Stage==0)
         {
             Manager=W->SpawnActor<AVirtualSensorCoordinator>();Lidar=W->SpawnActor<AVirtualLidarSensorActor>();Lidar->StopSensor();Manager->DiscoverSensorsInLevel();
-            auto P=Manager->SharedTransportComponent->GetTransportProfile();P.BrokerUrl=TEXT("tcp://127.0.0.1:18679");P.UserName=TEXT("fixture");P.TimeoutSeconds=2;Manager->SharedTransportComponent->TransportProfile=P;Manager->SharedTransportComponent->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
-            FVirtualSensorEditableState State;Lidar->ReadEditableState(State);State.SimulationQuality=EVirtualSensorSimulationQuality::Custom;State.LidarScanInterval=Mode==TEXT("no_receipt")?2:.05f;State.LidarHorizontalSamples=4;State.LidarVerticalChannels=2;FString Error;Test->TestTrue(TEXT("small CPU fixture configured"),Lidar->ApplyEditableState(State,Error));Lidar->ScanComponent->AcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
+            auto P=Manager->SharedTransportComp->GetTransportProfile();P.BrokerUrl=TEXT("tcp://127.0.0.1:18679");P.UserName=TEXT("fixture");P.TimeoutSeconds=2;Manager->SharedTransportComp->TransportProfile=P;Manager->SharedTransportComp->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+            FVirtualSensorEditableState State;Lidar->ReadEditableState(State);State.SimulationQuality=EVirtualSensorSimulationQuality::Custom;State.LidarScanInterval=Mode==TEXT("no_receipt")?2:.05f;State.LidarHorizontalSamples=4;State.LidarVerticalChannels=2;FString Error;Test->TestTrue(TEXT("small CPU fixture configured"),Lidar->ApplyEditableState(State,Error));Lidar->ScanComp->AcquisitionBackend=EVirtualLidarAcquisitionBackend::AccurateCpuTrace;
             Slab=W->SpawnActor<ASlabActor>(FVector(123,70,42),FRotator(0,15,0));Slab->DimensionUnit=ESlabInputUnit::Millimeters;Placement=Slab->GetActorTransform();
             FSlabExecutionOptions Options;Options.Policy=ESlabExecutionPolicy::RequireData;Options.PreparationTimeoutSeconds=Mode==TEXT("auth")?2:5;Slab->SetExecutionOptions(Options);
             TSharedPtr<FJsonObject> Root;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(FSlabScenarioCodec::MakeSyntheticJson(FGuid::NewGuid().ToString())),Root);Root->GetObjectField(TEXT("_meta"))->SetNumberField(TEXT("duration_sec"),60);

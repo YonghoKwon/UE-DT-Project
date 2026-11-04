@@ -1,4 +1,4 @@
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
 #include "SensorOwnedRayTracing.h"
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
@@ -6,10 +6,10 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "Device/Contracts/VirtualSensorRayQuery.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMonitorHost.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/DxWidgetShipHatchMonitor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 #include "ProceduralMeshComponent.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -25,8 +25,8 @@
 
 struct FHatchCabProbe
 {
- static bool Queue(UShipHatchMonitorWidget& M,FVector O,FVector D){return M.QueueOrExecuteDigRay(O,D);}
- static bool Pending(UShipHatchMonitorWidget& M){return M.bPendingCabDig;}
+ static bool Queue(UDxWidgetShipHatchMonitor& M,FVector O,FVector D){return M.QueueOrExecuteDigRay(O,D);}
+ static bool Pending(UDxWidgetShipHatchMonitor& M){return M.bPendingCabDig;}
  static void Migrate(AShipHatchSimulation& S){S.MigrateLegacyCabDimensions();}
  static bool RejectCentering(AShipHatchSimulation& S)
  {S.bGenerating=true;S.bGrabWorkActive=true;const bool Result=S.FinishGeneration();S.bGrabWorkActive=false;return Result;}
@@ -59,7 +59,7 @@ class FCabRun final:public IAutomationLatentCommand
         double Opening,Floor,Area;S.Coverage(Opening,Floor,Area);R->SetNumberField(TEXT("opening_fov_percent"),Opening);R->SetNumberField(TEXT("potential_floor_visible_percent"),Floor);R->SetNumberField(TEXT("potential_floor_area_m2"),Area);
         auto Vector=[](FVector P){TArray<TSharedPtr<FJsonValue>> A;for(double V:{P.X,P.Y,P.Z})A.Add(MakeShared<FJsonValueNumber>(V));return A;};R->SetArrayField(TEXT("camera_world_cm"),Vector(H.ViewCamera->GetActorLocation()));R->SetArrayField(TEXT("camera_pitch_yaw_roll"),Vector(FVector(H.ViewCamera->GetActorRotation().Pitch,H.ViewCamera->GetActorRotation().Yaw,H.ViewCamera->GetActorRotation().Roll)));
         const auto Rect=H.Monitor->GetSceneRect();const auto Geometry=H.Monitor->GetCachedGeometry().GetLocalSize();R->SetNumberField(TEXT("scene_left_px"),Rect.Left*Size.X/Geometry.X);R->SetNumberField(TEXT("scene_top_px"),Rect.Top*Size.Y/Geometry.Y);R->SetNumberField(TEXT("scene_right_px"),Rect.Right*Size.X/Geometry.X);R->SetNumberField(TEXT("scene_bottom_px"),Rect.Bottom*Size.Y/Geometry.Y);
-        TArray<TSharedPtr<FJsonValue>> Rows;for(int I=0;I<3;++I){auto O=MakeShared<FJsonObject>();auto* A=S.SensorAt(I);const auto Status=A->ScanComponent->GetRuntimeStatus();O->SetStringField(TEXT("backend"),Status.ActiveAcquisitionBackend);O->SetNumberField(TEXT("hz"),Status.MeasuredAcquisitionRateHz);O->SetNumberField(TEXT("rays"),A->ScanComponent->HorizontalSamples*A->ScanComponent->VerticalChannels);O->SetNumberField(TEXT("hits"),Status.HitPointCount);Rows.Add(MakeShared<FJsonValueObject>(O));}R->SetArrayField(TEXT("sensors"),Rows);
+        TArray<TSharedPtr<FJsonValue>> Rows;for(int I=0;I<3;++I){auto O=MakeShared<FJsonObject>();auto* A=S.SensorAt(I);const auto Status=A->ScanComp->GetRuntimeStatus();O->SetStringField(TEXT("backend"),Status.ActiveAcquisitionBackend);O->SetNumberField(TEXT("hz"),Status.MeasuredAcquisitionRateHz);O->SetNumberField(TEXT("rays"),A->ScanComp->HorizontalSamples*A->ScanComp->VerticalChannels);O->SetNumberField(TEXT("hits"),Status.HitPointCount);Rows.Add(MakeShared<FJsonValueObject>(O));}R->SetArrayField(TEXT("sensors"),Rows);
         FString Json;FJsonSerializer::Serialize(R,TJsonWriterFactory<>::Create(&Json));FFileHelper::SaveStringToFile(Json,*(CabRoot()/FString::Printf(TEXT("32-%d.json"),Index)));
     }
     void Camera(AShipHatchMonitorHost& H,AShipHatchSimulation& S,int Index)
@@ -79,7 +79,7 @@ public:
         auto& S=*H->Simulation;
         if(Step==0)
         {
-            T->TestEqual(TEXT("default geometry remains on hardware backend"),S.SensorAt(1)->ScanComponent->GetRuntimeStatus().ActiveAcquisitionBackend,FString(TEXT("hardware_ray_tracing")));
+            T->TestEqual(TEXT("default geometry remains on hardware backend"),S.SensorAt(1)->ScanComp->GetRuntimeStatus().ActiveAcquisitionBackend,FString(TEXT("hardware_ray_tracing")));
             T->TestTrue(TEXT("default cab parked over target hatch"),S.IsCabReady()&&FMath::IsNearlyEqual(S.CabY,S.TargetHatchCenterY(),.001));
             T->TestTrue(TEXT("cab roof within one metre below boom soffit"),FMath::IsNearlyEqual(S.BoomSoffitZ()-S.CabRoofZ(),.9,.001));
             T->TestTrue(TEXT("soffit model assumption rail plus25m"),FMath::IsNearlyEqual(S.BoomSoffitZ()-S.QuayZ(),25.,.001));
@@ -90,7 +90,7 @@ public:
             S.BoomHeight=10;S.CabHeight=8;FHatchCabProbe::Migrate(S);T->TestTrue(TEXT("only old10/8 fixture defaults migrate to rail-relative mounting"),FMath::IsNearlyEqual(S.BoomHeight,S.QuayZ()+25-S.HoldDepth-1.05,.001)&&FMath::IsNearlyEqual(S.CabHeight,S.BoomHeight-2.6,.001));S.BoomHeight=SavedBoom;S.CabHeight=SavedCab;
             T->AddExpectedMessage(TEXT("HatchCabCentering"),ELogVerbosity::Warning,EAutomationExpectedMessageFlags::Contains,1);
             T->TestFalse(TEXT("rejected post-generation centering is explicit"),FHatchCabProbe::RejectCentering(S));T->TestTrue(TEXT("centering failure remains visible in status"),S.Status.Contains(TEXT("중앙 이동 실패")));S.Status=SavedStatus;
-            Old=S.CaptureRayQuery(nullptr,ECC_Visibility);OldAcquisition=S.SensorAt(1)->ScanComponent->GetLastFrameSnapshot()->AcquisitionTransform;CargoRevision=S.Revision();InitialBlasBuilds=SensorOwnedRayTracing::GetBlasBuildCount();
+            Old=S.CaptureRayQuery(nullptr,ECC_Visibility);OldAcquisition=S.SensorAt(1)->ScanComp->GetLastFrameSnapshot()->AcquisitionTransform;CargoRevision=S.Revision();InitialBlasBuilds=SensorOwnedRayTracing::GetBlasBuildCount();
             TraceA=S.GetActorTransform().TransformPosition(FVector(S.CabX,S.CabY-1.35,S.CabRoofZ()+.2)*100);TraceB=TraceA-S.GetActorTransform().GetUnitAxis(EAxis::Z)*100;
             T->TestTrue(TEXT("cab first departs independently"),S.RequestCabPosition(.5));T->TestFalse(TEXT("moving cab blocks grab work"),S.BeginGrabWork());Changed=Now;++Step;return false;
         }

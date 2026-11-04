@@ -17,23 +17,23 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "UnrealClient.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualLidarGpuDepthProjectionComp.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Core/VirtualSensorLayoutSubsystem.h"
 #include "PcdDemandAcceptanceFixture.h"
 #include "SlabScenarioValidationRig.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualSensorExternalSourceHostActor.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorTransformGizmoActor.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tool/VirtualSensorTransformGizmoActor.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiHostActor.h"
 #include "VirtualSlabSensorTestDriver.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
@@ -100,8 +100,8 @@ public:
 		}
 
 		const bool bRuntimeReady = Coordinator && Lidar && Camera && UiHost && UiHost->GetSettingsWidget() &&
-			Lidar->ScanComponent && Lidar->ScanComponent->GetRuntimeStatus().FrameId > 0 &&
-			Lidar->ScanComponent->GetLastPoints().Num() > 0 && Lidar->ScanComponent->GetLastHitPointCount() > 0;
+			Lidar->ScanComp && Lidar->ScanComp->GetRuntimeStatus().FrameId > 0 &&
+			Lidar->ScanComp->GetLastPoints().Num() > 0 && Lidar->ScanComp->GetLastHitPointCount() > 0;
 		if (!bRuntimeReady && FPlatformTime::Seconds() - StartedAtSeconds < 8.0)
 		{
 			return false;
@@ -113,13 +113,13 @@ public:
 		Test->TestNotNull(TEXT("PIE UI host exists"), UiHost);
 		if (!bRuntimeReady) return true;
 
-		UVirtualLidarScanComponent* Scan = Lidar->ScanComponent;
-		if (Lidar->VisualizationComponent)
+		UVirtualLidarScanComp* Scan = Lidar->ScanComp;
+		if (Lidar->VisualizationComp)
 		{
 			// UI preferences are intentionally user-specific. Force the renderer on; NullRHI
 			// may either initialize Niagara or select the CPU fallback depending on the RHI.
-			Lidar->VisualizationComponent->SetWorldPointCloudEnabled(true);
-			Lidar->VisualizationComponent->RefreshLatestFrame();
+			Lidar->VisualizationComp->SetWorldPointCloudEnabled(true);
+			Lidar->VisualizationComp->RefreshLatestFrame();
 		}
 		Test->TestTrue(TEXT("automatic LiDAR scan completes in PIE"), Scan->GetRuntimeStatus().FrameId > 0);
 		Test->TestTrue(TEXT("automatic LiDAR scan produces points"), Scan->GetLastPoints().Num() > 0);
@@ -127,20 +127,20 @@ public:
 		const bool bNiagaraActive = Scan->IsGpuPreviewBackendActive();
 		Test->TestTrue(TEXT("spatial point-cloud preview is enabled"),
 			bNiagaraActive || Scan->IsPointCloudPreviewEnabled());
-		if (bNiagaraActive && Lidar->VisualizationComponent)
+		if (bNiagaraActive && Lidar->VisualizationComp)
 		{
-			Test->TestTrue(TEXT("Niagara preview uploads visible points"), Lidar->VisualizationComponent->GetVisiblePointCount() > 0);
-			Test->TestTrue(TEXT("Niagara renderer reports the active path"), Lidar->VisualizationComponent->GetActiveRendererName().Contains(TEXT("Niagara")));
+			Test->TestTrue(TEXT("Niagara preview uploads visible points"), Lidar->VisualizationComp->GetVisiblePointCount() > 0);
+			Test->TestTrue(TEXT("Niagara renderer reports the active path"), Lidar->VisualizationComp->GetActiveRendererName().Contains(TEXT("Niagara")));
 		}
 
 		// A real CPU fallback must contain render instances, not just a non-empty
 		// point array. This keeps the button useful even if Niagara compilation or
 		// feature-level support is unavailable on the current machine.
-		Lidar->VisualizationComponent->SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy::ForceCpu);
-		Lidar->VisualizationComponent->SetWorldPointCloudEnabled(true);
-		Lidar->VisualizationComponent->RefreshLatestFrame();
+		Lidar->VisualizationComp->SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy::ForceCpu);
+		Lidar->VisualizationComp->SetWorldPointCloudEnabled(true);
+		Lidar->VisualizationComp->RefreshLatestFrame();
 		Test->TestEqual(TEXT("forced CPU reports fallback state"),
-			Lidar->VisualizationComponent->GetRendererTelemetry().State,
+			Lidar->VisualizationComp->GetRendererTelemetry().State,
 			ELidarPointCloudRendererState::CpuFallback);
 
 		TArray<UInstancedStaticMeshComponent*> PreviewComponents;
@@ -193,7 +193,7 @@ public:
 			Test->TestTrue(TEXT("point-cloud bounds overlap the game viewport"), bAnyPointProjectsInsideViewport);
 		}
 
-		UVirtualSensorSettingsPanelWidget* Settings = UiHost->GetSettingsWidget();
+		UDxWidgetVirtualSensorSettingsPanel* Settings = UiHost->GetSettingsWidget();
 		Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
 		Test->TestEqual(TEXT("settings selection switches to LiDAR"), Settings->GetPendingState().TargetKind, EVirtualSensorTargetKind::Lidar);
 		Test->TestEqual(TEXT("settings selection reads the LiDAR SensorId"), Settings->GetPendingState().SensorId, Scan->SensorId);
@@ -222,7 +222,7 @@ public:
 		Test->TestEqual(TEXT("settings refreshes Camera width"), Settings->GetPendingState().CameraResolution.X, 1280);
 		Test->TestEqual(TEXT("settings refreshes Camera height"), Settings->GetPendingState().CameraResolution.Y, 720);
 		Test->TestTrue(TEXT("settings refreshes Camera capture interval"), FMath::IsNearlyEqual(Settings->GetPendingState().CameraCaptureInterval, 1.0f / 30.0f));
-		Test->TestEqual(TEXT("runtime Camera receives FullSpec width"), Camera->CaptureComponent->CaptureResolution.X, 1280);
+		Test->TestEqual(TEXT("runtime Camera receives FullSpec width"), Camera->CaptureComp->CaptureResolution.X, 1280);
 		if (Settings->GetTransformGizmoActor())
 		{
 			Test->TestEqual(TEXT("gizmo follows the selected Camera"), Settings->GetTransformGizmoActor()->GetBoundTargetActor(), static_cast<AActor*>(Camera));
@@ -231,16 +231,16 @@ public:
 		if (!GUsingNullRHI)
 		{
 			Settings->SelectTargetKind(EVirtualSensorTargetKind::Lidar);
-			Lidar->VisualizationComponent->SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy::ForceNiagara);
-			Lidar->VisualizationComponent->SetWorldPointCloudEnabled(true);
-			Lidar->VisualizationComponent->RefreshLatestFrame();
-			const FVirtualLidarRendererTelemetry NiagaraTelemetry = Lidar->VisualizationComponent->GetRendererTelemetry();
+			Lidar->VisualizationComp->SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy::ForceNiagara);
+			Lidar->VisualizationComp->SetWorldPointCloudEnabled(true);
+			Lidar->VisualizationComp->RefreshLatestFrame();
+			const FVirtualLidarRendererTelemetry NiagaraTelemetry = Lidar->VisualizationComp->GetRendererTelemetry();
 			Test->TestTrue(TEXT("forced Niagara reports active rendering or an explicit error"),
 				NiagaraTelemetry.State == ELidarPointCloudRendererState::NiagaraActive ||
 				NiagaraTelemetry.State == ELidarPointCloudRendererState::Error);
-			Lidar->VisualizationComponent->SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy::AutoPreferNiagara);
-			Lidar->VisualizationComponent->RefreshLatestFrame();
-			const FVirtualLidarRendererTelemetry AutoTelemetry = Lidar->VisualizationComponent->GetRendererTelemetry();
+			Lidar->VisualizationComp->SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy::AutoPreferNiagara);
+			Lidar->VisualizationComp->RefreshLatestFrame();
+			const FVirtualLidarRendererTelemetry AutoTelemetry = Lidar->VisualizationComp->GetRendererTelemetry();
 			Test->TestTrue(TEXT("automatic renderer selects live Niagara or CPU fallback"),
 				AutoTelemetry.State == ELidarPointCloudRendererState::NiagaraActive ||
 				AutoTelemetry.State == ELidarPointCloudRendererState::CpuFallback);
@@ -306,7 +306,7 @@ public:
 			for (TActorIterator<AVirtualCameraSensorActor> It(World); It; ++It) { Camera = *It; break; }
 			for (TActorIterator<AVirtualSensorExternalSourceHostActor> It(World); It; ++It) { ReceiverHost = *It; break; }
 		}
-		if (!Coordinator || !Coordinator->StreamPublisherComponent || !Coordinator->SharedTransportComponent || !Lidar || !Camera)
+		if (!Coordinator || !Coordinator->StreamPublisherComp || !Coordinator->SharedTransportComp || !Lidar || !Camera)
 		{
 			if (FPlatformTime::Seconds() - StartedAtSeconds < 8.0) return false;
 			Test->AddError(TEXT("SensorRefactorTestMap stream services were not ready."));
@@ -315,8 +315,8 @@ public:
 		if(LayoutLidar.IsValid())Lidar=LayoutLidar.Get();
 		if(LayoutCamera.IsValid())Camera=LayoutCamera.Get();
 
-		UVirtualSensorTransportComponent* Transport = Coordinator->SharedTransportComponent;
-		UVirtualSensorStreamPublisherComponent* Publisher = Coordinator->StreamPublisherComponent;
+		UVirtualSensorTransportComp* Transport = Coordinator->SharedTransportComp;
+		UVirtualSensorStreamPublisherComp* Publisher = Coordinator->StreamPublisherComp;
 		if(!FinalAcceptanceViewportReady(World))
 		{
 			if(FPlatformTime::Seconds()-StartedAtSeconds>10){Test->AddError(TEXT("Actual PIE client pixel size does not match acceptance request."));return true;}
@@ -362,10 +362,10 @@ public:
 			// the early three-stream smoke. Applying the profile once keeps the
 			// acquisition at 576x56, 20 Hz while the stream subscribes to completed
 			// immutable frames without triggering an extra scan.
-			Lidar->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);
-			Lidar->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+			Lidar->ScanComp->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);
+			Lidar->ScanComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
 			const bool bSemanticBenchmark = FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_LIDAR_SEMANTIC_BENCHMARK")).Equals(TEXT("1"));
-			if (Lidar->VisualizationComponent) Lidar->VisualizationComponent->SetColorMode(bSemanticBenchmark ? ELidarColorMode::SemanticLabel : ELidarColorMode::DistanceTurbo);
+			if (Lidar->VisualizationComp) Lidar->VisualizationComp->SetColorMode(bSemanticBenchmark ? ELidarColorMode::SemanticLabel : ELidarColorMode::DistanceTurbo);
 			Test->AddInfo(FString::Printf(TEXT("[LidarSemanticBenchmark] enabled=%d"), bSemanticBenchmark));
 			// Acceptance is exactly one D455 FullSpec camera plus one ML-X(80)
 			// Native LiDAR. The overhead test camera remains in the map but is
@@ -373,26 +373,26 @@ public:
 			bool bPrimaryCameraConfigured = false;
 			for (TActorIterator<AVirtualCameraSensorActor> It(World); It; ++It)
 			{
-				if (!It->CaptureComponent) continue;
+				if (!It->CaptureComp) continue;
 				if (!bPrimaryCameraConfigured)
 				{
 					Camera = *It;
-					It->CaptureComponent->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);
-					It->CaptureComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
-					It->CaptureComponent->CaptureMode = EVirtualCameraCaptureMode::PreviewOnly;
+					It->CaptureComp->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);
+					It->CaptureComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
+					It->CaptureComp->CaptureMode = EVirtualCameraCaptureMode::PreviewOnly;
 					bPrimaryCameraConfigured = true;
 				}
 				else
 				{
-					It->CaptureComponent->StopCapture();
+					It->CaptureComp->StopCapture();
 				}
 			}
-			Lidar->ScanComponent->ServerPayloadStride = 32;
-			Lidar->ScanComponent->MaxServerPayloadPoints = 1024;
-			Lidar->ScanComponent->bIncludeMissPointsInServerPayload = false;
-			if (Lidar->VisualizationComponent)
+			Lidar->ScanComp->ServerPayloadStride = 32;
+			Lidar->ScanComp->MaxServerPayloadPoints = 1024;
+			Lidar->ScanComp->bIncludeMissPointsInServerPayload = false;
+			if (Lidar->VisualizationComp)
 			{
-				Lidar->VisualizationComponent->SetWorldPointCloudEnabled(false);
+				Lidar->VisualizationComp->SetWorldPointCloudEnabled(false);
 			}
             const bool LayoutFixture=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_LAYOUT_API_FIXTURE"))==TEXT("1");
             if(LayoutFixture)
@@ -412,8 +412,8 @@ public:
                     auto* L=Cast<AVirtualLidarSensorActor>(Layout->CreateSensorAtPose(EVirtualSensorKind::Lidar,LP,Error,false));
                     auto* A=Cast<AVirtualCameraSensorActor>(Layout->CreateSensorAtPose(EVirtualSensorKind::Camera,CP,Error,false));
                     if(!L||!A){Test->AddError(Error);return true;}
-                    L->ScanComponent->ServerPayloadStride=32;L->ScanComponent->MaxServerPayloadPoints=1024;
-                    if(L->VisualizationComponent)L->VisualizationComponent->SetWorldPointCloudEnabled(false);
+                    L->ScanComp->ServerPayloadStride=32;L->ScanComp->MaxServerPayloadPoints=1024;
+                    if(L->VisualizationComp)L->VisualizationComp->SetWorldPointCloudEnabled(false);
                     L->StartSensor();A->StartSensor();if(I==0){Lidar=L;Camera=A;LayoutLidar=L;LayoutCamera=A;}
                 }
                 Test->TestEqual(TEXT("new layout API creates exact sensor inventory"),Coordinator->GetSensorActors().Num(),SensorCount*2);
@@ -422,12 +422,12 @@ public:
             else if(SensorCount==2)
             {
                 auto* Extra=World->SpawnActorDeferred<AVirtualLidarSensorActor>(AVirtualLidarSensorActor::StaticClass(),FTransform(Lidar->GetActorRotation(),Lidar->GetActorLocation()+FVector(0,50,0)));
-                Extra->ScanComponent->SensorId=TEXT("OUTPUT-LIDAR-002");Extra->ScanComponent->bAutoStartScan=false;Extra->ScanComponent->bAutoRegisterToManager=false;Extra->ScanComponent->bApplyDeviceProfileOnBeginPlay=false;Extra->ScanComponent->Preset=EVirtualLidarPreset::Custom;
-                Extra->FinishSpawning(Extra->GetActorTransform());Extra->ScanComponent->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Extra->ScanComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Extra->ScanComponent->ServerPayloadStride=32;Extra->ScanComponent->MaxServerPayloadPoints=1024;
-                if(Extra->VisualizationComponent)Extra->VisualizationComponent->SetWorldPointCloudEnabled(false);
-                Coordinator->RegisterSensorActor(Extra);Coordinator->RegisterLidar(Extra->ScanComponent);Extra->SetSharedOutputServices(Transport,Coordinator->SharedRecorderComponent,Publisher);Extra->StartSensor();
+                Extra->ScanComp->SensorId=TEXT("OUTPUT-LIDAR-002");Extra->ScanComp->bAutoStartScan=false;Extra->ScanComp->bAutoRegisterToManager=false;Extra->ScanComp->bApplyDeviceProfileOnBeginPlay=false;Extra->ScanComp->Preset=EVirtualLidarPreset::Custom;
+                Extra->FinishSpawning(Extra->GetActorTransform());Extra->ScanComp->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);Extra->ScanComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);Extra->ScanComp->ServerPayloadStride=32;Extra->ScanComp->MaxServerPayloadPoints=1024;
+                if(Extra->VisualizationComp)Extra->VisualizationComp->SetWorldPointCloudEnabled(false);
+                Coordinator->RegisterSensorActor(Extra);Coordinator->RegisterLidar(Extra->ScanComp);Extra->SetSharedOutputServices(Transport,Coordinator->SharedRecorderComp,Publisher);Extra->StartSensor();
                 for(TActorIterator<AVirtualCameraSensorActor> It(World);It;++It)if(*It!=Camera)
-                {It->CaptureComponent->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);It->CaptureComponent->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);It->CaptureComponent->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;It->SetSharedOutputServices(Transport,Coordinator->SharedRecorderComponent,Publisher);Coordinator->RegisterSensorActor(*It);Coordinator->RegisterCamera(It->CaptureComponent);It->StartSensor();break;}
+                {It->CaptureComp->ApplyDeviceProfile(EVirtualCameraDeviceProfile::IntelRealSenseD455);It->CaptureComp->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);It->CaptureComp->CaptureMode=EVirtualCameraCaptureMode::PreviewOnly;It->SetSharedOutputServices(Transport,Coordinator->SharedRecorderComp,Publisher);Coordinator->RegisterSensorActor(*It);Coordinator->RegisterCamera(It->CaptureComp);It->StartSensor();break;}
             }
             const FString Pcd20Interval=FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD20HZ_NATIVE_INTERVAL"));
             bPcd20Probe=!Pcd20Interval.IsEmpty();
@@ -463,8 +463,8 @@ public:
 			if (OverrideDuration >= 0)
 			{
 				// 반복 시험은 앞 회차에서 중지한 센서를 실제 API로 다시 시작한다.
-				Camera->CaptureComponent->StartCapture();
-				Lidar->ScanComponent->StartScan();
+				Camera->CaptureComp->StartCapture();
+				Lidar->ScanComp->StartScan();
 			}
             CameraIds.Reset(); LidarIds.Reset();
             for (TActorIterator<AVirtualCameraSensorActor> It(World); It; ++It) if (It->IsSensorRunning()) CameraIds.Add(It->GetSensorId());
@@ -602,18 +602,18 @@ public:
         }
 		if (StreamElapsedSeconds >= WarmupSeconds && !bAcquisitionStopped && StreamElapsedSeconds < WarmupSeconds+MeasurementSeconds)
 		{
-			auto* DepthCapture = Lidar->FindComponentByClass<UVirtualLidarGpuDepthProjectionComponent>();
+			auto* DepthCapture = Lidar->FindComponentByClass<UVirtualLidarGpuDepthProjectionComp>();
 			if (!bCaptureViewStatesChecked)
 			{
 				bCaptureViewStatesChecked = true;
-				Test->TestTrue(TEXT("scheduled Camera retains render state"), Camera->CaptureComponent->bAlwaysPersistRenderingState);
+				Test->TestTrue(TEXT("scheduled Camera retains render state"), Camera->CaptureComp->bAlwaysPersistRenderingState);
 				Test->TestTrue(TEXT("scheduled depth capture retains render state"), DepthCapture && DepthCapture->bAlwaysPersistRenderingState);
-				CameraViewState = Camera->CaptureComponent->GetViewState(0);
+				CameraViewState = Camera->CaptureComp->GetViewState(0);
 				LidarViewState = DepthCapture ? DepthCapture->GetViewState(0) : nullptr;
 				Test->TestNotNull(TEXT("Camera has persistent view state"), CameraViewState);
 				Test->TestNotNull(TEXT("LiDAR has persistent view state"), LidarViewState);
 			}
-			if (CameraViewState != Camera->CaptureComponent->GetViewState(0) ||
+			if (CameraViewState != Camera->CaptureComp->GetViewState(0) ||
 				!DepthCapture || LidarViewState != DepthCapture->GetViewState(0))
 			{
 				Test->AddError(TEXT("Sensor capture view state was replaced during streaming"));
@@ -773,16 +773,16 @@ public:
 				PointCloudBeforeAssertions->ReceiptQueueDepth, PointCloudBeforeAssertions->FrameGapCount,
 				PointCloudBeforeAssertions->RetryCount, PointCloudBeforeAssertions->OverloadCount);
 		}
-		const TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> CameraJpeg = Camera->CaptureComponent
-			? Camera->CaptureComponent->GetLastJpegSnapshot() : nullptr;
+		const TSharedPtr<const TArray64<uint8>, ESPMode::ThreadSafe> CameraJpeg = Camera->CaptureComp
+			? Camera->CaptureComp->GetLastJpegSnapshot() : nullptr;
 		if(!bPointCloudOnly) Test->TestTrue(TEXT("camera stream retains a raw JPEG snapshot"),
 			CameraJpeg.IsValid() && CameraJpeg->Num() >= 4 && (*CameraJpeg)[0] == 0xff && (*CameraJpeg)[1] == 0xd8);
 		Test->TestTrue(TEXT("point-cloud stream is fed by measured LiDAR hits"),
-			Lidar->ScanComponent && Lidar->ScanComponent->GetLastHitPointCount() > 0);
+			Lidar->ScanComp && Lidar->ScanComp->GetLastHitPointCount() > 0);
         if(IsPcdDemandAcceptanceFixture())for(auto* Device:Coordinator->GetSensorActors())if(auto* L=Cast<AVirtualLidarSensorActor>(Device))
         {
-            const auto Json=L->ScanComponent->GetCompatibilityOutputStatus();
-            UE_LOG(LogTemp,Display,TEXT("[PcdJsonDemand] sensor=%s policy=%d started=%lld completed=%lld skipped=%lld queueMs=%.3f encodeMs=%.3f completionMs=%.3f"),*L->GetSensorId(),int32(L->ScanComponent->CompatibilityOutputPolicy),Json.Started,Json.Completed,Json.SkippedUnrequested,Json.QueueWaitMs,Json.EncodeMs,Json.CompletionMs);
+            const auto Json=L->ScanComp->GetCompatibilityOutputStatus();
+            UE_LOG(LogTemp,Display,TEXT("[PcdJsonDemand] sensor=%s policy=%d started=%lld completed=%lld skipped=%lld queueMs=%.3f encodeMs=%.3f completionMs=%.3f"),*L->GetSensorId(),int32(L->ScanComp->CompatibilityOutputPolicy),Json.Started,Json.Completed,Json.SkippedUnrequested,Json.QueueWaitMs,Json.EncodeMs,Json.CompletionMs);
             if(bPointCloudOnly&&FPlatformMisc::GetEnvironmentVariable(TEXT("MA0T10_PCD_JSON_POLICY"))==TEXT("requested"))
                 Test->TestEqual(TEXT("PCD-only requested policy starts zero compatibility jobs"),Json.Started,int64(0));
         }
@@ -890,7 +890,7 @@ public:
         {
             if(!Current->Update())return false;
             Current.Reset();
-            for(TActorIterator<AVirtualSensorCoordinator> It(W);It;++It){It->StopAllSensors();It->StreamPublisherComponent->StopAllStreams(FString());}
+            for(TActorIterator<AVirtualSensorCoordinator> It(W);It;++It){It->StopAllSensors();It->StreamPublisherComp->StopAllStreams(FString());}
             W->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>()->StopHighThroughputTransport();
             for(TActorIterator<AVirtualSensorExternalSourceHostActor> It(W);It;++It)It->StopTopicReceivers();
             CleanupAt=FPlatformTime::Seconds();

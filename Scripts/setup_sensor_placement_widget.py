@@ -16,6 +16,6 @@ if not asset:
 else:
     unreal.BlueprintEditorLibrary.compile_blueprint(asset)
 cls = unreal.load_class(None, path + ".WBP_VirtualSensorPlacementPanel_C")
-if not cls or not isinstance(unreal.get_default_object(cls), unreal.VirtualSensorPlacementPanelWidget):
+if not cls or not isinstance(unreal.get_default_object(cls), unreal.DxWidgetVirtualSensorPlacementPanel):
     raise RuntimeError("Unexpected placement WBP parent")
 unreal.log("[PlacementAsset] new placement WBP compiled; existing assets/maps untouched")

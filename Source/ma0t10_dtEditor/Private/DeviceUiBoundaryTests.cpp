@@ -3,11 +3,11 @@
 #include "UObject/GarbageCollection.h"
 #include "UObject/UnrealType.h"
 #include "Kismet/GameplayStatics.h"
-#include "DeviceUI/DeviceSensorPanelBase.h"
+#include "DeviceUI/DxDeviceSensorPanelBase.h"
 #include "DeviceUI/DevicePanelBodyCall.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPanelWidgetBase.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPanelBase.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiPreferences.h"
 
 namespace
 {
@@ -23,7 +23,7 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeviceUiWeakHostLifetime,"MA0T10.DeviceBoundary.UiWeakHostLifetime",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FDeviceUiWeakHostLifetime::RunTest(const FString&)
 {
-    auto* Panel=NewObject<UVirtualSensorMonitorPanelWidget>();Panel->AddToRoot();
+    auto* Panel=NewObject<UDxWidgetVirtualSensorMonitorPanel>();Panel->AddToRoot();
     TWeakObjectPtr<UObject> Owner=NewObject<UVirtualSensorUiPreferencesSaveGame>();
     Panel->BindDevicePanelHost(Owner.Get(),MakeShared<FDeviceBoundaryHost>());
     TestTrue(TEXT("explicit host owns the panel"),Panel->IsDeviceHostOwned());
@@ -42,7 +42,7 @@ bool FDeviceUiWeakHostLifetime::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeviceUiFacadePersistence,"MA0T10.DeviceBoundary.UiFacadePersistence",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FDeviceUiFacadePersistence::RunTest(const FString&)
 {
-    UClass* Legacy=UVirtualSensorPanelWidgetBase::StaticClass();
+    UClass* Legacy=UDxWidgetVirtualSensorPanelBase::StaticClass();
     for(const TCHAR* Name:{TEXT("bPanelDraggable"),TEXT("bClampPanelToViewport"),TEXT("bPanelResizable"),TEXT("DragHandleHeight"),TEXT("ResizeHandleSize")})
     {
         auto* Property=FindFProperty<FProperty>(Legacy,Name);TestNotNull(Name,Property);
@@ -55,9 +55,9 @@ bool FDeviceUiFacadePersistence::RunTest(const FString&)
     auto* Restored=Cast<UVirtualSensorUiPreferencesSaveGame>(UGameplayStatics::LoadGameFromMemory(Bytes));
     if(TestNotNull(TEXT("same legacy SaveGame type"),Restored))
     {TestEqual(TEXT("saved range minimum unchanged"),Restored->LidarHeightMinMeters,12.5f);TestEqual(TEXT("saved range maximum unchanged"),Restored->LidarHeightMaxMeters,27.75f);}
-    const FVector2D Drag=UDeviceSensorPanelBase::DeviceDraggedPosition(FVector2D(100,200),FVector2D(30,60),1.5f);
+    const FVector2D Drag=UDxDeviceSensorPanelBase::DeviceDraggedPosition(FVector2D(100,200),FVector2D(30,60),1.5f);
     TestTrue(TEXT("DPI drag math unchanged"),Drag.Equals(FVector2D(120,240),.001));
-    TestEqual(TEXT("font clamp unchanged"),UDeviceSensorPanelBase::DeviceScaledFontSize(20,.5f),17);
+    TestEqual(TEXT("font clamp unchanged"),UDxDeviceSensorPanelBase::DeviceScaledFontSize(20,.5f),17);
     return true;
 }
 #endif

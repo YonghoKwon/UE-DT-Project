@@ -18,10 +18,10 @@
 #include "HAL/FileManager.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
-#include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
+#include "Device/Sensor/VirtualLidarGpuDepthProjectionComp.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 
 /** Disposable scene: the real workspace pick marker is placed between sensors and a wall. */
 class FPlacementMarkerIsolation : public IAutomationLatentCommand
@@ -54,15 +54,15 @@ public:
             Mesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));Wall->SetActorLocation(FVector(900,0,0));Wall->SetActorScale3D(FVector(.1,30,30));
             auto* Material=NewObject<UMaterial>();Material->SetShadingModel(MSM_Unlit);auto* Color=NewObject<UMaterialExpressionConstant3Vector>(Material);Color->Constant=FLinearColor(.1,.4,.7);Material->GetExpressionCollection().AddExpression(Color);Material->GetEditorOnlyData()->EmissiveColor.Expression=Color;Material->PostEditChange();Mesh->SetMaterial(0,Material);
             PickTarget=W->SpawnActor<AVirtualCameraSensorActor>();PickTarget->StopSensor();PickTarget->SetActorLocation(FVector(300,0,0));
-            Lidar=W->SpawnActor<AVirtualLidarSensorActor>();Lidar->StopSensor();auto* S=Lidar->ScanComponent.Get();
+            Lidar=W->SpawnActor<AVirtualLidarSensorActor>();Lidar->StopSensor();auto* S=Lidar->ScanComp.Get();
             S->ApplyDeviceProfile(EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE);S->ApplySimulationQuality(EVirtualSensorSimulationQuality::FullSpec);
             S->HorizontalSamples=64;S->VerticalChannels=16;S->HorizontalFov=60;S->MaxDistance=1500;S->bEnableRangeNoise=false;S->FidelityMode=EVirtualSensorFidelityMode::IdealTruth;
             S->CompatibilityOutputPolicy=EVirtualLidarCompatibilityOutputPolicy::WhenRequested;
             S->bEnableSemanticClassification=true;S->ViewMode=EVirtualLidarViewMode::ActorClassColor;S->SemanticClassRules.Reset();
             FVirtualLidarSemanticClassRule Rule;Rule.Label=TEXT("Wall");Rule.ActorClassNames.Add(AStaticMeshActor::StaticClass()->GetFName());S->SemanticClassRules.Add(Rule);
             Rule.Label=TEXT("PickTarget");Rule.ActorClassNames={AVirtualCameraSensorActor::StaticClass()->GetFName()};S->SemanticClassRules.Add(Rule);
-            S->SetPointCloudPreviewEnabled(true);S->SetPreviewPolicy(1,0,true);Lidar->VisualizationComponent->BindScanComponent(S);
-            Lidar->VisualizationComponent->SetWorldPointCloudEnabled(true);
+            S->SetPointCloudPreviewEnabled(true);S->SetPreviewPolicy(1,0,true);Lidar->VisualizationComp->BindScanComponent(S);
+            Lidar->VisualizationComp->SetWorldPointCloudEnabled(true);
             Capture=NewObject<USceneCaptureComponent2D>();Capture->bCaptureEveryFrame=false;Capture->bCaptureOnMovement=false;Capture->CaptureSource=ESceneCaptureSource::SCS_SceneColorHDR;
             Capture->ShowFlags.SetEyeAdaptation(false);Capture->ShowFlags.SetPostProcessing(false);Capture->ShowFlags.SetAntiAliasing(false);Capture->ShowFlags.SetTemporalAA(false);
             Capture->TextureTarget=NewObject<UTextureRenderTarget2D>(Capture);Capture->TextureTarget->InitCustomFormat(128,128,PF_B8G8R8A8,false);Capture->TextureTarget->UpdateResourceImmediate();
@@ -70,7 +70,7 @@ public:
             if(GShaderCompilingManager)GShaderCompilingManager->FinishAllCompilation();
             return false;
         }
-        auto* W=Scene->GetWorld();auto* S=Lidar->ScanComponent.Get();
+        auto* W=Scene->GetWorld();auto* S=Lidar->ScanComp.Get();
         if(CameraWarmup<3)
         {
             W->SendAllEndOfFrameUpdates();Capture->CaptureScene();FlushRenderingCommands();TArray<FColor> Pixels;
@@ -93,16 +93,16 @@ public:
         }
         S->ProcessScheduledScanChunk(2048);const auto Frame=S->GetLastFrameSnapshot();
         if(!Frame.IsValid()||!Frame->Points.IsValid()||Frame->FrameId==LastFrame)return false;
-        LastFrame=Frame->FrameId;S->StopScan();Lidar->VisualizationComponent->SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy::ForceCpu);Lidar->VisualizationComponent->RefreshLatestFrame();FlushRenderingCommands();
+        LastFrame=Frame->FrameId;S->StopScan();Lidar->VisualizationComp->SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy::ForceCpu);Lidar->VisualizationComp->RefreshLatestFrame();FlushRenderingCommands();
         FVirtualSensorFrameEnvelope Envelope;Envelope.PointSnapshot=Frame->Points;Envelope.SensorId=TEXT("PICK-ISOLATION");Envelope.SensorKind=EVirtualSensorKind::Lidar;
         FVirtualSensorStreamConfig Config;Config.StreamKind=EVirtualSensorStreamKind::PointCloud;Config.PointCloudFormat=EVirtualPointCloudStreamFormat::PCD;
         FString Extension,Error;TArray<uint8> Bytes;int32 Points=0;
-        Test->TestTrue(TEXT("actual PCD serializer accepts measured snapshot"),UVirtualSensorStreamPublisherComponent::SerializePointCloudForTesting(Envelope,Config,Extension,Bytes,Points,Error));
+        Test->TestTrue(TEXT("actual PCD serializer accepts measured snapshot"),UVirtualSensorStreamPublisherComp::SerializePointCloudForTesting(Envelope,Config,Extension,Bytes,Points,Error));
         Test->TestTrue(TEXT("physical wall produces PCD points"),Points>100);
         TArray<FTransform> Instances;TArray<UInstancedStaticMeshComponent*> Isms;Lidar->GetComponents(Isms);
         for(auto* Ism:Isms)if(Ism->GetFName()==TEXT("VirtualLidarPointCloudPreview"))for(int32 I=0;I<Ism->GetInstanceCount();++I){FTransform T;Ism->GetInstanceTransform(I,T,true);Instances.Add(T);}
         Test->TestTrue(TEXT("ISM preview has measured points"),!Instances.IsEmpty());
-        Lidar->VisualizationComponent->SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy::ForceNiagara);Lidar->VisualizationComponent->RefreshLatestFrame();FlushRenderingCommands();
+        Lidar->VisualizationComp->SetPointCloudRenderPolicy(ELidarPointCloudRenderPolicy::ForceNiagara);Lidar->VisualizationComp->RefreshLatestFrame();FlushRenderingCommands();
         TArray<FVector> Niagara;TArray<UNiagaraComponent*> Components;Lidar->GetComponents(Components);
         for(auto* N:Components)Niagara.Append(UNiagaraDataInterfaceArrayFunctionLibrary::GetNiagaraArrayPosition(N,TEXT("User.PointPositions")));
         Test->TestTrue(TEXT("Niagara preview has measured points"),!Niagara.IsEmpty());

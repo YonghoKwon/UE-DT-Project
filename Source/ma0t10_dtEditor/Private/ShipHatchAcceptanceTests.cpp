@@ -3,13 +3,13 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMonitorHost.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/DxWidgetShipHatchMonitor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Sensor/VirtualSensorSemanticLabels.h"
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
@@ -33,7 +33,7 @@
 #include "Components/ComboBoxString.h"
 #include "Components/LineBatchComponent.h"
 #include "Device/Core/VirtualSensorFileSaveSubsystem.h"
-void ValidateHatchPresentation(FAutomationTestBase*,UShipHatchMonitorWidget*);
+void ValidateHatchPresentation(FAutomationTestBase*,UDxWidgetShipHatchMonitor*);
 
 namespace
 {
@@ -64,7 +64,7 @@ class FHatchRuntime final:public IAutomationLatentCommand
         FVirtualSensorStreamConfig C;C.StreamKind=EVirtualSensorStreamKind::PointCloud;C.PointCloudFormat=EVirtualPointCloudStreamFormat::PCD;
         E.LidarFrameSnapshot=MakeShared<const FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe>(F);
         FString Extension,Error;TArray<uint8> Bytes;int32 Count=0;
-        if(!UVirtualSensorStreamPublisherComponent::SerializePointCloudFrame(E,C,Extension,Bytes,Count,Error)||Bytes.IsEmpty())return 0;
+        if(!UVirtualSensorStreamPublisherComp::SerializePointCloudFrame(E,C,Extension,Bytes,Count,Error)||Bytes.IsEmpty())return 0;
         return FCrc::MemCrc32(Bytes.GetData(),Bytes.Num());
     }
     bool Measuring=false;
@@ -85,12 +85,12 @@ class FHatchRuntime final:public IAutomationLatentCommand
         auto Root=MakeShared<FJsonObject>();
         Root->SetNumberField(TEXT("hatch_mesh_scratch_bytes"),double(Sim->MeshScratchBytes()));
         Root->SetNumberField(TEXT("hatch_generation_buffer_bytes"),double(Sim->GenerationBufferBytes()));
-        Root->SetStringField(TEXT("mlx_point_data_address"),FString::Printf(TEXT("%p"),Sim->MLX->ScanComponent->GetLastPoints().GetData()));
-        Root->SetStringField(TEXT("livox_point_data_address"),FString::Printf(TEXT("%p"),Sim->Livox->ScanComponent->GetLastPoints().GetData()));
+        Root->SetStringField(TEXT("mlx_point_data_address"),FString::Printf(TEXT("%p"),Sim->MLX->ScanComp->GetLastPoints().GetData()));
+        Root->SetStringField(TEXT("livox_point_data_address"),FString::Printf(TEXT("%p"),Sim->Livox->ScanComp->GetLastPoints().GetData()));
         for(auto* A:{Sim->MLX.Get(),Sim->Livox.Get()})
         {
-            auto R=MakeShared<FJsonObject>();const auto Scan=A->ScanComponent->GetResourceSnapshot();
-            const auto View=A->VisualizationComponent->GetResourceSnapshot();
+            auto R=MakeShared<FJsonObject>();const auto Scan=A->ScanComp->GetResourceSnapshot();
+            const auto View=A->VisualizationComp->GetResourceSnapshot();
             for(const auto& P:Scan.OwnedCpuBytes)R->SetNumberField(TEXT("scan/")+P.Key,double(P.Value));
             for(const auto& P:Scan.SharedCpuBytes)R->SetNumberField(TEXT("shared/")+P.Key,double(P.Value));
             for(const auto& P:View.OwnedCpuBytes)R->SetNumberField(TEXT("view/")+P.Key,double(P.Value));
@@ -122,7 +122,7 @@ public:
     {
         for(auto* A:{Sim->bMLX?Sim->MLX.Get():nullptr,Sim->bLivox?Sim->Livox.Get():nullptr})if(A)
         {
-            auto* S=A->ScanComponent.Get();const auto F=S->GetLastFrameSnapshot();
+            auto* S=A->ScanComp.Get();const auto F=S->GetLastFrameSnapshot();
             Test->TestTrue(TEXT("selected sensor produces immutable frame"),F&&F->Points&&F->Points->Num()>0);if(!F||!F->Points)return;
             const int32 Expected=S->DeviceProfile==EVirtualLidarDeviceProfile::OusterOS1_64_Rev7||S->DeviceProfile==EVirtualLidarDeviceProfile::OusterOS1_64_Rev05?1024*64:S->DeviceProfile==EVirtualLidarDeviceProfile::HesaiXT32?1000*32:S->DeviceProfile==EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE?576*56:S->DeviceProfile==EVirtualLidarDeviceProfile::LivoxMid360S?360*60:200*56;
             Test->TestEqual(TEXT("existing FullSpec profile ray count is preserved"),F->Points->Num(),Expected);
@@ -160,7 +160,7 @@ public:
             E.TimestampUtc=F->GetAcquisitionStartUtc();E.PointSnapshot=F->Points;E.LidarFrameSnapshot=F;
             FVirtualSensorStreamConfig Config;Config.StreamKind=EVirtualSensorStreamKind::PointCloud;Config.PointCloudFormat=EVirtualPointCloudStreamFormat::PCD;
             FString Extension,Error;TArray<uint8> Before,After;int32 Count=0;
-            Test->TestTrue(TEXT("original binary PCD encoder succeeds"),UVirtualSensorStreamPublisherComponent::SerializePointCloudFrame(E,Config,Extension,Before,Count,Error));
+            Test->TestTrue(TEXT("original binary PCD encoder succeeds"),UVirtualSensorStreamPublisherComp::SerializePointCloudFrame(E,Config,Extension,Before,Count,Error));
             for(int32 Color=0;Color<5;++Color)
             {
                 Host->Monitor->SelectView(1);Host->Monitor->SelectColor(Color);
@@ -168,20 +168,20 @@ public:
                 {
                     FColor First;bool Found=false,Varies=false;
                     for(const auto& P:*F->Points)if(P.bHit)
-                    {const FColor C=A->VisualizationComponent->GetPointDisplayColor(P).ToFColor(true);if(!Found){First=C;Found=true;}else Varies|=C!=First;}
+                    {const FColor C=A->VisualizationComp->GetPointDisplayColor(P).ToFColor(true);if(!Found){First=C;Found=true;}else Varies|=C!=First;}
                     Test->TestTrue(TEXT("distance palette varies without projection texture generation"),Varies);
                 }
                 auto* PC=World->GetFirstPlayerController();
                 for(auto* Selected:{Sim->bMLX?Sim->MLX.Get():nullptr,Sim->bLivox?Sim->Livox.Get():nullptr})if(Selected)
                 {
-                    Test->TestTrue(TEXT("each selected sensor actually uploads its point preview"),Selected->VisualizationComponent->GetVisiblePointCount()>0);
+                    Test->TestTrue(TEXT("each selected sensor actually uploads its point preview"),Selected->VisualizationComp->GetVisiblePointCount()>0);
                     TInlineComponentArray<ULineBatchComponent*> Batches(Selected);
                     Test->TestTrue(TEXT("selected sensor owns a colour point batch"),Batches.Num()>0);
                     for(auto* Batch:Batches)Test->TestFalse(TEXT("both selected point batches remain visible in the actual player viewport"),PC->HiddenPrimitiveComponents.Contains(Batch));
                 }
                 Host->Monitor->SelectView(0);
             }
-            Test->TestTrue(TEXT("PCD encoder succeeds after view changes"),UVirtualSensorStreamPublisherComponent::SerializePointCloudFrame(E,Config,Extension,After,Count,Error));
+            Test->TestTrue(TEXT("PCD encoder succeeds after view changes"),UVirtualSensorStreamPublisherComp::SerializePointCloudFrame(E,Config,Extension,After,Count,Error));
             Test->TestTrue(TEXT("all point palettes and PointCloudOnly leave payload bytes invariant"),Before==After);
             Test->TestTrue(TEXT("point snapshot ownership remains immutable"),E.PointSnapshot==F->Points);
         }
@@ -205,29 +205,29 @@ public:
         {
             if(!Ready){Ready=Now;if(FParse::Param(FCommandLine::Get(),TEXT("HatchWorldTraceReference"))){Sim->bUseSnapshotRayQueries=false;for(int I=0;I<3;++I)if(auto* A=Sim->SensorAt(I)){A->StopSensor();A->StartSensor();}}if(SensorCount<3)Sim->SetSensorSelection(true,SensorCount==2,false);int View=1;FParse::Value(FCommandLine::Get(),TEXT("HatchDigView="),View);Host->Monitor->SelectView(FMath::Clamp(View,0,1));LastWall=Now;return false;}
             if(Now-Ready<10)return false;
-            if(!MeasureStart){MeasureStart=Now;LastWall=Now;PerformanceRss=FPlatformMemory::GetStats().UsedPhysical;PerformanceStartFrames[0]=Sim->MLX->ScanComponent->GetRuntimeStatus().FrameId;PerformanceStartFrames[1]=Sim->Livox->ScanComponent->GetRuntimeStatus().FrameId;PerformanceStartFrames[2]=Sim->CabRight?Sim->CabRight->ScanComponent->GetRuntimeStatus().FrameId:0;return false;}
+            if(!MeasureStart){MeasureStart=Now;LastWall=Now;PerformanceRss=FPlatformMemory::GetStats().UsedPhysical;PerformanceStartFrames[0]=Sim->MLX->ScanComp->GetRuntimeStatus().FrameId;PerformanceStartFrames[1]=Sim->Livox->ScanComp->GetRuntimeStatus().FrameId;PerformanceStartFrames[2]=Sim->CabRight?Sim->CabRight->ScanComp->GetRuntimeStatus().FrameId:0;return false;}
             if(GFrameCounter!=LastFrame){LastFrame=GFrameCounter;Engine.Add(World->GetDeltaSeconds()*1000);Game.Add(FPlatformTime::ToMilliseconds(GGameThreadTime));Wall.Add((Now-LastWall)*1000);LastWall=Now;}
             if(Now-MeasureStart<30)return false;
             auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("sensors"),SensorCount);R->SetNumberField(TEXT("average_fps"),Mean(Engine)>0?1000/Mean(Engine):0);
             R->SetNumberField(TEXT("engine_p95_ms"),P95(Engine));R->SetNumberField(TEXT("gt_mean_ms"),Mean(Game));R->SetNumberField(TEXT("callback_p95_ms"),P95(Wall));
-            R->SetStringField(TEXT("backend"),Sim->MLX->ScanComponent->GetRuntimeStatus().ActiveAcquisitionBackend);R->SetStringField(TEXT("output"),TEXT("acquisition+3D preview; no broker send"));
+            R->SetStringField(TEXT("backend"),Sim->MLX->ScanComp->GetRuntimeStatus().ActiveAcquisitionBackend);R->SetStringField(TEXT("output"),TEXT("acquisition+3D preview; no broker send"));
             R->SetBoolField(TEXT("reference_backend"),FParse::Param(FCommandLine::Get(),TEXT("HatchWorldTraceReference")));R->SetBoolField(TEXT("performance_goal_5hz_applies"),SensorCount==3&&Sim->bUseSnapshotRayQueries);
-            R->SetNumberField(TEXT("mlx_frame"),Sim->MLX->ScanComponent->GetRuntimeStatus().FrameId);R->SetNumberField(TEXT("livox_frame"),Sim->Livox->ScanComponent->GetRuntimeStatus().FrameId);
-            const int64 M=Sim->MLX->ScanComponent->GetRuntimeStatus().FrameId-PerformanceStartFrames[0],L=Sim->Livox->ScanComponent->GetRuntimeStatus().FrameId-PerformanceStartFrames[1];
+            R->SetNumberField(TEXT("mlx_frame"),Sim->MLX->ScanComp->GetRuntimeStatus().FrameId);R->SetNumberField(TEXT("livox_frame"),Sim->Livox->ScanComp->GetRuntimeStatus().FrameId);
+            const int64 M=Sim->MLX->ScanComp->GetRuntimeStatus().FrameId-PerformanceStartFrames[0],L=Sim->Livox->ScanComp->GetRuntimeStatus().FrameId-PerformanceStartFrames[1];
             R->SetNumberField(TEXT("mlx_frames_in_measurement"),double(M));R->SetNumberField(TEXT("livox_frames_in_measurement"),double(L));
-            if(SensorCount==3){const int64 C=Sim->CabRight->ScanComponent->GetRuntimeStatus().FrameId-PerformanceStartFrames[2];R->SetNumberField(TEXT("cab_right_hz"),C/(Now-MeasureStart));R->SetNumberField(TEXT("cab_right_frames_in_measurement"),double(C));Test->TestTrue(TEXT("third field sensor keeps acquiring"),C>0);}
+            if(SensorCount==3){const int64 C=Sim->CabRight->ScanComp->GetRuntimeStatus().FrameId-PerformanceStartFrames[2];R->SetNumberField(TEXT("cab_right_hz"),C/(Now-MeasureStart));R->SetNumberField(TEXT("cab_right_frames_in_measurement"),double(C));Test->TestTrue(TEXT("third field sensor keeps acquiring"),C>0);}
             R->SetNumberField(TEXT("mlx_hz"),M/(Now-MeasureStart));R->SetNumberField(TEXT("livox_hz"),L/(Now-MeasureStart));
-            if(SensorCount==3&&Sim->bUseSnapshotRayQueries){const int64 C=Sim->CabRight->ScanComponent->GetRuntimeStatus().FrameId-PerformanceStartFrames[2];Test->TestTrue(TEXT("HATCH06 default3 actual acquisition at least5Hz per sensor"),M/(Now-MeasureStart)>=5&&L/(Now-MeasureStart)>=5&&C/(Now-MeasureStart)>=5);}
+            if(SensorCount==3&&Sim->bUseSnapshotRayQueries){const int64 C=Sim->CabRight->ScanComp->GetRuntimeStatus().FrameId-PerformanceStartFrames[2];Test->TestTrue(TEXT("HATCH06 default3 actual acquisition at least5Hz per sensor"),M/(Now-MeasureStart)>=5&&L/(Now-MeasureStart)>=5&&C/(Now-MeasureStart)>=5);}
             const auto Triangles=Sim->RayQueryTriangleCounts();R->SetNumberField(TEXT("static_collision_triangles"),Triangles.X);R->SetNumberField(TEXT("cargo_collision_triangles"),Triangles.Y);R->SetNumberField(TEXT("grab_collision_triangles"),Triangles.Z);
             Test->TestTrue(TEXT("each selected hatch device keeps acquiring"),M>0&&(SensorCount==1?L==0:L>0));
             R->SetBoolField(TEXT("render_offscreen"),FParse::Param(FCommandLine::Get(),TEXT("RenderOffscreen")));
             R->SetNumberField(TEXT("warmup_seconds"),10);R->SetNumberField(TEXT("measurement_seconds"),Now-MeasureStart);
             R->SetStringField(TEXT("profiles"),SensorCount==3?TEXT("OS1-64 Rev7 x3 FullSpec 1024x20Hz; site revision unconfirmed"):TEXT("IYOBOT ML-X80 Integration200 FullSpec; optional Livox Mid360S FullSpec"));
             TArray<TSharedPtr<FJsonValue>> Devices;
-            for(int I=0;I<SensorCount;++I)if(auto* A=Sim->SensorAt(I)){auto D=MakeShared<FJsonObject>();D->SetStringField(TEXT("model"),A->ScanComponent->DeviceSpec.Model);D->SetNumberField(TEXT("profile_enum"),int(A->ScanComponent->DeviceProfile));const auto F=A->ScanComponent->GetLastFrameSnapshot();D->SetNumberField(TEXT("requested_rays"),F?F->RequestedRayCount:0);const auto Q=A->ScanComponent->GetSceneQueryStatistics();D->SetNumberField(TEXT("geometry_worker_wall_ms"),Q.X);D->SetNumberField(TEXT("game_consume_ms"),Q.Y);D->SetNumberField(TEXT("foreign_bounds"),Q.Z);D->SetNumberField(TEXT("fallback_rays"),Q.W);Devices.Add(MakeShared<FJsonValueObject>(D));}
+            for(int I=0;I<SensorCount;++I)if(auto* A=Sim->SensorAt(I)){auto D=MakeShared<FJsonObject>();D->SetStringField(TEXT("model"),A->ScanComp->DeviceSpec.Model);D->SetNumberField(TEXT("profile_enum"),int(A->ScanComp->DeviceProfile));const auto F=A->ScanComp->GetLastFrameSnapshot();D->SetNumberField(TEXT("requested_rays"),F?F->RequestedRayCount:0);const auto Q=A->ScanComp->GetSceneQueryStatistics();D->SetNumberField(TEXT("geometry_worker_wall_ms"),Q.X);D->SetNumberField(TEXT("game_consume_ms"),Q.Y);D->SetNumberField(TEXT("foreign_bounds"),Q.Z);D->SetNumberField(TEXT("fallback_rays"),Q.W);Devices.Add(MakeShared<FJsonValueObject>(D));}
             R->SetArrayField(TEXT("actual_devices"),Devices);int View=1;FParse::Value(FCommandLine::Get(),TEXT("HatchDigView="),View);R->SetNumberField(TEXT("display_view"),View);R->SetNumberField(TEXT("rss_before"),double(PerformanceRss));R->SetNumberField(TEXT("rss_after"),double(FPlatformMemory::GetStats().UsedPhysical));R->SetNumberField(TEXT("engine_max_ms"),FMath::Max(Engine));R->SetNumberField(TEXT("game_max_ms"),FMath::Max(Game));
             Test->TestTrue(TEXT("performance window has zero150ms engine/game frames"),Engine.Num()>0&&FMath::Max(Engine)<=150&&FMath::Max(Game)<=150);
-            if(SensorCount==3){Test->TestEqual(TEXT("requested default boom profile"),Sim->SensorAt(0)->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);for(int I=1;I<3;++I)Test->TestEqual(TEXT("Ouster cab default"),Sim->SensorAt(I)->ScanComponent->DeviceProfile,EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);}
+            if(SensorCount==3){Test->TestEqual(TEXT("requested default boom profile"),Sim->SensorAt(0)->ScanComp->DeviceProfile,EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);for(int I=1;I<3;++I)Test->TestEqual(TEXT("Ouster cab default"),Sim->SensorAt(I)->ScanComp->DeviceProfile,EVirtualLidarDeviceProfile::OusterOS1_64_Rev7);}
             R->SetBoolField(TEXT("valid"),!Test->HasAnyErrors());
             WriteReport(SensorCount==3?TEXT("performance-3.json"):SensorCount==2?TEXT("performance-2.json"):TEXT("performance-1.json"),R);return true;
         }
@@ -271,7 +271,7 @@ public:
             if(Now-Ready<1||!Sim->HasFreshMeasurement())return false;CheckSensors();Ready=0;
             if(++Selection==3){Sim->bCoal=true;Sim->Regenerate(false);return false;}
             if(Selection<8)return false;
-            RetainedFrame=Sim->MLX->ScanComponent->GetLastFrameSnapshot();RetainedPointCrc=FrameCrc(*RetainedFrame);
+            RetainedFrame=Sim->MLX->ScanComp->GetLastFrameSnapshot();RetainedPointCrc=FrameCrc(*RetainedFrame);
             Test->TestTrue(TEXT("retained frame fixture encodes nonempty binary PCD"),RetainedPointCrc!=0);
             Sim->SetSensorSelection(true,true,false);
             Phase=1;Host->Monitor->SelectView(3);BeforeRevision=Sim->Revision();ClickRandom();return false;
@@ -280,7 +280,7 @@ public:
         {
             if(Sim->Revision()==BeforeRevision||!Sim->HasFreshMeasurement())return false;
             for(auto* Sensor:{Sim->MLX.Get(),Sim->Livox.Get()})
-                for(const auto& P:Sensor->ScanComponent->GetLastPoints())if(P.bHit&&P.SemanticLabel==TEXT("HatchCargo"))
+                for(const auto& P:Sensor->ScanComp->GetLastPoints())if(P.bHit&&P.SemanticLabel==TEXT("HatchCargo"))
                 {const FVector L=Sim->GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01;RandomHeightMaxError=FMath::Max(RandomHeightMaxError,FMath::Abs(L.Z-Sim->Surface().Height(L.X,L.Y)));}
             Mesh.Add(Sim->LastMeshApplyMs);++Regenerations;if(Regenerations>10)RandomSeeds.Add(Sim->Surface().Settings.Seed);
             if(Regenerations==10)
@@ -332,7 +332,7 @@ public:
             Test->TestTrue(TEXT("all regenerated collision surfaces match fresh measured cargo within 15 cm"),RandomHeightMaxError<.15);
             R->SetNumberField(TEXT("random_height_max_error_m"),RandomHeightMaxError);
             R->SetNumberField(TEXT("live_parts"),Parts);ResultReport=R;
-            HiddenBuilds=Host->Monitor->AnalysisBuilds;HiddenFrames[0]=Sim->MLX->ScanComponent->GetRuntimeStatus().FrameId;HiddenFrames[1]=Sim->Livox->ScanComponent->GetRuntimeStatus().FrameId;
+            HiddenBuilds=Host->Monitor->AnalysisBuilds;HiddenFrames[0]=Sim->MLX->ScanComp->GetRuntimeStatus().FrameId;HiddenFrames[1]=Sim->Livox->ScanComp->GetRuntimeStatus().FrameId;
             Host->Monitor->SetVisibility(ESlateVisibility::Collapsed);Sim->MLX->StartSensor();Sim->Livox->StartSensor();Phase=4;Ready=Now;return false;
         }
         if(Phase==2)
@@ -365,7 +365,7 @@ public:
             if(Now-Ready<1.5)return false;
             Test->TestEqual(TEXT("hidden analysis performs zero builds"),Host->Monitor->AnalysisBuilds,HiddenBuilds);
             Test->TestTrue(TEXT("hiding monitor never stops measurement"),Sim->MLX->IsSensorRunning()&&Sim->Livox->IsSensorRunning()&&
-                Sim->MLX->ScanComponent->GetRuntimeStatus().FrameId>HiddenFrames[0]&&Sim->Livox->ScanComponent->GetRuntimeStatus().FrameId>HiddenFrames[1]);
+                Sim->MLX->ScanComp->GetRuntimeStatus().FrameId>HiddenFrames[0]&&Sim->Livox->ScanComp->GetRuntimeStatus().FrameId>HiddenFrames[1]);
             Host->Monitor->SetVisibility(ESlateVisibility::Visible);
             FString PolicyText;Test->TestTrue(TEXT("existing vocabulary policy loaded"),FFileHelper::LoadFileToString(PolicyText,*(FPaths::ProjectDir()/TEXT("Scripts/fixtures/sensor_ui_vocabulary.json"))));
             TSharedPtr<FJsonObject> Policy;FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(PolicyText),Policy);

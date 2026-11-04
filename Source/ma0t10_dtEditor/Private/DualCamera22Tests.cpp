@@ -5,16 +5,16 @@
 #include "Uxr15ToggleTestHelpers.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
-#include "Device/Camera/VirtualCameraGroundTruth.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
+#include "Device/Camera/VirtualCameraGroundTruthComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
-#include "Device/Sensor/VirtualSensorRecorderComponent.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
+#include "Device/Sensor/VirtualSensorRecorderComp.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Widgets/Images/SImage.h"
 #include "IImageWrapperModule.h"
@@ -54,7 +54,7 @@ class FDualCamera22Command final : public IAutomationLatentCommand
             Cameras[Index]->ApplyEditableState(State, Error));
     }
 
-    void Observe(UWorld* World, UVirtualSensorMonitorPanelWidget* M, const FString& Label)
+    void Observe(UWorld* World, UDxWidgetVirtualSensorMonitorPanel* M, const FString& Label)
     {
         FString Text = Label + TEXT("\n");
         const auto View = World->GetGameViewport()->Viewport->GetSizeXY();
@@ -65,7 +65,7 @@ class FDualCamera22Command final : public IAutomationLatentCommand
             M->CameraComp ? *M->CameraComp->SensorId : TEXT("none"), M->SecondaryCameraComp ? *M->SecondaryCameraComp->SensorId : TEXT("none"));
         for (int32 I = 0; I < 2; ++I)
         {
-            auto* C = Cameras[I]->CaptureComponent.Get();
+            auto* C = Cameras[I]->CaptureComp.Get();
             auto* RT = C->GetCameraRenderTarget();
             const auto Image = I ? M->NativeSecondaryCameraImage : M->NativeViewImage;
             const auto& Brush = I ? M->NativeSecondaryCameraBrush : M->NativeViewBrush;
@@ -80,12 +80,12 @@ class FDualCamera22Command final : public IAutomationLatentCommand
         if (!Manual) Test->AddInfo(Text);
     }
 
-    void CheckRgb(UVirtualSensorMonitorPanelWidget* M)
+    void CheckRgb(UDxWidgetVirtualSensorMonitorPanel* M)
     {
-        Test->TestTrue(TEXT("two cameras have independent render targets"), Cameras[0]->CaptureComponent->GetCameraRenderTarget() != Cameras[1]->CaptureComponent->GetCameraRenderTarget());
+        Test->TestTrue(TEXT("two cameras have independent render targets"), Cameras[0]->CaptureComp->GetCameraRenderTarget() != Cameras[1]->CaptureComp->GetCameraRenderTarget());
         for (int32 I = 0; I < 2; ++I)
         {
-            auto* C = Cameras[I]->CaptureComponent.Get();
+            auto* C = Cameras[I]->CaptureComp.Get();
             auto* RT = C->GetCameraRenderTarget();
             const auto Image = I ? M->NativeSecondaryCameraImage : M->NativeViewImage;
             const auto& Brush = I ? M->NativeSecondaryCameraBrush : M->NativeViewBrush;
@@ -131,14 +131,14 @@ public:
         if (Phase == 0 && !FinalAcceptanceViewportReady(World)) return false;
         auto* W = World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();
         auto* C = W->GetCoordinator();
-        auto* M = Cast<UVirtualSensorMonitorPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));
-        auto* P = Cast<UVirtualSensorPlacementPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));
+        auto* M = Cast<UDxWidgetVirtualSensorMonitorPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor));
+        auto* P = Cast<UDxWidgetVirtualSensorPlacementPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Placement));
         auto* Bar = Cast<USensorToolToolbarWidget>(W->GetOwnedNavigation());
         if (!C || !M || !P || !Bar) return false;
         if (Phase == 0)
         {
             C->StopAllSensors();
-            C->StreamPublisherComponent->StopAllStreams(TEXT(""));
+            C->StreamPublisherComp->StopAllStreams(TEXT(""));
             // Automatic matrix uses exactly two registered cameras. Existing
             // fixture actors remain stopped in the PIE world, without deletion,
             // transform edits or any map save. Manual sessions keep the inventory.
@@ -154,22 +154,22 @@ public:
                 C->RegisterSensorActor(Cameras[I].Get());
             }
             if (!Manual) Test->TestEqual(TEXT("fixture registers exactly two cameras"), C->GetCameraCount(), 2);
-            C->SharedRecorderComponent->ClearRecording();
+            C->SharedRecorderComp->ClearRecording();
             // Interactive placement controls correctly lock during recording.
             // Keep the manual fixture idle unless the operator starts outputs.
-            if (!Manual) C->SharedRecorderComponent->StartRecording();
+            if (!Manual) C->SharedRecorderComp->StartRecording();
             int32 Port = 0;
             if (FParse::Value(FCommandLine::Get(), TEXT("DualCamera22Port="), Port) && Port > 0)
             {
                 FVirtualSensorTransportProfile Profile;
                 Profile.BrokerUrl = FString::Printf(TEXT("tcp://127.0.0.1:%d"), Port); Profile.UserName.Empty();
-                C->SharedTransportComponent->ConfigureTransportProfile(Profile);
-                C->SharedTransportComponent->SetSessionCredentials(FString(), FString());
-                C->SharedTransportComponent->TransportMode = EVirtualSensorTransportMode::StompWebSocket;
+                C->SharedTransportComp->ConfigureTransportProfile(Profile);
+                C->SharedTransportComp->SetSessionCredentials(FString(), FString());
+                C->SharedTransportComp->TransportMode = EVirtualSensorTransportMode::StompWebSocket;
                 for (const auto& Camera : Cameras)
                 {
                     FVirtualSensorStreamConfig Stream; Stream.SensorId = Camera->GetSensorId(); Stream.StreamKind = EVirtualSensorStreamKind::CameraImage;
-                    Stream.bEnabled = true; Stream.ReceiptSampleInterval = 1; C->StreamPublisherComponent->ConfigureStream(Stream);
+                    Stream.bEnabled = true; Stream.ReceiptSampleInterval = 1; C->StreamPublisherComp->ConfigureStream(Stream);
                 }
             }
             P->SelectEquipment(Cameras[0].Get()); Bar->OpenOwnedDestination(ESensorToolDestination::Preview);
@@ -187,9 +187,9 @@ public:
             Observe(World, M, TEXT("primary-not-ready"));
             if (!Manual)
             {
-                Test->TestNull(TEXT("primary GT resource is genuinely unready"), Cameras[0]->CaptureComponent->GetGroundTruth() ? Cameras[0]->CaptureComponent->GetGroundTruth()->Preview(1) : nullptr);
-                Test->TestTrue(TEXT("secondary RGB acquisition is ready"), Cameras[1]->CaptureComponent->GetAvailableLocalFrameId() >= 0);
-                Test->TestEqual(TEXT("unready primary must not starve secondary brush"), M->NativeSecondaryCameraBrush.GetResourceObject(), static_cast<UObject*>(Cameras[1]->CaptureComponent->GetCameraRenderTarget()));
+                Test->TestNull(TEXT("primary GT resource is genuinely unready"), Cameras[0]->CaptureComp->GetGroundTruth() ? Cameras[0]->CaptureComp->GetGroundTruth()->Preview(1) : nullptr);
+                Test->TestTrue(TEXT("secondary RGB acquisition is ready"), Cameras[1]->CaptureComp->GetAvailableLocalFrameId() >= 0);
+                Test->TestEqual(TEXT("unready primary must not starve secondary brush"), M->NativeSecondaryCameraBrush.GetResourceObject(), static_cast<UObject*>(Cameras[1]->CaptureComp->GetCameraRenderTarget()));
                 Test->TestEqual(TEXT("secondary brush tracks actual resolution while primary GT is unready"), FVector2D(M->NativeSecondaryCameraBrush.ImageSize), FVector2D(640, 480));
                 const auto Size = M->NativeSecondaryCameraImage->GetCachedGeometry().GetAbsoluteSize();
                 Test->TestTrue(TEXT("secondary remains visible with unready primary GT"), Size.X > 1 && Size.Y > 1);
@@ -222,10 +222,10 @@ public:
         if (Phase == 3)
         {
             bool Recorded[2] = {false, false};
-            for (int32 I = 0; I < C->SharedRecorderComponent->GetRecordedFrameCount(); ++I)
+            for (int32 I = 0; I < C->SharedRecorderComp->GetRecordedFrameCount(); ++I)
             {
                 FVirtualSensorRecordedFrame Frame;
-                if (!C->SharedRecorderComponent->GetRecordedFrame(I, Frame)) continue;
+                if (!C->SharedRecorderComp->GetRecordedFrame(I, Frame)) continue;
                 for (int32 J = 0; J < 2; ++J) if (Frame.SensorId == Cameras[J]->GetSensorId() && !Recorded[J])
                 {
                     TSharedPtr<FJsonObject> Json; TArray<uint8> Bytes; TArray64<uint8> Pixels;
@@ -240,11 +240,11 @@ public:
                 for (const auto& Camera : Cameras)
                 {
                     bool Delivered = false;
-                    for (const auto& S : C->StreamPublisherComponent->GetStreamStatuses()) if (S.SensorId == Camera->GetSensorId() && S.StreamKind == EVirtualSensorStreamKind::CameraImage)
+                    for (const auto& S : C->StreamPublisherComp->GetStreamStatuses()) if (S.SensorId == Camera->GetSensorId() && S.StreamKind == EVirtualSensorStreamKind::CameraImage)
                         Delivered = S.SubmittedFrameCount > 0 && S.ReceiptReceivedCount > 0 && S.EncodeFailureCount == 0;
                     Test->TestTrue(TEXT("each camera stream submitted JPEG and received local broker receipt"), Delivered);
                 }
-            C->SharedRecorderComponent->StopRecording(); C->StreamPublisherComponent->StopAllStreams(TEXT(""));
+            C->SharedRecorderComp->StopRecording(); C->StreamPublisherComp->StopAllStreams(TEXT(""));
             return true;
         }
         return false;

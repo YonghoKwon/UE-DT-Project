@@ -4,12 +4,12 @@
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorPlacementInteraction.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Common/SensorPlacementInteraction.h"
 #include "ma0t10_dt/MA0T10/Player/DxPlayerControllerTest.h"
 #include "Components/StaticMeshComponent.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
 #include "Device/Core/VirtualSensorLayoutSubsystem.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUxrSensorActivationTest,"MA0T10.UXR02.DtCoreSensorActivation",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -18,7 +18,7 @@ bool FUxrSensorActivationTest::RunTest(const FString&)
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* C=World->SpawnActor<AVirtualSensorCoordinator>();
     auto* Camera=World->SpawnActor<AVirtualCameraSensorActor>();auto* Lidar=World->SpawnActor<AVirtualLidarSensorActor>();
     C->RegisterSensorActor(Camera);C->RegisterSensorActor(Lidar);auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();W->SetCoordinator(C);
-    auto* Settings=NewObject<UVirtualSensorSettingsPanelWidget>(World);W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,Settings);Settings->BindSensorManager(C);
+    auto* Settings=NewObject<UDxWidgetVirtualSensorSettingsPanel>(World);W->RegisterOwnedPanel(ESensorToolPanelRole::Settings,Settings);Settings->BindSensorManager(C);
     Camera->StopSensor();Lidar->StopSensor();const int64 CameraFrame=Camera->GetSensorRuntimeStatus().FrameId,LidarFrame=Lidar->GetSensorRuntimeStatus().FrameId;
     const bool Open=W->IsPanelOpen(ESensorToolPanelRole::Settings);Camera->Click();W->SynchronizeOwnedSelection();
     TArray<UStaticMeshComponent*> Meshes;Lidar->GetComponents(Meshes);UStaticMeshComponent* Marker=nullptr;
@@ -54,7 +54,7 @@ bool FUxrPlacementDeleteTest::RunTest(const FString&)
     auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* C=World->SpawnActor<AVirtualSensorCoordinator>();auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();W->SetCoordinator(C);
     auto* L=World->GetSubsystem<UVirtualSensorLayoutSubsystem>();FString Reason;auto* A=L->CreateSensorAtPose(EVirtualSensorKind::Camera,FTransform::Identity,Reason,false);
     if(!TestNotNull(TEXT("test-owned camera created"),A))return false;
-    auto* P=NewObject<UVirtualSensorPlacementPanelWidget>(World);W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,P);P->SelectEquipment(A);
+    auto* P=NewObject<UDxWidgetVirtualSensorPlacementPanel>(World);W->RegisterOwnedPanel(ESensorToolPanelRole::Placement,P);P->SelectEquipment(A);
     TestFalse(TEXT("first delete is confirmation only"),P->DeleteSelectedSensor());TestTrue(TEXT("equipment exists before confirmation"),L->OwnsSensor(A));
     P->CancelSelectedSensorDeletion();TestTrue(TEXT("cancel reports preserved equipment"),P->GetPlacementStatusText().Contains(TEXT("취소"))&&L->OwnsSensor(A));
     TestFalse(TEXT("delete after cancel requires confirmation again"),P->DeleteSelectedSensor());TestTrue(TEXT("second delete confirms through existing layout service"),P->DeleteSelectedSensor());

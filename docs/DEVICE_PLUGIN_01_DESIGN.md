@@ -72,7 +72,7 @@ Native→Runtime, Runtime→UI, 플러그인→`ma0t10_dt`는 금지다. Native�
 
 ### 3.1 Coordinator: UHT의 역방향 타입 의존 제거
 
-현재 [Coordinator](../Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h)와 [UI binding 본문](../Source/ma0t10_dt/MA0T10/UI/VirtualSensorCoordinatorMonitorBinding.cpp)은 한 모듈이므로 성립한다. 모니터 클래스를 DeviceUI로 옮기면서 Coordinator를 Runtime에 그대로 두면 UHT 생성 코드까지 순환한다.
+현재 [Coordinator](../Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h)와 [UI binding 본문](../Source/ma0t10_dt/MA0T10/UI/Common/VirtualSensorCoordinatorMonitorBinding.cpp)은 한 모듈이므로 성립한다. 모니터 클래스를 DeviceUI로 옮기면서 Coordinator를 Runtime에 그대로 두면 UHT 생성 코드까지 순환한다.
 
 - Runtime에 **새 `ADeviceSensorCoordinator`**를 만들고 등록/선택/스케줄 연결·상태 집계를 옮긴다. 모니터는 기존 `IVirtualSensorMonitorView`와 weak UObject owner로만 바인딩한다. 새 API 예: `BindMonitorView(UObject* Owner)`; 유효 interface 확인 후 사용하며 매 Tick UObject 순회는 추가하지 않는다.
 - **기존 `AVirtualSensorCoordinator` UCLASS는 프로젝트에 유지**한다. 새 base를 상속하고 기존 `BindMonitorWidget` 핀·Transient GC 참조를 가진 얇은 façade가 된다. 필드의 serialization owner 변경은 최소화하고, 기존 공개 UPROPERTY는 가능하면 façade에 보존하여 base로 전달한다. 기존 `GetAllActorsOfClass`/spawn은 host에서 old subclass를 생성하고 Runtime 검색은 base를 허용한다.
@@ -85,7 +85,7 @@ Native→Runtime, Runtime→UI, 플러그인→`ma0t10_dt`는 금지다. Native�
 
 | 현재 위치/책임 | 플러그인 책임 | 프로젝트 구현/등록 |
 |---|---|---|
-| `VirtualLidarScanComponent.cpp::AnalyzeSlabPoints`, SemanticLabel/Yaw/MinPoints 및 JSON SlabAnalysis | 점 필터·PCA/OBB 등의 순수 수학 helper, immutable frame, optional 분석 provider 호출, 기존 DTO/encoding façade | `IDevicePointCloudAnalysisProvider`를 구현하는 프로젝트 adapter가 Slab 필터·기준 yaw·판정/문구를 소유. 기존 scalar BP 필드/결과 getter는 동결 호환 façade로 유지하고 adapter에 전달 |
+| `VirtualLidarScanComp.cpp::AnalyzeSlabPoints`, SemanticLabel/Yaw/MinPoints 및 JSON SlabAnalysis | 점 필터·PCA/OBB 등의 순수 수학 helper, immutable frame, optional 분석 provider 호출, 기존 DTO/encoding façade | `IDevicePointCloudAnalysisProvider`를 구현하는 프로젝트 adapter가 Slab 필터·기준 yaw·판정/문구를 소유. 기존 scalar BP 필드/결과 getter는 동결 호환 façade로 유지하고 adapter에 전달 |
 | `VirtualLidarScanSceneQuery.cpp`, `VirtualSensorSemanticLabels.*` | collision query/일반 semantic lookup와 숫자 ID 계약 | Slab/Coil tag→label/ID2~7의 기본 표는 host가 명시 등록. plugin core에 과제 클래스 include 없음. wire enum/ID를 재번호 매기지 않음 |
 | `VirtualSensorAcquisitionContext.*`, `VirtualSensorMotionProvider.h`, `VirtualSensorRayQuery.h` | 기존 중립 snapshot/provider 등록 계약 | 기존 SlabContext/Motion/해치 geometry provider는 host에 그대로. generation/run 승인도 host가 공급 |
 | Publisher의 Slab run pending/failure 집계 | 중립 run key별 송신 예약/완료 통계 및 기존 compat accessor | Slab 실행 중/중단/삭제·receipt 대기·출력 선택은 Scenario adapter. 신규 벌크 기본 PCD와 replay 관찰 기본은 host가 적용 |
@@ -105,7 +105,7 @@ Provider는 world/weak owner/generation을 갖고 BeginPlay 전 host 조립 시 
 | `VirtualSensorPanelWidgetBase.*`, `PanelHostComponent.*` | drag/resize/DPI/clamp·공통 폼/폰트 등록·host bridge | Workspace concrete pointer, role/slot persistence, 기존 UCLASS·공개 필드/핀 |
 | `VirtualSensorSettingsPanelWidget.*` | Read/Validate/ApplyEditableState 기반 공통 센서 설정 body | AUTO-01/AgentTestSet 진입 버튼·업무 선택, 기존 BP façade |
 | `VirtualSensorMonitorPanelWidget*.cpp/.h` | cached camera/LiDAR 보기·preview·기본 상태·native safety 문구 | Workspace/프로젝트 coordinator 인자·Slab 표시 extension·저장 migration façade |
-| `VirtualSensorCaptureExportPanelWidget.cpp/.Owned.cpp/.Dataset.cpp/.Bandwidth.cpp/.h` | 일반 capture/export/PCD bandwidth/file-save body와 DTO | SlabRun 선택/재생/비교, DATASET/EXPORT 업무, 전체 실패 정책; `Dataset` 번역 단위는 통째 잔류 |
+| `DxWidgetVirtualSensorCaptureExportPanel.cpp/.Owned.cpp/.Dataset.cpp/.Bandwidth.cpp/.h` | 일반 capture/export/PCD bandwidth/file-save body와 DTO | SlabRun 선택/재생/비교, DATASET/EXPORT 업무, 전체 실패 정책; `Dataset` 번역 단위는 통째 잔류 |
 | `VirtualSensorPlacementPanelWidget*.cpp/.h` | 공통 센서/IMU 배치 body·preview 입력 계약 | host 목록·코일 역할/시나리오 되돌리기, 기존 BP façade |
 | `VirtualSensorUiStyle.*`, `VirtualPcdBandwidthPresentation.*`, 순수 경고/도움말 | 센서 전용 부분의 neutral helper | 과제 문구/전체 화면 공통 style은 host; main/다른 Widget에 일괄 적용 금지 |
 | `VirtualSensorToolWorkspaceSubsystem*`, `SensorToolToolbarWidget*`, `SensorToolAppearance*`, `VirtualSensorUiPreferences*` | 처음에는 없음; bridge로 값만 제공 | 창/6+업무 패널·v1 Workspace/v6 SensorUI/Appearance 저장·Host·목록/5Hz 활동 캐시 전부 |
@@ -153,8 +153,8 @@ Provider는 world/weak owner/generation을 갖고 BeginPlay 전 host 조립 시 
 | `Tests/CameraGroundTruthTests.cpp` | 프로젝트 잔류 | 과제·UI·맵·host fixture 전이 의존 |
 | `VirtualCameraCaptureComponent.cpp` | DeviceRuntime/Private/Camera/VirtualCameraCaptureComponent.cpp | 공통 실행/계약 |
 | `VirtualCameraCaptureComponent.h` | DeviceRuntime/Public/Device/Camera/VirtualCameraCaptureComponent.h | 공통 실행/계약 |
-| `VirtualCameraGroundTruth.cpp` | DeviceRuntime/Private/Camera/VirtualCameraGroundTruth.cpp | 공통 실행/계약 |
-| `VirtualCameraGroundTruth.h` | DeviceRuntime/Public/Device/Camera/VirtualCameraGroundTruth.h | 공통 실행/계약 |
+| `VirtualCameraGroundTruthComp.cpp` | DeviceRuntime/Private/Camera/VirtualCameraGroundTruthComp.cpp | 공통 실행/계약 |
+| `VirtualCameraGroundTruthComp.h` | DeviceRuntime/Public/Device/Camera/VirtualCameraGroundTruthComp.h | 공통 실행/계약 |
 | `VirtualCameraLocalFileCapture.cpp` | DeviceRuntime/Private/Camera/VirtualCameraLocalFileCapture.cpp | 공통 실행/계약 |
 | `VirtualCameraPayloadCodec.cpp` | DeviceRuntime/Private/Camera/VirtualCameraPayloadCodec.cpp | 공통 실행/계약 |
 | `VirtualCameraPayloadCodec.h` | DeviceRuntime/Public/Device/Camera/VirtualCameraPayloadCodec.h | 공통 실행/계약 |
@@ -194,11 +194,11 @@ Provider는 world/weak owner/generation을 갖고 BeginPlay 전 host 조립 시 
 | `VirtualSensorSchedulerSubsystem.h` | DeviceRuntime/Public/Device/Core/VirtualSensorSchedulerSubsystem.h | 공통 실행/계약 |
 | `VirtualSensorStompProtocol.cpp` | DeviceRuntime/Private/Core/VirtualSensorStompProtocol.cpp | 공통 실행/계약 |
 | `VirtualSensorStompProtocol.h` | DeviceRuntime/Public/Device/Core/VirtualSensorStompProtocol.h | 공통 실행/계약 |
-| `VirtualSensorStreamPublisherComponent.cpp` | DeviceRuntime/Private/Core/VirtualSensorStreamPublisherComponent.cpp | 송신/큐 이관; run 승인·identity provider 분리 |
-| `VirtualSensorStreamPublisherComponent.h` | DeviceRuntime/Public/Device/Core/VirtualSensorStreamPublisherComponent.h | 송신/큐 이관; run 승인·identity provider 분리 |
-| `VirtualSensorStreamPublisherComponentEncoding.cpp` | DeviceRuntime/Private/Core/VirtualSensorStreamPublisherComponentEncoding.cpp | 송신/큐 이관; run 승인·identity provider 분리 |
-| `VirtualSensorStreamPublisherComponentRateControl.cpp` | DeviceRuntime/Private/Core/VirtualSensorStreamPublisherComponentRateControl.cpp | 송신/큐 이관; run 승인·identity provider 분리 |
-| `VirtualSensorStreamPublisherComponentSession.cpp` | DeviceRuntime/Private/Core/VirtualSensorStreamPublisherComponentSession.cpp | 송신/큐 이관; run 승인·identity provider 분리 |
+| `VirtualSensorStreamPublisherComp.cpp` | DeviceRuntime/Private/Core/VirtualSensorStreamPublisherComp.cpp | 송신/큐 이관; run 승인·identity provider 분리 |
+| `VirtualSensorStreamPublisherComp.h` | DeviceRuntime/Public/Device/Core/VirtualSensorStreamPublisherComp.h | 송신/큐 이관; run 승인·identity provider 분리 |
+| `VirtualSensorStreamPublisherCompEncoding.cpp` | DeviceRuntime/Private/Core/VirtualSensorStreamPublisherCompEncoding.cpp | 송신/큐 이관; run 승인·identity provider 분리 |
+| `VirtualSensorStreamPublisherCompRateControl.cpp` | DeviceRuntime/Private/Core/VirtualSensorStreamPublisherCompRateControl.cpp | 송신/큐 이관; run 승인·identity provider 분리 |
+| `VirtualSensorStreamPublisherCompSession.cpp` | DeviceRuntime/Private/Core/VirtualSensorStreamPublisherCompSession.cpp | 송신/큐 이관; run 승인·identity provider 분리 |
 | `VirtualSensorTextureReadback.h` | DeviceRuntime/Public/Device/Core/VirtualSensorTextureReadback.h | 공통 실행/계약 |
 | `VirtualSensorWireHeaders.cpp` | DeviceRuntime/Private/Core/VirtualSensorWireHeaders.cpp | 공통 실행/계약 |
 | `VirtualSensorWireHeaders.h` | DeviceRuntime/Public/Device/Core/VirtualSensorWireHeaders.h | 공통 실행/계약 |
@@ -207,28 +207,28 @@ Provider는 world/weak owner/generation을 갖고 BeginPlay 전 host 조립 시 
 
 | 원본 (`H/Sensor/` 뒤) | 목적 / 잔류 | 경계·분류 |
 |---|---|---|
-| `CameraJsonLiveSourceComponent.cpp` | DeviceRuntime/Private/Sensor/CameraJsonLiveSourceComponent.cpp | 공통 실행/계약 |
-| `CameraJsonLiveSourceComponent.h` | DeviceRuntime/Public/Device/Sensor/CameraJsonLiveSourceComponent.h | 공통 실행/계약 |
+| `CameraJsonLiveSourceComp.cpp` | DeviceRuntime/Private/Sensor/CameraJsonLiveSourceComp.cpp | 공통 실행/계약 |
+| `CameraJsonLiveSourceComp.h` | DeviceRuntime/Public/Device/Sensor/CameraJsonLiveSourceComp.h | 공통 실행/계약 |
 | `CsvPointCloudPreviewActor.cpp` | DeviceRuntime/Private/Sensor/CsvPointCloudPreviewActor.cpp | 공통 실행/계약 |
 | `CsvPointCloudPreviewActor.h` | DeviceRuntime/Public/Device/Sensor/CsvPointCloudPreviewActor.h | 공통 실행/계약 |
 | `IndustrialLidarProfiles.cpp` | DeviceRuntime/Private/Sensor/IndustrialLidarProfiles.cpp | 공통 실행/계약 |
 | `IndustrialLidarProfiles.h` | DeviceRuntime/Public/Device/Sensor/IndustrialLidarProfiles.h | 공통 실행/계약 |
-| `LidarCsvReplaySourceComponent.cpp` | DeviceRuntime/Private/Sensor/LidarCsvReplaySourceComponent.cpp | 공통 실행/계약 |
-| `LidarCsvReplaySourceComponent.h` | DeviceRuntime/Public/Device/Sensor/LidarCsvReplaySourceComponent.h | 공통 실행/계약 |
-| `LidarHttpJsonLiveSourceComponent.cpp` | DeviceRuntime/Private/Sensor/LidarHttpJsonLiveSourceComponent.cpp | 공통 실행/계약 |
-| `LidarHttpJsonLiveSourceComponent.h` | DeviceRuntime/Public/Device/Sensor/LidarHttpJsonLiveSourceComponent.h | 공통 실행/계약 |
-| `LidarJsonLinesReplaySourceComponent.cpp` | DeviceRuntime/Private/Sensor/LidarJsonLinesReplaySourceComponent.cpp | 공통 실행/계약 |
-| `LidarJsonLinesReplaySourceComponent.h` | DeviceRuntime/Public/Device/Sensor/LidarJsonLinesReplaySourceComponent.h | 공통 실행/계약 |
-| `LidarJsonLiveSourceComponent.cpp` | DeviceRuntime/Private/Sensor/LidarJsonLiveSourceComponent.cpp | 공통 실행/계약 |
-| `LidarJsonLiveSourceComponent.h` | DeviceRuntime/Public/Device/Sensor/LidarJsonLiveSourceComponent.h | 공통 실행/계약 |
-| `LidarPlayerDisplayComponent.cpp` | DeviceRuntime/Private/Sensor/LidarPlayerDisplayComponent.cpp | 공통 실행/계약 |
-| `LidarPlayerDisplayComponent.h` | DeviceRuntime/Public/Device/Sensor/LidarPlayerDisplayComponent.h | 공통 실행/계약 |
-| `LidarUdpJsonLiveSourceComponent.cpp` | DeviceRuntime/Private/Sensor/LidarUdpJsonLiveSourceComponent.cpp | 공통 실행/계약 |
-| `LidarUdpJsonLiveSourceComponent.h` | DeviceRuntime/Public/Device/Sensor/LidarUdpJsonLiveSourceComponent.h | 공통 실행/계약 |
+| `LidarCsvReplaySourceComp.cpp` | DeviceRuntime/Private/Sensor/LidarCsvReplaySourceComp.cpp | 공통 실행/계약 |
+| `LidarCsvReplaySourceComp.h` | DeviceRuntime/Public/Device/Sensor/LidarCsvReplaySourceComp.h | 공통 실행/계약 |
+| `LidarHttpJsonLiveSourceComp.cpp` | DeviceRuntime/Private/Sensor/LidarHttpJsonLiveSourceComp.cpp | 공통 실행/계약 |
+| `LidarHttpJsonLiveSourceComp.h` | DeviceRuntime/Public/Device/Sensor/LidarHttpJsonLiveSourceComp.h | 공통 실행/계약 |
+| `LidarJsonLinesReplaySourceComp.cpp` | DeviceRuntime/Private/Sensor/LidarJsonLinesReplaySourceComp.cpp | 공통 실행/계약 |
+| `LidarJsonLinesReplaySourceComp.h` | DeviceRuntime/Public/Device/Sensor/LidarJsonLinesReplaySourceComp.h | 공통 실행/계약 |
+| `LidarJsonLiveSourceComp.cpp` | DeviceRuntime/Private/Sensor/LidarJsonLiveSourceComp.cpp | 공통 실행/계약 |
+| `LidarJsonLiveSourceComp.h` | DeviceRuntime/Public/Device/Sensor/LidarJsonLiveSourceComp.h | 공통 실행/계약 |
+| `LidarPlayerDisplayComp.cpp` | DeviceRuntime/Private/Sensor/LidarPlayerDisplayComp.cpp | 공통 실행/계약 |
+| `LidarPlayerDisplayComp.h` | DeviceRuntime/Public/Device/Sensor/LidarPlayerDisplayComp.h | 공통 실행/계약 |
+| `LidarUdpJsonLiveSourceComp.cpp` | DeviceRuntime/Private/Sensor/LidarUdpJsonLiveSourceComp.cpp | 공통 실행/계약 |
+| `LidarUdpJsonLiveSourceComp.h` | DeviceRuntime/Public/Device/Sensor/LidarUdpJsonLiveSourceComp.h | 공통 실행/계약 |
 | `RealSensorAdapterStubs.cpp` | DeviceRuntime/Private/Sensor/RealSensorAdapterStubs.cpp | 공통 실행/계약 |
 | `RealSensorAdapterStubs.h` | DeviceRuntime/Public/Device/Sensor/RealSensorAdapterStubs.h | 공통 실행/계약 |
-| `RealSensorSourceComponent.cpp` | DeviceRuntime/Private/Sensor/RealSensorSourceComponent.cpp | 공통 실행/계약 |
-| `RealSensorSourceComponent.h` | DeviceRuntime/Public/Device/Sensor/RealSensorSourceComponent.h | 공통 실행/계약 |
+| `RealSensorSourceComp.cpp` | DeviceRuntime/Private/Sensor/RealSensorSourceComp.cpp | 공통 실행/계약 |
+| `RealSensorSourceComp.h` | DeviceRuntime/Public/Device/Sensor/RealSensorSourceComp.h | 공통 실행/계약 |
 | `Tests/ArchitectureWireGoldenTests.cpp` | DeviceRuntime/Private/Tests/ArchitectureWireGoldenTests.cpp | 공통 회귀; Editor guard/fixture 원문 유지 |
 | `Tests/CsvPointCloudPreviewAutomationTests.cpp` | DeviceRuntime/Private/Tests/CsvPointCloudPreviewAutomationTests.cpp | 공통 회귀; Editor guard/fixture 원문 유지 |
 | `Tests/EditorMapSmokeAutomationTests.cpp` | 프로젝트 잔류 | 과제·UI·맵·host fixture 전이 의존 |
@@ -308,7 +308,7 @@ Provider는 world/weak owner/generation을 갖고 BeginPlay 전 host 조립 시 
 | `Tests/SensorV2ParityAutomationTests.cpp` | DeviceRuntime/Private/Tests/SensorV2ParityAutomationTests.cpp | 공통 회귀; Editor guard/fixture 원문 유지 |
 | `Tests/SensorV2RuntimeAutomationTests.cpp` | 프로젝트 잔류 | 과제·UI·맵·host fixture 전이 의존 |
 | `Tests/SensorWorkflowToolbarTests.cpp` | 프로젝트 잔류 | 과제·UI·맵·host fixture 전이 의존 |
-| `Tests/SensorWorkspaceForeignFixture.h` | 프로젝트 잔류 | 과제·UI·맵·host fixture 전이 의존 |
+| `Tests/DxWidgetSensorWorkspaceForeignFixture.h` | 프로젝트 잔류 | 과제·UI·맵·host fixture 전이 의존 |
 | `Tests/SlabMinimalUiTests.cpp` | 프로젝트 잔류 | 과제·UI·맵·host fixture 전이 의존 |
 | `Tests/SlabProductionRuntimeTests.cpp` | 프로젝트 잔류 | 과제·UI·맵·host fixture 전이 의존 |
 | `Tests/SlabProgressiveChartTests.cpp` | 프로젝트 잔류 | 과제·UI·맵·host fixture 전이 의존 |
@@ -334,16 +334,16 @@ Provider는 world/weak owner/generation을 갖고 BeginPlay 전 host 조립 시 
 | `Tests/VirtualSensorTopicReceiverAutomationTests.cpp` | 프로젝트 잔류 | 과제·UI·맵·host fixture 전이 의존 |
 | `Tests/VirtualSlabSensorTestDriver.cpp` | 프로젝트 잔류 | 과제·UI·맵·host fixture 전이 의존 |
 | `Tests/VirtualSlabSensorTestDriver.h` | 프로젝트 잔류 | 과제·UI·맵·host fixture 전이 의존 |
-| `VirtualImuComponent.cpp` | DeviceRuntime/Private/Sensor/VirtualImuComponent.cpp | 공통 실행/계약 |
-| `VirtualImuComponent.h` | DeviceRuntime/Public/Device/Sensor/VirtualImuComponent.h | 공통 실행/계약 |
+| `VirtualImuComp.cpp` | DeviceRuntime/Private/Sensor/VirtualImuComp.cpp | 공통 실행/계약 |
+| `VirtualImuComp.h` | DeviceRuntime/Public/Device/Sensor/VirtualImuComp.h | 공통 실행/계약 |
 | `VirtualImuTypes.cpp` | DeviceRuntime/Private/Sensor/VirtualImuTypes.cpp | 공통 실행/계약 |
 | `VirtualImuTypes.h` | DeviceRuntime/Public/Device/Sensor/VirtualImuTypes.h | 공통 실행/계약 |
-| `VirtualLidarAnalysisComponent.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarAnalysisComponent.cpp | 공통 실행/계약 |
-| `VirtualLidarAnalysisComponent.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarAnalysisComponent.h | 공통 실행/계약 |
+| `VirtualLidarAnalysisComp.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarAnalysisComp.cpp | 공통 실행/계약 |
+| `VirtualLidarAnalysisComp.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarAnalysisComp.h | 공통 실행/계약 |
 | `VirtualLidarCadence.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarCadence.h | 공통 실행/계약 |
 | `VirtualLidarCadenceCohort.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarCadenceCohort.h | 공통 실행/계약 |
-| `VirtualLidarExportComponent.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarExportComponent.cpp | 공통 실행/계약 |
-| `VirtualLidarExportComponent.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarExportComponent.h | 공통 실행/계약 |
+| `VirtualLidarExportComp.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarExportComp.cpp | 공통 실행/계약 |
+| `VirtualLidarExportComp.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarExportComp.h | 공통 실행/계약 |
 | `VirtualLidarFidelity.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarFidelity.cpp | 공통 실행/계약 |
 | `VirtualLidarFidelity.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarFidelity.h | 공통 실행/계약 |
 | `VirtualLidarGeometry.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarGeometry.cpp | 공통 실행/계약 |
@@ -355,13 +355,13 @@ Provider는 world/weak owner/generation을 갖고 BeginPlay 전 host 조립 시 
 | `VirtualLidarPayloadCodec.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarPayloadCodec.h | 공통 실행/계약 |
 | `VirtualLidarPointModel.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarPointModel.cpp | 공통 실행/계약 |
 | `VirtualLidarPointModel.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarPointModel.h | 공통 실행/계약 |
-| `VirtualLidarScanComponent.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarScanComponent.cpp | 측정 이관; Slab 분석/태그 정책 provider 분리 |
-| `VirtualLidarScanComponent.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarScanComponent.h | 측정 이관; Slab 분석/태그 정책 provider 분리 |
-| `VirtualLidarScanComponentAcquisition.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarScanComponentAcquisition.cpp | 측정 이관; Slab 분석/태그 정책 provider 분리 |
+| `VirtualLidarScanComp.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarScanComp.cpp | 측정 이관; Slab 분석/태그 정책 provider 분리 |
+| `VirtualLidarScanComp.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarScanComp.h | 측정 이관; Slab 분석/태그 정책 provider 분리 |
+| `VirtualLidarScanCompAcquisition.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarScanCompAcquisition.cpp | 측정 이관; Slab 분석/태그 정책 provider 분리 |
 | `VirtualLidarScanComponentEncoding.inl` | DeviceRuntime/Private/Sensor/VirtualLidarScanComponentEncoding.inl | 측정 이관; Slab 분석/태그 정책 provider 분리 |
-| `VirtualLidarScanComponentExport.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarScanComponentExport.cpp | 측정 이관; Slab 분석/태그 정책 provider 분리 |
-| `VirtualLidarScanComponentFidelity.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarScanComponentFidelity.cpp | 측정 이관; Slab 분석/태그 정책 provider 분리 |
-| `VirtualLidarScanComponentSampling.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarScanComponentSampling.cpp | 측정 이관; Slab 분석/태그 정책 provider 분리 |
+| `VirtualLidarScanCompExport.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarScanCompExport.cpp | 측정 이관; Slab 분석/태그 정책 provider 분리 |
+| `VirtualLidarScanCompFidelity.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarScanCompFidelity.cpp | 측정 이관; Slab 분석/태그 정책 provider 분리 |
+| `VirtualLidarScanCompSampling.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarScanCompSampling.cpp | 측정 이관; Slab 분석/태그 정책 provider 분리 |
 | `VirtualLidarScanSceneQuery.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarScanSceneQuery.cpp | 측정 이관; Slab 분석/태그 정책 provider 분리 |
 | `VirtualLidarSemanticDiagnostics.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarSemanticDiagnostics.cpp | 공통 실행/계약 |
 | `VirtualLidarSemanticDiagnostics.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarSemanticDiagnostics.h | 공통 실행/계약 |
@@ -372,10 +372,10 @@ Provider는 world/weak owner/generation을 갖고 BeginPlay 전 host 조립 시 
 | `VirtualLidarSensorTypes.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarSensorTypes.h | legacy DTO만 동결 보존; 업무는 host provider |
 | `VirtualLidarStaticCollisionQuery.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarStaticCollisionQuery.cpp | 공통 실행/계약 |
 | `VirtualLidarStaticCollisionQuery.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarStaticCollisionQuery.h | 공통 실행/계약 |
-| `VirtualLidarSurfaceResponseComponent.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarSurfaceResponseComponent.cpp | 공통 실행/계약 |
-| `VirtualLidarSurfaceResponseComponent.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarSurfaceResponseComponent.h | 공통 실행/계약 |
-| `VirtualLidarVisualizationComponent.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarVisualizationComponent.cpp | 공통 실행/계약 |
-| `VirtualLidarVisualizationComponent.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarVisualizationComponent.h | 공통 실행/계약 |
+| `VirtualLidarSurfaceResponseComp.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarSurfaceResponseComp.cpp | 공통 실행/계약 |
+| `VirtualLidarSurfaceResponseComp.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarSurfaceResponseComp.h | 공통 실행/계약 |
+| `VirtualLidarVisualizationComp.cpp` | DeviceRuntime/Private/Sensor/VirtualLidarVisualizationComp.cpp | 공통 실행/계약 |
+| `VirtualLidarVisualizationComp.h` | DeviceRuntime/Public/Device/Sensor/VirtualLidarVisualizationComp.h | 공통 실행/계약 |
 | `VirtualPcdCodec.cpp` | DeviceRuntime/Private/Sensor/VirtualPcdCodec.cpp | 공통 실행/계약 |
 | `VirtualPcdCodec.h` | DeviceRuntime/Public/Device/Sensor/VirtualPcdCodec.h | 공통 실행/계약 |
 | `VirtualSensorActorBase.cpp` | DeviceRuntime/Private/Sensor/VirtualSensorActorBase.cpp | 공통 실행/계약 |
@@ -387,18 +387,18 @@ Provider는 world/weak owner/generation을 갖고 BeginPlay 전 host 조립 시 
 | `VirtualSensorExternalSourceHostActor.cpp` | DeviceRuntime/Private/Sensor/VirtualSensorExternalSourceHostActor.cpp | 공통 수신; TC adapter 함께 이관 |
 | `VirtualSensorExternalSourceHostActor.h` | DeviceRuntime/Public/Device/Sensor/VirtualSensorExternalSourceHostActor.h | 공통 수신; TC adapter 함께 이관 |
 | `VirtualSensorMonitorView.h` | DeviceRuntime/Public/Device/Sensor/VirtualSensorMonitorView.h | 공통 실행/계약 |
-| `VirtualSensorOutputComponent.cpp` | DeviceRuntime/Private/Sensor/VirtualSensorOutputComponent.cpp | 공통 실행/계약 |
-| `VirtualSensorOutputComponent.h` | DeviceRuntime/Public/Device/Sensor/VirtualSensorOutputComponent.h | 공통 실행/계약 |
+| `VirtualSensorOutputComp.cpp` | DeviceRuntime/Private/Sensor/VirtualSensorOutputComp.cpp | 공통 실행/계약 |
+| `VirtualSensorOutputComp.h` | DeviceRuntime/Public/Device/Sensor/VirtualSensorOutputComp.h | 공통 실행/계약 |
 | `VirtualSensorPlacementInputOwner.h` | DeviceRuntime/Public/Device/Sensor/VirtualSensorPlacementInputOwner.h | 공통 실행/계약 |
-| `VirtualSensorRecorderComponent.cpp` | DeviceRuntime/Private/Sensor/VirtualSensorRecorderComponent.cpp | 공통 실행/계약 |
-| `VirtualSensorRecorderComponent.h` | DeviceRuntime/Public/Device/Sensor/VirtualSensorRecorderComponent.h | 공통 실행/계약 |
+| `VirtualSensorRecorderComp.cpp` | DeviceRuntime/Private/Sensor/VirtualSensorRecorderComp.cpp | 공통 실행/계약 |
+| `VirtualSensorRecorderComp.h` | DeviceRuntime/Public/Device/Sensor/VirtualSensorRecorderComp.h | 공통 실행/계약 |
 | `VirtualSensorRuntimeTypes.h` | DeviceRuntime/Public/Device/Sensor/VirtualSensorRuntimeTypes.h | 공통 실행/계약 |
 | `VirtualSensorSemanticLabels.cpp` | DeviceRuntime/Private/Sensor/VirtualSensorSemanticLabels.cpp | 공통 실행/계약 |
 | `VirtualSensorSemanticLabels.h` | DeviceRuntime/Public/Device/Sensor/VirtualSensorSemanticLabels.h | 공통 실행/계약 |
 | `VirtualSensorStressSceneActor.cpp` | 프로젝트 잔류 | 시험 장면 조립 Actor |
 | `VirtualSensorStressSceneActor.h` | 프로젝트 잔류 | 시험 장면 조립 Actor |
-| `VirtualSensorTransportComponent.cpp` | DeviceRuntime/Private/Sensor/VirtualSensorTransportComponent.cpp | 공통 실행/계약 |
-| `VirtualSensorTransportComponent.h` | DeviceRuntime/Public/Device/Sensor/VirtualSensorTransportComponent.h | 공통 실행/계약 |
+| `VirtualSensorTransportComp.cpp` | DeviceRuntime/Private/Sensor/VirtualSensorTransportComp.cpp | 공통 실행/계약 |
+| `VirtualSensorTransportComp.h` | DeviceRuntime/Public/Device/Sensor/VirtualSensorTransportComp.h | 공통 실행/계약 |
 | `VirtualSensorTransportRuntimeConfig.cpp` | DeviceRuntime/Private/Sensor/VirtualSensorTransportRuntimeConfig.cpp | 공통 실행/계약 |
 
 ### 4.5 Bootstrap — 17파일
@@ -449,11 +449,11 @@ Provider는 world/weak owner/generation을 갖고 BeginPlay 전 host 조립 시 
 
 | 원본 (`H/UI/` 뒤) | 처리 |
 |---|---|
-| `AgentTestSetWidget.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `AgentTestSetWidget.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `CoilLoadingMonitor.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `CoilLoadingMonitor.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `CoilLoadingMonitorHost.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetAgentTestSet.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetAgentTestSet.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetCoilLoadingMonitor.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetCoilLoadingMonitor.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetCoilLoadingMonitorHost.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `CoilLoadingPlanProjection.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `CoilLoadingPlanProjection.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `CoilLoadingPlanView.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
@@ -475,8 +475,8 @@ Provider는 world/weak owner/generation을 갖고 BeginPlay 전 host 조립 시 
 | `PcdTransportRuntimeProbe.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `SensorAcquisitionRateWarning.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
 | `SensorLidarHelp.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `SensorMapCheckWidget.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `SensorMapCheckWidget.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetSensorMapCheck.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetSensorMapCheck.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `SensorOwnedPresentationStyle.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `SensorPlacementInteraction.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `SensorPlacementInteraction.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
@@ -498,56 +498,56 @@ Provider는 world/weak owner/generation을 갖고 BeginPlay 전 host 조립 시 
 | `ShipHatchMetricPresentation.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `ShipHatchMonitorHost.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `ShipHatchMonitorHost.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `ShipHatchMonitorWidget.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `ShipHatchMonitorWidget.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `ShipHatchOverlay.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `ShipHatchOverlay.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetShipHatchMonitor.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetShipHatchMonitor.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `ShipHatchOverlayComp.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `ShipHatchOverlayComp.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `ShipHatchSensorLabelView.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `ShipHatchSiteVisualization.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `ShipHatchViewTransform.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `SlabChartsPanelWidget.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `SlabChartsPanelWidget.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetSlabChartsPanel.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetSlabChartsPanel.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `SlabInformationCard.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `SlabInformationCard.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `SlabProgressPanelWidget.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `SlabProgressPanelWidget.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetSlabProgressPanel.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetSlabProgressPanel.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `SlabScenarioChartWidget.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `SlabScenarioChartWidget.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `SlabScenarioReplayPanelWidget.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `SlabScenarioReplayPanelWidget.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetSlabScenarioReplayPanel.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetSlabScenarioReplayPanel.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `SlabScenarioReplayUiHostActor.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `SlabScenarioReplayUiHostActor.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `SlabSimulationUiHostActor.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `SlabSimulationUiHostActor.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `StableHeaderReservation.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `TrainBatchWidget.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `TrainBatchWidget.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetTrainBatch.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetTrainBatch.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `VirtualPcdBandwidthPresentation.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
 | `VirtualPcdBandwidthPresentation.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
 | `VirtualPcdOptionsPresentation.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorCaptureExportPanelWidget.Bandwidth.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorCaptureExportPanelWidget.Dataset.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `VirtualSensorCaptureExportPanelWidget.Owned.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorCaptureExportPanelWidget.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorCaptureExportPanelWidget.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorCaptureExportPanel.Bandwidth.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorCaptureExportPanel.Dataset.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
+| `DxWidgetVirtualSensorCaptureExportPanel.Owned.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorCaptureExportPanel.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorCaptureExportPanel.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
 | `VirtualSensorControlTypes.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `VirtualSensorCoordinatorMonitorBinding.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `VirtualSensorMonitorPanelWidget.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorMonitorPanelWidget.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorMonitorPanelWidgetCapture.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorMonitorPanelWidgetConstruction.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorMonitorPanelWidgetPreview.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorMonitorPanelWidgetStatus.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorPanelHostComponent.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorPanelHostComponent.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorPanelWidgetBase.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorPanelWidgetBase.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorPlacementPanelWidget.Imu.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorPlacementPanelWidget.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorPlacementPanelWidget.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorMonitorPanel.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorMonitorPanel.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorMonitorPanelCapture.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorMonitorPanelConstruction.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorMonitorPanelPreview.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorMonitorPanelStatus.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `VirtualSensorPanelHostComp.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `VirtualSensorPanelHostComp.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorPanelBase.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorPanelBase.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorPlacementPanel.Imu.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorPlacementPanel.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorPlacementPanel.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
 | `VirtualSensorPlayerInputBinding.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
-| `VirtualSensorSettingsPanelWidget.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
-| `VirtualSensorSettingsPanelWidget.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorSettingsPanel.cpp` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
+| `DxWidgetVirtualSensorSettingsPanel.h` | DeviceUI 공통 body/helper 추출 + host façade/업무 잔류 (§3.3) |
 | `VirtualSensorToolRig.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `VirtualSensorToolRig.h` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
 | `VirtualSensorToolWorkspaceSubsystem.Docking.cpp` | 프로젝트 잔류 (업무·Workspace·Host·입력·진단·저장 호환) |
@@ -576,7 +576,7 @@ Provider는 world/weak owner/generation을 갖고 BeginPlay 전 host 조립 시 
 
 UBT 모듈명은 DeviceRuntime/DeviceNative/DeviceUI이므로 생성 macro에는 중간 underscore가 없다. UENUM은 값·순서를 보존하고 export가 필요한 out-of-line 함수/UScriptStruct 반환·UINTERFACE의 U/I 양쪽은 경계별로 검사한다. 지금 한 모듈 안에서 export 없이 통하던 `FVirtualSensorLayoutEntry/Document`와 native free function/registry static data도 DLL 경계를 넘어가면 export/단일 정의가 필요하다. 같은 singleton/LLM 태그가 두 DLL에 복제되지 않도록 한다.
 
-공개 include는 예를 들어 `Device/Sensor/VirtualLidarScanComponent.h`, `Device/Contracts/VirtualSensorAcquisitionContext.h`, `DeviceNative/SensorOwnedRayTracing.h`로 통일한다. §4의 Runtime public 목적지는 `Public/Device/`, Native는 `Public/DeviceNative/` 아래로 확정한 제안이다. 현재 `ma0t10_dt/MA0T10/...`/상대 include를 쓰는 host·Editor·테스트·generated code 입력을 변경하며, 장기간 프로젝트 include root를 plugin PublicIncludePaths에 넣는 우회는 금지다. 공개 header끼리 basename 충돌을 검사하고 `.generated.h`는 파일 마지막 include 규칙을 유지한다.
+공개 include는 예를 들어 `Device/Sensor/VirtualLidarScanComp.h`, `Device/Contracts/VirtualSensorAcquisitionContext.h`, `DeviceNative/SensorOwnedRayTracing.h`로 통일한다. §4의 Runtime public 목적지는 `Public/Device/`, Native는 `Public/DeviceNative/` 아래로 확정한 제안이다. 현재 `ma0t10_dt/MA0T10/...`/상대 include를 쓰는 host·Editor·테스트·generated code 입력을 변경하며, 장기간 프로젝트 include root를 plugin PublicIncludePaths에 넣는 우회는 금지다. 공개 header끼리 basename 충돌을 검사하고 `.generated.h`는 파일 마지막 include 규칙을 유지한다.
 
 현재 scoped 파일 밖에서 Contracts/Sensor/Camera/Core를 include하는 소스는 202개다(중복 제거, 범위 안 파일 제외). 이 숫자는 수정 확정 파일 수가 아니라 **검토 상한 목록**이다. UHT 참조·forward 선언·문자열 `/Script`는 별도 검사한다. 한시적 host forwarding header는 기존 native C++ include 호환만 제공하고 old/new UCLASS 정의를 중복 생성하지 않는다. non-unity Editor/Development/Shipping 빌드로 transitive include 누락을 드러낸다.
 

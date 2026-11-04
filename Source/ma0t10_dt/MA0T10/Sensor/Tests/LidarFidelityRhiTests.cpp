@@ -6,10 +6,10 @@
 #include "Materials/Material.h"
 #include "RHIGlobals.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualLidarGpuDepthProjectionComponent.h"
-#include "Device/Sensor/VirtualLidarSurfaceResponseComponent.h"
-#include "ma0t10_dt/MA0T10/Slab/SlabMotionComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualLidarGpuDepthProjectionComp.h"
+#include "Device/Sensor/VirtualLidarSurfaceResponseComp.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabMotionComp.h"
 
 class FLidarFidelityRhiCommand : public IAutomationLatentCommand
 {
@@ -26,14 +26,14 @@ public:
             Wall=World->SpawnActor<AStaticMeshActor>();Wall->Tags.Add(TEXT("Slab"));
             auto* Mesh=Wall->GetStaticMeshComponent();Mesh->SetMobility(EComponentMobility::Movable);
             Mesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Cube.Cube")));
-            Motion=NewObject<USlabMotionComponent>(Wall);Wall->AddInstanceComponent(Motion);Motion->RegisterComponent();
+            Motion=NewObject<USlabMotionComp>(Wall);Wall->AddInstanceComponent(Motion);Motion->RegisterComponent();
             auto Data=MakeShared<FSlabScenarioData,ESPMode::ThreadSafe>();FSlabScenarioRow A,B;A.CenterX=1000;B.CenterX=1200;B.ElapsedSec=1;Data->Rows={A,B};Data->DurationSec=1;
             Motion->OnPoseApplied.BindLambda([](const FSlabScenarioRow&,int32,double,bool){});
             Motion->StartPlayback(Data,FTransform::Identity,FVector(100,4000,2000),ESlabInputUnit::Centimeters);
             Wall->SetActorScale3D(FVector(1,40,20));
-            Response=NewObject<UVirtualLidarSurfaceResponseComponent>(Wall);Wall->AddInstanceComponent(Response);Response->RegisterComponent();Response->Reflectivity940Nm=.35;
+            Response=NewObject<UVirtualLidarSurfaceResponseComp>(Wall);Wall->AddInstanceComponent(Response);Response->RegisterComponent();Response->Reflectivity940Nm=.35;
             Sensor=World->SpawnActor<AVirtualLidarSensorActor>();Sensor->SetActorLocation(FVector(0,0,1000));
-            Scan=Sensor->ScanComponent.Get();Scan->StopScan();Scan->DeviceProfile=EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE;
+            Scan=Sensor->ScanComp.Get();Scan->StopScan();Scan->DeviceProfile=EVirtualLidarDeviceProfile::IYOBOT_MLX80_NATIVE;
             Scan->HorizontalSamples=64;Scan->VerticalChannels=16;Scan->HorizontalFov=10;Scan->MinVerticalAngle=-2;Scan->MaxVerticalAngle=2;Scan->ScanInterval=.05;
             Scan->MaxDistance=5000;Scan->AcquisitionBackend=EVirtualLidarAcquisitionBackend::GpuDepthProjection;
             Scan->FidelityMode=EVirtualSensorFidelityMode::IdealTruth;Scan->bEnableRangeNoise=false;
@@ -63,9 +63,9 @@ public:
     }
 private:
     void Request(){Scan->StartScan();Scan->RequestImmediateScheduledScan();Scan->PrepareScheduledScan(0.0);}
-    bool Finish(){if(Scan)Scan->StopScan();if(Motion)Motion->StopPlayback();if(Sensor)Sensor->GpuDepthProjectionComponent->UnregisterComponent();Scene.Reset();return true;}
+    bool Finish(){if(Scan)Scan->StopScan();if(Motion)Motion->StopPlayback();if(Sensor)Sensor->GpuDepthProjectionComp->UnregisterComponent();Scene.Reset();return true;}
     FAutomationTestBase* Test;TUniquePtr<FPreviewScene> Scene;AStaticMeshActor* Wall=nullptr;AVirtualLidarSensorActor* Sensor=nullptr;
-    UVirtualLidarScanComponent* Scan=nullptr;USlabMotionComponent* Motion=nullptr;UVirtualLidarSurfaceResponseComponent* Response=nullptr;
+    UVirtualLidarScanComp* Scan=nullptr;USlabMotionComp* Motion=nullptr;UVirtualLidarSurfaceResponseComp* Response=nullptr;
     double Started=0,Bright=0;int64 LastFrame=-1;int32 Phase=0;
 };
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarFidelityRhiTest,"MA0T10.LidarFidelity.GpuAcquisitionRhi",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

@@ -4,7 +4,7 @@
 #include "Async/TaskGraphInterfaces.h"
 #include "HAL/PlatformProcess.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
 
@@ -19,10 +19,10 @@ bool FPointCloudOverloadSocketTest::RunTest(const FString&)
     auto* Coordinator = World->SpawnActor<AVirtualSensorCoordinator>();
     auto* Lidar = World->SpawnActor<AVirtualLidarSensorActor>();
     Coordinator->RegisterSensorActor(Lidar);
-    auto* P = Coordinator->StreamPublisherComponent.Get();
+    auto* P = Coordinator->StreamPublisherComp.Get();
 	// Deliberately exercise the final overload/resume safety net.
 	P->bAutoAdjustPointCloudSendRate=false;
-    auto* T = Coordinator->SharedTransportComponent.Get();
+    auto* T = Coordinator->SharedTransportComp.Get();
     auto* Raw = World->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
     FVirtualSensorTransportProfile Profile;
     Profile.BrokerUrl = TEXT("tcp://127.0.0.1:61618");

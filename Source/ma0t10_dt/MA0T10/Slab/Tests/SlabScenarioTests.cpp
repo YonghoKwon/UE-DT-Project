@@ -1,7 +1,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.h"
-#include "ma0t10_dt/MA0T10/Slab/SlabMetricsComponent.h"
+#include "ma0t10_dt/MA0T10/Slab/SlabMetricsComp.h"
 #include "Json.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlabScenarioParserTest,"MA0T10.SlabScenario.Parser",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -67,15 +67,15 @@ bool FSlabScenarioMetricsTest::RunTest(const FString&)
 	FSlabScenarioRow R; const FVector Size(1000,100,25);
 	const FTransform Track(FRotator(0,32,0),FVector(350,-120,50));
 	FTransform Pose(Track.GetRotation(),Track.TransformPositionNoScale(FVector(200,0,12.5)));
-	auto M=USlabMetricsComponent::Calculate(R,Pose,Size,Track,-100,100,true);
+	auto M=USlabMetricsComp::Calculate(R,Pose,Size,Track,-100,100,true);
 	TestTrue(TEXT("valid parallel rails"),M.bMarginsValid); TestTrue(TEXT("left margin 50cm"),FMath::IsNearlyEqual(M.MarginLeftCm,50.0,1e-6));
 	TestTrue(TEXT("right margin 50cm"),FMath::IsNearlyEqual(M.MarginRightCm,50.0,1e-6)); TestTrue(TEXT("forward travel is not center offset"),FMath::IsNearlyZero(M.CenterOffsetCm,1e-6));
 	R.LeftAngle=-10; Pose.SetRotation(Track.GetRotation()*FRotator(0,R.LeftAngle,0).Quaternion());
-	M=USlabMetricsComponent::Calculate(R,Pose,Size,Track,-100,100,true);
+	M=USlabMetricsComp::Calculate(R,Pose,Size,Track,-100,100,true);
 	const double Extent=500*FMath::Sin(FMath::DegreesToRadians(10.0))+50*FMath::Cos(FMath::DegreesToRadians(10.0));
 	TestTrue(TEXT("rotated corner analytic gap"),FMath::IsNearlyEqual(M.MarginLeftCm,100-Extent,1e-6));
 	TestTrue(TEXT("intrusion uses negative signed clearance"),M.MarginLeftCm<0); TestTrue(TEXT("rotation keeps centerline offset zero"),FMath::IsNearlyZero(M.CenterOffsetCm,1e-6));
-	M=USlabMetricsComponent::Calculate(R,Pose,Size,Track,-100,100,false); TestFalse(TEXT("missing rails N/A rather than fabricated distance"),M.bMarginsValid);
+	M=USlabMetricsComp::Calculate(R,Pose,Size,Track,-100,100,false); TestFalse(TEXT("missing rails N/A rather than fabricated distance"),M.bMarginsValid);
 	return true;
 }
 #endif

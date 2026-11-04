@@ -15,12 +15,12 @@ DTCore는 `b2504d1dfea5659f832ff0d750515edee146a28e` → **`bc60f05e2d1e64f4ffe1
 
 | 변경 | 프로젝트 사용처·영향 | 이번 적용/남은 확인 |
 |---|---|---|
-| `bPresistent` → `bPersistent` | `UI/CoilLoadingMonitor.cpp`, `UI/ShipHatchMonitorWidget.cpp`가 이전 필드를 직접 설정하므로 컴파일 수정 필수 | 두 이름만 수정. DTCore `Config/DefaultDTCore.ini`의 `/Script/DTCore.DxWidget.bPresistent` → `bPersistent` PropertyRedirect 존재 확인. 기존 BP/저장 자산은 수정하지 않았고 로드 확인은 후속 |
+| `bPresistent` → `bPersistent` | `UI/DxWidgetCoilLoadingMonitor.cpp`, `UI/DxWidgetShipHatchMonitor.cpp`가 이전 필드를 직접 설정하므로 컴파일 수정 필수 | 두 이름만 수정. DTCore `Config/DefaultDTCore.ini`의 `/Script/DTCore.DxWidget.bPresistent` → `bPersistent` PropertyRedirect 존재 확인. 기존 BP/저장 자산은 수정하지 않았고 로드 확인은 후속 |
 | 소비 프로젝트 friend 제거 | `DTCoreSlabBrokerTests.cpp`의 `bConnectedBroadcast`, `PendingSubscribeCount`, `StompClient`, `bWantsConnection` 접근 불가 | 공개 `GetConnectionState()`로 Ready/Disconnected 확인. Ready 시 실패 구독 수·재연결 횟수 0을 조회/검증하여 기존 시험을 완화하지 않음 |
 | 이관 시험의 클래스·등록 중복 | 프로젝트와 플러그인에 동일한 `FDTCore*Test` 11개가 남으면 중복 구현/등록 위험 | 아래 이름·본문 대조 후 프로젝트 측 11개와 전용 fake/fixture/include만 제거. Camera/Crane/SlabBroker 유지 |
 | 상태 API/이벤트 | `Disconnected/Connecting/Subscribing/Ready/Reconnecting/GaveUp`, 상태 변경 시 GameThread 이벤트. 기존 `OnConnected`는 구독 callback batch 완료 알림 유지 | 새 프로젝트 구독 루프/관리자를 만들지 않음. Ready는 모든 구독 성공·소비자 업무 ACK를 의미하지 않음 |
 | 구독 receipt timeout | `SubscribeReceiptTimeoutSeconds` 양수일 때 미회수 batch receipt를 실패 수에 더하고 Ready/기존 OnConnected 1회 통지. 늦은/중복/이전 generation callback 무시 | 기본 0 유지. 프로젝트의 추가 `Subscribe()`는 완료 callback이 DTCore 자체 batch callback일 때만 이 timeout 추적에 포함됨 |
-| Topic 라우팅 | `SlabActor.cpp`, `SensorMapCheckWidget.cpp`, `WebSocket/TC/VirtualSensorExternalSourceReceiverAdapter.cpp`가 설정·Subscribe/Unsubscribe 사용. WebSocketTopics/ApiTopics 모두 기존처럼 WebSocket 큐의 `MESSAGE_ID` dispatch | Slab `topic.scenario`/`IFactory-agent`, TC→DataSync 경로 유지. 토픽별 최초 수신 로그만 추가됨 |
+| Topic 라우팅 | `SlabActor.cpp`, `DxWidgetSensorMapCheck.cpp`, `WebSocket/TC/VirtualSensorExternalSourceReceiverAdapter.cpp`가 설정·Subscribe/Unsubscribe 사용. WebSocketTopics/ApiTopics 모두 기존처럼 WebSocket 큐의 `MESSAGE_ID` dispatch | Slab `topic.scenario`/`IFactory-agent`, TC→DataSync 경로 유지. 토픽별 최초 수신 로그만 추가됨 |
 | 데이터 통계 | `UDxDataSubsystem::GetStatistics()` 추가. API/WS 적용 수, JSON 실패, dispatch 누락, 미등록 키, 큐 대기를 독립 원자 카운터로 관찰 | 업무 핸들러/처리 순서·배치/5ms 추출 예산 유지. 기존 `TotalProcessedCount` 의미 유지. 파서가 반환한 null은 공통 JSON 실패와 다름. 새 UI 폴링 없음 |
 | 위젯 prune | Workspace `BringOwnedPanelToFront()`의 임시 등록→BringToFront→등록 해제, Coil/ShipHatch host 등록, 외부 입력 blocker와 접점 | DTCore가 중복 검사/BringToFront/hover/Main 교체에서 화면 트리에서 떨어진 항목 제거. 화면에 붙은 정적 자식 보존, 추가 close hook 없음. 숨김·접기·Main/Viewport 재호스팅·중복 열기·Z-order 직접 수용은 후속 |
 | HTTP/로그/입력 설정 | `UDTCoreSettings`, `DxApiSubsystem`, `DxLogSubsystem`, `ADxPlayerControllerBase`, `AInteractableActor` 사용/상속 | 기본값은 아래와 같이 기존 동작 유지. HTTP Body/URL 우선순위·세대 수명 유지. CCTV/Ship 설정은 Legacy 표시만 바뀌고 키는 유지 |

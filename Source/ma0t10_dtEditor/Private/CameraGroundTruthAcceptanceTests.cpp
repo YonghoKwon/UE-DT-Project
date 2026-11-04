@@ -3,15 +3,15 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Camera/VirtualCameraSensorActor.h"
-#include "Device/Camera/VirtualCameraCaptureComponent.h"
+#include "Device/Camera/VirtualCameraCaptureComp.h"
 #include "Device/Sensor/VirtualSensorEditableTypes.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
-#include "Device/Camera/VirtualCameraGroundTruth.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorMonitorPanelWidget.h"
+#include "Device/Camera/VirtualCameraGroundTruthComp.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorMonitorPanel.h"
 #include "UxrScenarioUiFixture.h"
 #include "EngineUtils.h"
 #include "Engine/Texture2D.h"
@@ -35,7 +35,7 @@ public:
         UWorld* World=nullptr;for(const auto& C:GEngine->GetWorldContexts())if(C.WorldType==EWorldType::PIE)World=C.World();
         if(!FinalAcceptanceViewportReady(World))return false;
         auto* W=World->GetSubsystem<UVirtualSensorToolWorkspaceSubsystem>();auto* C=W?W->GetCoordinator():nullptr;
-        auto* M=W?Cast<UVirtualSensorMonitorPanelWidget>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor)):nullptr;
+        auto* M=W?Cast<UDxWidgetVirtualSensorMonitorPanel>(W->GetOwnedPanel(ESensorToolPanelRole::Monitor)):nullptr;
         if(!C||!M)return false;
         if(!Ready)
         {

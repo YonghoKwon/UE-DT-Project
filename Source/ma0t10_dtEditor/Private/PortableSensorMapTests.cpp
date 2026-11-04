@@ -3,16 +3,16 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolRig.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiHostActor.h"
-#include "ma0t10_dt/MA0T10/UI/SlabSimulationUiHostActor.h"
-#include "ma0t10_dt/MA0T10/UI/SlabProgressPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorPlacementPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorSettingsPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorCaptureExportPanelWidget.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorToolWorkspaceSubsystem.h"
-#include "ma0t10_dt/MA0T10/UI/SensorToolToolbarWidget.h"
-#include "ma0t10_dt/MA0T10/UI/SensorMapCheckWidget.h"
+#include "ma0t10_dt/MA0T10/Sensor/Tool/VirtualSensorToolRig.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiHostActor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Slab/SlabSimulationUiHostActor.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabProgressPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorPlacementPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorSettingsPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorToolWorkspaceSubsystem.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Sensor/SensorToolToolbarWidget.h"
+#include "ma0t10_dt/MA0T10/UI/Topview/DxWidgetSensorMapCheck.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 #include "Device/Sensor/VirtualSensorActorBase.h"
 #include "ma0t10_dt/MA0T10/Slab/SlabActor.h"
@@ -147,7 +147,7 @@ public:
             Test->TestTrue(TEXT("sensor setup remains ready with multiple Slabs"),Rig->EnsureSetup());
             Test->TestNull(TEXT("multiple Slabs never select iterator first"),Rig->TargetSlab.Get());
             Test->TestTrue(TEXT("multiple Slabs explain selection"),Rig->GetSlabSetupMessage().Contains(TEXT("대상을 선택")));
-            auto* Checks=NewObject<USensorMapCheckWidget>(World);Checks->RefreshChecks();
+            auto* Checks=NewObject<UDxWidgetSensorMapCheck>(World);Checks->RefreshChecks();
             auto Check=[&](const TCHAR* Key){const auto* Row=Checks->GetRows().FindByPredicate([&](const auto& R){return R.Key==Key;});return Row&&Row->bOk;};
             Test->TestFalse(TEXT("duplicate ReceiverId warning"),Check(TEXT("ReceiverId")));Test->TestFalse(TEXT("missing TrackReference warning"),Check(TEXT("TrackReference 연결")));
             B->Destroy();Test->TestTrue(TEXT("late single Slab setup succeeds"),Rig->EnsureSetup());Test->TestEqual(TEXT("late Slab becomes target"),Rig->TargetSlab.Get(),A);

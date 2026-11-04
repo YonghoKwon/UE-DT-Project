@@ -3,12 +3,12 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/DxWidgetShipHatchMonitor.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMonitorHost.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/Button.h"
@@ -27,7 +27,7 @@
 
 struct FHatchPresentationProbe
 {
-    static void Check(FAutomationTestBase& T,UShipHatchMonitorWidget& M,bool Geometry)
+    static void Check(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M,bool Geometry)
     {
         const auto* A=M.GetAnalysis();T.TestNotNull(TEXT("current immutable analysis exists"),A);if(!A)return;
         double Volume=0,Sum=0,Minimum=DBL_MAX,Maximum=0;int32 Count=0;
@@ -88,7 +88,7 @@ struct FHatchPresentationProbe
             T.TestTrue(TEXT("reset view fits actual geometry bounds in split and maximized panes"),Inside&&Corners>=32);
         }
     }
-    static void Controls(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
+    static void Controls(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M)
     {
         const auto Cargo=M.CargoChoice;const auto Models=M.FieldChoices;const auto Revision=M.Simulation->Revision();
         auto* Selectors=CastChecked<UShipHatchDetailsSection>(M.WidgetTree->FindWidget(TEXT("HatchSensorSelectors")));
@@ -105,13 +105,13 @@ struct FHatchPresentationProbe
         for(int32 I=0;I<5;++I){M.ColorButtons[I]->OnClicked.Broadcast();T.TestEqual(TEXT("each color segment routes to its palette"),M.GetColor(),I);}
         M.SizeSlider->SetValue(4);M.SizeSlider->OnValueChanged.Broadcast(4);M.DensitySlider->SetValue(25);M.DensitySlider->OnValueChanged.Broadcast(25);
         for(auto* A:{M.Simulation->MLX.Get(),M.Simulation->Livox.Get()})
-        {T.TestEqual(TEXT("size slider updates owned point preview"),A->VisualizationComponent->GetVisualizationSettings().PointSize,4.f);T.TestEqual(TEXT("density slider updates existing stride policy"),A->ScanComponent->GetPreviewPolicyState().PointStride,4);}
+        {T.TestEqual(TEXT("size slider updates owned point preview"),A->VisualizationComp->GetVisualizationSettings().PointSize,4.f);T.TestEqual(TEXT("density slider updates existing stride policy"),A->ScanComp->GetPreviewPolicyState().PointStride,4);}
         auto* Camera=M.Host->ViewCamera.Get();M.SetCameraPreset(0);T.TestTrue(TEXT("top preset points down"),Camera->GetActorRotation().Pitch<-88);M.SetCameraPreset(1);T.TestTrue(TEXT("oblique preset retains an inclined view"),Camera->GetActorRotation().Pitch>-80&&Camera->GetActorRotation().Pitch<-30);
         M.SelectView(3);T.TestFalse(TEXT("heatmap maximizes"),M.IsSplitView());M.SetSplitView(true);T.TestTrue(TEXT("return restores split layout and 3D"),M.IsSplitView()&&M.GetView()<2);
         M.SizeSlider->SetValue(3);M.SizeSlider->OnValueChanged.Broadcast(3);M.DensitySlider->SetValue(50);M.DensitySlider->OnValueChanged.Broadcast(50);
     }
 };
-void ValidateHatchPresentation(FAutomationTestBase* T,UShipHatchMonitorWidget* M){if(T&&M)FHatchPresentationProbe::Check(*T,*M,true);}
+void ValidateHatchPresentation(FAutomationTestBase* T,UDxWidgetShipHatchMonitor* M){if(T&&M)FHatchPresentationProbe::Check(*T,*M,true);}
 namespace
 {
 class FHatchPresentation final:public IAutomationLatentCommand

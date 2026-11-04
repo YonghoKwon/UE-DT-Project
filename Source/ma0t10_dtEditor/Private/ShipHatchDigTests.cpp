@@ -5,13 +5,13 @@
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Tests/Sensor/FinalAcceptanceTestSession.h"
-#include "ma0t10_dt/MA0T10/Scenario/ShipHatchSimulation.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorHost.h"
-#include "ma0t10_dt/MA0T10/UI/ShipHatchMonitorWidget.h"
+#include "ma0t10_dt/MA0T10/Ship/ShipHatchSimulation.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/ShipHatchMonitorHost.h"
+#include "ma0t10_dt/MA0T10/UI/Main/Ship/DxWidgetShipHatchMonitor.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
-#include "Device/Sensor/LidarPlayerDisplayComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
+#include "Device/Sensor/LidarPlayerDisplayComp.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "Misc/OutputDeviceRedirector.h"
 #include "Components/Button.h"
@@ -45,16 +45,16 @@
 #include "HatchRenderPoolViewTrace.h"
 #include "UObject/UObjectArray.h"
 #include "ProfilingDebugging/MiscTrace.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 
-void ValidateHatchPresentation(FAutomationTestBase*,UShipHatchMonitorWidget*);
+void ValidateHatchPresentation(FAutomationTestBase*,UDxWidgetShipHatchMonitor*);
 struct FHatchDigProbe
 {
-    static FVector4 LayoutHeights(const UShipHatchMonitorWidget& M)
+    static FVector4 LayoutHeights(const UDxWidgetShipHatchMonitor& M)
     {return FVector4(M.LastHeaderHeight,M.LastToolbarHeight,M.LastFooterHeight,M.SceneRect.Bottom-M.SceneRect.Top);}
-    static FSlateRect SceneRectangle(const UShipHatchMonitorWidget& M){return M.SceneRect;}
-    static AShipHatchSimulation& Simulation(UShipHatchMonitorWidget& M){return *M.Simulation.Get();}
+    static FSlateRect SceneRectangle(const UDxWidgetShipHatchMonitor& M){return M.SceneRect;}
+    static AShipHatchSimulation& Simulation(UDxWidgetShipHatchMonitor& M){return *M.Simulation.Get();}
     static FPointerEvent Pointer(FVector2D P,FVector2D Last,bool Held)
     {
         // FPointerEvent retains a reference to this set beyond the factory call.
@@ -62,7 +62,7 @@ struct FHatchDigProbe
         static const TSet<FKey> Pressed{EKeys::LeftMouseButton},Released;
         return FPointerEvent(0,P,Last,Held?Pressed:Released,EKeys::LeftMouseButton,0,FModifierKeysState());
     }
-    static bool Project(UShipHatchMonitorWidget& M,FVector2D XY,FVector2D& P)
+    static bool Project(UDxWidgetShipHatchMonitor& M,FVector2D XY,FVector2D& P)
     {
         const auto& S=M.Simulation->Surface();const FVector World=M.Simulation->GetActorTransform().TransformPosition(FVector(XY,S.Height(XY.X,XY.Y))*100);
         auto* PC=M.GetOwningPlayer();FVector2D Pixel;int32 W,H;PC->GetViewportSize(W,H);
@@ -70,7 +70,7 @@ struct FHatchDigProbe
         const auto G=M.GetCachedGeometry();P=G.LocalToAbsolute(Pixel*G.GetLocalSize()/FVector2D(W,H));
         return M.SceneInputAt(G,P);
     }
-    static bool Click(UShipHatchMonitorWidget& M,FVector2D XY)
+    static bool Click(UDxWidgetShipHatchMonitor& M,FVector2D XY)
     {
         FVector2D P;const auto G=M.GetCachedGeometry();auto* PC=M.GetOwningPlayer();int W=0,H=0;PC->GetViewportSize(W,H);bool Found=false;
         // Select visible cargo before sending exactly one down/up pair. The
@@ -81,7 +81,7 @@ struct FHatchDigProbe
         if(!Found)return false;const uint64 Revision=M.Simulation->Revision();
         M.NativeOnMouseButtonDown(G,Pointer(P,P,true));M.NativeOnMouseButtonUp(G,Pointer(P,P,false));return M.Simulation->Revision()!=Revision;
     }
-    static void Controls(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
+    static void Controls(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M)
     {
         auto& Sim=*M.Simulation;double Opening,Floor,Area;Sim.Coverage(Opening,Floor,Area);
         if(!Sim.bFieldLayout)
@@ -95,10 +95,10 @@ struct FHatchDigProbe
         else {T.TestTrue(TEXT("field configuration computes bounded nonempty opening and visible-floor coverage"),Opening>0&&Opening<=100&&Floor>0&&Floor<=100);T.TestNotNull(TEXT("third field sensor exists"),Sim.CabRight.Get());}
         T.TestTrue(TEXT("structurally visible floor area is positive and bounded by hold"),Area>0&&Area<=Sim.HoldLength*Sim.HoldWidth);
         T.TestFalse(TEXT("laser illustration defaults off"),Sim.IsScanDisplayEnabled());
-        const auto Frame=Sim.MLX->ScanComponent->GetLastFrameSnapshot();const auto* Points=Frame->Points.Get();
+        const auto Frame=Sim.MLX->ScanComp->GetLastFrameSnapshot();const auto* Points=Frame->Points.Get();
         M.OnScanToggle();T.TestTrue(TEXT("laser toggle uses at most 96 measured rays"),Sim.IsScanDisplayEnabled()&&Sim.DisplayRayCount()>0&&Sim.DisplayRayCount()<=AShipHatchSimulation::DisplayRayLimit);
         M.OnScanToggle();T.TestTrue(TEXT("laser off clears every displayed ray"),!Sim.IsScanDisplayEnabled()&&Sim.DisplayRayCount()==0);
-        T.TestTrue(TEXT("presentation toggles never replace immutable measured point snapshot"),Sim.MLX->ScanComponent->GetLastFrameSnapshot()->Points.Get()==Points);
+        T.TestTrue(TEXT("presentation toggles never replace immutable measured point snapshot"),Sim.MLX->ScanComp->GetLastFrameSnapshot()->Points.Get()==Points);
         auto* S=M.Simulation.Get();const double OldMin=S->FillMin,OldMax=S->FillMax,OldHeight=S->SensorAboveDeck;
         S->FillMin=47;S->FillMax=72;S->SensorAboveDeck=11;M.OnGrid(1.75);
         M.Bind(M.Host.Get(),S);M.OnSettings();M.OnSettings();M.SetFontPercent(150);
@@ -110,7 +110,7 @@ struct FHatchDigProbe
         S->FillMin=OldMin;S->FillMax=OldMax;S->SensorAboveDeck=OldHeight;M.OnGrid(1);M.SyncSettings();M.SetFontPercent(100);
         T.TestFalse(TEXT("grab defaults off"),M.bDigEnabled);M.DigToggle->OnClicked.Broadcast();T.TestTrue(TEXT("production toggle enables grab"),M.bDigEnabled);
     }
-    static void InputGuards(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
+    static void InputGuards(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M)
     {
         FVector2D P;T.TestTrue(TEXT("projected known cargo point is in the interactive pane"),Project(M,FVector2D(0,0),P));
         const auto G=M.GetCachedGeometry();auto* S=M.Simulation.Get();const auto Before=S->Surface().Hash();
@@ -140,13 +140,13 @@ struct FHatchDigProbe
         }
 
     }
-    static void Undo(UShipHatchMonitorWidget& M){M.UndoButton->OnClicked.Broadcast();}
-    static void Restore(UShipHatchMonitorWidget& M){M.RestoreButton->OnClicked.Broadcast();}
-    static void SettingsForCapture(UShipHatchMonitorWidget& M)
+    static void Undo(UDxWidgetShipHatchMonitor& M){M.UndoButton->OnClicked.Broadcast();}
+    static void Restore(UDxWidgetShipHatchMonitor& M){M.RestoreButton->OnClicked.Broadcast();}
+    static void SettingsForCapture(UDxWidgetShipHatchMonitor& M)
     {if(!M.bSettings)M.OnSettings();CastChecked<UScrollBox>(M.SettingsPanel->GetContent())->ScrollWidgetIntoView(M.DigRadius,false,EDescendantScrollDestination::TopOrLeft,80);}
-    static void SensorCapture(UShipHatchMonitorWidget& M,int32 View)
+    static void SensorCapture(UDxWidgetShipHatchMonitor& M,int32 View)
     {if(M.bSettings)M.OnSettings();M.SelectView(View);M.SetSplitView(true);M.SetCameraPreset(1);if(!M.Simulation->IsScanDisplayEnabled())M.OnScanToggle();}
-    static void PointGate(FAutomationTestBase& T,UShipHatchMonitorWidget& M,bool Stale)
+    static void PointGate(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M,bool Stale)
     {
         auto* S=M.Simulation.Get();auto* PC=M.GetOwningPlayer();
         for(auto* A:{S->MLX.Get(),S->Livox.Get(),S->CabRight.Get()})if(A)
@@ -154,11 +154,11 @@ struct FHatchDigProbe
             // Corrugations extend265mm into the hold: position alone cannot
             // identify cargo. Align the real display with its immutable source
             // and verify every sampled return by its acquired semantic label.
-            A->VisualizationComponent->RefreshPointPreview();
-            const auto Frame=A->ScanComponent->GetLastFrameSnapshot();
+            A->VisualizationComp->RefreshPointPreview();
+            const auto Frame=A->ScanComp->GetLastFrameSnapshot();
             T.TestTrue(TEXT("display validation retains an immutable source"),Frame&&Frame->Points);
             if(!Frame||!Frame->Points)return;
-            const auto Policy=A->ScanComponent->GetPreviewPolicyState();
+            const auto Policy=A->ScanComp->GetPreviewPolicyState();
             TInlineComponentArray<ULineBatchComponent*> Batches(A);T.TestTrue(TEXT("owned colored point proxy exists"),Batches.Num()>0);
             for(auto* B:Batches)
             {
@@ -180,7 +180,7 @@ struct FHatchDigProbe
             }
         }
     }
-    static void CheckCards(FAutomationTestBase& T,UShipHatchMonitorWidget& M)
+    static void CheckCards(FAutomationTestBase& T,UDxWidgetShipHatchMonitor& M)
     {
         const auto* A=M.GetAnalysis();T.TestNotNull(TEXT("analysis refreshed to current excavation revision"),A);if(!A)return;
         T.TestTrue(TEXT("fill card follows remaining heightfield"),FMath::Abs(FCString::Atod(*M.MetricValues[0]->GetText().ToString())-M.Simulation->Surface().Fill)<.051);
@@ -264,7 +264,7 @@ class FHatchDig final:public IAutomationLatentCommand
     static FORCENOINLINE void ResizeTraceCanary(TArray<uint8>& Bytes,int32 Size){Bytes.SetNumZeroed(Size);}
     int32 TrendSamples=0,TrendRestores=0;TUniquePtr<FArchive> TrendFile;
     TMap<FName,uint64> TrendDefaultTags,TrendPlatformTags;
-    TWeakObjectPtr<UVirtualSensorStreamPublisherComponent> MemoryPublisher;
+    TWeakObjectPtr<UVirtualSensorStreamPublisherComp> MemoryPublisher;
     TWeakObjectPtr<AShipHatchSimulation> MemorySimulation;TMap<FString,int32> CostBackendBefore;
     int32 MemoryPcdPort=0;FString MemoryCancelFile;double NextCancelPoll=0;
     FString SnapshotBoundary;double SnapshotRequestedAt=0;
@@ -291,11 +291,11 @@ class FHatchDig final:public IAutomationLatentCommand
         MemorySimulation=&S;
         if(!MemoryPcdPort)return true;
         if(!Test->TestTrue(TEXT("memory PCD fixture requires unprivileged loopback port"),MemoryPcdPort>=1024&&MemoryPcdPort<=65535))return false;
-        auto* Transport=NewObject<UVirtualSensorTransportComponent>(&S);S.AddInstanceComponent(Transport);Transport->RegisterComponent();
+        auto* Transport=NewObject<UVirtualSensorTransportComp>(&S);S.AddInstanceComponent(Transport);Transport->RegisterComponent();
         Transport->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
         FVirtualSensorTransportProfile Profile;Profile.BrokerUrl=FString::Printf(TEXT("tcp://127.0.0.1:%d"),MemoryPcdPort);Profile.UserName.Reset();
         Transport->ConfigureTransportProfile(Profile);Transport->SetSessionCredentials(TEXT(""),TEXT(""));
-        auto* Publisher=NewObject<UVirtualSensorStreamPublisherComponent>(&S);S.AddInstanceComponent(Publisher);
+        auto* Publisher=NewObject<UVirtualSensorStreamPublisherComp>(&S);S.AddInstanceComponent(Publisher);
         Publisher->SetTransportComponent(Transport);Publisher->RegisterComponent();MemoryPublisher=Publisher;
         for(int32 I=0;I<3;++I)if(S.SensorEnabled(I))if(auto* A=S.SensorAt(I))
         {
@@ -362,7 +362,7 @@ class FHatchDig final:public IAutomationLatentCommand
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
         TrendLlm=FLowLevelMemTracker::IsEnabled();
 #endif
-        if(CostProbe){Engine.Reserve(8192);Game.Reserve(8192);Wall.Reserve(8192);if(MemorySimulation.IsValid())for(int32 I=0;I<3;++I)if(auto* A=MemorySimulation->SensorAt(I))CostBackendBefore.Add(A->GetSensorId(),int32(A->ScanComponent->GetActiveAcquisitionBackend()));}
+        if(CostProbe){Engine.Reserve(8192);Game.Reserve(8192);Wall.Reserve(8192);if(MemorySimulation.IsValid())for(int32 I=0;I<3;++I)if(auto* A=MemorySimulation->SensorAt(I))CostBackendBefore.Add(A->GetSensorId(),int32(A->ScanComp->GetActiveAcquisitionBackend()));}
         IFileManager::Get().MakeDirectory(*DigRoot(),true);
         const FString Path=DigRoot()/TEXT("memory-trend.jsonl");
         if(IFileManager::Get().FileExists(*Path)){Test->AddError(TEXT("Memory trend requires a fresh report directory"));return false;}
@@ -389,7 +389,7 @@ class FHatchDig final:public IAutomationLatentCommand
         {
             auto Before=MakeShared<FJsonObject>(),After=MakeShared<FJsonObject>();
             for(const auto& Pair:CostBackendBefore)Before->SetNumberField(Pair.Key,Pair.Value);
-            if(MemorySimulation.IsValid())for(int32 I=0;I<3;++I)if(auto* A=MemorySimulation->SensorAt(I)){const int32 Backend=int32(A->ScanComponent->GetActiveAcquisitionBackend());After->SetNumberField(A->GetSensorId(),Backend);Test->TestTrue(TEXT("cost probe uses actual HWRT before and after"),Backend==int32(EVirtualLidarAcquisitionBackend::HardwareRayTracing)&&CostBackendBefore.FindRef(A->GetSensorId())==Backend);}
+            if(MemorySimulation.IsValid())for(int32 I=0;I<3;++I)if(auto* A=MemorySimulation->SensorAt(I)){const int32 Backend=int32(A->ScanComp->GetActiveAcquisitionBackend());After->SetNumberField(A->GetSensorId(),Backend);Test->TestTrue(TEXT("cost probe uses actual HWRT before and after"),Backend==int32(EVirtualLidarAcquisitionBackend::HardwareRayTracing)&&CostBackendBefore.FindRef(A->GetSensorId())==Backend);}
             Test->TestTrue(TEXT("cost probe keeps all three sensors"),Before->Values.Num()==3&&After->Values.Num()==3);R->SetObjectField(TEXT("backend_before"),Before);R->SetObjectField(TEXT("backend_after"),After);
             const double Seconds=R->GetNumberField(TEXT("measurement_seconds"));double GameSum=0;for(double V:Game)GameSum+=V;
             TArray<double> Sorted=Engine;Sorted.Sort();const double P95=Sorted.Num()?Sorted[FMath::Clamp(FMath::CeilToInt(Sorted.Num()*.95)-1,0,Sorted.Num()-1)]:0;
@@ -448,10 +448,10 @@ class FHatchDig final:public IAutomationLatentCommand
                 auto Sensors=MakeShared<FJsonObject>();
                 for(int32 I=0;I<3;++I)if(auto* A=Simulation->SensorAt(I))
                 {
-                    auto Sensor=MakeShared<FJsonObject>();Sensor->SetNumberField(TEXT("frame_id"),double(A->ScanComponent->GetRuntimeStatus().FrameId));
-                    Sensor->SetNumberField(TEXT("active_acquisition_backend"),int32(A->ScanComponent->GetActiveAcquisitionBackend()));
-                    Sensor->SetBoolField(TEXT("running"),A->IsSensorRunning());Sensor->SetNumberField(TEXT("preview_point_budget"),A->ScanComponent->GetPreviewPolicyState().MaxPoints);
-                    Sensor->SetNumberField(TEXT("visible_preview_points"),A->VisualizationComponent->GetVisiblePointCount());
+                    auto Sensor=MakeShared<FJsonObject>();Sensor->SetNumberField(TEXT("frame_id"),double(A->ScanComp->GetRuntimeStatus().FrameId));
+                    Sensor->SetNumberField(TEXT("active_acquisition_backend"),int32(A->ScanComp->GetActiveAcquisitionBackend()));
+                    Sensor->SetBoolField(TEXT("running"),A->IsSensorRunning());Sensor->SetNumberField(TEXT("preview_point_budget"),A->ScanComp->GetPreviewPolicyState().MaxPoints);
+                    Sensor->SetNumberField(TEXT("visible_preview_points"),A->VisualizationComp->GetVisiblePointCount());
                     Sensors->SetObjectField(A->GetSensorId(),Sensor);
                 }
                 R->SetObjectField(TEXT("sensors"),Sensors);
@@ -500,7 +500,7 @@ class FHatchDig final:public IAutomationLatentCommand
         }
         auto Sensors=MakeShared<FJsonObject>();
         for(int32 I=0;I<3;++I)if(const auto* A=Simulation.SensorAt(I))
-        {auto Sensor=MakeShared<FJsonObject>();Sensor->SetNumberField(TEXT("backend"),int32(A->ScanComponent->GetActiveAcquisitionBackend()));Sensor->SetNumberField(TEXT("frame_id"),double(A->ScanComponent->GetRuntimeStatus().FrameId));Sensors->SetObjectField(A->GetSensorId(),Sensor);}
+        {auto Sensor=MakeShared<FJsonObject>();Sensor->SetNumberField(TEXT("backend"),int32(A->ScanComp->GetActiveAcquisitionBackend()));Sensor->SetNumberField(TEXT("frame_id"),double(A->ScanComp->GetRuntimeStatus().FrameId));Sensors->SetObjectField(A->GetSensorId(),Sensor);}
         Result->SetObjectField(FString(Boundary)+TEXT("_sensor_backends"),Sensors);
         Result->SetBoolField(TEXT("external_snapshot_gate"),FParse::Param(FCommandLine::Get(),TEXT("HatchMemorySnapshotGate")));
         Result->SetBoolField(TEXT("diagnostic_cpu_reference"),FParse::Param(FCommandLine::Get(),TEXT("HatchCpuReference")));
@@ -513,7 +513,7 @@ class FHatchDig final:public IAutomationLatentCommand
         Result->SetObjectField(FString(Boundary)+TEXT("_native_resources"),NativeCounts);
         auto Pools=MakeShared<FJsonObject>();
         for(const auto* Actor:{Simulation.MLX.Get(),Simulation.Livox.Get(),Simulation.CabRight.Get()})
-            if(Actor&&Actor->ScanComponent)Pools->SetNumberField(Actor->GetSensorId(),double(Actor->ScanComponent->GetScenePointPoolFallbacksForTesting()));
+            if(Actor&&Actor->ScanComp)Pools->SetNumberField(Actor->GetSensorId(),double(Actor->ScanComp->GetScenePointPoolFallbacksForTesting()));
         Result->SetObjectField(FString(Boundary)+TEXT("_point_pool_fallbacks"),Pools);
         if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryDeepReport")))
         {
@@ -546,9 +546,9 @@ class FHatchDig final:public IAutomationLatentCommand
         auto R=MakeShared<FJsonObject>();R->SetNumberField(TEXT("mesh"),double(S.MeshScratchBytes()));R->SetNumberField(TEXT("generation"),double(S.GenerationBufferBytes()));R->SetNumberField(TEXT("dig"),double(S.DigBufferBytes()));
         for(auto* A:{S.MLX.Get(),S.Livox.Get(),S.CabRight.Get()})if(A)
         {
-            auto Sensor=MakeShared<FJsonObject>();const auto Scan=A->ScanComponent->GetResourceSnapshot(),Preview=A->VisualizationComponent->GetResourceSnapshot();
+            auto Sensor=MakeShared<FJsonObject>();const auto Scan=A->ScanComp->GetResourceSnapshot(),Preview=A->VisualizationComp->GetResourceSnapshot();
             for(const auto& P:Scan.OwnedCpuBytes)Sensor->SetNumberField(TEXT("scan/")+P.Key,double(P.Value));for(const auto& P:Scan.SharedCpuBytes)Sensor->SetNumberField(TEXT("shared/")+P.Key,double(P.Value));for(const auto& P:Preview.OwnedCpuBytes)Sensor->SetNumberField(TEXT("view/")+P.Key,double(P.Value));
-            TInlineComponentArray<ULidarPlayerDisplayComponent*> Batches(A);for(auto* B:Batches)if(B->bFixedPointSubmission){Sensor->SetNumberField(TEXT("view/fixed_proxy_creations"),double(B->GetFixedPointProxyCreations()));Sensor->SetNumberField(TEXT("view/fixed_point_uploads"),double(B->GetFixedPointUploads()));if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit"))){const auto RhiValues=B->GetFixedPointRhiResources();Sensor->SetNumberField(TEXT("view/rhi_vertex_index_count"),RhiValues.X);Sensor->SetNumberField(TEXT("view/rhi_srv_count"),RhiValues.Y);Sensor->SetNumberField(TEXT("view/rhi_buffer_bytes"),RhiValues.Z);}}
+            TInlineComponentArray<ULidarPlayerDisplayComp*> Batches(A);for(auto* B:Batches)if(B->bFixedPointSubmission){Sensor->SetNumberField(TEXT("view/fixed_proxy_creations"),double(B->GetFixedPointProxyCreations()));Sensor->SetNumberField(TEXT("view/fixed_point_uploads"),double(B->GetFixedPointUploads()));if(FParse::Param(FCommandLine::Get(),TEXT("HatchMemoryAudit"))){const auto RhiValues=B->GetFixedPointRhiResources();Sensor->SetNumberField(TEXT("view/rhi_vertex_index_count"),RhiValues.X);Sensor->SetNumberField(TEXT("view/rhi_srv_count"),RhiValues.Y);Sensor->SetNumberField(TEXT("view/rhi_buffer_bytes"),RhiValues.Z);}}
             R->SetObjectField(A->GetSensorId(),Sensor);
         }
         return R;
@@ -561,7 +561,7 @@ class FHatchDig final:public IAutomationLatentCommand
         ENQUEUE_RENDER_COMMAND(HatchMemoryBoundary)([](FRHICommandListImmediate& Cmd){Cmd.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);Cmd.BlockUntilGPUIdle();Cmd.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);});
         FlushRenderingCommands();
     }
-    void Shot(UWorld& W,UShipHatchMonitorWidget& M,const FString& Name)
+    void Shot(UWorld& W,UDxWidgetShipHatchMonitor& M,const FString& Name)
     {
         TArray<FColor> Pixels;FIntVector Size;
         Test->TestTrue(TEXT("capture actual client viewport"),FSlateApplication::Get().TakeScreenshot(W.GetGameViewport()->GetGameViewportWidget().ToSharedRef(),Pixels,Size));
@@ -574,10 +574,10 @@ class FHatchDig final:public IAutomationLatentCommand
         double Opening,Floor,Area;S.Coverage(Opening,Floor,Area);R->SetNumberField(TEXT("opening_fov_percent"),Opening);R->SetNumberField(TEXT("visible_floor_fov_percent"),Floor);R->SetNumberField(TEXT("visible_floor_m2"),Area);R->SetNumberField(TEXT("display_rays"),S.DisplayRayCount());R->SetBoolField(TEXT("analysis_preview"),M.IsAnalysisPreview());
         DigJson(TEXT("captures/")+FPaths::ChangeExtension(Name,TEXT("json")),R);
     }
-    bool Click(UShipHatchMonitorWidget& M,int32 I)
+    bool Click(UDxWidgetShipHatchMonitor& M,int32 I)
     {
-        auto& S=FHatchDigProbe::Simulation(M);BeforeRevision=S.Revision();BeforeFrames[0]=S.MLX->ScanComponent->GetRuntimeStatus().FrameId;BeforeFrames[1]=S.Livox->ScanComponent->GetRuntimeStatus().FrameId;BeforeFrames[2]=S.CabRight?S.CabRight->ScanComponent->GetRuntimeStatus().FrameId:-1;
-        const auto Frame=S.MLX->ScanComponent->GetLastFrameSnapshot();const uint32 Before=FCrc::MemCrc32(Frame->Points->GetData(),Frame->Points->Num()*sizeof(FVirtualLidarPoint));
+        auto& S=FHatchDigProbe::Simulation(M);BeforeRevision=S.Revision();BeforeFrames[0]=S.MLX->ScanComp->GetRuntimeStatus().FrameId;BeforeFrames[1]=S.Livox->ScanComp->GetRuntimeStatus().FrameId;BeforeFrames[2]=S.CabRight?S.CabRight->ScanComp->GetRuntimeStatus().FrameId:-1;
+        const auto Frame=S.MLX->ScanComp->GetLastFrameSnapshot();const uint32 Before=FCrc::MemCrc32(Frame->Points->GetData(),Frame->Points->Num()*sizeof(FVirtualLidarPoint));
         FVector2D Target(I%5==2?1.25:(I%5-2)*2.5,((I/5)%5-2)*3.),Pixel;
         // Real GTSU box girders/walkways now occupy the old +/-2.5m columns.
         // Keep all50 accepted production cycles on physically clear cargo;
@@ -673,7 +673,7 @@ public:
                 if(Investigation)
                 {
                     if(InvestigationCut==TEXT("LidarOff"))Stop(S);
-                    else if(InvestigationCut==TEXT("PreviewOff"))for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))A->VisualizationComponent->SetWorldPointCloudEnabled(false);
+                    else if(InvestigationCut==TEXT("PreviewOff"))for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))A->VisualizationComp->SetWorldPointCloudEnabled(false);
                     else if(InvestigationCut!=TEXT("Reference")&&InvestigationCut!=TEXT("PcdOff")&&InvestigationCut!=TEXT("Cpu")){Test->AddError(TEXT("unknown memory isolation cut"));return true;}
                     Changed=Now;Phase=41;return false;
                 }
@@ -687,7 +687,7 @@ public:
         if(Phase==41)
         {
             if(Now-Changed<2)return false;
-            if(InvestigationCut==TEXT("PreviewOff"))for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))Test->TestEqual(TEXT("isolation disables point preview"),A->VisualizationComponent->GetVisiblePointCount(),0);
+            if(InvestigationCut==TEXT("PreviewOff"))for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))Test->TestEqual(TEXT("isolation disables point preview"),A->VisualizationComp->GetVisiblePointCount(),0);
             if(!TrendBegin()){Test->AddError(TEXT("Memory investigation output failed"));return true;}
             PcdBaseline();MeasureStart=FPlatformTime::Seconds();LastWall=MeasureStart;LastEngine=GFrameCounter;TRACE_BOOKMARK(TEXT("MEMORY26B_BEGIN"));CurvePoint(0,&S);Changed=MeasureStart;Phase=60;return false;
         }
@@ -722,7 +722,7 @@ public:
             {
                 if(Investigation){TRACE_BOOKMARK(TEXT("MEMORY26B_END"));}
                 for(auto* A:{S.MLX.Get(),S.Livox.Get(),S.CabRight.Get()})if(A)Test->TestEqual(TEXT("memory run expected sensor running state"),A->IsSensorRunning(),!(Investigation&&InvestigationCut==TEXT("LidarOff")));
-                if(Investigation&&InvestigationCut==TEXT("PreviewOff"))for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))Test->TestEqual(TEXT("preview isolation stays disabled"),A->VisualizationComponent->GetVisiblePointCount(),0);
+                if(Investigation&&InvestigationCut==TEXT("PreviewOff"))for(int32 I=0;I<3;++I)if(auto* A=S.SensorAt(I))Test->TestEqual(TEXT("preview isolation stays disabled"),A->VisualizationComp->GetVisiblePointCount(),0);
                 if(!IdleControl)Test->TestTrue(TEXT("long memory trend completed repeated edit/restore workload"),Clicks>=50&&TrendRestores>0);
                 Test->TestTrue(TEXT("long memory trend summary saved"),TrendFinish(!TrendFailed&&!Test->HasAnyErrors()));return true;
             }
@@ -749,14 +749,14 @@ public:
                 auto Row=MakeShared<FJsonObject>();Row->SetNumberField(TEXT("click"),Clicks+1);Row->SetNumberField(TEXT("revision"),double(S.Revision()));Row->SetNumberField(TEXT("removed_m3"),S.LastRemovedVolume());
                 FreshLatency.Add((Now-Changed)*1000);Row->SetNumberField(TEXT("fresh_analysis_ms"),FreshLatency.Last());
                 Test->TestEqual(TEXT("one accepted click advances exactly one surface revision"),S.Revision(),BeforeRevision+1);
-                int32 Index=0;for(auto* A:{S.MLX.Get(),S.Livox.Get(),S.CabRight.Get()}){const int64 Frame=A->ScanComponent->GetRuntimeStatus().FrameId;Test->TestTrue(TEXT("each selected sensor supplies a new post-edit frame"),Frame>BeforeFrames[Index++]);Row->SetNumberField(A->GetSensorId(),double(Frame));}
+                int32 Index=0;for(auto* A:{S.MLX.Get(),S.Livox.Get(),S.CabRight.Get()}){const int64 Frame=A->ScanComp->GetRuntimeStatus().FrameId;Test->TestTrue(TEXT("each selected sensor supplies a new post-edit frame"),Frame>BeforeFrames[Index++]);Row->SetNumberField(A->GetSensorId(),double(Frame));}
                 Measurements.Add(MakeShared<FJsonValueObject>(Row));
             }
             Test->TestTrue(TEXT("click decrements remaining volume by the displayed removal within 1e-6m3"),FMath::Abs(BeforeVolume-S.Surface().Volume-S.LastRemovedVolume())<1.e-6);
             for(auto* A:{S.MLX.Get(),S.Livox.Get(),S.CabRight.Get()})
             {
-                Test->TestTrue(TEXT("selected 3D mode has the expected point visibility"),MeasuredView==1?A->VisualizationComponent->GetVisiblePointCount()>0:A->VisualizationComponent->GetVisiblePointCount()==0);
-                for(const auto& P:A->ScanComponent->GetLastPoints())if(P.bHit&&P.SemanticLabel==TEXT("HatchCargo"))
+                Test->TestTrue(TEXT("selected 3D mode has the expected point visibility"),MeasuredView==1?A->VisualizationComp->GetVisiblePointCount()>0:A->VisualizationComp->GetVisiblePointCount()==0);
+                for(const auto& P:A->ScanComp->GetLastPoints())if(P.bHit&&P.SemanticLabel==TEXT("HatchCargo"))
                 {const FVector L=S.GetActorTransform().InverseTransformPosition(P.WorldLocation)*.01;MaxHeightError=FMath::Max(MaxHeightError,FMath::Abs(L.Z-S.Surface().Height(L.X,L.Y)));}
             }
             ++Clicks;CurvePoint(Clicks);if(Clicks<50)
@@ -783,7 +783,7 @@ public:
             CheckResources(*Result->GetObjectField(TEXT("resources_before")),*Result->GetObjectField(TEXT("resources_after")));
             Result->SetNumberField(TEXT("view"),MeasuredView);Result->SetNumberField(TEXT("measurement_seconds"),Now-MeasureStart);
             Result->SetNumberField(TEXT("matched_window_seconds"),MatchedMemorySeconds);
-            Result->SetNumberField(TEXT("viewport_point_budget"),S.SensorAt(0)->ScanComponent->GetPreviewPolicyState().MaxPoints);
+            Result->SetNumberField(TEXT("viewport_point_budget"),S.SensorAt(0)->ScanComp->GetPreviewPolicyState().MaxPoints);
             Result->SetBoolField(TEXT("full_rhi_drain"),FParse::Param(FCommandLine::Get(),TEXT("HatchFullRhiDrain")));
             if(IdleControl)
             {

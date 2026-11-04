@@ -1,9 +1,9 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Misc/AutomationTest.h"
 #include "Device/Sensor/VirtualPcdCodec.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
 #include "Device/Transport/VirtualPointCloudStreamReceiverTC.h"
-#include "ma0t10_dt/MA0T10/UI/VirtualSensorUiPreferences.h"
+#include "ma0t10_dt/MA0T10/UI/Common/VirtualSensorUiPreferences.h"
 #include "Serialization/ObjectWriter.h"
 #include "DeviceUI/VirtualPcdBandwidthPresentation.h"
 #include "Serialization/ObjectReader.h"
@@ -11,20 +11,20 @@
 #include "Kismet/GameplayStatics.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Sensor/VirtualLidarExportComponent.h"
-#include "Device/Sensor/VirtualLidarVisualizationComponent.h"
-#include "Device/Sensor/VirtualLidarAnalysisComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Sensor/VirtualLidarExportComp.h"
+#include "Device/Sensor/VirtualLidarVisualizationComp.h"
+#include "Device/Sensor/VirtualLidarAnalysisComp.h"
 #include "Device/Core/VirtualSensorOutputPreflight.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 
 struct FPcdBandwidthTestAccess
 {
-	static auto& Runtime(UVirtualSensorStreamPublisherComponent* P,const FString& Id) {return P->FindOrAddRuntime(EVirtualSensorStreamKind::PointCloud,Id);}
-	static void Queue(UVirtualSensorStreamPublisherComponent* P,const FVirtualSensorFrameEnvelope& F)
+	static auto& Runtime(UVirtualSensorStreamPublisherComp* P,const FString& Id) {return P->FindOrAddRuntime(EVirtualSensorStreamKind::PointCloud,Id);}
+	static void Queue(UVirtualSensorStreamPublisherComp* P,const FVirtualSensorFrameEnvelope& F)
 	{auto& R=Runtime(P,TEXT(""));R.Config.bEnabled=true;R.Config.MaxBufferedFrames=120;R.bSerializationInFlight=true;P->QueueFrameForRuntime(TEXT("test"),R,F);}
 };
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPcdBandwidthCodecTest,"MA0T10.PcdBandwidth.Codec",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -96,7 +96,7 @@ bool FPcdBandwidthReceiverTest::RunTest(const FString&)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPcdBandwidthDivisorTest,"MA0T10.PcdBandwidth.DivisorAndIsolation",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FPcdBandwidthDivisorTest::RunTest(const FString&)
 {
-	auto* Defaults=NewObject<UVirtualSensorStreamPublisherComponent>();
+	auto* Defaults=NewObject<UVirtualSensorStreamPublisherComp>();
 	TestEqual(TEXT("new stream follows measured compression policy"),Defaults->GetPcdSendOptions(TEXT("new")).bCompressed,Defaults->bDefaultPcdCompression);
 	TestEqual(TEXT("live default retains Full fields"),Defaults->GetPcdSendOptions(TEXT("new")).Profile,EVirtualPcdFieldProfile::Full);
 	Defaults->bDefaultPcdCompression=true;
@@ -106,7 +106,7 @@ bool FPcdBandwidthDivisorTest::RunTest(const FString&)
 	TestTrue(TEXT("other sensor retains measured default"),Defaults->GetPcdSendOptions(TEXT("B")).bCompressed);
 	for(int32 Divisor:{1,2,4})
 	{
-		auto* P=NewObject<UVirtualSensorStreamPublisherComponent>();P->bAutoAdjustPointCloudSendRate=false;
+		auto* P=NewObject<UVirtualSensorStreamPublisherComp>();P->bAutoAdjustPointCloudSendRate=false;
 		FVirtualPcdSendOptions O;O.SendDivisor=Divisor;FString Error;TestTrue(TEXT("configure all before stream"),P->SetPcdSendOptions(TEXT(""),O,true,Error));
 		for(int32 I=1;I<=20;++I)for(const FString Id:{TEXT("A"),TEXT("B"),TEXT("C")})
 		{
@@ -132,15 +132,15 @@ bool FPcdBandwidthIsolationTest::RunTest(const FString&)
 {
 	auto* World=FAutomationEditorCommonUtils::CreateNewMap();auto* L=World->SpawnActor<AVirtualLidarSensorActor>();
 	TArray<uint8> ScanBefore,ViewBefore,AnalysisBefore;
-	FObjectWriter S(L->ScanComponent,ScanBefore);FObjectWriter V(L->VisualizationComponent,ViewBefore);FObjectWriter A(L->AnalysisComponent,AnalysisBefore);
+	FObjectWriter S(L->ScanComp,ScanBefore);FObjectWriter V(L->VisualizationComp,ViewBefore);FObjectWriter A(L->AnalysisComp,AnalysisBefore);
 	FVirtualLidarPoint Point;Point.bHit=true;Point.SensorLocalPositionMeters=FVector(1,2,3);
 	FVirtualSensorFrameEnvelope Frame;Frame.SensorId=TEXT("A");Frame.FrameId=10;Frame.TimestampUtc=FDateTime(2026,10,23);Frame.PointSnapshot=MakeShared<const TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe>(TArray<FVirtualLidarPoint>({Point}));
 	FVirtualSensorStreamConfig C;C.PointCloudFormat=EVirtualPointCloudStreamFormat::PCD;FString Ext,Error;int32 Count=0;TArray<uint8> Before,After;
-	TestTrue(TEXT("Full file encode before send options"),UVirtualLidarExportComponent::SerializeImmutableFrame(Frame,C,Ext,Before,Count,Error));
-	auto* P=NewObject<UVirtualSensorStreamPublisherComponent>();FVirtualPcdSendOptions O;O.Profile=EVirtualPcdFieldProfile::Minimal;O.bCompressed=true;O.SendDivisor=4;
+	TestTrue(TEXT("Full file encode before send options"),UVirtualLidarExportComp::SerializeImmutableFrame(Frame,C,Ext,Before,Count,Error));
+	auto* P=NewObject<UVirtualSensorStreamPublisherComp>();FVirtualPcdSendOptions O;O.Profile=EVirtualPcdFieldProfile::Minimal;O.bCompressed=true;O.SendDivisor=4;
 	TestTrue(TEXT("set isolated sender options"),P->SetPcdSendOptions(TEXT("A"),O,false,Error));C.PcdSendOptions=O;
-	TestTrue(TEXT("file encoder ignores transmission options"),UVirtualLidarExportComponent::SerializeImmutableFrame(Frame,C,Ext,After,Count,Error));TestTrue(TEXT("FileSave/Recorder Full binary bytes unchanged"),Before==After);
-	TArray<uint8> ScanAfter,ViewAfter,AnalysisAfter;FObjectWriter S2(L->ScanComponent,ScanAfter);FObjectWriter V2(L->VisualizationComponent,ViewAfter);FObjectWriter A2(L->AnalysisComponent,AnalysisAfter);
+	TestTrue(TEXT("file encoder ignores transmission options"),UVirtualLidarExportComp::SerializeImmutableFrame(Frame,C,Ext,After,Count,Error));TestTrue(TEXT("FileSave/Recorder Full binary bytes unchanged"),Before==After);
+	TArray<uint8> ScanAfter,ViewAfter,AnalysisAfter;FObjectWriter S2(L->ScanComp,ScanAfter);FObjectWriter V2(L->VisualizationComp,ViewAfter);FObjectWriter A2(L->AnalysisComp,AnalysisAfter);
 	TestTrue(TEXT("scan component state unchanged"),ScanBefore==ScanAfter);TestTrue(TEXT("preview component state unchanged"),ViewBefore==ViewAfter);TestTrue(TEXT("Slab analysis state unchanged"),AnalysisBefore==AnalysisAfter);
 	L->Destroy();return true;
 }
@@ -219,8 +219,8 @@ bool FPcdRequiredDivisorTest::RunTest(const FString&)
 {
  auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* C=W->SpawnActor<AVirtualSensorCoordinator>();
  auto* A=W->SpawnActor<AVirtualLidarSensorActor>();auto* B=W->SpawnActor<AVirtualLidarSensorActor>();
- A->ScanComponent->SensorId=TEXT("divided");B->ScanComponent->SensorId=TEXT("full-rate");C->RegisterSensorActor(A);C->RegisterSensorActor(B);A->StopSensor();B->StopSensor();
- auto* P=C->StreamPublisherComponent.Get();auto* T=C->SharedTransportComponent.Get();T->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
+ A->ScanComp->SensorId=TEXT("divided");B->ScanComp->SensorId=TEXT("full-rate");C->RegisterSensorActor(A);C->RegisterSensorActor(B);A->StopSensor();B->StopSensor();
+ auto* P=C->StreamPublisherComp.Get();auto* T=C->SharedTransportComp.Get();T->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
  auto Profile=T->GetTransportProfile();Profile.BrokerUrl=TEXT("tcp://127.0.0.1:1");Profile.UserName.Reset();Profile.ExportTopic=TEXT("topic.pcd-local");T->ConfigureTransportProfile(Profile);T->SetSessionCredentials(TEXT(""),TEXT(""));
  auto* Session=W->GetSubsystem<UVirtualSensorSlabContextSubsystem>();auto* Raw=W->GetSubsystem<UVirtualSensorHighThroughputTransportSubsystem>();
  FVirtualSlabSensorOutputSelection Outputs=FVirtualSlabSensorOutputSelection::ObservationOnly();Outputs.bPointCloud=true;

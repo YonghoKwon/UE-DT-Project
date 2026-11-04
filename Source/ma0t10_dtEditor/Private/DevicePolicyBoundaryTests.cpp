@@ -5,7 +5,7 @@
 #include "ma0t10_dt/MA0T10/Contracts/VirtualSensorIdentity.h"
 #include "Device/Sensor/DeviceSemanticPolicy.h"
 #include "Device/Sensor/VirtualSensorSemanticLabels.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeviceHostPolicyCompatibility,"MA0T10.DeviceBoundary.HostPolicyCompatibility",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FDeviceHostPolicyCompatibility::RunTest(const FString&)

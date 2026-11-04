@@ -2,12 +2,12 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Device/Sensor/VirtualLidarSensorActor.h"
-#include "Device/Sensor/VirtualLidarScanComponent.h"
-#include "Device/Core/VirtualSensorStreamPublisherComponent.h"
-#include "Device/Sensor/VirtualSensorTransportComponent.h"
+#include "Device/Sensor/VirtualLidarScanComp.h"
+#include "Device/Core/VirtualSensorStreamPublisherComp.h"
+#include "Device/Sensor/VirtualSensorTransportComp.h"
 #include "Json.h"
-#include "ma0t10_dt/MA0T10/Scenario/VirtualSensorSlabContextSubsystem.h"
-#include "ma0t10_dt/MA0T10/Scenario/SlabRunResultsSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
+#include "ma0t10_dt/MA0T10/Slab/Scenario/SlabRunResultsSubsystem.h"
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h"
 
@@ -26,11 +26,11 @@ bool Coherent(const FVirtualSensorFrameEnvelope& F)
 struct FDerivedProof {TArray<FVirtualSensorFrameEnvelope> Frames;bool Recording=true;};
 class FSlowDerivedCheck:public IAutomationLatentCommand
 {
-    FAutomationTestBase* Test;TWeakObjectPtr<UVirtualLidarScanComponent> Comp;
+    FAutomationTestBase* Test;TWeakObjectPtr<UVirtualLidarScanComp> Comp;
     TSharedRef<FDerivedProof> Proof;TFunction<void(int64)> Enqueue;TFunction<int32()> Jobs;
     double At=FPlatformTime::Seconds(),Next=At;int32 Phase=0,PhaseStartCount=0;int64 Frame=0;
 public:
-    FSlowDerivedCheck(FAutomationTestBase* T,UVirtualLidarScanComponent* C,TSharedRef<FDerivedProof> P,TFunction<void(int64)> E,TFunction<int32()> J):Test(T),Comp(C),Proof(P),Enqueue(MoveTemp(E)),Jobs(MoveTemp(J)){}
+    FSlowDerivedCheck(FAutomationTestBase* T,UVirtualLidarScanComp* C,TSharedRef<FDerivedProof> P,TFunction<void(int64)> E,TFunction<int32()> J):Test(T),Comp(C),Proof(P),Enqueue(MoveTemp(E)),Jobs(MoveTemp(J)){}
     bool Update() override
     {
         if(!Comp.IsValid()){Test->AddError(TEXT("derived fixture sensor deleted prematurely"));return true;}
@@ -58,9 +58,9 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarDerivedProgressTest,"MA0T10.LidarOutput.SlowDerivedCoherence",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLidarDerivedProgressTest::RunTest(const FString&)
 {
-    auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* A=W->SpawnActor<AVirtualLidarSensorActor>();auto* C=A->ScanComponent.Get();C->StopScan();
+    auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* A=W->SpawnActor<AVirtualLidarSensorActor>();auto* C=A->ScanComp.Get();C->StopScan();
     auto P=MakeShared<FDerivedProof>();C->OnDerivedFrameCompletedNative.AddLambda([P](const FVirtualSensorFrameEnvelope& F){if(P->Recording)P->Frames.Add(F);});
-    TWeakObjectPtr<UVirtualLidarScanComponent> Weak(C);
+    TWeakObjectPtr<UVirtualLidarScanComp> Weak(C);
     auto Enqueue=[Weak](int64 Id)
     {
         if(!Weak.IsValid())return;auto* S=Weak.Get();auto F=MakeShared<FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe>();
@@ -78,7 +78,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarDerivedRouteTest,"MA0T10.LidarOutput.NoDu
 bool FLidarDerivedRouteTest::RunTest(const FString&)
 {
     auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* A=W->SpawnActor<AVirtualLidarSensorActor>();A->StopSensor();
-    auto* Publisher=NewObject<UVirtualSensorStreamPublisherComponent>(A);auto* Transport=NewObject<UVirtualSensorTransportComponent>(A);Publisher->TransportComponent=Transport;
+    auto* Publisher=NewObject<UVirtualSensorStreamPublisherComp>(A);auto* Transport=NewObject<UVirtualSensorTransportComp>(A);Publisher->TransportComp=Transport;
     auto Profile=Transport->GetTransportProfile();Profile.BrokerUrl=TEXT("tcp://127.0.0.1:61616");Transport->ConfigureTransportProfile(Profile);Transport->TransportMode=EVirtualSensorTransportMode::StompWebSocket;
     Publisher->StartStream(EVirtualSensorStreamKind::PointCloud,A->GetSensorId());Publisher->StartStream(EVirtualSensorStreamKind::LidarPayload,A->GetSensorId());
     FVirtualSensorFrameEnvelope F;F.SensorId=A->GetSensorId();F.SensorKind=EVirtualSensorKind::Lidar;F.FrameId=123;F.JsonPayload=MakeShared<const FString,ESPMode::ThreadSafe>(TEXT("{\"frameId\":123}"));F.bLidarCompatibilityDerived=true;
@@ -91,7 +91,7 @@ bool FLidarCompatibilityDrainTest::RunTest(const FString&)
     auto* W=FAutomationEditorCommonUtils::CreateNewMap();auto* A=W->SpawnActor<AVirtualLidarSensorActor>();A->StopSensor();
     auto* M=W->SpawnActor<AVirtualSensorCoordinator>();auto* S=W->GetSubsystem<UVirtualSensorSlabContextSubsystem>();auto* R=W->GetSubsystem<USlabRunResultsSubsystem>();
     S->Coordinator=M;S->Targets.Add(A->GetSensorId(),A);S->ControlledIds.Add(A->GetSensorId());S->Status.RunId=TEXT("compat-drain");S->Status.State=EVirtualSlabSessionState::Running;S->Status.Outputs.bLidarTelemetry=true;
-    FVirtualSensorStreamConfig Config;Config.StreamKind=EVirtualSensorStreamKind::LidarPayload;Config.SensorId=A->GetSensorId();Config.TransportBackend=EVirtualSensorStreamTransportBackend::EngineStompCompatibility;Config.bEnabled=true;M->StreamPublisherComponent->ConfigureStream(Config);
+    FVirtualSensorStreamConfig Config;Config.StreamKind=EVirtualSensorStreamKind::LidarPayload;Config.SensorId=A->GetSensorId();Config.TransportBackend=EVirtualSensorStreamTransportBackend::EngineStompCompatibility;Config.bEnabled=true;M->StreamPublisherComp->ConfigureStream(Config);
     FVirtualSlabFrameContext C;C.RunId=S->Status.RunId;C.Generation=S->Generation;C.bEligible=true;
     R->BeginRun(C.RunId,TEXT("scenario"),ESlabExecutionPolicy::ObservationAllowed,S->Status.Outputs);
     TestTrue(TEXT("selected compatibility job reserves drain work"),S->BeginCompatibilityDerivation(A->GetSensorId(),1,C));
@@ -107,7 +107,7 @@ bool FWildcardSequenceTest::RunTest(const FString&)
 {
     auto* W=FAutomationEditorCommonUtils::CreateNewMap();
     auto* A=W->SpawnActor<AVirtualLidarSensorActor>(); A->StopSensor();
-    auto* P=NewObject<UVirtualSensorStreamPublisherComponent>(A);
+    auto* P=NewObject<UVirtualSensorStreamPublisherComp>(A);
     FVirtualSensorStreamConfig C; C.StreamKind=EVirtualSensorStreamKind::LidarPayload;
     C.TransportBackend=EVirtualSensorStreamTransportBackend::EngineStompCompatibility; C.bEnabled=true; P->ConfigureStream(C);
     FVirtualSensorFrameEnvelope F; F.SensorKind=EVirtualSensorKind::Lidar;
@@ -161,11 +161,11 @@ public:
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLidarDerivedGlobalLimitTest,"MA0T10.LidarOutput.GlobalJobLimit",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLidarDerivedGlobalLimitTest::RunTest(const FString&)
 {
-    auto* W=FAutomationEditorCommonUtils::CreateNewMap();TArray<TWeakObjectPtr<UVirtualLidarScanComponent>> Sensors;
+    auto* W=FAutomationEditorCommonUtils::CreateNewMap();TArray<TWeakObjectPtr<UVirtualLidarScanComp>> Sensors;
     auto Count=MakeShared<int32>(0);
     for(int32 I=0;I<5;++I)
     {
-        auto* A=W->SpawnActor<AVirtualLidarSensorActor>();auto* C=A->ScanComponent.Get();C->StopScan();C->JsonEncodeDelayMsForTests=200;
+        auto* A=W->SpawnActor<AVirtualLidarSensorActor>();auto* C=A->ScanComp.Get();C->StopScan();C->JsonEncodeDelayMsForTests=200;
         C->SensorId=FString::Printf(TEXT("global-json-%d"),I);C->OnDerivedFrameCompletedNative.AddLambda([Count](const auto&){++*Count;});
         auto F=MakeShared<FVirtualLidarFrameSnapshot,ESPMode::ThreadSafe>();F->FrameId=1;F->Points=MakeShared<TArray<FVirtualLidarPoint>,ESPMode::ThreadSafe>();F->HorizontalSamples=1;F->VerticalChannels=1;
         F->AcquisitionStartUnixNanoseconds=(FDateTime::UtcNow()-FDateTime(1970,1,1)).GetTicks()*100;
