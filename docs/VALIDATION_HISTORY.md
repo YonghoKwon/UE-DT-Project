@@ -7,6 +7,23 @@
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
 
+## 2026-11-05 — DATA-IF-10 r55f (남은 최종 게이트 완료)
+
+검증 기준 host `023c2444`, DTCore `cb9788a2338ad92e6a651be71330f2abe4b63a90`, DTDevice `dca79e3`이다. Device의 직전 `458e77a` 대비 변경은 TestHost/.gitignore에 Config/Game.ini 한 줄 추가뿐이다. 이번 확인에서는 소스·Config·pin을 변경하지 않았다.
+
+| 항목 | 결과 |
+|---|---|
+| host Editor 빌드 | PASS |
+| 유효 release 회귀 1회 | **536 Success / 46 Skip / 0 Fail**, 고유 **578** |
+| 테스트 목록 | r55b 577개 + LooseEditReplacesPackagedRow, **누락 0 / 예상 밖 0** |
+| 테스트 맵 10개 | 읽기 전용 로드 PASS, LogLinker/LogCoreRedirects Warning·Error **0**, 저장 호출 0·파일 hash 불변 |
+| DTCore / DTDevice guards | RequireConnected PASS |
+| 보호·개인 설정 | 192개 보호/Config hash와 원본 개인 파일3개 집합·hash 복원 PASS |
+
+Saved 하네스의 상태 파일 교체 오류 1건은 빌드 전에 종료됐다. 이어 정상 CrashReportClientEditor를 외부 Unreal로 오인한 초기 중단 2건도 실제 자동화 테스트 시작 전이므로 별도 보존·제외했다. 저장소 소스가 아닌 Saved 감시기만 수정하고, 이후 유효한 전체 release는 1회 실행했다. 외부 프로젝트 프로세스를 종료·중지·활성화하지 않았다. 유효 실행의 프로세스 감시151회에서 외부 Unreal/build 중첩0, GPU 카운터49회 관측에서 decode0이며 추가2회는 수집 불가로 기록했다.
+
+r55e의 패키지 설정 통과 및 사전 guard 실패 기록은 유지한다. 성능·메모리를 재측정하지 않았으며, **해치 메모리 FAIL은 사용자 결정으로 재측정 없이 진행했고 증가 원인·현재 반복 여부는 미확인**이다. 상세: `Saved/Reports/DATA-IF-10/r55f/RESULT.md`, `result.json`, `merge-check.json`.
+
 ## 2026-11-05 — DATA-IF-10 r55e (머지 전 확인, release 사전 검사 중단)
 
 기준 host `fb19e681`, DTDevice `458e77a`, DTCore main `cb9788a2338ad92e6a651be71330f2abe4b63a90`이다. DTCore의 tree는 이전 `dd7bae7`과 동일함을 확인했다. 이번 확인에서는 소스·저장소 Config·pin을 수정하지 않았다.
