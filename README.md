@@ -8,6 +8,7 @@ UE 5.3 / Windows / D3D12 기반 가상 센서와 Slab·해치·코일·학습 �
 
 - #99 장치 플러그인 분리, #100 에셋·TestHost, #101 이름·폴더, #102 포맷, #103 DTCore 기능 통합, #104 데이터 채널 통합이 반영됐습니다.
 - STRUCTURE-12 검증(`0e55e314`, Device `905135c`, Core `cb9788a`): Windows Editor/Development/Shipping 빌드, release **539 Success / 46 Skip / 0 Fail**(고유581개·누락0), 맵10개 읽기 전용 로드·대상 경고0, RT-on ABAB 2%, 두 guard가 통과했습니다. Linux는 설치 엔진의 libzip.a 부재로 링크 실패이며, legacy 문서 정책7건도 기존 FAIL로 유지합니다. 세부 한계는 [알려진 미해결](docs/KNOWN_ISSUES.md)과 검증 이력을 따릅니다.
+- r57b는 Windows ZIP 동작을 유지하며 Linux libzip 의존을 제외했습니다. Linux Development BuildCookRun과 Ubuntu WSL의 패키지 NullRHI 기동·ZIP 거절·tar.gz/SHA-256 검사가 통과했습니다. Linux ZIP/전체 학습 IPC·SFTP·GPU/UI 수용 범위는 [학습 안내](docs/TRAIN_BATCH.md)와 [알려진 미해결](docs/KNOWN_ISSUES.md)를 따릅니다.
 - r55e: TestHost 실제43 Success / 1 Skip, Development 패키지 공통·Windows·재시작 설정3/3 및 pak 행 URL 편집 후 재시작 확인이 통과했습니다. 설정 검사는 NullRHI이며 live broker 수용과 구분합니다.
 - 메모리 미해결, 장애 전환 중 PCD 유실, loose 설정 적용 범위는 **[알려진 미해결](docs/KNOWN_ISSUES.md)**에서만 현재 상태를 관리합니다. release 통과를 모든 메모리·현장 수용 완료로 해석하지 않습니다.
 - 날짜별 원본은 [VALIDATION_HISTORY](docs/VALIDATION_HISTORY.md)에 보존합니다. skipped/미수행·다른 SHA의 결과는 실제 통과로 세지 않습니다.

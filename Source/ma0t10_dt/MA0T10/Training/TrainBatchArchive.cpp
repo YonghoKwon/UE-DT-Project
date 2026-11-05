@@ -8,7 +8,9 @@
 #endif
 THIRD_PARTY_INCLUDES_START
 #include "zlib.h"
+#if WITH_TRAIN_BATCH_ZIP
 #include "libzip/zip.h"
+#endif
 // OpenSSL typedefs UI, which collides with Unreal's UI namespace (same workaround as the engine).
 #define UI UI_ST
 #include "openssl/evp.h"
@@ -29,7 +31,7 @@ bool Cancelled(const TFunction<bool()>& IsCancelled)
 	return IsCancelled && IsCancelled();
 }
 
-/** Streaming SHA-256; OpenSSL is already linked through the engine's libzip dependency. */
+/** Streaming SHA-256; OpenSSL is an explicit module dependency on every target. */
 struct FSha256
 {
 	EVP_MD_CTX* Ctx = EVP_MD_CTX_new();
@@ -277,6 +279,7 @@ bool WriteTarGz(const TArray<FTrainArchiveEntry>& Entries, FHashedWriter& Out, c
 	return true;
 }
 
+#if WITH_TRAIN_BATCH_ZIP
 struct FZipCallbacks
 {
 	const FTrainArchiveOptions* Options;
@@ -332,11 +335,26 @@ bool WriteZip(const TArray<FTrainArchiveEntry>& Entries, const FString& Partial,
 	}
 	return true;
 }
+#endif
 }
 
 const TCHAR* TrainBatchArchive::Extension(ETrainArchiveFormat Format)
 {
 	return Format == ETrainArchiveFormat::Zip ? TEXT("zip") : TEXT("tar.gz");
+}
+
+bool TrainBatchArchive::IsFormatSupported(ETrainArchiveFormat Format)
+{
+#if WITH_TRAIN_BATCH_ZIP
+	return Format == ETrainArchiveFormat::Zip || Format == ETrainArchiveFormat::TarGz;
+#else
+	return Format == ETrainArchiveFormat::TarGz;
+#endif
+}
+
+const TCHAR* TrainBatchArchive::ZipUnavailableReason()
+{
+	return TEXT("ZIP creation is unavailable on this platform (Windows libzip only); use tar.gz.");
 }
 
 bool TrainBatchArchive::IsSafeEntryName(const FString& Name)
@@ -457,6 +475,13 @@ FTrainArchiveResult TrainBatchArchive::Write(const TArray<FTrainArchiveEntry>& E
 	FTrainArchiveResult R;
 	R.OutputPath = OutputPath;
 	R.Entries = Entries.Num();
+#if !WITH_TRAIN_BATCH_ZIP
+	if (O.Format == ETrainArchiveFormat::Zip)
+	{
+		R.Error = ZipUnavailableReason();
+		return R;
+	}
+#endif
 	if (Entries.IsEmpty())
 	{
 		R.Error = TEXT("nothing to archive");
@@ -512,11 +537,13 @@ FTrainArchiveResult TrainBatchArchive::Write(const TArray<FTrainArchiveEntry>& E
 			R.Bytes = Out.Bytes;
 		}
 	}
+#if WITH_TRAIN_BATCH_ZIP
 	else
 	{
 		bWritten = WriteZip(Entries, Partial, O, Total, R.Error) && Sha256File(Partial, R.Sha256, R.Error, O.IsCancelled);
 		R.Bytes = IFileManager::Get().FileSize(*Partial);
 	}
+#endif
 	R.bCancelled = Cancelled(O.IsCancelled);
 	if (!bWritten || R.bCancelled || !IFileManager::Get().Move(*OutputPath, *Partial, false))
 	{

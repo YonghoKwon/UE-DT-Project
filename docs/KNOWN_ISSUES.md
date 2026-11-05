@@ -27,3 +27,10 @@ DTDevice는 패키지의 DefaultGame.ini와 DTCore 기준 Game.ini/플랫폼 후
 - native 안전 상태의 ProcessStamp가 ACCESS_DENIED인 경우와 raw 수신4MiB/pass budget은 기존 한계로 남습니다. 기본값을 조용히 바꾸지 않습니다.
 - 일부 과거 직접 UI/회사 수용 항목은 자동화 PASS만으로 완료하지 않습니다. [직접 점검표](MANUAL_CHECKLIST.md)와 [이전 백로그 원문](archive/IMPROVEMENTS_BEFORE_R56.md)을 참고하되 현재 작업 승인으로 읽지 않습니다.
 - STRUCTURE-12F에서 현행 경로·분리 구현을 반영해 point_cloud_preview_policy와 real_sensor_adapter_plan 검사를 복구했습니다. 나머지 7개 정책 검사는 baseline부터 없는 local_asset_report/remaining_work 문서를 요구합니다. 대상 workflow가 완전히 폐기됐다고 확정할 근거가 없어 검사·기준을 유지하며, PASS로 바꾸지 않습니다. 세부는 [검증 안내](BUILD_AND_VALIDATION.md#레거시-정책-검사-structure-12f)를 참조합니다.
+
+
+## 5. Linux 학습 압축 범위
+
+STRUCTURE-12 보완(r57b)은 설치형 UE 5.3에 없는 Linux libzip.a를 요구하지 않도록 libzip/ZIP 코드를 Windows로 한정합니다. Linux에서는 ZIP 생성 요청을 명확한 오류로 거절하고 UI ZIP 선택을 비활성화하며 tar.gz(zlib)와 SHA-256(OpenSSL)은 유지합니다. Windows 동작·기본값은 바꾸지 않습니다. Linux ZIP은 지원 완료로 표시하지 않습니다.
+
+Linux 패키지 생성/NullRHI 압축 진단과 Linux 전체 학습 워커·저널·SFTP·GPU/UI 수용은 구분합니다. 기존 coordinator 저널의 최종 원자적 rename은 Windows 전용이므로 Linux 전체 워크플로 이식은 별도 검토가 필요합니다. 이번 진단은 자체 결과 기록만 사용하며 일반 IPC를 변경하지 않습니다. [학습 안내](TRAIN_BATCH.md#플랫폼별-압축-지원-structure-12--r57b)를 따릅니다.

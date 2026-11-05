@@ -45,8 +45,15 @@ public class ma0t10_dt : ModuleRules
         });
 
         PrivateDependencyModuleNames.AddRange(new string[] { "DeviceNative" });
-        // TRAIN-BATCH-01: result archives (ZIP via engine libzip, tar.gz via zlib) and SHA-256.
-        PrivateDependencyModuleNames.AddRange(new string[] { "zlib", "libzip", "OpenSSL" });
+        // TRAIN-BATCH-01: installed Linux engines do not ship libzip.a.
+        // Keep tar.gz and streaming SHA-256 on both platforms without changing engine libraries.
+        PrivateDependencyModuleNames.AddRange(new string[] { "zlib", "OpenSSL" });
+        bool bTrainBatchZip = Target.Platform == UnrealTargetPlatform.Win64;
+        PrivateDefinitions.Add("WITH_TRAIN_BATCH_ZIP=" + (bTrainBatchZip ? "1" : "0"));
+        if (bTrainBatchZip)
+        {
+            PrivateDependencyModuleNames.Add("libzip");
+        }
 
         // PKG-01: ship the deployment transport settings as a loose file next to every
         // package (<package>/ma0t10_dt/Config/SensorTransport.ini), outside the pak.
