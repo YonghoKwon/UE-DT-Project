@@ -141,7 +141,7 @@ Windows/ma0t10_dt/Config/Windows/WindowsGame.ini
 ```
 
 자격증명 값은 넣지 않는다. 인증은 기존 Runtime Override 키 방식으로 별도 관리한다.
-패키지의 pak 설정만 사용하면 이 loose 배치가 반영되지 않아, DTDevice가 시작 시 두 파일을
+패키지의 pak 설정만 사용하면 이 loose 배치가 반영되지 않아, DTDevice가 시작 시 지원하는 물리 파일을
 물리 디스크에서 읽는다(파일당 2MiB 이하). 채널 연결·토픽 속성만 메모리에 덮어쓰며
 다른 섹션, 직접 비밀번호 값, 맵 설정은 가져오거나 저장하지 않는다.
 우선순위는 플랫폼 loose → 공통 loose → 기존 pak/사용자 설정이다.
@@ -160,3 +160,21 @@ CameraTopic/LidarTopic/ExportTopic/AckTopic을 각각 새 별칭으로 옮긴다
 기존 `SensorTransport.ini`는 삭제하거나 자동 덮어쓰지 않는다.
 
 현재 미해결과 사용자 수용 범위는 [KNOWN_ISSUES](KNOWN_ISSUES.md) 한 곳에서 관리한다. 이 문서의 로컬 합성 수치는 회사 서버 수용을 대신하지 않는다.
+
+## 현장 Game.ini 경로와 우선순위 (STRUCTURE-12B)
+
+기존 `Config/DefaultGame.ini` 읽기를 유지하며, 채널·토픽도 DTCore `TryReadRuntimeOverride`와 같은 런타임 파일 후보를 읽는다. 패키지를 종료한 뒤 수정하고 재시작한다. 이 기능은 연결 속성 allowlist와 `UDeviceDataChannelSettings.Channels`에만 적용하며 인증값·다른 DTCore 섹션·전역 GConfig는 가져오거나 저장하지 않는다.
+
+높은 우선순위부터 아래 순서다. 중복 절대경로는 한 번만 읽는다.
+
+1. `<ProjectDir>/Config/Game.ini`
+2. `<LaunchDir>/Config/Game.ini`
+3. `<LaunchDir>/../../Config/Game.ini`
+4. `<LaunchDir>/<ProjectName>/Config/Game.ini`
+5. 위 네 루트의 `<Platform>/<Platform>Game.ini` (Windows/WindowsGame.ini 또는 Linux/LinuxGame.ini)
+6. `<ProjectConfigDir>/DefaultGame.ini`
+7. 기존 pak/사용자 설정. 새 채널/토픽 설정이 비어 있으면 기존 SensorTransport.ini/profile 대체 경로를 유지한다.
+
+Game.ini의 공통 목록은 낮은 우선순위 목록을 대체한다. 플랫폼 목록은 기존처럼 지정한 채널 행만 덮어쓰며 나머지를 유지한다. 같은 채널 이름의 마지막 행이 앞 행을 대체한다. 전체 목록 초기화가 필요하면 `!DataChannels=ClearArray` 또는 `!Channels=ClearArray`를 명시한다. `Game.ini`가 없으면 기존 DefaultGame.ini→플랫폼 동작과 동일하다. URL 문자열은 ini에서 `WebSocketUrl="ws://127.0.0.1:61616"`처럼 인용한다.
+
+Windows 현장 권장 배치는 `Windows/ma0t10_dt/Config/Game.ini`다. 기존 DefaultGame.ini·Windows/WindowsGame.ini 배치도 계속 지원한다. 기존 채널/토픽 예제의 섹션을 Game.ini에 그대로 둘 수 있다. URL/키 이름만 설정하며 비밀번호·토큰은 ini에 저장하지 않고 기존 Override/session 전달만 사용한다. Linux는 같은 경로 규칙을 사용하며 실제 패키지 검증 여부는 실행 보고서를 확인한다.

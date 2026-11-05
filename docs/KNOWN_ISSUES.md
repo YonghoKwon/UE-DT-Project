@@ -10,17 +10,17 @@
 - 사용자는 재측정 없이 다음 단계 진행을 결정했습니다. 해결이나 PASS 전환이 아니며, 재확인은 별도 예정입니다. 과거 r37/r50 통과값을 현재 실패 대신 쓰지 않습니다.
 - r55 원본: `Saved/Reports/DATA-IF-10/r55/RESULT.md`, `memory-summary.json`, `hatch-step-analysis*.json`. r55f 최종 회귀: `Saved/Reports/DATA-IF-10/r55f/RESULT.md`(측정 원본 사본: `C:\Unreal Projects\_evidence\wt_dataif`). 원시 이력은 [VALIDATION_HISTORY](VALIDATION_HISTORY.md)에 보존합니다.
 
-## 2. 장애 전환 시 PCD 유실 허용·표시 기능 예정
+## 2. 장애 전환 시 PCD 유실 허용·확인된 유실 표시
 
-정상 연결의 ConnectedNoLoss FIFO/예약 상한은 유지합니다. 브로커 장애·재연결·DROP 부하 상황의 PCD gap은 사용자 승인 범위에서 허용되며, 연결 복구가 무유실/소비자 처리 완료를 뜻하지 않습니다. **장애 전환 유실을 운전원에게 명확히 표시하는 기능은 예정이며 구현 완료로 표시하지 않습니다.**
+정상 연결의 ConnectedNoLoss FIFO/예약 상한은 유지합니다. 브로커 장애·재연결·DROP 부하 상황의 PCD gap은 사용자 승인 범위에서 허용되며, 연결 복구가 무유실/소비자 처리 완료를 뜻하지 않습니다. STRUCTURE-12A는 중단 시작·복구·기간과 센서별 확인된 PCD 유실(로컬 거절·전송 계층 최종 실패)을 집계하고 복구 때 Warning 1회, 기존 연결 상태 UI, 채널 dropped 누적으로 표시합니다. 실제 소비자의 수신 완료나 브로커 내부 DROP까지 정확히 측정하는 기능과는 구분합니다.
 
 소비자 정지 중 Artemis DROP은 새 메시지를 버리고 기존 backlog를 보존합니다. 기존 durable 구독이 회복 즉시 최신 프레임부터 받는다고 보장하지 않습니다. 신규 non-durable 구독으로 확인한 최신 프레임 회복과 구분합니다. 설정·수신 의미는 [Artemis 가이드](ARTEMIS_PCD_SETTINGS.md)를 따릅니다.
 
 ## 3. DTCore 다른 섹션의 loose 적용은 범위 밖
 
-DTDevice는 패키지의 두 물리 Game ini에서 **허용된 연결 속성과 장치 토픽 목록만** 읽습니다. DTCore의 API·로그·DataTable·다른 섹션 전체를 loose로 재적용하는 기능은 이번 범위 밖입니다. 직접 인증값도 가져오지 않습니다. 전역 GConfig를 복사/변경/저장하지 않으며 DTCore 소스 수정으로 확대하지 않습니다.
+DTDevice는 패키지의 DefaultGame.ini와 DTCore 기준 Game.ini/플랫폼 후보에서 **허용된 연결 속성과 장치 토픽 목록만** 읽습니다. DTCore의 API·로그·DataTable·다른 섹션 전체를 loose로 재적용하는 기능은 이번 범위 밖입니다. 직접 인증값도 가져오지 않습니다. 전역 GConfig를 복사/변경/저장하지 않으며 DTCore 소스 수정으로 확대하지 않습니다.
 
-운영에서 쓰는 API·WebSocket 주소 등 DTCore 값은 DTCore의 `TryReadRuntimeOverride`가 패키지 폴더의 설정 파일을 직접 읽으므로 현장 수정이 반영된다(사용자 운영 확인, 2026-11-05). 이 경로가 읽는 파일과 채널·토픽 설정이 읽는 파일이 달라 통일을 구조 개선 단계에서 검토한다.
+운영에서 쓰는 API·WebSocket 주소 등 DTCore 값은 DTCore의 `TryReadRuntimeOverride`가 패키지 폴더의 설정 파일을 직접 읽으므로 현장 수정이 반영된다(사용자 운영 확인, 2026-11-05). STRUCTURE-12B에서 채널·토픽 읽기도 같은 Game.ini 후보 경로를 지원합니다. 기존 DefaultGame.ini 지원과 허용 속성 범위는 유지하며, 우선순위는 [Artemis 가이드](ARTEMIS_PCD_SETTINGS.md#현장-gameini-경로와-우선순위-structure-12b)를 따릅니다.
 
 ## 4. 수용·도구 경계
 

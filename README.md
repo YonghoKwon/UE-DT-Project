@@ -88,8 +88,8 @@ powershell -ExecutionPolicy Bypass -File Scripts/validate_device_plugin_submodul
 - 연결: `[/Script/DTCore.DTCoreSettings]`의 `DataChannels`(Default는 기존 `WebSocketUrl` 등 공유 설정).
 - 토픽: `[/Script/DeviceRuntime.DeviceDataChannelSettings]`의 `Channels` → 채널별 Alias / Destination / bSubscribe / Purpose.
 - 공통: `Config/DefaultGame.ini`; 플랫폼: `Config/Windows/WindowsGame.ini`, `Config/Linux/LinuxGame.ini`.
-- Windows 패키지: `Windows/ma0t10_dt/Config/DefaultGame.ini`와 그 아래 `Windows/WindowsGame.ini` loose 파일을 수정하고 **재시작**합니다.
-- 지원 속성은 플랫폼 loose → 공통 loose → 기존 pak/사용자 설정 순서입니다. 공통 파일에 목록이 있으면 pak 목록을 대체하며, 같은 채널 이름의 뒤 행이 앞 행을 대체합니다.
+- Windows 패키지: `Windows/ma0t10_dt/Config/Game.ini`를 권장하며, 기존 `DefaultGame.ini`·`Windows/WindowsGame.ini` loose 파일도 유지합니다. 수정 후 **재시작**합니다.
+- 지원 속성은 DTCore 후보 순서의 공통 Game.ini → 플랫폼 후보 → DefaultGame.ini → 기존 pak/사용자 설정 순서입니다. 공통 목록은 낮은 우선순위 목록을 대체하며, 플랫폼은 지정한 행만 덮어씁니다. 같은 채널 이름의 뒤 행이 앞 행을 대체합니다. 전체 경로와 예제는 [Artemis 가이드](docs/ARTEMIS_PCD_SETTINGS.md)를 따릅니다.
 - 빈 새 항목은 기존 `SensorTransport.ini`/맵/UI profile 대체 경로를 유지합니다. 연결값과 토픽값은 독립적으로 이전할 수 있습니다.
 - 비밀번호·토큰을 ini·로그·문서·커밋에 넣지 않습니다. Runtime Override **키 이름**만 지정하고 실제 값은 기존 사용자 override 경로로 관리합니다. URL은 `"ws://…"`처럼 인용합니다.
 
