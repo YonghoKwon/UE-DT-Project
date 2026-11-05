@@ -725,12 +725,14 @@ void ACoilLoadingSimulation::UpdateTrolley()
 	{
 		int32 I = 0;
 		for (double DX : {-.30, 0., .30})
+		{
 			for (double DY : {-.23, .23})
 			{
 				const FVector A(CurrentHook.X + DX, CurrentHook.Y + DY, FallTop), B = CurrentHook + FVector(DX, DY, .25), D = B - A;
 				++RigTransformWrites;
 				HoistFalls->UpdateInstanceTransform(I++, FTransform(FRotationMatrix::MakeFromZ(D).Rotator(), (A + B) * 50, FVector(.04, .04, D.Size())), false, false, true);
 			}
+		}
 		HoistFalls->MarkRenderStateDirty();
 	}
 	LastFallTopZ = FallTop;

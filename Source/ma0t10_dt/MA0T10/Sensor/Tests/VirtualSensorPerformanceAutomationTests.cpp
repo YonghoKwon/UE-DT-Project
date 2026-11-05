@@ -49,7 +49,7 @@ bool FVirtualSensorRateHealthTest::RunTest(const FString&)
 bool FVirtualSensorRateAggregationTest::RunTest(const FString&)
 {
 	using Scheduler = UVirtualSensorSchedulerSubsystem;
-	for (const FString Kind : {FString(TEXT("Camera")), FString(TEXT("LiDAR"))})
+	for (const FString& Kind : {FString(TEXT("Camera")), FString(TEXT("LiDAR"))})
 	{
 		FVirtualSensorPerformanceTelemetry T;
 		auto A = Scheduler::EvaluateRate(3, 0, 2.99, 20, 0.05f, true, false, false, 0);

@@ -278,7 +278,7 @@ TSharedRef<SWidget> UDxWidgetAgentTestSet::RebuildWidget()
 	                                                                                                                                                            { return DetailText; }),
 	                                                                                                                            11)] +
 	                                                                SVerticalBox::Slot().AutoHeight().Padding(0, 8)[Button(TEXT("세트 초기화"), [this]()
-	                                                                                                                       {if(auto* S=Service())if(FPlatformTime::Seconds()>ConfirmUntil){ConfirmUntil=FPlatformTime::Seconds()+8;Status=FText::FromString(TEXT("8초 안에 다시 누르면 목록을 비웁니다 · 기존 파일 유지"));}else{FString Error;S->ResetConfirmed(Error);ConfirmUntil=0;Selected=INDEX_NONE;SeenRevision=-1;Refresh();} })]]]];
+	                                                                                                                       {if(auto* S=Service()){if(FPlatformTime::Seconds()>ConfirmUntil){ConfirmUntil=FPlatformTime::Seconds()+8;Status=FText::FromString(TEXT("8초 안에 다시 누르면 목록을 비웁니다 · 기존 파일 유지"));}else{FString Error;S->ResetConfirmed(Error);ConfirmUntil=0;Selected=INDEX_NONE;SeenRevision=-1;Refresh();}} })]]]];
 	SeenRevision = -1;
 	Rows.Reset();
 	RowMessages.Reset();
