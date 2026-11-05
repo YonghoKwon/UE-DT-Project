@@ -1,0 +1,298 @@
+> **이전 기능 문서 원문, 현재 기준 아님.** 현재 이름·사용은 상위 문서 색인을 따릅니다.
+
+# LiDAR Payload Schema v1
+
+> **고정 참고자료 (2026-09-22 전환)**: 이 문서는 이전 상세 명세/검증 이력을 보존합니다. 현재 사용법·UI·지원 범위는 [README](../../../README.md), 작업 규칙은 [AGENTS](../../../AGENTS.md), 후속 구현은 [보완 사항](../../IMPROVEMENTS.md)과 [로드맵](../../ROADMAP.md)을 기준으로 합니다. 아래의 과거 "현재"·성능 수치·맵 생성 절차를 최신 보장이나 실행 승인으로 해석하지 마세요. 기존 링크와 스크립트 참조를 위해 본문/경로를 유지합니다.
+
+## Physical frame: `virtual-lidar.v2`
+
+`virtual-lidar.v2` is the hardware-shaped contract used by the ML-X fidelity path. It keeps sensor measurements separate from project-only digital-twin metadata:
+
+- sensor-local right-handed XYZ in metres (`X forward, Y left, Z up`)
+- raw range in millimetres
+- raw and normalized Intensity
+- Ring/channel and horizontal sample index
+- Echo index/count/type
+- acquisition timestamp and per-point nanosecond offset
+- validity, confidence and miss reason
+- profile, calibration, firmware and time-sync identifiers
+
+Actor name/class/tags, `SemanticLabel`, world-space transform and Slab analysis are not hardware measurements. They are emitted only under `digitalTwinExtensions`. `virtual-lidar.v1` remains the compatibility payload used by existing Blueprints and Topic consumers.
+
+The compact `VLB2` stream begins with the `VLDR2` magic and fixed little-endian records containing the physical fields. This is a MA0T10 project contract, not a byte-for-byte claim about a proprietary ML-X packet. Until vendor SDK/packet documentation and a hardware Golden Dataset are validated, ML-X output is labelled `PublicSpecBased` and `bProtocolVerifiedAgainstHardware=false`.
+
+Schema version:
+
+```text
+virtual-lidar.v1
+```
+
+This schema is the current DT-Project contract for virtual LiDAR frames. It is intentionally explicit about the difference between server payload data and Unreal preview data.
+
+## Top-Level Fields
+
+```text
+schemaVersion
+sensorType
+sensorId
+manufacturer
+model
+frameId
+timestampUtc
+horizontalSamples
+verticalChannels
+rayCount
+totalPointCount
+hitPointCount
+payloadPointCount
+maxDistance
+semanticClassification
+payloadPolicy
+previewPolicy
+sensorTransform
+slabAnalysis
+points
+```
+
+## Payload Policy
+
+`payloadPolicy` describes the point selection used for `points[]`.
+
+```json
+{
+  "stride": 1,
+  "maxPoints": 0,
+  "includeMissPoints": false,
+  "pointSelection": "hit_only"
+}
+```
+
+Rules:
+
+- `stride = 1` means no stride downsampling.
+- `maxPoints = 0` means no max-point cap.
+- `includeMissPoints = false` means server payload contains hit points only.
+- `pointSelection` is `hit_only` when `includeMissPoints = false` and
+  `hit_and_miss` when `includeMissPoints = true`.
+- Preview settings never change this object.
+
+## Preview Policy
+
+`previewPolicy` describes Unreal Editor/runtime display only.
+
+```json
+{
+  "stride": 2,
+  "maxPoints": 5000,
+  "hitOnly": true
+}
+```
+
+Rules:
+
+- This policy exists so the UI can render fewer points than the server receives.
+- `PointCloudOnly` mode may reduce preview density for performance.
+- Server-side judgment should not use `previewPolicy` as measurement truth.
+
+## Point Fields
+
+Each point in `points[]` contains:
+
+```text
+pointIndex
+row
+col
+returnIndex
+gridCoordValid
+gridCoordSource
+hit
+distance
+hitActor
+hitActorClass
+hitActorTags
+semanticLabel
+worldLocation
+localDirection
+```
+
+`row` and `col` are copied from the `FVirtualLidarPoint` grid coordinate when
+available. Virtual scans populate them from the scan ray (`VerticalChannel`,
+`HorizontalSample`), CSV/JSONL replay preserves parsed `row`/`col`, and
+multi-hit points share the same `row`/`col` with different `returnIndex` values.
+If an injected/replayed point has no grid coordinate metadata, DT-Project falls
+back to `pointIndex / horizontalSamples` and marks that point with
+`gridCoordValid = false` and `gridCoordSource = derived_from_point_index`.
+Monitor row/column CSV exports include `returnIndex` so multi-hit returns from
+the same ray remain distinguishable outside Unreal.
+
+## Slab Analysis
+
+`slabAnalysis` is generated from hit points where `semanticLabel == SlabSemanticLabel`.
+
+```text
+valid
+slabHitPointCount
+boundsMin
+boundsMax
+center
+estimatedYawDegrees
+referenceYawDegrees
+angleDeviationDegrees
+confidence
+status
+```
+
+`valid = false` usually means there were fewer points than `MinSlabPointsForAnalysis`.
+
+## Compatibility Notes
+
+- `timestampUtc` uses ISO-8601 UTC with a zero offset.
+- `distance`, `maxDistance`, and vector values are in Unreal centimeters unless
+  the final judging-server contract explicitly requests another unit.
+- `worldLocation`, `sensorTransform.location`, `sensorTransform.forward`, and
+  `sensorTransform.up` use Unreal world coordinates.
+- `row` and `col` identify the scan grid cell that produced the point. They are
+  stable for replay, export, and server-side slab-angle reconstruction.
+- `returnIndex` identifies which return came from the same scan ray. It is `0`
+  for ordinary single-hit scans and replay samples.
+- `gridCoordSource` is `point_metadata` when the grid coordinate was preserved
+  from scan/replay input, and `derived_from_point_index` only for fallback
+  injected frames that do not carry grid metadata.
+- `previewPolicy` is never a server measurement contract. It only describes
+  Unreal display density.
+- `payloadPolicy` is the only policy that describes how `points[]` was selected
+  for the judging server.
+
+Compatibility examples:
+
+```text
+virtual-lidar.v1-full-hit
+  payloadPolicy: stride=1, maxPoints=0, includeMissPoints=false, pointSelection=hit_only
+  expected server meaning: every hit point from the frame is eligible for judgment.
+
+virtual-lidar.v1-strided-hit
+  payloadPolicy: stride>1, maxPoints>0, includeMissPoints=false, pointSelection=hit_only
+  expected server meaning: points[] is intentionally capped for transport, but
+  totalPointCount and hitPointCount still describe the original measurement frame.
+
+virtual-lidar.v1-hit-and-miss
+  payloadPolicy: stride=1, maxPoints=0, includeMissPoints=true, pointSelection=hit_and_miss
+  expected server meaning: hit and miss samples are both included for consumers
+  that need the full ray grid rather than hit-only slab judgment points.
+```
+
+## Runtime Inspection
+
+`UVirtualLidarScanComponent::GetLastJsonPayload()` returns the last JSON payload generated by either `ScanAndSend()` or `InjectPointCloudFrame()`. Use it for debugging, widget diagnostics, and automation tests when you need to inspect the exact server payload without sending it to a transport.
+
+## Fixture
+
+Reference fixture:
+
+```text
+Samples/payload_fixtures/virtual_lidar_v1_sample.json
+```
+
+Validate all payload fixtures:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_fixtures.ps1" -Json
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_contract.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_payload_schema_review_policy.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Scripts\export_payload_contract_report.ps1"
+```
+
+The validator reads this document's `Top-Level Fields`, `Point Fields`, and
+`Slab Analysis` blocks, then checks the reference fixture against those field
+lists. The mock contract validator then applies local acceptance rules that
+approximate what the judging server is expected to reject before the final
+server contract is available. The export script writes JSON and Markdown review
+artifacts under `Saved/PayloadContractReports/`. Keep these blocks in sync with
+any schema changes.
+
+Regression coverage:
+
+```text
+MA0T10.SensorReplay.PayloadPolicyJson
+MA0T10.SensorReplay.PayloadPreservesGridCoord
+MA0T10.SensorReplay.LazPlaceholderWritesLasSource
+MA0T10.SensorReplay.LazExternalCompressorFakeWritesOutput
+MA0T10.SensorReplay.TransportSaveToFilePayload
+MA0T10.SensorReplay.PerformanceWarningStatus
+```
+
+This test verifies that `points[]` follows `payloadPolicy`, while runtime preview counts and `previewPolicy` remain separate.
+`MA0T10.SensorReplay.TransportSaveToFilePayload` verifies that replay-injected LiDAR frames can be submitted through `UVirtualSensorTransportComponent` in `SaveToFile` mode, that a JSON file is written under the configured save directory, and that the saved file matches `GetLastJsonPayload()`.
+`MA0T10.SensorReplay.PerformanceWarningStatus` verifies that FullSpec, multi-hit, export-on-scan, and uncapped preview warnings are surfaced through runtime status.
+The LAZ placeholder test verifies that `ExportLastPointCloudLaz()` writes a `*_laz_source_*.las` source file and does not pretend to create a compressed `.laz` file.
+`MA0T10.SensorReplay.LazExternalCompressorFakeWritesOutput` verifies the external
+compressor process contract with a local copy-command surrogate. It proves the
+`{input}`/`{output}` path and non-empty `.laz` output checks, not true
+compression.
+
+Use `Scripts/export_laz_compression_decision_report.ps1` to summarize the
+remaining compressor decision. The report keeps the current placeholder evidence
+separate from the future acceptance evidence for a native library, external CLI,
+or server/post-processing LAZ path.
+Use `Scripts/export_laz_compressor_readiness_report.ps1` to check whether the
+local machine has compressor/reader candidates such as `laszip`, `las2las`,
+`lasinfo`, or `pdal`. That readiness report is intentionally not a compression
+claim; true LAZ still requires a produced `.laz` plus readable-output evidence
+from an independent point-cloud tool.
+
+Use `Scripts/export_laz_compression_acceptance_package.ps1` to export the
+decision report, compressor readiness report, placeholder policy validation, and
+follow-up commands into `Saved/Reports/LazCompressionAcceptance/`. The package
+does not run a compressor by default; reader probing is explicit opt-in. The
+package also writes a fillable `LazCompressionAcceptanceEvidenceV1` draft and a
+validation report. Use
+`Scripts/validate_laz_compression_acceptance_evidence.ps1` with
+`-FailOnIncompleteEvidence` only after compressor selection, produced `.laz`
+output, known-reader validation, placeholder distinction, repeatable command,
+and owner acceptance evidence are recorded.
+The validator requires a non-empty `.laz` evidence file, matching recorded byte
+size, a distinct LAS source path, known-reader exit code 0 against the same
+`.laz`, and explicit proof that the output is not a `_laz_source_` placeholder
+or copy-surrogate artifact.
+Tool version probes are opt-in with `-ProbeToolVersions`; the default
+acceptance package does not run compressors, write `.laz` output, or probe tool
+versions.
+
+`ExportLastPointCloudLaz()` also supports an opt-in external compressor path via
+`bUseExternalLazCompressor`, `ExternalLazCompressorPath`, and
+`ExternalLazCompressorArguments`. The component first writes the LAS source and
+then invokes the configured executable with `{input}` and `{output}` tokens. The
+tokens are expanded to absolute, platform-native file paths. The export is
+considered successful only when the process exits cleanly and the expected
+`.laz` file exists with nonzero size.
+
+The component exposes last-export telemetry for Blueprint widgets and automation:
+`GetLastLazExportStatusText()`, `GetLastLazLasSourcePath()`,
+`GetLastLazOutputPath()`, `WasLastLazExportAttempted()`,
+`DidLastLazExportSucceed()`, `WasLastLazExportPlaceholderOnly()`,
+`WasLastLazExternalCompressorRequested()`,
+`WasLastLazExternalCompressorAttempted()`,
+`DidLastLazExternalCompressorSucceed()`, `DidLastLazProduceOutputFile()`,
+`WasLastLazTrueCompressionValidated()`, `GetLastLazExportedPointCount()`,
+`GetLastLazExternalCompressorReturnCode()`, `GetLastLazOutputSizeBytes()`, and
+`GetLastLazExportWarningText()`. This telemetry reports the runtime export state
+only; it is not readable-LAZ acceptance evidence until a produced `.laz` is
+validated by a known reader and accepted by the project owner.
+
+LAZ export states:
+
+- Disabled compressor: writes `*_laz_source_*.las`, logs the placeholder warning,
+  and returns success for the LAS source export.
+- Enabled compressor with a missing executable or invalid argument template:
+  writes the LAS source, creates no `.laz`, logs a warning, and returns failure.
+- Enabled compressor with a valid executable: writes the LAS source, writes a
+  separate `*.laz` output path, and returns success only after the output exists.
+  The automation uses a copy-command surrogate for this process contract; a
+  real compressor still requires separate readable-output evidence.
+
+Static placeholder readiness:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Scripts\validate_laz_placeholder_policy.ps1"
+```

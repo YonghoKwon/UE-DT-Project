@@ -1,0 +1,41 @@
+# 완료 계획·이전 문서 보관
+
+**현재 기준이 아닙니다.** 단계별 계획과 이전 진입 문서를 내용 삭제 없이 보존했습니다. [현행 색인](../README.md)을 먼저 읽습니다. 완료 기록 안에 당시 미완료 제안이 섞여 있어도 새 승인으로 읽지 않습니다.
+
+- [AGENTS_BEFORE_R56.md](AGENTS_BEFORE_R56.md)
+- [ASSET_MOVE_02_PLAN.md](ASSET_MOVE_02_PLAN.md)
+- [DEVICE_PLUGIN_01_DESIGN.md](DEVICE_PLUGIN_01_DESIGN.md)
+- [DTCORE_EXT_09_PLAN.md](DTCORE_EXT_09_PLAN.md)
+- [DTCORE_MAIN_SWITCH_IMPACT.md](DTCORE_MAIN_SWITCH_IMPACT.md)
+- [IMPROVEMENTS_BEFORE_R56.md](IMPROVEMENTS_BEFORE_R56.md)
+- [LIDAR_GPU_ACQUISITION_26g.md](LIDAR_GPU_ACQUISITION_26g.md)
+- [LIDAR_GPU_ACQUISITION_REWRITE_PLAN_26f.md](LIDAR_GPU_ACQUISITION_REWRITE_PLAN_26f.md)
+- [LIDAR_NATIVE_LIFETIME_26h.md](LIDAR_NATIVE_LIFETIME_26h.md)
+- [MEMORY_ATTRIBUTION_26d.md](MEMORY_ATTRIBUTION_26d.md)
+- [MEMORY_FIX_26f_GPU_SUBMISSION.md](MEMORY_FIX_26f_GPU_SUBMISSION.md)
+- [MEMORY_FIX_26f_STAGE13.md](MEMORY_FIX_26f_STAGE13.md)
+- [MEMORY_FIX_26f_STAGE45.md](MEMORY_FIX_26f_STAGE45.md)
+- [MEMORY_OBSERVATION_26e.md](MEMORY_OBSERVATION_26e.md)
+- [MEMORY_TREND_26b.md](MEMORY_TREND_26b.md)
+- [MEMORY_TREND_26c.md](MEMORY_TREND_26c.md)
+- [NAMING_01_INVENTORY.md](NAMING_01_INVENTORY.md)
+- [NAMING_01_RULES.md](NAMING_01_RULES.md)
+- [README_BEFORE_R56.md](README_BEFORE_R56.md)
+- [real_sensor_adapter_plan.md](real_sensor_adapter_plan.md)
+- [ROADMAP_BEFORE_R56.md](ROADMAP_BEFORE_R56.md)
+- [sensor_pr16_merge_notes.ko.md](sensor_pr16_merge_notes.ko.md)
+- [sensor_v2_migration.ko.md](sensor_v2_migration.ko.md)
+- [TRAIN_BATCH_01_DESIGN.md](TRAIN_BATCH_01_DESIGN.md)
+
+## 이전 기능 가이드 원문
+
+- [camera_payload_schema.md](legacy-guides/camera_payload_schema.md)
+- [editor_smoke_test.md](legacy-guides/editor_smoke_test.md)
+- [lidar_height_semantic_coordinates.ko.md](legacy-guides/lidar_height_semantic_coordinates.ko.md)
+- [lidar_payload_schema.md](legacy-guides/lidar_payload_schema.md)
+- [sensor_slab_integration.ko.md](legacy-guides/sensor_slab_integration.ko.md)
+- [sensor_test_map_setup.ko.md](legacy-guides/sensor_test_map_setup.ko.md)
+- [server_transport_contract.md](legacy-guides/server_transport_contract.md)
+- [SITE_MEMORY_AND_LIDAR_GUIDE.md](legacy-guides/SITE_MEMORY_AND_LIDAR_GUIDE.md)
+- [slab_scenario_replay.ko.md](legacy-guides/slab_scenario_replay.ko.md)
+- [slab_simulation.ko.md](legacy-guides/slab_simulation.ko.md)

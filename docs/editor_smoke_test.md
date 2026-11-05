@@ -125,7 +125,7 @@ Replay tests:
 & "C:\Program Files\Epic Games\UE_5.3\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\path\to\ma0t10_dt.uproject" -NullRHI -Unattended -NoSplash -NoSound -ExecCmds="Automation RunTests MA0T10.SensorReplay; Quit" -TestExit="Automation Test Queue Empty"
 ```
 
-`MA0T10.SensorReplay.TransportSaveToFilePayload` verifies that a replay-injected LiDAR server payload is saved through `UVirtualSensorTransportComponent` in `SaveToFile` mode and that the file content matches `GetLastJsonPayload()`.
+`MA0T10.SensorReplay.TransportSaveToFilePayload` verifies that a replay-injected LiDAR server payload is saved through `UVirtualSensorTransportComp` in `SaveToFile` mode and that the file content matches `GetLastJsonPayload()`.
 
 Outbound transport tests:
 
@@ -216,7 +216,7 @@ If the row is missing, create it through the DT-Project commandlet:
 
 After the project WebSocket data table includes `LIDAR_JSON_LIVE_FRAME`, send
 `Samples/websocket/lidar_json_live_frame_sample.json` through the deployment
-WebSocket broker in PIE. Confirm the matching `ULidarJsonLiveSourceComponent` updates
+WebSocket broker in PIE. Confirm the matching `ULidarJsonLiveSourceComp` updates
 its source frame/point counts and that the target LiDAR exposes a cached server
 payload when `SEND_TRANSPORT` is enabled.
 
@@ -233,15 +233,15 @@ the broker; it captures evidence from a real PIE/broker run.
 Before data-table registration, use the same component-level smoke path:
 
 ```text
-ULidarJsonLiveSourceComponent -> AppendSampleWebSocketFrameInEditor
-ULidarJsonLiveSourceComponent -> PushBufferedFrameNoTransportInEditor
+ULidarJsonLiveSourceComp -> AppendSampleWebSocketFrameInEditor
+ULidarJsonLiveSourceComp -> PushBufferedFrameNoTransportInEditor
 ```
 
 `AppendSampleWebSocketFrameInEditor` replaces the current live buffer with the
 checked sample payload. The no-transport push verifies sample payload parsing and
 target LiDAR handoff without sending to the judging server.
 HTTP, UDP, or Blueprint bridge prototypes can call
-`ULidarJsonLiveSourceComponent::AppendLivePayloadJson` with the same payload shape,
+`ULidarJsonLiveSourceComp::AppendLivePayloadJson` with the same payload shape,
 then call `PushFrameOnce(false)` for a no-transport local handoff check.
 `MA0T10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the optional
 HTTP wrapper reuses this handoff path, supports auto-push and buffer-only
@@ -262,7 +262,7 @@ MA0T10.RealSensorSource.JsonLiveDTCoreDispatch
 
 This PIE automation starts a GameInstance-backed world, queues the checked
 `LIDAR_JSON_LIVE_FRAME` sample through `UDxDataSubsystem::EnqueueWebSocketData`,
-and waits for the matching `ULidarJsonLiveSourceComponent` and target LiDAR to update.
+and waits for the matching `ULidarJsonLiveSourceComp` and target LiDAR to update.
 It does not replace the deployment broker smoke because it bypasses STOMP
 endpoint, credential, subscription, and network receive checks.
 
@@ -281,12 +281,12 @@ Monitor host fallback tests:
 `MA0T10.SensorManager.PointCloudOnlyPreservesPayloadPolicy` verifies that point-cloud-only mode changes preview density and selected preview visibility without changing LiDAR server payload policy.
 `MA0T10.SensorManager.SharedServicesAssigned` verifies that registered camera and LiDAR components receive the manager's shared transport and recorder components.
 `MA0T10.RealSensorSource.JsonLiveBridgePushFrame` verifies that buffered JSON live LiDAR lines can be converted into `FVirtualLidarPoint` frames and injected into the target LiDAR through the normalized real-sensor handoff path.
-`MA0T10.RealSensorSource.CameraJsonLiveBridgePushFrame` verifies that an external `virtual-camera.v1` JSON payload can be injected into a target `UVirtualCameraCaptureComponent` without renderer-dependent capture.
+`MA0T10.RealSensorSource.CameraJsonLiveBridgePushFrame` verifies that an external `virtual-camera.v1` JSON payload can be injected into a target `UVirtualCameraCaptureComp` without renderer-dependent capture.
 `MA0T10.RealSensorSource.HttpJsonLiveBridgePayload` verifies that the inbound HTTP JSON live wrapper feeds the same shared payload shape into the normalized handoff path without requiring a real listener in automation.
 `MA0T10.RealSensorSource.HttpJsonLiveBridgeLoopbackPost` verifies that the inbound HTTP JSON live wrapper can accept a real loopback POST through `HTTPServer` and return an accepted response after target LiDAR handoff.
 `MA0T10.RealSensorSource.JsonLiveTransactionParse` verifies that `LIDAR_JSON_LIVE_FRAME` WebSocket payloads can be parsed into JSON live LiDAR lines before DTCore dispatches them on the game thread, and that empty or whitespace-only live frame payloads are rejected before routing.
 `MA0T10.RealSensorSource.JsonLiveTransactionRouting` verifies that the WebSocket transaction handler routes by `SOURCE_ID`, honors `PUSH_FRAME=false`, rejects ambiguous no-`SOURCE_ID` multi-source routing, and can push a matched frame into the target LiDAR.
-`MA0T10.Evidence.WebSocketTransactionRegistration` verifies that the configured DTCore WebSocket data table contains the `LIDAR_JSON_LIVE_FRAME` row, that its handler class resolves to `ULidarJsonLiveFrameTC`, and that a row-instantiated handler can parse/process a sample payload into `ULidarJsonLiveSourceComponent`.
+`MA0T10.Evidence.WebSocketTransactionRegistration` verifies that the configured DTCore WebSocket data table contains the `LIDAR_JSON_LIVE_FRAME` row, that its handler class resolves to `ULidarJsonLiveFrameTC`, and that a row-instantiated handler can parse/process a sample payload into `ULidarJsonLiveSourceComp`.
 `MA0T10.SensorMonitor.CameraStatusTextContract` verifies that the monitor camera view exposes sensor id, `virtual-camera.v1`, resolution, capture mode, cached payload state, and server payload export hint.
 `MA0T10.SensorMonitor.LidarStatusTextContract` verifies that the monitor status includes sensor id, frame id, scan/ray counts, server payload count/byte size, preview count, Slab analysis, warning, view mode, and CSV row/return contract.
 `MA0T10.SensorMonitor.ServerPayloadExport` verifies that monitor server payload export writes a JSON file matching the cached LiDAR payload. Camera payload export uses the same monitor export function, but should also be checked in PIE because render-target readback is renderer-dependent.
@@ -360,7 +360,7 @@ scenario success line, `TestCompleteLine`, and `EvidenceLinesWithinRun`.
 GPU/Niagara renderer smoke:
 
 ```text
-1. Run `Scripts/setup_lidar_niagara_assets.ps1` and confirm both `/Game/MA0T10/Sensor/VFX/NS_VirtualLidarPointCloud` and `M_VirtualLidarPointSprite` load.
+1. Run `Scripts/setup_lidar_niagara_assets.ps1` and confirm both `/DTDevice/Sensor/VFX/NS_VirtualLidarPointCloud` and `M_VirtualLidarPointSprite` load.
 2. Open `SensorRefactorTestMap`, select a LiDAR, enable `월드 3D 포인트 표시`, and confirm the renderer status is `Niagara GPU sprites`.
 3. Load or replay a dense LiDAR frame and record map name, sensor id, renderer name, preview point count, and server payload point count.
 4. Capture a viewport screenshot and verify it contains nonblank point pixels, not only UI or an empty background.

@@ -1,6 +1,8 @@
+> **과거 설계·검증 원문, 현재 기준 아님.** 원문을 보존한 보관본입니다. 현재 사용·규칙·미해결은 [문서 색인](../README.md)을 따릅니다.
+
 # Real Sensor Adapter Plan
 
-> **고정 참고자료 (2026-09-22 전환)**: 이 문서는 이전 상세 명세/검증 이력을 보존합니다. 현재 사용법·UI·지원 범위는 [README](../README.md), 작업 규칙은 [AGENTS](../AGENTS.md), 후속 구현은 [보완 사항](IMPROVEMENTS.md)과 [로드맵](ROADMAP.md)을 기준으로 합니다. 아래의 과거 "현재"·성능 수치·맵 생성 절차를 최신 보장이나 실행 승인으로 해석하지 마세요. 기존 링크와 스크립트 참조를 위해 본문/경로를 유지합니다.
+> **고정 참고자료 (2026-09-22 전환)**: 이 문서는 이전 상세 명세/검증 이력을 보존합니다. 현재 사용법·UI·지원 범위는 [README](../../README.md), 작업 규칙은 [AGENTS](../../AGENTS.md), 후속 구현은 [보완 사항](../IMPROVEMENTS.md)과 [로드맵](../ROADMAP.md)을 기준으로 합니다. 아래의 과거 "현재"·성능 수치·맵 생성 절차를 최신 보장이나 실행 승인으로 해석하지 마세요. 기존 링크와 스크립트 참조를 위해 본문/경로를 유지합니다.
 
 This document defines the next implementation path for real sensor input without modifying DTCore in the current scope.
 

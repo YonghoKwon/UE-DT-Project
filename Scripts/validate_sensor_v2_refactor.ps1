@@ -29,13 +29,14 @@ foreach ($relativePath in $requiredSource) {
     }
 }
 
+# Completed plans/migration originals are archived; active docs and source remain scanned.
 # NAMING-01 made UVirtualSensorRecorderComp and URealSensorSourceComp current names again (Comp suffix rule).
 $legacyPattern = '\b(AVirtualCameraAct|UVirtualCameraComp|AVirtualSensorAct|UVirtualLidarSensorComp|AVirtualSensorManager|UVirtualSensorPerformanceSubsystem|UVirtualSensorDataTransportComp|UVirtualSensorDraggableWidgetBase|UVirtualSensorMonitorWidget|UVirtualSensorSettingsWidget|UVirtualSensorCaptureExportWidget|AVirtualSensorMonitorHostActor)\b'
 $scanRoots = @("Source", "Scripts", "docs", "README.md", "AGENTS.md")
 $legacyHits = & rg -n --pcre2 $legacyPattern @scanRoots `
     --glob '!Scripts/setup_sensor_test_map.py' `
     --glob '!Scripts/validate_sensor_v2_refactor.ps1' `
-    --glob '!docs/sensor_v2_migration.ko.md' 2>$null
+    --glob '!docs/archive/**' 2>$null
 if ($LASTEXITCODE -eq 0 -and $legacyHits) {
     $failures.Add("Legacy type references remain outside redirects/migration documentation:`n$($legacyHits -join "`n")")
 }

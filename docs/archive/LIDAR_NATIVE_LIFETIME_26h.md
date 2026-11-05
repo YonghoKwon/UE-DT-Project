@@ -1,6 +1,8 @@
+> **과거 설계·검증 원문, 현재 기준 아님.** 원문을 보존한 보관본입니다. 현재 사용·규칙·미해결은 [문서 색인](../README.md)을 따릅니다.
+
 # LIDAR-NATIVE-LIFETIME-26h — native 범위·수명 수정과 남은 메모리 문제
 
-기준 `09c5e60`, branch `fix/lidar-native-lifetime-26h`. **GPU 결함 수정과 일부 RSS 개선은 확인했지만 원래 #26 전체 해결은 미완료다.** 최신 [RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/RESULT.md), result.json, merge-check.json에 수행·실패·skip·미수행을 구분한다. 로컬 자동화이며 회사/실장비 수용이나 직접 마우스 UI 수용은 포함하지 않는다.
+기준 `09c5e60`, branch `fix/lidar-native-lifetime-26h`. **GPU 결함 수정과 일부 RSS 개선은 확인했지만 원래 #26 전체 해결은 미완료다.** 최신 [RESULT](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/RESULT.md), result.json, merge-check.json에 수행·실패·skip·미수행을 구분한다. 로컬 자동화이며 회사/실장비 수용이나 직접 마우스 UI 수용은 포함하지 않는다.
 
 ## 확인한 결함과 안전 계약
 
@@ -72,7 +74,7 @@ DTCore·Config/Game.ini·Samples/PixelStreaming·SensorTestMap·초기 사용자
 
 진단 snapshot request/ack 경계·명시 CPU 참조·Editor 전용 충돌 재쿠킹 생략 토글을 작성하고 Editor 빌드했다. 재쿠킹 생략은 의도적으로 stale collision인 할당 분리이며 제품/수용 검증에 사용할 수 없다. 8MiB/150ms assertion은 변경하지 않았다. 새 토글의 실제 RHI 회귀·Shipping 재측정·30분 디깅·원인 수정·수정 후5쌍/1000회/byte oracle/ABAB은 미수행이다. 기존 #26 실패는 그대로다.
 
-자세한 표·그림·출처·환경 제한·복원/정리·재개 조건은 [r17 RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r17/RESULT.md), result.json, merge-check.json을 참조한다. 초기 사용자 변경12파일·보호 경로·기준을 보존하고 질문 없이 중단 지점의 결과만 커밋한다. 외부 검증 종료 후 새 실행 label과 깨끗한 환경에서 비교를 다시 시작해야 한다.
+자세한 표·그림·출처·환경 제한·복원/정리·재개 조건은 [r17 RESULT](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r17/RESULT.md), result.json, merge-check.json을 참조한다. 초기 사용자 변경12파일·보호 경로·기준을 보존하고 질문 없이 중단 지점의 결과만 커밋한다. 외부 검증 종료 후 새 실행 label과 깨끗한 환경에서 비교를 다시 시작해야 한다.
 
 ## 2026-10-29 r18: 깨끗한 패키지 비교·디깅 실패 재현
 
@@ -92,7 +94,7 @@ VMMap 경계 계측에서는 증가가 작았으나 원래 조건 실패를 가�
 
 새 코드는 분석기의 중첩/감시공백 거부와 Editor 전용 audit+`HatchMemorySkipCargoRender` 진단뿐이다. 후자는 CPU표면·물리·센서는 갱신하되 시각표면이 stale이며 제품/수용 경로가 아니다. 제품 기본값·품질·Hz·엔진/DTCore/드라이버·기존 assertion 변경0. source는 이미 같은 topology에서 UpdateMeshSection을 쓰고 privateproxy cast 때문에 CreateSceneProxy만 대체하는 것은 안전하지 않다. 원인이 확정되지 않아 추정에 기반한 렌더러 재작성이나 물리 생략을 제품에 적용하지 않았다.
 
-다음 추적은 무계측 재현 상태의 Stop/GC/Drain/EndFrame 주위 할당·VirtualAlloc 수명/스택을 대조해 공통 분석/UI·RHI/드라이버·비동기 수명을 구분하는 것이다. 이번에 새 ETW/heap stack attribution은 수행하지 않았다. 자세한 수치·한계·보존·정리는 [r18 RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r18/RESULT.md), result.json, merge-check.json을 따른다. #26은 미해결이며 이전 통과나 진단 대기 결과로 원래 실패를 대체하지 않는다.
+다음 추적은 무계측 재현 상태의 Stop/GC/Drain/EndFrame 주위 할당·VirtualAlloc 수명/스택을 대조해 공통 분석/UI·RHI/드라이버·비동기 수명을 구분하는 것이다. 이번에 새 ETW/heap stack attribution은 수행하지 않았다. 자세한 수치·한계·보존·정리는 [r18 RESULT](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r18/RESULT.md), result.json, merge-check.json을 따른다. #26은 미해결이며 이전 통과나 진단 대기 결과로 원래 실패를 대체하지 않는다.
 
 ## 2026-10-30 r19: Windows 할당 스택 추적 권한·수집 신뢰성 차단
 
@@ -106,9 +108,9 @@ CDB 대체 진단에서 native3대·50회/90.728초의 RSS **+2.531**, Commit **
 
 Shipping 기존10~60분 WS/Commit34.929/36.918 대 마지막20분4.782/3.040MiB/h, VMMap10→40분 Private Data+12.543/Heap+.645MiB를 유지한다. 이전 원시 시계열·로그가 정리되어 계단 시각과 GC/송신/streaming 이벤트의 정확한 대조는 불가능하다. 새 Shipping 스택 수집은 커널 ETW 권한 차단으로 미수행이며 새 통과 결과를 만들지 않는다.
 
-추가한 [WPR 수집기](../Scripts/record_windows_memory_trace.ps1)는 기존 정상 실행의 owned-process를 확인하고 고유 instance만 start/stop한다. 자동 권한 상승·영구 설정 변경·타 세션 종료는 하지 않는다. 비관리자 거부·구문 검사만 검증했으며 관리자 실제 수집은 미검증이다. [분석기](../Scripts/analyze_windows_allocations.py)는 reserve/recommit/해제를 구별하고 누락·미완료 collector를 거부한다. ETL은 WPA에서 대상 PID·경계·lost events·정확한 PDB를 확인해야 하며 이 JSON 분석기에 직접 입력하지 않는다.
+추가한 [WPR 수집기](../../Scripts/record_windows_memory_trace.ps1)는 기존 정상 실행의 owned-process를 확인하고 고유 instance만 start/stop한다. 자동 권한 상승·영구 설정 변경·타 세션 종료는 하지 않는다. 비관리자 거부·구문 검사만 검증했으며 관리자 실제 수집은 미검증이다. [분석기](../../Scripts/analyze_windows_allocations.py)는 reserve/recommit/해제를 구별하고 누락·미완료 collector를 거부한다. ETL은 WPA에서 대상 PID·경계·lost events·정확한 PDB를 확인해야 하며 이 JSON 분석기에 직접 입력하지 않는다.
 
-원인 확정·제품 수정은 없고 사용자 지시대로5번 최종 검증을 시작하지 않았다. 상세 실패/미완료·환경·재실행 명령·정리는 [r19 RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r19/RESULT.md), result.json, merge-check.json을 따른다. #26은 미해결이다.
+원인 확정·제품 수정은 없고 사용자 지시대로5번 최종 검증을 시작하지 않았다. 상세 실패/미완료·환경·재실행 명령·정리는 [r19 RESULT](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r19/RESULT.md), result.json, merge-check.json을 따른다. #26은 미해결이다.
 
 ## 2026-10-30 r20: ETW 실할당 경로와 해치 헤더 안정화
 
@@ -146,7 +148,7 @@ Quick 10단계와 풀 분석기 6개 단위 테스트 PASS, layer allowlist 0→
 
 자동 승인 검토가 재귀 정리 스크립트 작성 명령을 blocked by policy로 거부했다(세부 사유 미제공). 대용량 삭제를 우회 재시도하지 않고 ETL/utrace/CSV/패키지·중단된 ABAB 사본 등 약 21.74GiB 경로를 남겼다. 성공한 표준 ABAB 실행은 자체 사본을 정리했다. 개인 설정 복원을 위해서는 추가 생성 진단 .ini 1개를 정확히 백업한 뒤 단일 literal 경로로 제거했다. 이전 r17 차단 경로는 건드리지 않았다.
 
-상세 결과: [RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/RESULT.md), [result.json](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/result.json), [5쌍](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/fixed-canonical/comparison.json), [Shipping 스택](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/shipping-native60/step-symbol-summary.json), [UI](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/manual/manual/checklist.json), [ABAB](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/perf-retry/manifest.json), [정리 차단 목록](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/cleanup-summary.json).
+상세 결과: [RESULT](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/RESULT.md), [result.json](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/result.json), [5쌍](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/fixed-canonical/comparison.json), [Shipping 스택](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/shipping-native60/step-symbol-summary.json), [UI](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/manual/manual/checklist.json), [ABAB](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/perf-retry/manifest.json), [정리 차단 목록](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r20/cleanup-summary.json).
 
 ## 2026-10-30 r21: Shipping 자체 관찰·CPU scratch 추적 — 최신 실측 중단
 
@@ -162,7 +164,7 @@ f307의 유효60분은 전체 WS12.915/Commit12.789MiB/h로FAIL, 꼬리−0.102/
 
 최신codec회귀11개Success(PCDBandwidth9/nativebyteoracle1/3대성능1),이전수신정책·CPU상한·취소50dig회귀PASS,Pythonfixture5/strict분석기9/quick10/layer0→0/guardPASS. 영상감지규칙에따라추가GPU작업을중지했다. 5단계최종검증은시작하지않았고과거5쌍차이실패도유지한다. 개인242개·초기12개·보호297개정확히복원/보존했다. 대량정리는Claude에맡기며경로목록을보존했다. push/merge없음.
 
-상세: [RESULT](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/RESULT.md), [result.json](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/result.json), [첫60분](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r21/shipping-native60-final/os-strict-analysis.json), [최신중단](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r21/shipping-codec60/run-manifest.json), [정리목록](../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r21/cleanup-inventory.json).
+상세: [RESULT](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/RESULT.md), [result.json](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/result.json), [첫60분](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r21/shipping-native60-final/os-strict-analysis.json), [최신중단](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r21/shipping-codec60/run-manifest.json), [정리목록](../../Saved/Reports/LIDAR-NATIVE-LIFETIME-26h/r21/cleanup-inventory.json).
 
 
 ## 2026-10-31 r22: 인코더 재사용 Shipping 재측정 — 전체 Commit 기준 미달

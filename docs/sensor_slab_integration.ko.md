@@ -30,7 +30,7 @@ RunId = Sensors->BeginSlabSensorSession(FString(),
 이 선택은 Topic 출력만 제한하며 센서 미리보기와 독립적입니다. 테스트맵 PIE의 `ma0t10.SlabSensorPcdTest` 명령은 임시 Slab를 사용하는 30초 PCD 전용 테스트입니다. 운영맵을 저장하거나 동료의 Slab 구현을 변경하지 않습니다.
 
 ```cpp
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
 
 auto* Sensors = GetWorld()->GetSubsystem<UVirtualSensorSlabContextSubsystem>();
 // 실제 재생 시작: RunId는 재생 클래스의 멤버 변수입니다.

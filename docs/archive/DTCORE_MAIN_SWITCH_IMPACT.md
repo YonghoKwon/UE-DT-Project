@@ -1,3 +1,5 @@
+> **완료된 계획, 현재 기준 아님.** 원문을 보존한 보관본입니다. 현재 사용·규칙·미해결은 [문서 색인](../README.md)을 따릅니다.
+
 # DTCore main 전환 1단계 영향도
 
 2026-10-31 사용자 승인 범위: `chore/dtcore-main-switch`, parent 기준 `d8048bfaf2bc5107189fce666b3111ea9ff8e974`(시작 시 `origin/master` 기준), 작업 위치 `C:\Unreal Projects\wt_dtcore_main`.
@@ -7,7 +9,7 @@ DTCore는 `b2504d1dfea5659f832ff0d750515edee146a28e` → **`bc60f05e2d1e64f4ffe1
 
 ## 조사 범위와 근거
 
-- DTCore PR #3·#4를 포함한 `b2504d1..bc60f05`의 28개 변경 파일, [QUALITY_90.md](../Plugins/DTCore/docs/QUALITY_90.md), 공개 헤더·구현·설정 redirect·이관 시험/fixture를 대조했다. 별도 DTCore 저장소의 문서와 새 gitlink의 문서도 확인했다.
+- DTCore PR #3·#4를 포함한 `b2504d1..bc60f05`의 28개 변경 파일, [QUALITY_90.md](../../Plugins/DTCore/docs/QUALITY_90.md), 공개 헤더·구현·설정 redirect·이관 시험/fixture를 대조했다. 별도 DTCore 저장소의 문서와 새 gitlink의 문서도 확인했다.
 - parent `Source/` 전체의 WebSocket/STOMP/receipt·DTCore 설정/위젯/데이터 사용처를 검색했다. 적용 전 검색 결과는 114파일·923행이며 행 번호 목록은 `Saved/Reports/DTCORE-MAIN-SWITCH/source-usage-inventory.json`이다. 직접 DTCore 호출과 프로젝트 자체 STOMP 구현을 구분했다.
 - 과거 README/IMPROVEMENTS/ROADMAP/검증 이력의 `b2504d1`은 일괄 치환하지 않았다. 과거 결과를 새 의존성의 통과로 취급하지 않는다. 이번 고정값은 `.gitmodules`, parent gitlink, AGENTS, guard 및 이 문서를 따른다.
 

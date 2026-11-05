@@ -32,8 +32,8 @@
 ### 1. 초기화와 실시간 수신
 
 ```cpp
-#include "ma0t10_dt/MA0T10/Core/SlabScenarioReplaySubsystem.h"
-#include "ma0t10_dt/MA0T10/Core/VirtualSensorSlabContextSubsystem.h"
+#include "MA0T10/Slab/Scenario/SlabScenarioReplaySubsystem.h"
+#include "MA0T10/Slab/Scenario/VirtualSensorSlabContextSubsystem.h"
 
 // 클래스 선언에 인터페이스를 추가합니다.
 // class AYourPlayer : public AActor, public ISlabScenarioPlaybackAdapter
@@ -100,7 +100,7 @@ Replay->UnregisterPlaybackAdapter(this);
 
 1. `ASlabScenarioReplayUiHostActor`를 원하는 레벨에 배치하거나 Blueprint에서 Spawn합니다. 기존 세 센서 Host와 독립적입니다.
 2. `ReplayWidgetClass`에는 `/Game/MA0T10/UI/WBP_SlabScenarioReplayPanel`을 지정합니다. 비어 있으면 이 자산, 자산이 없으면 native fallback을 사용합니다.
-3. WBP 부모는 `SlabScenarioReplayPanelWidget`입니다. 제공된 자산의 Designer와 Event Graph는 비워 두어 native UI를 사용합니다. 별도 Designer를 만들면 공개 `SelectScenario`, `ReplaySelected` API와 목록/상태 조회 API에 바인딩하십시오.
+3. WBP 부모는 `DxWidgetSlabScenarioReplayPanel`입니다. 제공된 자산의 Designer와 Event Graph는 비워 두어 native UI를 사용합니다. 별도 Designer를 만들면 공개 `SelectScenario`, `ReplaySelected` API와 목록/상태 조회 API에 바인딩하십시오.
 4. 재생 담당 Blueprint의 Class Settings에 `SlabScenarioPlaybackAdapter`를 추가하고 `StartScenarioPlayback`에서 기존 JSON 처리 함수를 호출한 뒤 수락 여부를 반환합니다.
 5. BeginPlay에서 `Get Game Instance Subsystem → SlabScenarioReplaySubsystem → RegisterPlaybackAdapter(Self)`를 호출합니다. 실제 시작/종료에도 해당 알림을 연결합니다.
 6. 원본 수신 지점에서 `RegisterScenarioJson`을 호출합니다. 새로운 Topic 구독은 필요 없습니다.

@@ -34,15 +34,15 @@
   → UFactoryAgentScenarioTC::ParseToStruct (백그라운드)
   → UFactoryAgentScenarioTC::ProcessStructData (게임 스레드)
   → UDxProcessSubsystem의 ReceiverId 조회
-  → USlabDataSyncComponent
+  → USlabDataSyncComp
   → ASlabActor / 이동·시각화·지표 Component
   → 차트·진행률·시나리오 보관·센서 세션
 ```
 
 - `ASlabActor : AFacilityBase`는 Crane과 같이 DataSync / MechDriver / StatusVisualizer 계열 Component를 조립합니다.
-- `USlabMotionComponent` 하나가 재생 시간을 소유합니다. `TG_PrePhysics`에서 위치를 선형 보간하고 각도는 최단 경로로 보간합니다. 600개 타이머를 만들지 않습니다.
-- `USlabMetricsComponent`가 중심 이탈, 꼭지점 이탈, 레일 간격을 계산합니다.
-- `USlabVisualizationComponent`는 외곽선·중심점·십자선 등 보조 표시를 담당합니다. 보조 표시는 충돌과 SceneCapture에서 제외합니다. 실제 Slab Mesh는 센서 측정 대상입니다.
+- `USlabMotionComp` 하나가 재생 시간을 소유합니다. `TG_PrePhysics`에서 위치를 선형 보간하고 각도는 최단 경로로 보간합니다. 600개 타이머를 만들지 않습니다.
+- `USlabMetricsComp`가 중심 이탈, 꼭지점 이탈, 레일 간격을 계산합니다.
+- `USlabVisualizationComp`는 외곽선·중심점·십자선 등 보조 표시를 담당합니다. 보조 표시는 충돌과 SceneCapture에서 제외합니다. 실제 Slab Mesh는 센서 측정 대상입니다.
 - DTCore 플러그인 소스·연결 소유권·동료 Subscription은 변경하지 않습니다.
 
 ### 전문 등록과 Editor 재시작
@@ -106,8 +106,8 @@ Slab 진행 → **세부 표시**에서 선 굵기(기본 4px, 2~12px)와 문자
 
 | WBP | Native Parent |
 |---|---|
-| `WBP_SlabChartsPanel` | `USlabChartsPanelWidget` |
-| `WBP_SlabProgressPanel` | `USlabProgressPanelWidget` |
+| `WBP_SlabChartsPanel` | `UDxWidgetSlabChartsPanel` |
+| `WBP_SlabProgressPanel` | `UDxWidgetSlabProgressPanel` |
 
 생성 스크립트의 WBP는 빈 Designer 상태에서 native fallback UI를 사용하므로 Event Graph에 버튼 호출을 중복 연결하지 않습니다. 자체 Designer를 작성한다면 `USlabScenarioChartWidget`을 **ScenarioChart**라는 이름으로 배치해 optional binding을 사용할 수 있습니다. 부모의 `BindSlabActor`, `SetChartMetric`, `RefreshChartData`와 chart의 Blueprint API로 연결할 수 있습니다. 외부 UserWidget 내부를 재귀 변경하지 않습니다.
 
@@ -220,7 +220,7 @@ Slab 진행 → **세부 표시**에서 선 굵기(기본 4px, 2~12px)와 문자
 - `GetEffectiveSurfaceMaterialPath`: 사용자 재질을 보존한 최종 표시 재질 경로.
 - `ValidateSlabSetup`: 다른 맵 연결의 읽기 전용 사전 점검.
 
-재생 시간·보간·실제 Transform 적용은 `USlabMotionComponent`가 소유합니다. Actor는 센서 세션과 UI 상태를 연결합니다. 외형 상세의 `Roughness`, `EmissiveStrength`는 거칠기·고온 발광 강도이며 `Oxidation`은 이전 사용자 재질 호환 속성입니다.
+재생 시간·보간·실제 Transform 적용은 `USlabMotionComp`가 소유합니다. Actor는 센서 세션과 UI 상태를 연결합니다. 외형 상세의 `Roughness`, `EmissiveStrength`는 거칠기·고온 발광 강도이며 `Oxidation`은 이전 사용자 재질 호환 속성입니다.
 
 `USlabScenarioReplaySubsystem`:
 

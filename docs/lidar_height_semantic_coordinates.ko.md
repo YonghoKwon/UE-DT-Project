@@ -18,7 +18,7 @@
 
 불투명 StaticMesh/ISM/HISM을 대상으로 한다. 투명·마스크·WPO 재질 및 지원되지 않는 geometry는 분류를 추정하지 않는다. 원래 측정 깊이는 그대로 유지된다. 새 컴포넌트 발견에는 최대 0.5초가 걸릴 수 있고, 등록된 물체 이동은 매 측정에 갱신된다. GPU 분류 실패를 CPU 전체 스캔으로 숨기지 않는다.
 
-센서 전용 재질은 `/Game/MA0T10/Sensor/Materials/M_LidarSemanticId`다. 신규 이식 시 해당 자산도 함께 옮긴다. `Scripts/create_lidar_semantic_material.py`는 이 자산이 없을 때만 생성하며 사용자 맵을 저장하지 않는다.
+센서 전용 재질은 `/DTDevice/Sensor/Materials/M_LidarSemanticId`다. 신규 이식 시 해당 자산도 함께 옮긴다. `Scripts/create_lidar_semantic_material.py`는 이 자산이 없을 때만 생성하며 사용자 맵을 저장하지 않는다.
 
 ## 수신 PCD의 Z는 월드 높이가 아니다
 

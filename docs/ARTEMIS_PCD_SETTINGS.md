@@ -158,3 +158,5 @@ CameraTopic/LidarTopic/ExportTopic/AckTopic을 각각 새 별칭으로 옮긴다
 새 항목이 없거나 destination이 비어 있으면 기존 INI/맵/UI profile을 그대로 사용한다.
 연결 항목과 토픽 항목은 독립적으로 이전할 수 있다. 파일을 복사하기 전에 비밀값을 제거한다.
 기존 `SensorTransport.ini`는 삭제하거나 자동 덮어쓰지 않는다.
+
+현재 미해결과 사용자 수용 범위는 [KNOWN_ISSUES](KNOWN_ISSUES.md) 한 곳에서 관리한다. 이 문서의 로컬 합성 수치는 회사 서버 수용을 대신하지 않는다.
