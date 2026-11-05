@@ -26,4 +26,4 @@ DTDevice는 패키지의 DefaultGame.ini와 DTCore 기준 Game.ini/플랫폼 후
 
 - native 안전 상태의 ProcessStamp가 ACCESS_DENIED인 경우와 raw 수신4MiB/pass budget은 기존 한계로 남습니다. 기본값을 조용히 바꾸지 않습니다.
 - 일부 과거 직접 UI/회사 수용 항목은 자동화 PASS만으로 완료하지 않습니다. [직접 점검표](MANUAL_CHECKLIST.md)와 [이전 백로그 원문](archive/IMPROVEMENTS_BEFORE_R56.md)을 참고하되 현재 작업 승인으로 읽지 않습니다.
-- legacy 문서 정책 검사 중에는 baseline부터 없는 local_asset_report/remaining_work 문서나 이동 전 파일·에셋 경로를 요구하는 것이 있습니다. 문서 정리에서 검사 의미를 낮춰 PASS로 만들지 않으며, 결과에 기존 실패와 문서 변경 후 회귀를 구분합니다.
+- STRUCTURE-12F에서 현행 경로·분리 구현을 반영해 point_cloud_preview_policy와 real_sensor_adapter_plan 검사를 복구했습니다. 나머지 7개 정책 검사는 baseline부터 없는 local_asset_report/remaining_work 문서를 요구합니다. 대상 workflow가 완전히 폐기됐다고 확정할 근거가 없어 검사·기준을 유지하며, PASS로 바꾸지 않습니다. 세부는 [검증 안내](BUILD_AND_VALIDATION.md#레거시-정책-검사-structure-12f)를 참조합니다.

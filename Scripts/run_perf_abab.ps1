@@ -26,7 +26,6 @@ param(
 # ScheduledLidar adds candidate per-device Hz ratios; legacy59FPS is informational.
 # FPS decrease, engine p95 increase and game thread increase are judged separately.
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'prepare_naming_perf_archive.ps1')
 . "$PSScriptRoot/PerfRelativeGate.ps1"
 if ($Workload -eq 'Perf01' -and $MeasurementSeconds -gt 60) { throw 'PERF01 measurement remains limited to30..60 seconds' }
 if ($Workload -ne 'Perf01' -and ($CameraGroundTruth -or $LidarProfile -ne 'MLX80Native')) { throw 'Camera/profile conditions require Perf01 workload' }
@@ -67,53 +66,15 @@ function Prepare-DTCorePerfArchive([string]$Target, [string]$Revision, [string]$
 
 function Prepare-DevicePerfArchive([string]$Target, [string]$Revision, [string]$Label) {
     $entry = Get-Git @('ls-tree', $Revision, '--', 'Plugins/DTDevice')
-    if ($entry) {
-        if ($entry -notmatch '^160000 commit ([0-9a-f]{40})\s+Plugins/DTDevice$') { throw "Invalid DTDevice gitlink for $Label" }
-        $deviceCommit = $Matches[1]
-        $deviceZip = Join-Path $owned "$Label-DTDevice.zip"
-        & git.exe -C (Join-Path $root 'Plugins/DTDevice') archive --format=zip "--output=$deviceZip" $deviceCommit
-        if ($LASTEXITCODE -ne 0) { throw "DTDevice archive $Label failed ($deviceCommit)" }
-        Expand-Archive -LiteralPath $deviceZip -DestinationPath (Join-Path $Target 'Plugins/DTDevice')
-        if (-not (Test-Path -LiteralPath (Join-Path $Target 'Plugins/DTDevice/DTDevice.uplugin'))) { throw "DTDevice descriptor missing for $Label" }
-        return [ordered]@{ DTDevice = $deviceCommit; LegacyIncludes = $false }
-    }
-
-    # Older revisions own these same public types in ma0t10_dt. Forward includes
-    # only inside the owned archive; never add the candidate runtime to baseline.
-    $includeRoot = Join-Path $Target 'Plugins/DTDevice/Source/DeviceRuntime/Public'
-    New-Item -ItemType Directory -Force -Path $includeRoot | Out-Null
-    $headers = @([regex]::Matches([IO.File]::ReadAllText($instrumentSource), '#include\s+"(Device/[^"\r\n]+)"') |
-        ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
-    $mappings = @()
-    foreach ($header in $headers) {
-        if ($header -eq 'Device/Tests/Sensor/FinalAcceptanceTestSession.h') { continue }
-        if ($header -notmatch '^Device/(Camera|Contracts|Core|Sensor)/' -or $header.Contains('..')) { throw "Unsupported legacy perf include: $header" }
-        $oldInclude = 'ma0t10_dt/MA0T10/' + $header.Substring('Device/'.Length)
-        $oldInclude = Resolve-NamingLegacyInclude -Target $Target -Include $oldInclude
-        $oldPath = Join-Path $Target ('Source/' + $oldInclude)
-        if (-not (Test-Path -LiteralPath $oldPath -PathType Leaf)) { throw "Baseline public header missing: $oldInclude" }
-        $forwarder = Join-Path $includeRoot $header
-        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $forwarder) | Out-Null
-        [IO.File]::WriteAllText($forwarder, "#pragma once`r`n#include `"$oldInclude`"`r`n", (New-Object Text.UTF8Encoding($false)))
-        $mappings += [ordered]@{ Include = $header; BaselineHeader = $oldInclude; BaselineSha256 = (Get-Sha256 $oldPath) }
-    }
-    # Unity builds also include this fixture from other legacy test files. Route
-    # that old include to the one byte-identical common fixture, not a second body.
-    $legacySession = Join-Path $Target 'Source/ma0t10_dt/MA0T10/Sensor/Tests/FinalAcceptanceTestSession.h'
-    if (-not (Test-Path -LiteralPath $legacySession -PathType Leaf)) { throw 'Baseline shared fixture header missing' }
-    $legacySessionBefore = Get-Sha256 $legacySession
-    # Runtime-module test files also include the old header; they do not inherit
-    # the Editor module's private include path. Use the same canonical file directly.
-    $canonicalSession = (Join-Path $includeRoot 'Device/Tests/Sensor/FinalAcceptanceTestSession.h').Replace('\', '/')
-    [IO.File]::WriteAllText($legacySession, "#pragma once`r`n#include `"$canonicalSession`"`r`n", (New-Object Text.UTF8Encoding($false)))
-    $rulesPath = Join-Path $Target 'Source/ma0t10_dtEditor/ma0t10_dtEditor.Build.cs'
-    $before = Get-Sha256 $rulesPath
-    $rules = [IO.File]::ReadAllText($rulesPath)
-    $anchor = 'PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;'
-    if (([regex]::Matches($rules, [regex]::Escape($anchor))).Count -ne 1) { throw 'Cannot locate baseline Editor include-path insertion' }
-    $extra = 'PrivateIncludePaths.Add(System.IO.Path.Combine(ModuleDirectory, "..", "..", "Plugins", "DTDevice", "Source", "DeviceRuntime", "Public"));'
-    [IO.File]::WriteAllText($rulesPath, $rules.Replace($anchor, "$anchor`r`n        $extra"), (New-Object Text.UTF8Encoding($false)))
-    return [ordered]@{ DTDevice = ''; LegacyIncludes = $true; IncludeRoot = $includeRoot; Headers = $mappings; LegacySessionBefore = $legacySessionBefore; LegacySessionForwarded = $true; EditorRulesBefore = $before; EditorRulesAfter = (Get-Sha256 $rulesPath) }
+    if (-not $entry) { throw 'DTDevice gitlink required; pre-plugin perf baselines are no longer supported.' }
+    if ($entry -notmatch '^160000 commit ([0-9a-f]{40})\s+Plugins/DTDevice$') { throw "Invalid DTDevice gitlink for $Label" }
+    $deviceCommit = $Matches[1]
+    $deviceZip = Join-Path $owned "$Label-DTDevice.zip"
+    & git.exe -C (Join-Path $root 'Plugins/DTDevice') archive --format=zip "--output=$deviceZip" $deviceCommit
+    if ($LASTEXITCODE -ne 0) { throw "DTDevice archive $Label failed ($deviceCommit)" }
+    Expand-Archive -LiteralPath $deviceZip -DestinationPath (Join-Path $Target 'Plugins/DTDevice')
+    if (-not (Test-Path -LiteralPath (Join-Path $Target 'Plugins/DTDevice/DTDevice.uplugin'))) { throw "DTDevice descriptor missing for $Label" }
+    return [ordered]@{ DTDevice = $deviceCommit }
 }
 
 function Get-Verdict([string]$RunFolder, [double]$Threshold) {
@@ -167,7 +128,7 @@ $displays = switch ($Display) { 'Visible' { @($false) } 'Offscreen' { @($true) }
 $manifest = [ordered]@{
     SchemaVersion = 1; Gate = 'QA-02 perf ABAB'; StartedUtc = $started.ToString('o')
     Baseline = [ordered]@{ Ref = $Baseline; Commit = $refs.A }; Candidate = [ordered]@{ Ref = $Candidate; Commit = $refs.B }
-    DTCore = $dtcore; DTCorePreparation = [ordered]@{}; DevicePreparation = [ordered]@{}; NamingPreparation = [ordered]@{}; Instrument = [ordered]@{ Path = $instrument; Sha256 = (Get-Sha256 $instrumentSource) }
+    DTCore = $dtcore; DTCorePreparation = [ordered]@{}; DevicePreparation = [ordered]@{}; Instrument = [ordered]@{ Path = $instrument; Sha256 = (Get-Sha256 $instrumentSource) }
     SessionInstrument = [ordered]@{ Path = $sessionInstrument; Sha256 = (Get-Sha256 (Join-Path $root $sessionInstrument)) }
     Workload = $Workload; ScheduledBackend = $ScheduledBackend; ScheduledPcdLoopbackPort = $ScheduledPcdLoopbackPort; ScheduledDivisor = $ScheduledDivisor
     CameraGroundTruth = [bool]$CameraGroundTruth; LidarProfile = $LidarProfile; RequireGpu = [bool]$RequireGpu
@@ -202,7 +163,6 @@ try {
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent (Join-Path $target $sessionInstrument)) | Out-Null
         Copy-Item -LiteralPath (Join-Path $root $sessionInstrument) -Destination (Join-Path $target $sessionInstrument) -Force
         if ((Get-Sha256 (Join-Path $target $instrument)) -ne $manifest.Instrument.Sha256 -or (Get-Sha256 (Join-Path $target $sessionInstrument)) -ne $manifest.SessionInstrument.Sha256) { throw "Instrument overlay hash mismatch for $label" }
-        $manifest.NamingPreparation[$label] = Prepare-NamingPerfArchive -Target $target -InstrumentPath (Join-Path $target $instrument)
         $manifest[$label + 'MapSha256'] = Get-Sha256 (Join-Path $target $map)
     }
     # Same fixture workload on both sides, or the gate compares different scenes.
