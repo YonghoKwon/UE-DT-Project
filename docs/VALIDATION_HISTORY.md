@@ -7,6 +7,26 @@
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
 
+## 2026-11-05 — DATA-IF-10 r55e (머지 전 확인, release 사전 검사 중단)
+
+기준 host `fb19e681`, DTDevice `458e77a`, DTCore main `cb9788a2338ad92e6a651be71330f2abe4b63a90`이다. DTCore의 tree는 이전 `dd7bae7`과 동일함을 확인했다. 이번 확인에서는 소스·저장소 Config·pin을 수정하지 않았다.
+
+| 항목 | 결과 |
+|---|---|
+| TestHost setup / host Editor / TestHost Editor | PASS, validatedCommit `cb9788a` |
+| TestHost D3D12 측정·자동화 | **43 Success / 1 Skip / 0 Fail**, 신규 `LooseEditReplacesPackagedRow` Success |
+| Development 패키지 build/cook/stage/archive | PASS; Saved 아래 임시 프로젝트의 Config에만 pak sensor 행을 구성 |
+| r55b 공통·Windows·재시작 설정 검사 | **3/3 PASS** |
+| pak 행 URL 편집 회귀 | pak-only sensor URL `28614` 확인 → loose 사본의 URL만 `29614`로 변경·같은 UserDir 재시작 → 등록된 channel 설정의 새 URL 확인 PASS; ClearArray 미사용 |
+| release 1회 시도 | **사전 DTDevice guard FAIL**, 실제 회귀 테스트 0개 실행 |
+| 중단 원인 | TestHost가 생성한 `TestHost/Config/Game.ini` 132B 빈 템플릿이 untracked로 남음; 기존 알려진 SHA256와 일치 |
+| 복원 후 두 guard | PASS; 템플릿을 백업하고 초기 부재로 복원. 원래 release 실패 판정은 유지 |
+| 테스트 맵 10개 로드 | **미수행** — 문제 발견 시 중단 지시에 따라 추가 Unreal 실행·release 재시도 없음 |
+
+192개 보호·Config 파일과 개인 설정 원본 3개의 집합·해시를 복원했다. 임시 패키지·프로젝트는 소스/에셋/셰이더 1045개 동일 확인과 해시 inventory 후 정리했다. 환경 감시 3회에서 영상 decode·외부 Unreal/build 중첩은 없었다. 패키지 검사는 NullRHI 설정 적용 확인이며 live broker 연결이나 GPU 성능 검증으로 세지 않는다.
+
+해치 메모리 **2h +10.53 / 3h +9.78 MiB/h FAIL**은 사용자 결정으로 재측정 없이 진행했다. **증가 원인과 현재 반복 여부는 미확인**이며 해결·PASS로 바꾸지 않는다. 성능·메모리 재측정은 없었다. 다음 확인은 release 실제 회귀 및 맵 10개 로드이며, 이번 실행에서는 재개하지 않았다. 상세: `Saved/Reports/DATA-IF-10/r55e/RESULT.md`, `result.json`, `merge-check.json`.
+
 ## 2026-11-05 — DATA-IF-10 r55b (프로젝트 토픽 정책·loose 배포)
 
 검증 코드 기준 host `79ff131d`, DTDevice `e68282d`, DTCore `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71`이다. DTCore 소스·pin은 이번 보완에서 바꾸지 않았다. 연결은 DTCore, destination 별칭·구독 정책은 프로젝트 Game 설정으로 분리했다. 빈 새 설정은 기존 INI/맵/UI profile을 유지한다. 기본 자동 재수신은 꺼져 있고 PCD SEND·wire·FIFO·예산·native 코드는 그대로다.
