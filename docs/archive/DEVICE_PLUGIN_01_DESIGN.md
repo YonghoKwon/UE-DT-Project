@@ -1,8 +1,10 @@
+> **완료된 계획, 현재 기준 아님.** 원문을 보존한 보관본입니다. 현재 사용·규칙·미해결은 [문서 색인](../README.md)을 따릅니다.
+
 # DEVICE-PLUGIN-01 설계 — 0단계
 
 기준: `14afb6b736b4d28a642acee0f851f01106a25b4b` / `feat/device-plugin`, UE 5.3, DTCore `bc60f05e2d1e64f4ffe1410cf3239fe24cb4d4c9`. 조사일 2026-11-03. TRAIN-BATCH-01 머지 후의 실제 소스를 기준으로 한다.
 
-**설계 승인용 문서다. 이 단계에서는 코드·에셋 이동, 모듈/서브모듈 생성, 빌드·Editor·게임 실행을 하지 않았다.** 기존 [AGENTS](../AGENTS.md) §3/§5의 플러그인 착수 금지를 이번 사용자 요청이 조사·설계에 한해서 대체한다. 구현과 보호 에셋 이동 권한을 확대하지 않는다.
+**설계 승인용 문서다. 이 단계에서는 코드·에셋 이동, 모듈/서브모듈 생성, 빌드·Editor·게임 실행을 하지 않았다.** 기존 [AGENTS](../../AGENTS.md) §3/§5의 플러그인 착수 금지를 이번 사용자 요청이 조사·설계에 한해서 대체한다. 구현과 보호 에셋 이동 권한을 확대하지 않는다.
 
 ## 1. 결론과 불변 계약
 
@@ -72,7 +74,7 @@ Native→Runtime, Runtime→UI, 플러그인→`ma0t10_dt`는 금지다. Native�
 
 ### 3.1 Coordinator: UHT의 역방향 타입 의존 제거
 
-현재 [Coordinator](../Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h)와 [UI binding 본문](../Source/ma0t10_dt/MA0T10/UI/Common/VirtualSensorCoordinatorMonitorBinding.cpp)은 한 모듈이므로 성립한다. 모니터 클래스를 DeviceUI로 옮기면서 Coordinator를 Runtime에 그대로 두면 UHT 생성 코드까지 순환한다.
+현재 [Coordinator](../../Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorCoordinator.h)와 [UI binding 본문](../../Source/ma0t10_dt/MA0T10/UI/Common/VirtualSensorCoordinatorMonitorBinding.cpp)은 한 모듈이므로 성립한다. 모니터 클래스를 DeviceUI로 옮기면서 Coordinator를 Runtime에 그대로 두면 UHT 생성 코드까지 순환한다.
 
 - Runtime에 **새 `ADeviceSensorCoordinator`**를 만들고 등록/선택/스케줄 연결·상태 집계를 옮긴다. 모니터는 기존 `IVirtualSensorMonitorView`와 weak UObject owner로만 바인딩한다. 새 API 예: `BindMonitorView(UObject* Owner)`; 유효 interface 확인 후 사용하며 매 Tick UObject 순회는 추가하지 않는다.
 - **기존 `AVirtualSensorCoordinator` UCLASS는 프로젝트에 유지**한다. 새 base를 상속하고 기존 `BindMonitorWidget` 핀·Transient GC 참조를 가진 얇은 façade가 된다. 필드의 serialization owner 변경은 최소화하고, 기존 공개 UPROPERTY는 가능하면 façade에 보존하여 base로 전달한다. 기존 `GetAllActorsOfClass`/spawn은 host에서 old subclass를 생성하고 Runtime 검색은 base를 허용한다.
@@ -786,7 +788,7 @@ UBT 모듈명은 DeviceRuntime/DeviceNative/DeviceUI이므로 생성 macro에는
 
 ### 7.3 안전 상태/다중 프로세스
 
-[기존 native 안전 문서](LIDAR_NATIVE_LIFETIME_26h.md)와 [현재 코드](../Source/ma0t10_dtBootstrap/Private/SensorNativeSafety.cpp)를 기준으로 **경로와 identity 계산을 바꾸지 않는다**.
+[기존 native 안전 문서](LIDAR_NATIVE_LIFETIME_26h.md)와 [현재 코드](../../Plugins/DTDevice/Source/DeviceNative/Private/SensorNativeSafety.cpp)를 기준으로 **경로와 identity 계산을 바꾸지 않는다**.
 
 - `FPaths::ProjectSavedDir()/NativeLidarSafety/active-<SHA1>.guard`.
 - SHA1 입력: `VendorId`를 `%x`로 표기한 값, DeviceDescription, UserDriverVersion을 `|`로 잇는 FString의 **TCHAR 바이트**(`Len()*sizeof(TCHAR)`). UTF-8/이름만 hash로 임의 변경하지 않는다.

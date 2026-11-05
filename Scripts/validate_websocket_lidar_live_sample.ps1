@@ -41,7 +41,7 @@ $samplePath = Join-Path $ProjectRoot "Samples\websocket\lidar_json_live_frame_sa
 $handlerCpp = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Private\Transport\LidarJsonLiveFrameTC.cpp"
 $handlerHeader = Join-Path $ProjectRoot "Plugins\DTDevice\Source\DeviceRuntime\Public\Device\Transport\LidarJsonLiveFrameTC.h"
 $defaultGameIni = Join-Path $ProjectRoot "Config\DefaultGame.ini"
-$planDoc = Join-Path $ProjectRoot "docs\real_sensor_adapter_plan.md"
+$planDoc = Join-Path $ProjectRoot "docs\archive\real_sensor_adapter_plan.md"
 $smokeDoc = Join-Path $ProjectRoot "docs\editor_smoke_test.md"
 
 foreach ($path in @($samplePath, $handlerCpp, $handlerHeader, $defaultGameIni, $planDoc, $smokeDoc)) {

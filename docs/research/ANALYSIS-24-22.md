@@ -15,7 +15,7 @@
 1. [검증 이력](../VALIDATION_HISTORY.md) 31–39행은 TESTSET-04의 **Game Development** 패키지 성공과 Slab 정답 품질 미수용을 기록한다. Shipping 검증은 별도다. 메인 `Saved/Reports/TESTSET-04/RESULT.md:73–80` 및 `package_nogit.ps1:24`도 Development를 명시한다.
 2. 메인 `Saved/Reports/TESTSET-04/package-nogit/runtime-subscribed/semantic-audit.json:2–4`는 ID 1이 3,225,600개라고 기록한다. 당시 RESULT의 “Ground(1)” 해석은 데이터의 class table과 맞지 않는다. 첫 `dataset.json`은 `0 Background, 1 Other, 2 Slab, 3 Roller, 4 Conveyor, 5 Floor, 6 Sensor`이며, 보관된 `1a75969` 소스의 class mapping도 같다.
 3. 이번 `historical-label-audit.json`은 원본 100개의 `lidar_labels.bin`을 **little-endian `<BI` / 5B**로 다시 읽었다. 파일별 잔여 바이트 0, 전체 semantic **1:3,225,600**, instance **0:3,225,600**이다. 첫 manifest의 instances에는 `id=19, actor_name=SlabActor_0, actor_class=SlabActor`가 있다. 전체 런타임 Actor가 제거된 상황과는 다르다. 원본 경로·파일별 SHA256을 함께 기록했다.
-4. [분류 규칙](../../Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorSemanticLabels.cpp) 16, 27–42행은 Actor Tag → `GetName()` → class → component 이름을 검사한다. SlabActor_0/SlabMesh는 이름 규칙에도 부합한다. `GetActorLabel`, 문자열 테이블 또는 Editor 전용 metadata를 사용하지 않는다. 44–49행에서 알 수 없는 이름/NAME_None은 ID 1로 변환된다.
+4. [분류 규칙](../../Plugins/DTDevice/Source/DeviceRuntime/Private/Sensor/VirtualSensorSemanticLabels.cpp) 16, 27–42행은 Actor Tag → `GetName()` → class → component 이름을 검사한다. SlabActor_0/SlabMesh는 이름 규칙에도 부합한다. `GetActorLabel`, 문자열 테이블 또는 Editor 전용 metadata를 사용하지 않는다. 44–49행에서 알 수 없는 이름/NAME_None은 ID 1로 변환된다.
 5. [dataset writer](../../Source/ma0t10_dt/MA0T10/Dataset/VirtualDatasetSubsystem.cpp) 429–435행은 immutable 점의 `SemanticLabel`과 `HitActorName`을 5B에 기록한다. Actor 이름 lookup 실패는 instance 0이다. 따라서 **Other+instance0은 semantic metadata 미적용과 일치**하지만 이것만으로 GPU 버퍼가 비었는지, 깊이가 불일치했는지까지 구분할 수 없다.
 
 ### 원인 후보 순위

@@ -1,11 +1,9 @@
 # 작업 지침 — UE-DT-Project
 
-기준: UE 5.3, DTCore 브랜치 `feat/dtcore-data-channel`·고정 `cb9788a2338ad92e6a651be71330f2abe4b63a90`(DATA-IF-10 r55 채널 브랜치 pin 사용자 승인 2026-11-04; 이전 전환 기준 parent `d8048bf`). 작업 폴더는 `C:\Unreal Projects\ma0t10_dt` 하나다(`m7at10_dt`는 무관한 다른 프로젝트). 검증 범위와 제한은 README를 따른다.
-이 파일은 작업 규칙이다. 제품 사용법이나 전체 로드맵의 구현 승인을 대신하지 않는다.
+기준: UE 5.3, #99~#104 완료 구조, DTCore main 고정 `cb9788a2338ad92e6a651be71330f2abe4b63a90`, DTDevice는 `Scripts/device_plugin_pin.txt`의 정확한 SHA다. 기본 작업 폴더는 `C:\Unreal Projects\ma0t10_dt`이며, 사용자가 지정한 별도 worktree에서는 그 요청 범위만 수행한다.
+이 파일은 작업 권한·보호·검증 규칙이다. 사용법은 README, 세부 색인은 docs/README.md를 따른다. 문서나 로드맵만으로 구현·빌드·push·PR·merge 권한을 확대하지 않는다.
 
-**현재 단계: ARCH-01~04 → UXR-01~07 → ARCH-05~08.** 동작·계약을 바꾸지 않는 구조 정리와 사용자 흐름 중심 UI 재정비가 최우선이며, 이번 버전에서는 **센서 플러그인 제작을 시작하지 않는다**(§5). UXR은 기능·API·저장값·기본 정책을 바꾸지 않고 화면 위치·문구·노출 수준만 바꾼다(IMPROVEMENTS 0-U절의 공통 규칙과 용어표).
-
-## 1. 네 개의 관리 문서
+## 1. 문서의 역할
 
 | 문서 | 책임 |
 |---|---|
@@ -14,9 +12,9 @@
 | [보완 필요 사항](docs/IMPROVEMENTS.md) | 우선순위·근거·재현·개별 완료 기준(ARCH 포함) |
 | [최종 목표 로드맵](docs/ROADMAP.md) | 단계별 의존 관계(A → R0~R6)·플러그인 경계·출시 gate |
 
-- [검증 이력 보관](docs/VALIDATION_HISTORY.md)은 과거 날짜별 검증 기록의 원문 보관본이다. 규칙·현재 상태 문서가 아니다. 새 날짜별 상세 기록은 README/IMPROVEMENTS 본문에 쌓지 말고 이 파일에 추가하며, README §1과 IMPROVEMENTS 표에는 현재 요약만 둔다.
+- [검증 이력 보관](docs/VALIDATION_HISTORY.md)은 과거 날짜별 검증 기록의 원문 보관본이다. 규칙·현재 상태 문서가 아니다. 새 검증 작업에서 승인된 날짜별 상세 기록은 이력에 추가하고 README에는 현재 요약만 둔다. 문서 정리에서는 VALIDATION_HISTORY 원문을 수정하지 않는다.
 - `CLAUDE.md`, `docs/IMPROVEMENTS_CLAUDE.md`는 Claude 전용 진입·제안 메모다. 관리 문서가 아니며 권한을 확대하지 않는다. 다른 에이전트는 이 두 파일을 수정하지 않는다.
-- `Agent.md`를 별도 생성하지 않는다. 기존 `docs` 문서는 경로를 보존한 고정 참고자료다. 오래된 UI/성능 설명보다 현재 코드와 README를 우선한다.
+- `Agent.md`를 별도 생성하지 않는다. 현행 문서는 `docs/README.md`에서 찾고, 완료된 계획·이전 진입 문서는 `docs/archive/`에 원문을 보존한다. 오래된 UI/성능 설명보다 현재 코드와 README를 우선한다.
 - 보완 목록/로드맵에 있다는 이유만으로 전부 구현하지 않는다. 요청한 항목과 직접 관련된 회귀만 처리한다.
 - 설명·진단·검토는 읽기 전용, 문서 작성은 문서만, 기능 구현은 해당 기능만 변경한다.
 - 범위 안의 조사·명확한 구현·비파괴 테스트를 매번 재승인받지 않는다. 중요한 동작 정책이 미정이거나 보호 대상 변경이 필요할 때 질문한다. 코드에서 알 수 있는 사항은 먼저 조사한다.
@@ -38,19 +36,18 @@
 
 ## 3. 구현 경계
 
-### 아키텍처 레이어 (A단계부터 적용)
+### 아키텍처 레이어
 
-- 레이어 정의와 현재 위반 목록의 원본은 [README §10](README.md#10-아키텍처-뼈대)이다. `Source/ma0t10_dt/MA0T10/` 기준 **L0 `Contracts/` → L1 `Sensor/` `Camera/` `Core/` → L2 `Scenario/` `Slab/` `WebSocket/TC/`·기존 업무 폴더 → L3 `UI/`**, 의존은 위 레이어가 아래 레이어만 include하는 방향으로만 허용한다.
-- NAMING-01 이후 업무 경로 `Ship/`, `Coil/`, `Slab/Scenario/`, `Training/`, `Dataset/`, `Agent/`, `Common/`, `Manager/Automation/`은 기존 Scenario의 L2 역할을 유지한다. `Sensor/Tool/`·`Diagnostics/`와 `UI/Main/{Sensor,Ship,Coil,Slab}/`은 이동 전 UI의 L3 응용 역할이다. 폴더 이동으로 허용 의존이나 allowlist를 늘리지 않는다.
-- 새 코드는 처음부터 이 방향을 지킨다. 센서 Runtime(L1)에 UI 타입·Slab 타입·업무 TC를 새로 참조시키지 않는다. 필요하면 L0 계약/interface/delegate를 추가하고 위 레이어가 구현·구독한다.
-- 센서 편집 상태 타입은 기존 L1 enum에 의존하므로 `Sensor/VirtualSensorEditableTypes.h`(L1)에 둔다. `Contracts/`(L0)에는 리터럴 기본값과 L1 타입에 의존하지 않는 중립 계약만 둔다. ARCH-06의 중립 acquisition context는 계속 L0 대상이며 이 경계를 지킨다.
-- `Scripts/validate_architecture_layers.ps1`(ARCH-01)이 생긴 뒤에는 C++ 변경 커밋마다 실행한다. allowlist는 **줄어들기만** 한다. 파일 이동으로 바뀐 경로는 같은 커밋에서 갱신할 수 있으나 항목 수를 늘리지 않는다. 예외가 꼭 필요하면 근거를 보고하고 사용자 승인을 받는다.
-- 구조 정리는 같은 모듈 안에서 한다. 새 UE 모듈·`.uplugin`·자산 mount 변경을 만들지 않는다. 이동 커밋(`git mv`+include 수정)과 로직 변경 커밋을 분리한다.
-- UCLASS/USTRUCT/UENUM 이름, enum 값 순서, UPROPERTY, Blueprint 함수 시그니처, SaveGame 슬롯/버전, wire bytes는 구조 정리 중 바꾸지 않는다. 같은 모듈 안의 파일 이동은 `/Script/ma0t10_dt` 경로를 바꾸지 않으므로 CoreRedirect를 추가하지 않는다.
+- 현재 구조의 원본은 [README §10](README.md#10-아키텍처-뼈대)이다. 중립 Contracts(L0) → DeviceRuntime 장치(L1) → host 업무(L2) → UI(L3)만 허용한다. DTDevice가 host `ma0t10_dt`를 include/UHT 역참조하지 않는다.
+- host 업무는 Ship/Coil/Crane/Slab/Training/Dataset/Agent/Common/Manager/Automation/WebSocket/Api에 둔다. UI는 Common/Freeview/Topview/Main 및 Main/{Sensor,Ship,Coil,Slab}, 배치 도구는 Sensor/Tool, 진단은 Diagnostics다.
+- 장치 Runtime에 과제 UI·Slab 업무·업무 TC 의존을 새로 넣지 않는다. 중립 계약/interface/delegate를 만들고 상위 host가 provider/adapter를 구현한다. 동결 Slab 이름 DTO의 값 계약은 보존한다.
+- 공통 base/body 한 곳이 실행 상태를 소유한다. 프로젝트 façade의 기존 UCLASS·BP 핀·UPROPERTY/UFUNCTION·SaveGame·WBP 호환을 유지한다.
+- `Scripts/validate_architecture_layers.ps1`을 관련 C++ 커밋마다 실행한다. allowlist0을 늘리지 않는다. 이동으로 바뀐 경로는 같은 커밋에서 고치되 예외 수를 늘리지 않는다.
+- 모듈·파일·에셋 이동은 별도 승인 범위에서만 한다. 이동(git mv/include/API/Build.cs)과 로직 변경 커밋을 분리한다. 기존 reflected 이름·enum 순서·저장 필드·wire bytes는 승인 없이 바꾸지 않는다.
 
 ### DTCore 기반 구현 (2026-10-12 사용자 강조)
 
-- 기능은 **DTCore가 제공하는 기반 위에** 만든다. 새 패널/화면은 `UDxWidget` 계열과 `UDxWidgetSubsystem`(열기·닫기·BringToFront·입력 차단 등록)을 사용하고, 3D 객체는 `AInteractableActor`/`AFacilityBase`, 데이터 반영은 `UDataSyncCompBase`, 상태 표시는 `UStatusVisualizerCompBase`, 업무 전문은 `UDxWebSocketSubsystem`+TC, API는 `UDxApiSubsystem`, 조회·검색은 `UDxDataSubsystem`/`UDxObjectSubsystem`/`UDxSearchSubsystem`을 먼저 검토한다. 같은 역할의 병렬 메커니즘(별도 위젯 관리자·별도 구독 루프 등)을 새로 만들지 않는다.
+- 기능은 **DTCore가 제공하는 기반 위에** 만든다. 공통 장치는 DTDevice, 과제 업무와 UI 조립은 host에 둔다. 새 패널/화면은 `UDxWidget` 계열과 `UDxWidgetSubsystem`(열기·닫기·BringToFront·입력 차단 등록)을 사용하고, 3D 객체는 `AInteractableActor`/`AFacilityBase`, 데이터 반영은 `UDataSyncCompBase`, 상태 표시는 `UStatusVisualizerCompBase`, 업무 전문은 `UDxWebSocketSubsystem`+TC, API는 `UDxApiSubsystem`, 조회·검색은 `UDxDataSubsystem`/`UDxObjectSubsystem`/`UDxSearchSubsystem`을 먼저 검토한다. 같은 역할의 병렬 메커니즘(별도 위젯 관리자·별도 구독 루프 등)을 새로 만들지 않는다.
 - DTCore로 해결되지 않으면 프로젝트/DTDevice 쪽 adapter를 먼저 검토하고 근거를 보고하며, IMPROVEMENTS의 **"DTCore 변경 후보"** 표에 한 줄로 기록한다(후속 DTCore 수정 단계의 입력, ROADMAP "개편 이후 예정 단계"). 그 경로로 해결할 수 없어 DTCore 공통 변경이 정말 필요하면 재현 근거와 최소 수정안을 사용자에게 보고한 뒤 멈추고, §2의 사전 승인·별도 PR·세 소비 범위 검증·pin/guard 갱신 절차를 따른다.
 - 기존 프로젝트 고유 구조(Workspace 소유 패널, Raw TCP STOMP worker 등)가 DTCore와 겹치는 지점은 이유를 문서화된 범위 안에서 유지하고, 새 기능에서 확장하지 않는다.
 
@@ -63,8 +60,8 @@
 
 ### 센서·측정·비동기 수명
 
-- Runtime은 `ma0t10_dt`, Editor는 `ma0t10_dtEditor`, 조기 초기화는 `ma0t10_dtBootstrap` 모듈이다. 센서 기능은 아직 독립 플러그인이 아니며 이번 버전에서 플러그인화를 시작하지 않는다.
-- DTCore `AInteractableActor → AVirtualSensorActorBase → Camera/LiDAR Actor` 계층을 유지한다. 센서 공용 Subsystem은 `MA0T10/Core`에 둔다. Slab 업무 서비스는 `MA0T10/Scenario`(L2), UI 조립 Subsystem은 `MA0T10/UI`(L3)에 둔다.
+- host Runtime/Editor는 ma0t10_dt/ma0t10_dtEditor, Bootstrap은 WebSockets 정책 shim이다. 장치 구현은 DeviceRuntime/DeviceNative/DeviceUI에 있으며 DTCore가 필수다.
+- DTCore `AInteractableActor → AVirtualSensorActorBase → Camera/LiDAR Actor` 계층을 유지한다. 센서 공용 Subsystem은 DeviceRuntime/Core, Slab 업무는 host Slab 및 Slab/Scenario, UI 조립은 host UI(L3)에 둔다.
 - UI/Source/Gizmo는 Capture/Scan 필드를 직접 변경하지 않는다. Actor의 `ReadEditableState`, `ValidateEditableState`, `ApplyEditableState` 및 interaction API를 사용한다.
 - 외부 입력은 `SubmitExternalFrame`을 사용한다. 측정·출력·진단 수신을 분리하고 진단 결과를 다시 센서/Transport에 주입하지 않는다.
 - 자동 측정은 Scheduler, 수동 동기 API는 호환 경로다. 새 native UI의 파일 저장은 FileSave/PeriodicFileSave 비동기 서비스를 사용하며 숨겨진 동기 스캔을 추가하지 않는다.
@@ -118,9 +115,9 @@
 8. 종료·취소·선택 변경·반복 실행·재호스팅·미등록 Widget 불변을 검사한다. 테스트한 개인 UI 저장값은 백업 후 복원한다.
 9. 수행·실패·skip·미수행, 커밋, 보호 경로, 다음 필요한 작업을 보고한다. 증거는 `Saved/Reports`, 재현 조건/요약은 관리 문서에 남긴다.
 
-## 5. 플러그인화 후속 규칙
+## 5. 세 저장소 경계
 
-**이번 버전에서는 이 절의 작업(센서 플러그인 생성, Bootstrap Actor, 자산 mount 이동)을 시작하지 않는다.** A단계와 남은 R4가 끝난 뒤 별도 요청으로 착수한다. 아래는 그때 적용할 규칙이다.
+DTDevice 분리·공통 에셋 이동·이름/포맷 정리는 완료 상태다. 추가 구조 변경은 별도 요청 없이 시작하지 않는다. 현재 규칙은 [STYLE_AND_NAMING](docs/STYLE_AND_NAMING.md)을 따른다.
 
 - DTCore 필수 의존을 유지한다. Slab 업무·Topic·차트는 host에 남기고 중립적 extension API로 연결한다.
 - 플러그인이 host `ma0t10_dt`를 역참조하지 않게 먼저 경계를 정리한다. Runtime 편집 상태를 UI에 둔 채 순환 의존을 만들지 않는다.
@@ -138,7 +135,7 @@
 |---|---|
 | 계획 | Claude: 한 항목의 목표·범위·기준 SHA·게이트·예비안을 지시서에 명시 |
 | 실행 | Codex: 승인된 항목의 구현·빌드·테스트·결과 작성 |
-| 병렬 | Claude 조율 / Codex 실행: 명시적으로 승인·지정한 worktree에서 측정 없는 일만 |
+| 병렬 | Claude 조율 / Codex 실행: 명시적으로 승인·지정한 worktree에서 해당 요청이 허용한 일만 |
 | 보고 | Codex: 20분마다 진행, 변화 없으면 한 줄; 결정·이미지·완료·실패는 즉시 |
 | 검수 | Claude: 머지 전 diff·게이트·증거 독립 재확인 |
 | 머지 | Claude: 독립 검수 통과 후 별도 승인 범위 안에서 수행 |
@@ -150,10 +147,10 @@
 
 **요청 단위와 진행**
 
-1. 기본 작업 폴더는 `C:\Unreal Projects\ma0t10_dt`이며 §2 시작 점검(branch/HEAD/remote/status)을 한다. 명시적으로 승인된 측정 없는 병렬 지시서는 지정 worktree에서만 수행한다(아래 병렬 규칙). 승인 없는 다른 폴더·worktree 작업은 금지한다.
+1. 기본 작업 폴더는 `C:\Unreal Projects\ma0t10_dt`이며 §2 시작 점검(branch/HEAD/remote/status)을 한다. 별도 승인된 병렬 지시서는 지정 worktree와 실행 제한 안에서만 수행한다(아래 병렬 규칙). 승인 없는 다른 폴더·worktree 작업은 금지한다.
 2. 한 요청 = 한 항목. 의미 단위로 여러 커밋을 만들 수 있다. 명시 파일만 stage하고 커밋 메시지에 항목 ID를 넣는다(예: `refactor(ARCH-02): move slab services to Scenario`).
 3. 지시서의 예비안은 범위·계약·보호 규칙 안에서 재질문 없이 적용하고 선택·근거·검증 한계를 결과에 기록한다. 예비안으로 해결할 수 없는 진짜 차단(계약·보호 경로 변경 필요 등)만 해당 지점에서 멈추고 근거와 선택지를 즉시 보고한다. 추정으로 권한이나 계약을 바꾸지 않는다.
-4. push·PR·merge·worktree 생성·submodule update는 하지 않는다.
+4. push·PR·merge·worktree 생성·submodule update는 별도 명시 승인 없이 하지 않는다. 요청에서 지정한 경로/branch/고정 SHA 범위만 수행한다.
 5. **Computer Use(마우스·키보드) 기능 점검은 Codex가 한다(2026-10-12 사용자 요청).** UI·조작에 영향을 주는 항목은 자동화와 별도로 PIE에서 주요 동작을 직접 눌러 확인하고, 단계별 스크린샷·체크리스트(누른 것 / 기대 / 실제)를 `Saved/Reports/<그룹>/<ID>/manual/`에 남긴다. 화면 충돌을 막기 위해 **Codex 작업 중에는 Claude와 사용자가 화면을 조작하지 않는다.** Claude는 요청 전송 때만 Codex 앱을 잠깐 조작하고, 완료 감지는 화면이 아닌 로그로 한다. Codex는 점검을 끝내면 자신이 띄운 Editor/PIE를 정상 종료하고, 사용자 창 배치·개인 UI 저장값은 백업 후 복원한다. 구조 전용 항목(ARCH)은 기존대로 명령줄 검증으로 충분하다.
 
 **지시서·보고·머지 게이트 (v2)**
@@ -195,3 +192,13 @@ layer gate: 이전 allowlist 수 → 현재 수
 - Claude는 보고만 믿지 않고 `git diff`, result.json, merge_check, layer gate, 해당 범위의 빌드·관련 테스트 증거를 머지 전에 독립 재확인한다. 측정 없는 병렬 작업에서는 Editor·빌드를 새로 실행하지 않는다.
 - 같은 문제의 수정 재요청은 최대 3회다. 3회 후에도 해결되지 않으면 Claude가 사용자에게 상황과 선택지를 보고한다.
 - 검토 통과 후에만 다음 항목을 요청한다.
+
+## 7. 현재 이름·데이터 I/F·검증 기준
+
+- ActorComponent는 Comp, 과제 UDxWidget 파생은 UDxWidget<기능>, DeviceUI는 UDxDeviceSensorPanelBase/UDxDeviceSensorMonitorPanel 규칙을 따른다. 크레인3개·엔진/동결 계약 예외는 명시 규칙대로 유지한다. 파일명과 클래스명을 맞춘다.
+- .clang-format과 .git-blame-ignore-revs를 사용한다. 포맷과 로직을 섞지 않고 토큰 동일성 검증을 보존한다. 과거 이름/경로는 redirects와 archive에만 둔다. payload 키·schemaVersion·테스트 ID·로그 문구·저장 계약은 이름 변경 대상이 아니다.
+- DTCore는 연결/등록/상태, 프로젝트 설정은 토픽 정책을 소유한다. Default=공유 저빈도 JSON, sensor=UDxStompChannel 파생 JSON/수동 전송, sensor-bulk=Worker 정책의 기존 raw TCP 위임이다. 큰 body/소켓/검증을 GT로 되돌리지 않는다.
+- 연결은 DTCoreSettings.DataChannels, 토픽은 UDeviceDataChannelSettings다. DefaultGame.ini/플랫폼 ini 및 패키지 loose의 지원 범위는 README §6과 Artemis 가이드를 따른다. 비밀값을 ini/로그/문서/커밋에 넣지 않고 Override 키 방식만 유지한다. 빈 새 설정만 SensorTransport.ini/profile 대체 경로를 따른다.
+- 장치 변경 커밋에서는 Core guard뿐 아니라 validate_device_plugin_submodule_guard.ps1도 실행한다. 각 plugin/host 커밋을 분리하고 검증한 정확한 pin만 사용한다.
+- 실제 release·RT-on ABAB2%·메모리 warm-up30분 제외 OLS≤8 MiB/h·직접 UI·현장 수용은 서로 구분한다. 사용자 승인된 미실행/예외와 기존 FAIL은 Known Issues 및 result에 명시하고 PASS로 바꾸지 않는다.
+- 현행 문서의 미해결은 docs/KNOWN_ISSUES.md 한 곳에서 관리한다. archive/VALIDATION_HISTORY의 옛 기준을 현재 실행 지시로 적용하지 않는다.

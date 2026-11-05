@@ -1,3 +1,5 @@
+> **완료된 계획, 현재 기준 아님.** 원문을 보존한 보관본입니다. 현재 사용·규칙·미해결은 [문서 색인](../README.md)을 따릅니다.
+
 # TRAIN-BATCH-01 — 학습 시나리오 배치 설계
 
 설계 기준: 2026-11-02(r41 사용자 결정 반영), `feat/train-batch-01`, parent `23d143b53f4bbf85b10846a2b740903bb9649cd3`, DTCore `bc60f05` 고정. r40 설계 뒤 r41에서 사용자 결정을 반영하고 1A 코드를 작성했다. **미컴파일·미실행 상태**이며 작성 범위는 §11을 따른다. 빌드·게임·Editor·GPU·화면·외부 프로그램/다운로드 검증은 수행하지 않았다.
@@ -8,14 +10,14 @@
 
 | 확인한 기반 | 현재 사실과 설계 적용 |
 |---|---|
-| [TESTSET README](../README.md#testset-01-ai-agent-시나리오-테스트셋--임시-기능-로드맵-17), [AgentTestSetSubsystem](../Source/ma0t10_dt/MA0T10/Agent/AgentTestSetSubsystem.h) | 현재 기본 `AutoFillExamples=True`, 소재 `SQ23456 077`를 만나면 수신 시나리오를 무시하고 템플릿 예시를 만든다(TESTSET-03). TRAIN Job을 이 트리거에 넣지 않는다. 기존 큐/실패 사유/원자 manifest/선점 및 복원 규칙을 참고하되 독립 Job 상태를 만든다. |
-| [AgentTestSetWidget](../Source/ma0t10_dt/MA0T10/UI/Freeview/DxWidgetAgentTestSet.h) | 현재 전송은 `EDemoSend` 시연 표시뿐이다. 실제 전송 서비스나 성공 증거로 재사용하지 않는다. |
-| [VirtualDatasetSubsystem](../Source/ma0t10_dt/MA0T10/Dataset/VirtualDatasetSubsystem.cpp), [타입](../Source/ma0t10_dt/MA0T10/Dataset/VirtualDatasetTypes.h) | immutable 획득 → bounded writer → PCD/라벨 → 마지막 완료 marker 흐름을 재사용한다. 현재 planned capture는 행 자세를 적용하고 안정화한 뒤 캡처하며 실시간 시계를 돌리는 시뮬레이션이 아니다. `Plan.Root`는 현재 `ProjectSavedDir()/TestSets` 하위만 허용하므로 TrainBatch 경로를 그냥 전달하면 실패한다. 명시적 로컬 Job 출력 context를 추가하고 기존 경로 검증을 유지하는 소규모 확장이 필요하다. |
-| [저장 PCD 보기](../Source/ma0t10_dt/MA0T10/Agent/AgentTestSetPcdPreview.cpp) | 독립 미리보기 컴포넌트, 읽기 worker 1건+다음 프레임 1개, 취소/generation, 저장 시각 간격을 재사용한다. 현재 `FAgentTestSetItem`과 `scene_XXXXX` 레이아웃에 결합돼 있으므로 중립 읽기 descriptor adapter가 필요하다. |
-| [SlabScenarioReplaySubsystem](../Source/ma0t10_dt/MA0T10/Slab/Scenario/SlabScenarioReplaySubsystem.h), [SlabMotionComponent](../Source/ma0t10_dt/MA0T10/Slab/SlabMotionComp.cpp), [codec](../Source/ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.cpp) | 일반 시나리오 우선·관찰 전용·중복/실행 ID 분리를 유지한다. 학습 목록을 일반 보관 목록(메모리 10개)에 등록하지 않는다. `Sample`/`BuildPose`와 단위·TrackReference를 재사용한다. |
-| [EXPORT-01 도구](../Tools/DatasetTools/README.md) | 완료 파일을 읽는 선택적 COCO/KITTI 후처리만 연결한다. Python 및 요구 환경이 준비되지 않으면 해당 옵션을 거절하며 실행 중 설치하지 않는다. |
-| [서버 UI 패턴](../Source/ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.Owned.cpp), [Transport](../Source/ma0t10_dt/MA0T10/Sensor/VirtualSensorTransportComp.cpp) | 마스킹 입력·상태 표시 패턴만 따른다. 센서 HTTP 송신과 학습 SFTP를 연결하지 않으며 기존 세션 인증은 그대로다. 학습은 SSH 키 경로·앱 전용 known_hosts를 별도 Saved 설정으로 관리한다. |
-| [AUTO-01](../Source/ma0t10_dt/MA0T10/Manager/Automation/AutomationControlSubsystem.cpp) | 기본 꺼짐, 명시적 `-MA0T10Job`, loopback 제어·취소·결과 기록 패턴을 참고한다. 워커마다 같은 8099 listener를 열지 않는다. 새 워커 모드는 파일 IPC가 기본이다. |
+| [TESTSET README](../../README.md#testset-01-ai-agent-시나리오-테스트셋--임시-기능-로드맵-17), [AgentTestSetSubsystem](../../Source/ma0t10_dt/MA0T10/Agent/AgentTestSetSubsystem.h) | 현재 기본 `AutoFillExamples=True`, 소재 `SQ23456 077`를 만나면 수신 시나리오를 무시하고 템플릿 예시를 만든다(TESTSET-03). TRAIN Job을 이 트리거에 넣지 않는다. 기존 큐/실패 사유/원자 manifest/선점 및 복원 규칙을 참고하되 독립 Job 상태를 만든다. |
+| [AgentTestSetWidget](../../Source/ma0t10_dt/MA0T10/UI/Freeview/DxWidgetAgentTestSet.h) | 현재 전송은 `EDemoSend` 시연 표시뿐이다. 실제 전송 서비스나 성공 증거로 재사용하지 않는다. |
+| [VirtualDatasetSubsystem](../../Source/ma0t10_dt/MA0T10/Dataset/VirtualDatasetSubsystem.cpp), [타입](../../Source/ma0t10_dt/MA0T10/Dataset/VirtualDatasetTypes.h) | immutable 획득 → bounded writer → PCD/라벨 → 마지막 완료 marker 흐름을 재사용한다. 현재 planned capture는 행 자세를 적용하고 안정화한 뒤 캡처하며 실시간 시계를 돌리는 시뮬레이션이 아니다. `Plan.Root`는 현재 `ProjectSavedDir()/TestSets` 하위만 허용하므로 TrainBatch 경로를 그냥 전달하면 실패한다. 명시적 로컬 Job 출력 context를 추가하고 기존 경로 검증을 유지하는 소규모 확장이 필요하다. |
+| [저장 PCD 보기](../../Source/ma0t10_dt/MA0T10/Agent/AgentTestSetPcdPreview.cpp) | 독립 미리보기 컴포넌트, 읽기 worker 1건+다음 프레임 1개, 취소/generation, 저장 시각 간격을 재사용한다. 현재 `FAgentTestSetItem`과 `scene_XXXXX` 레이아웃에 결합돼 있으므로 중립 읽기 descriptor adapter가 필요하다. |
+| [SlabScenarioReplaySubsystem](../../Source/ma0t10_dt/MA0T10/Slab/Scenario/SlabScenarioReplaySubsystem.h), [SlabMotionComponent](../../Source/ma0t10_dt/MA0T10/Slab/SlabMotionComp.cpp), [codec](../../Source/ma0t10_dt/MA0T10/Slab/SlabScenarioCodec.cpp) | 일반 시나리오 우선·관찰 전용·중복/실행 ID 분리를 유지한다. 학습 목록을 일반 보관 목록(메모리 10개)에 등록하지 않는다. `Sample`/`BuildPose`와 단위·TrackReference를 재사용한다. |
+| [EXPORT-01 도구](../../Tools/DatasetTools/README.md) | 완료 파일을 읽는 선택적 COCO/KITTI 후처리만 연결한다. Python 및 요구 환경이 준비되지 않으면 해당 옵션을 거절하며 실행 중 설치하지 않는다. |
+| [서버 UI 패턴](../../Source/ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.Owned.cpp), [Transport](../../Plugins/DTDevice/Source/DeviceRuntime/Private/Sensor/VirtualSensorTransportComp.cpp) | 마스킹 입력·상태 표시 패턴만 따른다. 센서 HTTP 송신과 학습 SFTP를 연결하지 않으며 기존 세션 인증은 그대로다. 학습은 SSH 키 경로·앱 전용 known_hosts를 별도 Saved 설정으로 관리한다. |
+| [AUTO-01](../../Source/ma0t10_dt/MA0T10/Manager/Automation/AutomationControlSubsystem.cpp) | 기본 꺼짐, 명시적 `-MA0T10Job`, loopback 제어·취소·결과 기록 패턴을 참고한다. 워커마다 같은 8099 listener를 열지 않는다. 새 워커 모드는 파일 IPC가 기본이다. |
 
 구조는 같은 Runtime 모듈 안에서 L0 `Contracts/`(Job/IPC 값 계약), L2 `Scenario/Training/`(접수·계획·프로세스·저장·압축·업로드), L3 `UI/`(학습 화면)로 나눈다. L1 센서가 학습 UI/업무 타입을 include하지 않으며 새 UE 모듈·플러그인·DTCore 수정은 만들지 않는다. 후보 파일명은 `TrainBatchTypes`, `TrainBatchCoordinatorSubsystem`, `TrainBatchWorker`, `TrainBatchArchive`, `TrainBatchUpload`, `TrainBatchWidget`이다. 이 문서가 해당 파일 생성 승인은 아니다.
 
@@ -107,7 +109,7 @@ GPU LiDAR/카메라에는 실제 D3D12 RHI가 필요하다. `NullRHI`, dedicated
 
 ### 3.2 native safety와 안정적인 UserDir
 
-[SensorNativeSafety.cpp](../Source/ma0t10_dtBootstrap/Private/SensorNativeSafety.cpp)의 `MarkerPath()`는 `FPaths::ProjectSavedDir()/NativeLidarSafety/active-<vendor|adapter|driver SHA1>.guard`, 상태는 뒤에 `.state`가 붙는다. `Begin()`은 같은 경로의 live PID/creation stamp 또는 exclusive writer를 만나면 **RHI를 선택**한다. 따라서 같은 Saved를 공유하면 워커 2번부터 native 기본 조건을 만족하지 못할 수 있다.
+[SensorNativeSafety.cpp](../../Plugins/DTDevice/Source/DeviceNative/Private/SensorNativeSafety.cpp)의 `MarkerPath()`는 `FPaths::ProjectSavedDir()/NativeLidarSafety/active-<vendor|adapter|driver SHA1>.guard`, 상태는 뒤에 `.state`가 붙는다. `Begin()`은 같은 경로의 live PID/creation stamp 또는 exclusive writer를 만나면 **RHI를 선택**한다. 따라서 같은 Saved를 공유하면 워커 2번부터 native 기본 조건을 만족하지 못할 수 있다.
 
 UE5.3 `Paths.cpp`에서 명시 `-UserDir`는 `ProjectUserDir()`를 바꾸고 `ProjectSavedDir()`는 그 아래 Saved를 사용한다. **워커별 UserDir는 필수**이며 실제 해석된 절대 경로가 모두 다른지 startup handshake에서 확인한다. 슬롯별 UserDir는 Job/attempt마다 새로 만들지 않고 재시작 후에도 유지해 oracle 캐시·비정상 종료 횟수·1회 RHI 복구·2회 ban을 보존한다. startup oracle 및 장치 손실 정책 자체는 변경하지 않는다.
 
@@ -281,18 +283,18 @@ DTCore에는 새 기능이 필요하지 않은 방향이다. TC DataTable 등록
 
 ## 10. 조사 근거와 이번 단계의 한계
 
-소스 근거는 위 링크 및 [README §10](../README.md#10-아키텍처-뼈대), [DTCore DataSubsystem](../Plugins/DTCore/Source/DTCore/Private/Core/DxDataSubsystem.cpp), [DTCore WidgetSubsystem](../Plugins/DTCore/Source/DTCore/Public/Core/DxWidgetSubsystem.h), [native safety 설명](LIDAR_NATIVE_LIFETIME_26h.md)을 따른다. 엔진 설치본은 `Engine/Source/Runtime/Core/Private/Misc/Paths.cpp`의 `ProjectUserDir/ProjectSavedDir`, `Engine/Source/Runtime/Online/HTTP/Public/Interfaces/IHttpRequest.h`, `Engine/Source/ThirdParty/{libzip,zlib,Licenses,vcpkg}`를 읽었다.
+소스 근거는 위 링크 및 [README §10](../../README.md#10-아키텍처-뼈대), [DTCore DataSubsystem](../../Plugins/DTCore/Source/DTCore/Private/Core/DxDataSubsystem.cpp), [DTCore WidgetSubsystem](../../Plugins/DTCore/Source/DTCore/Public/Core/DxWidgetSubsystem.h), [native safety 설명](LIDAR_NATIVE_LIFETIME_26h.md)을 따른다. 엔진 설치본은 `Engine/Source/Runtime/Core/Private/Misc/Paths.cpp`의 `ProjectUserDir/ProjectSavedDir`, `Engine/Source/Runtime/Online/HTTP/Public/Interfaces/IHttpRequest.h`, `Engine/Source/ThirdParty/{libzip,zlib,Licenses,vcpkg}`를 읽었다.
 
 현재 기반에 다중 UE worker·disk resume·archive/실제 학습 업로드가 이미 있다고 해석하지 않는다. ZIP64·OpenSSH/SFTP 서버 호환성·UserDir 별 안전 상태·카메라/운동 정합·GPU M 상한은 후속 실제 빌드/실행에서 검증할 설계 위험이다. r40은 문서만 작성했다. r41은 1A 코드/테스트 코드를 작성하되 빌드·Unreal/GPU·화면 실행 금지이므로 미컴파일·실행 미검증을 명시한다. DTCore·Config·자산·개인 설정은 변경하지 않는다.
 
 ## 11. r41 1A 코드 작성 범위 — 미컴파일·미실행
 
-- [TrainBatchCodec](../Source/ma0t10_dt/MA0T10/Training/TrainBatchCodec.h): strict schema/상한·원문 SHA256·20Hz `[0,D)` planner. `scenario_elapsed_s`/`simulation_elapsed_s`는 샘플 시각, `source_row_elapsed_s`/`scenario_frame_no`는 원본 행 시각/번호다. Job은 ZIP/tar.gz 선택만 허용하며 tar.zst·실시간/IMU/fidelity·미지원 필드를 거절한다. 해시는 Windows 기본 CNG(`bcrypt.lib`)를 사용하며 외부 crypto/zstd 도입은 없다.
-- [TrainBatchSubsystem](../Source/ma0t10_dt/MA0T10/Training/TrainBatchSubsystem.h): 기본 비활성, 명시 enable 때만 DTCore 구독, 입력/실행/미리보기 작업이 있을 때만 timer/단일 background operation. 구독 epoch·weak ownership으로 늦은 callback을 분리한다. TC는 공개 Subscribe adapter를 사용하며 DTCore DataTable/private 멤버를 바꾸지 않는다.
-- [TrainBatchStorage](../Source/ma0t10_dt/MA0T10/Training/TrainBatchStorage.h): Job 원문/시나리오 원문·checksummed journal·원자 상태 저장, 입력/출력 디스크 여유 검사. 재시도/재시작을 이유로 기존 Job 폴더를 덮지 않는다. **프로세스 재시작 후 disk resume는 1B**이며 1A는 기존 ID 폴더를 거절한다. 세션 최대 Job16개·입력 대기64MiB다.
+- [TrainBatchCodec](../../Source/ma0t10_dt/MA0T10/Training/TrainBatchCodec.h): strict schema/상한·원문 SHA256·20Hz `[0,D)` planner. `scenario_elapsed_s`/`simulation_elapsed_s`는 샘플 시각, `source_row_elapsed_s`/`scenario_frame_no`는 원본 행 시각/번호다. Job은 ZIP/tar.gz 선택만 허용하며 tar.zst·실시간/IMU/fidelity·미지원 필드를 거절한다. 해시는 Windows 기본 CNG(`bcrypt.lib`)를 사용하며 외부 crypto/zstd 도입은 없다.
+- [TrainBatchSubsystem](../../Source/ma0t10_dt/MA0T10/Training/TrainBatchSubsystem.h): 기본 비활성, 명시 enable 때만 DTCore 구독, 입력/실행/미리보기 작업이 있을 때만 timer/단일 background operation. 구독 epoch·weak ownership으로 늦은 callback을 분리한다. TC는 공개 Subscribe adapter를 사용하며 DTCore DataTable/private 멤버를 바꾸지 않는다.
+- [TrainBatchStorage](../../Source/ma0t10_dt/MA0T10/Training/TrainBatchStorage.h): Job 원문/시나리오 원문·checksummed journal·원자 상태 저장, 입력/출력 디스크 여유 검사. 재시도/재시작을 이유로 기존 Job 폴더를 덮지 않는다. **프로세스 재시작 후 disk resume는 1B**이며 1A는 기존 ID 폴더를 거절한다. 세션 최대 Job16개·입력 대기64MiB다.
 - 1A의 M=1은 **UI 프로세스의 현재 World에서 동시 시나리오 1개를 생성하는 기준선**이다. child game process를 아직 띄우지 않는다. state에 `execution_host=coordinator_baseline`, `concurrent_scenarios=1`, `worker_processes=0`을 명시한다. 독립 M개 프로세스·heartbeat/재할당/UserDir·안전 상태 집계는 1B다.
 - Dataset은 기본 TestSet 경로를 유지하고, 학습 plan만 정확한 `Saved/TrainBatch/Jobs/<JobId>/scenarios/<Id>/run_<RunUUID>` 경로를 추가 허용한다. L1 file writer에는 업무 타입 대신 중립 local storage scope만 전달한다. ordinary 시나리오가 시작되기 전에 planned capture를 양보하고, 외부 사용자/다른 Dataset의 작업은 중지하지 않는다. 센서 preset 변경은 혼합 생성 대신 중단한다.
-- [TrainBatchWidget](../Source/ma0t10_dt/MA0T10/UI/Topview/DxWidgetTrainBatch.h)은 UDxWidget 기반의 목록/상태·명시 대상 적용·manifest 경로 가져오기·시작/중단·검증 완료 PCD 보기 골격이다. **압축/SFTP 성공 표시나 전송 버튼 동작은 아직 없다.** 메뉴/자산 wiring·공통 Workspace 배치 확장은 후속 UI 통합 대상이며 운영맵을 수정하지 않았다.
+- [TrainBatchWidget](../../Source/ma0t10_dt/MA0T10/UI/Topview/DxWidgetTrainBatch.h)은 UDxWidget 기반의 목록/상태·명시 대상 적용·manifest 경로 가져오기·시작/중단·검증 완료 PCD 보기 골격이다. **압축/SFTP 성공 표시나 전송 버튼 동작은 아직 없다.** 메뉴/자산 wiring·공통 Workspace 배치 확장은 후속 UI 통합 대상이며 운영맵을 수정하지 않았다.
 
 후속 실행 허용 뒤의 개발 진입점은 Blueprint `Open Training Panel`(`UTrainBatchWidget::OpenTrainingPanel(WorldContextObject)`)이다. DTCore가 중복 창/BringToFront/input blocker/닫기를 관리한다. 창을 연 것만으로 기능은 켜지지 않는다. 기능 켜기→같은 World의 정확한 Slab Actor 이름/LiDAR ID·선택 Camera ID와 preset 적용→manifest 절대 경로 가져오기→모든 입력 저장 확인→Job 선택/시작 순서다. 선택 센서의 기존 측정/송신/저장은 사용자가 먼저 정리해야 하며 기본 PCD 정책을 자동 변경하지 않는다. 단위는 manifest와 Slab 입력 단위가 같아야 한다.
 
@@ -318,7 +320,7 @@ DTCore에는 새 기능이 필요하지 않은 방향이다. TC DataTable 등록
 - native 비정상 종료는 GPU/driver별 중복 lease를 제외해 집계한다.2회면 해당 조합은 새 워커에서 지원 RHI를 사용한다. 슬롯의1회 RHI 안전 복구 실행은 결과로 채택하지 않고 정상 종료 후 재시도한다. driver 변경은 별도 safety identity다. native marker/state를 자동 삭제하거나 엔진/DTCore/driver를 수정하지 않는다.
 - 완료 결과는 워커의 닫힌 디렉토리와 checksum marker를 검증한 뒤 같은 볼륨의 coordinator Job 폴더로 원자 이동한다. 캡처/저장/업로드는 분리되며, 다른 프로세스의 readback/버퍼를 공유하지 않는다. 서로 다른 볼륨으로의 결과 이동은 현재 명시 거절한다.
 
-로컬 headless 복구 점검은 `-TrainBatchCoordinator=<Saved/Reports 아래 설정 JSON>` opt-in 진입점을 사용한다. 일반 실행에서는 해당 subsystem이 생성되지 않는다. Editor 자동화의 `test_auto` actor 선택은 검증 전용이며 Shipping은 거절한다. 실제 사용은 명시적인 Actor 이름·센서/preset을 지정한다. [복구 probe](../Scripts/run_train_batch_recovery_probe.py)는 private UserDir에서만 워커1개 종료와 coordinator 재시작을 주입하며, PID/creation stamp가 맞는 소유 프로세스만 종료한다. 실제 서버/인증 설정을 사용하지 않는다.
+로컬 headless 복구 점검은 `-TrainBatchCoordinator=<Saved/Reports 아래 설정 JSON>` opt-in 진입점을 사용한다. 일반 실행에서는 해당 subsystem이 생성되지 않는다. Editor 자동화의 `test_auto` actor 선택은 검증 전용이며 Shipping은 거절한다. 실제 사용은 명시적인 Actor 이름·센서/preset을 지정한다. [복구 probe](../../Scripts/run_train_batch_recovery_probe.py)는 private UserDir에서만 워커1개 종료와 coordinator 재시작을 주입하며, PID/creation stamp가 맞는 소유 프로세스만 종료한다. 실제 서버/인증 설정을 사용하지 않는다.
 
 실측: 실제 게임 coordinator M=2에서8시나리오/24프레임을 완료했고, 워커1개 강제 종료 후 재할당·1회 native RHI 복구·coordinator 재시작 후 디스크 resume를 확인했다. M=4 요청은 이12GB PC에서 실제M=2로 제한됐으며 전부 완료했다. 두 실행의24개 PCD 레코드 bytes가 같고 채택 결과는 backend=HardwareRT·fallback0이었다. unrestricted M=4 통과로 해석하지 않는다. 상세 예산/수치/최종 gate는 r41b 결과 보고서를 따른다.
 

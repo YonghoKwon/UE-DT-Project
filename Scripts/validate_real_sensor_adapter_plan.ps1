@@ -71,7 +71,7 @@ $requiredFiles = @(
     [PSCustomObject]@{ Label = "WebSocket LiDAR smoke evidence workflow"; Path = "Scripts\run_websocket_lidar_smoke_evidence.ps1" },
     [PSCustomObject]@{ Label = "Real sensor adapter readiness report exporter"; Path = "Scripts\export_real_sensor_adapter_readiness_report.ps1" },
     [PSCustomObject]@{ Label = "Real sensor adapter deployment package exporter"; Path = "Scripts\export_real_sensor_adapter_deployment_package.ps1" },
-    [PSCustomObject]@{ Label = "Adapter plan document"; Path = "docs\real_sensor_adapter_plan.md" }
+    [PSCustomObject]@{ Label = "Adapter plan document"; Path = "docs\archive\real_sensor_adapter_plan.md" }
 )
 
 foreach ($file in $requiredFiles) {
@@ -106,7 +106,7 @@ $realSensorReadinessReportExporter = Join-Path $ProjectRoot "Scripts\export_real
 $realSensorDeploymentPackageExporter = Join-Path $ProjectRoot "Scripts\export_real_sensor_adapter_deployment_package.ps1"
 $realSensorDeploymentTemplateExporter = Join-Path $ProjectRoot "Scripts\export_real_sensor_adapter_deployment_template.ps1"
 $realSensorDeploymentEvidenceValidator = Join-Path $ProjectRoot "Scripts\validate_real_sensor_adapter_deployment_evidence.ps1"
-$planDoc = Join-Path $ProjectRoot "docs\real_sensor_adapter_plan.md"
+$planDoc = Join-Path $ProjectRoot "docs\archive\real_sensor_adapter_plan.md"
 
 $requiredTexts = @(
     [PSCustomObject]@{ Path = $baseHeader; Pattern = "ERealSensorSourceKind"; Label = "Base source kind enum" },

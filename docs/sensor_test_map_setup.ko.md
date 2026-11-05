@@ -15,9 +15,9 @@ Unreal Editor를 종료하고 Editor target을 빌드한 뒤 아래 순서로 �
 
 이 스크립트는 다음 V2 WBP를 올바른 native parent로 생성하고 회귀맵에 배치합니다.
 
-- `WBP_VirtualSensorMonitorPanel` → `UVirtualSensorMonitorPanelWidget`
-- `WBP_VirtualSensorSettingsPanel` → `UVirtualSensorSettingsPanelWidget`
-- `WBP_VirtualSensorCaptureExportPanel` → `UVirtualSensorCaptureExportPanelWidget`
+- `WBP_VirtualSensorMonitorPanel` → `UDxWidgetVirtualSensorMonitorPanel`
+- `WBP_VirtualSensorSettingsPanel` → `UDxWidgetVirtualSensorSettingsPanel`
+- `WBP_VirtualSensorCaptureExportPanel` → `UDxWidgetVirtualSensorCaptureExportPanel`
 
 먼저 `/Game/MA0T10/Maps/Tests/SensorRefactorTestMap`을 PIE로 검증합니다. 정상 확인 후 `Scripts/setup_sensor_test_map.py`를 실행해 운영 `SensorTestMap`을 V2로 갱신합니다.
 
@@ -34,7 +34,7 @@ Unreal Editor를 종료하고 Editor target을 빌드한 뒤 아래 순서로 �
 
 ## Main UI와 Viewport fallback
 
-`AVirtualSensorUiHostActor`는 세 패널을 한 번만 생성합니다. `UVirtualSensorPanelHostComponent`가 Main Widget의 `AddWidgetPanel`을 찾으면 일반 Canvas 자식으로 배치하고, 찾지 못하면 Viewport에 배치합니다. 0.25초마다 Main 교체를 감지해 같은 인스턴스를 재호스팅하므로 Level Blueprint에서 별도로 `Create Widget`을 호출하면 안 됩니다.
+`AVirtualSensorUiHostActor`는 세 패널을 한 번만 생성합니다. `UVirtualSensorPanelHostComp`가 Main Widget의 `AddWidgetPanel`을 찾으면 일반 Canvas 자식으로 배치하고, 찾지 못하면 Viewport에 배치합니다. 0.25초마다 Main 교체를 감지해 같은 인스턴스를 재호스팅하므로 Level Blueprint에서 별도로 `Create Widget`을 호출하면 안 됩니다.
 
 접기 버튼은 본문을 숨기는 동시에 실제 높이를 약 48px로 줄입니다. Main에서는 `UCanvasPanelSlot::SetSize`, Viewport fallback에서는 desired size를 사용합니다. 펼치면 직전 크기를 복원하고 화면 경계 안으로 보정합니다.
 
