@@ -1,6 +1,6 @@
 # DATA-IF-10 — Artemis PCD 서버 설정안
 
-이 문서는 서버 담당자 검토용이다. 운영 적용·무중단 HA·외부 소비자 수용 완료를 뜻하지 않는다. 실제 로컬 검수 결과는 `Saved/Reports/DATA-IF-10/r55/RESULT.md`에 별도로 기록한다. DTCore main `f05f25f6ebb8bacda0e5b0dc6e1c5d5d88ae44ee`를 사용한다. cb9788a 대비 Markdown 문서만 변경됐으며 채널 런타임은 동일하다.
+이 문서는 서버 담당자 검토용이다. 운영 적용·무중단 HA·외부 소비자 수용 완료를 뜻하지 않는다. 실제 로컬 검수 결과는 `Saved/Reports/DATA-IF-10/r55/RESULT.md`에 별도로 기록한다. DTCore main `e6644e2964ba3359c0689e3539cbdbdbf743b137`를 사용한다. f05f25f 대비 UDxWidgetFreeview와 기본 true 화면 로그 설정이 추가됐으며 채널 런타임은 동일하다.
 
 ## 유지하는 계약과 연결
 

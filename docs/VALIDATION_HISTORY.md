@@ -1161,3 +1161,12 @@ Two-hourx2, original five pairs8MiB, RTonABAB2%, Shipping/full release/night wer
 - Windows Editor·TestHost Editor 빌드와 Structure12/DataIf 비-Docker 자동화 14개가 통과했다. quick·두 guard·layer·token/static 검사는 r58 RESULT의 최종 결과를 따른다.
 - 사용자 승인 범위에 따라 release 전체·ABAB·맵10·Docker·Linux 패키지·장시간 메모리는 재실행하지 않았다. r57/r57b 증거를 재사용하며 과거 FAIL/skip을 새 PASS로 바꾸지 않는다. 초기 빌드 변수명 충돌과 테스트 실행 준비 실패 로그는 보존했다.
 - 증거는 `Saved/Reports/STRUCTURE-12/r58/RESULT.md` 및 `result.json`에 기록한다.
+
+## 2026-11-05 DTCORE-PIN r59 — 묶음 G 고정 버전 갱신
+
+- 사용자 승인으로 DTCore PR #8 머지본 `e6644e2964ba3359c0689e3539cbdbdbf743b137`를 고정했다. `UDxWidgetFreeview` 및 기본 true 화면 로그 설정이 추가됐으며 DTCore 소스는 수정하지 않았다. 과제 패널 부모·설정 값·맵·에셋은 변경하지 않았다. DTDevice의 현행 문서/setup 기준과 host pin을 함께 갱신했다.
+- host Editor·Development·Shipping, TestHost setup·Editor 빌드 PASS. TestHost 실제 D3D12 테스트 18 Success / 1 Skip / 0 Fail. host DTCore 자동화 31 Success / 0 Skip / 0 Fail이며 `DTCore.Functional.FreeviewWindow`와 화면 로그 토글을 포함한다. 60분 STOMP Soak는 opt-in 비활성이며 이번 장시간 실행 제외 범위다.
+- quick·DTCore/DTDevice guard·layer(allowlist0)·repository-token-policy PASS. quick/release의 보호 경로 비교 기준은 승인된 pin 커밋 `18914e2d`이며 검사 스크립트·기준은 유지했다. master 기준 merge-check의 승인된 DTCore gitlink 보호 판정은 별도로 보존한다.
+- release 전체는 542 Success / 46 Skip / 0 Fail, 고유584개로 r57 기준 누락0. 추가3개는 FreeviewWindow, OnScreenDebugToggle, TrainBatch.ArchiveCapabilities다. Linux Development BuildCookRun의 Build/Cook/Stage/Pak/Archive가 완주했으며 ELF·실행 스크립트·pak 산출물과 SHA-256을 확인했다. Linux 실행은 이번에 수행하지 않았다.
+- 맵10·ABAB·Docker·긴 메모리는 사용자 승인으로 재실행하지 않았다. 이전 증거를 재사용하며 r57/r57b의 기존 FAIL·skip 및 현장 수용 한계는 그대로 보존한다. 개인 설정·보호 경로 원본 해시를 복원·검증했고 외부 프로젝트 프로세스는 종료하지 않았다.
+- 상세는 `Saved/Reports/DTCORE-PIN/r59/RESULT.md`, `result.json`, `merge-check.json`을 따른다.

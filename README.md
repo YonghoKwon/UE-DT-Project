@@ -1,12 +1,13 @@
 # UE-DT-Project
 
-UE 5.3 / Windows / D3D12 기반 가상 센서와 Slab·해치·코일·학습 업무 프로젝트입니다. **#99~#104 완료 상태**, 문서 기준 `master` c7153136(2026-11-05)입니다. DTCore 고정값은 `f05f25f6ebb8bacda0e5b0dc6e1c5d5d88ae44ee`; DTDevice는 [pin 파일](Scripts/device_plugin_pin.txt)의 정확한 커밋을 사용합니다.
+UE 5.3 / Windows / D3D12 기반 가상 센서와 Slab·해치·코일·학습 업무 프로젝트입니다. **#99~#104 완료 상태**, 문서 기준 `master` c7153136(2026-11-05)입니다. DTCore 고정값은 `e6644e2964ba3359c0689e3539cbdbdbf743b137`; DTDevice는 [pin 파일](Scripts/device_plugin_pin.txt)의 정확한 커밋을 사용합니다.
 
 사용법은 이 문서, 작업 권한·보호 규칙은 [AGENTS.md](AGENTS.md), 세부 문서는 [docs 색인](docs/README.md)을 따릅니다. 완료된 계획은 [archive](docs/archive/README.md)에 보존하며 현재 승인이나 보장으로 읽지 않습니다. 저작권 고지는 [LICENSE](LICENSE)를 따릅니다.
 
 ## 1. 현재 상태와 검증 범위
 
 - #99 장치 플러그인 분리, #100 에셋·TestHost, #101 이름·폴더, #102 포맷, #103 DTCore 기능 통합, #104 데이터 채널 통합이 반영됐습니다.
+- DTCORE-PIN r59는 DTCore 묶음 G `e6644e2`로 pin을 갱신했습니다. host 3종·TestHost 빌드, TestHost D3D12 **18 Success / 1 Skip / 0 Fail**, host DTCore **31 Success / 0 Skip / 0 Fail**, release **542 Success / 46 Skip / 0 Fail**(고유584개·누락0), quick·guards·layer·token 정책 및 Linux Development 패키징이 통과했습니다. 과제 패널·화면 로그 설정은 변경하지 않았으며 맵10·ABAB·Docker·긴 메모리는 승인된 이전 증거를 재사용합니다.
 - STRUCTURE-12 r58은 전송 중지와 복구를 구분하고 AFS token override 누락을 거절합니다. DTCore `f05f25f`는 이전 pin 대비 Markdown만 변경됐습니다. Editor·TestHost 빌드와 Structure12/DataIf 비-Docker 자동화 **14 Success / 0 Skip / 0 Fail**을 확인했으며, 승인된 r57/r57b 전체 검증 증거는 그대로 보존합니다.
 - STRUCTURE-12 검증(`0e55e314`, Device `905135c`, Core `cb9788a`): Windows Editor/Development/Shipping 빌드, release **539 Success / 46 Skip / 0 Fail**(고유581개·누락0), 맵10개 읽기 전용 로드·대상 경고0, RT-on ABAB 2%, 두 guard가 통과했습니다. Linux는 설치 엔진의 libzip.a 부재로 링크 실패이며, legacy 문서 정책7건도 기존 FAIL로 유지합니다. 세부 한계는 [알려진 미해결](docs/KNOWN_ISSUES.md)과 검증 이력을 따릅니다.
 - r57b는 Windows ZIP 동작을 유지하며 Linux libzip 의존을 제외했습니다. Linux Development BuildCookRun과 Ubuntu WSL의 패키지 NullRHI 기동·ZIP 거절·tar.gz/SHA-256 검사가 통과했습니다. Linux ZIP/전체 학습 IPC·SFTP·GPU/UI 수용 범위는 [학습 안내](docs/TRAIN_BATCH.md)와 [알려진 미해결](docs/KNOWN_ISSUES.md)를 따릅니다.

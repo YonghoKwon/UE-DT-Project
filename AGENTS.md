@@ -1,6 +1,6 @@
 # 작업 지침 — UE-DT-Project
 
-기준: UE 5.3, #99~#104 완료 구조, DTCore main 고정 `f05f25f6ebb8bacda0e5b0dc6e1c5d5d88ae44ee`, DTDevice는 `Scripts/device_plugin_pin.txt`의 정확한 SHA다. 기본 작업 폴더는 `C:\Unreal Projects\ma0t10_dt`이며, 사용자가 지정한 별도 worktree에서는 그 요청 범위만 수행한다.
+기준: UE 5.3, #99~#104 완료 구조, DTCore main 고정 `e6644e2964ba3359c0689e3539cbdbdbf743b137`, DTDevice는 `Scripts/device_plugin_pin.txt`의 정확한 SHA다. 기본 작업 폴더는 `C:\Unreal Projects\ma0t10_dt`이며, 사용자가 지정한 별도 worktree에서는 그 요청 범위만 수행한다.
 이 파일은 작업 권한·보호·검증 규칙이다. 사용법은 README, 세부 색인은 docs/README.md를 따른다. 문서나 로드맵만으로 구현·빌드·push·PR·merge 권한을 확대하지 않는다.
 
 ## 1. 문서의 역할
@@ -25,7 +25,7 @@
 - 시작 시 branch/HEAD/remote와 `git status`를 확인한다. 기존 변경은 보존한다.
 - 명시적 요청 없이 **DTCore 소스 및 parent gitlink**, `Config/Game.ini`, 운영맵의 사용자 변경, `Samples/PixelStreaming`을 수정하거나 stage하지 않는다.
 - **PixelStreaming은 필요한 기능이다(사용자 결정 2026-10-12).** `ma0t10_dt.Build.cs`의 PixelStreaming 모듈 의존, `.uproject` 플러그인 활성화, `Samples/PixelStreaming`을 C++ 사용처가 없다는 이유로 제거·비활성화하지 않는다.
-- 커밋 전 `Scripts/validate_dtcore_submodule_guard.ps1`로 gitlink가 고정값(`f05f25f6ebb8bacda0e5b0dc6e1c5d5d88ae44ee`)인지, DTCore staged/worktree 변경이 없는지 확인한다(ARCH-01에서 기대값을 현재 고정값으로 맞춘다).
+- 커밋 전 `Scripts/validate_dtcore_submodule_guard.ps1`로 gitlink가 고정값(`e6644e2964ba3359c0689e3539cbdbdbf743b137`)인지, DTCore staged/worktree 변경이 없는지 확인한다(ARCH-01에서 기대값을 현재 고정값으로 맞춘다).
 - DTCore는 여러 소비 프로젝트가 사용하는 별도 저장소이며 **정말 필요한 경우에만 수정한다(2026-11-03 사용자 결정)**. 먼저 프로젝트/DTDevice에서 해결할 수 없는 근거와 최소 수정안을 사용자에게 보고한 뒤 멈춘다. 사용자 승인 전에는 DTCore 소스 수정·저장소 커밋·push·PR 머지·pin 변경을 하지 않는다. 승인 후에는 별도 PR로 진행하고 **DTCore 단독·UE-DT-Project·DTDevice TestHost**를 검증한 뒤 pin과 guard 기준을 명시적으로 갱신한다. 자동 submodule update/reset은 하지 않는다.
 - `SensorTestManaged` 없는 Actor/Mesh는 이동·삭제하지 않는다. 명시적으로 배치된 `ASlabActor`의 소유 Mesh 생성은 가능하지만 임의 맵에 Slab·조명·카메라를 자동 배치하는 권한은 아니다.
 - `Binaries`, `Intermediate`, `Saved`, `.vs`, 캐시·패키징 결과·실험 PNG/JSON/log는 커밋하지 않는다.
