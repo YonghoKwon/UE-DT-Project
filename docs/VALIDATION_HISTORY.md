@@ -7,6 +7,61 @@
 새 검증 기록은 아래 "README에서 옮긴 이력" 절보다 앞에 날짜 절로 추가한다. 옮긴 원문 문장은 수정하지 않는다.
 
 
+## 2026-11-05 — DATA-IF-10 r55f (남은 최종 게이트 완료)
+
+검증 기준 host `023c2444`, DTCore `cb9788a2338ad92e6a651be71330f2abe4b63a90`, DTDevice `dca79e3`이다. Device의 직전 `458e77a` 대비 변경은 TestHost/.gitignore에 Config/Game.ini 한 줄 추가뿐이다. 이번 확인에서는 소스·Config·pin을 변경하지 않았다.
+
+| 항목 | 결과 |
+|---|---|
+| host Editor 빌드 | PASS |
+| 유효 release 회귀 1회 | **536 Success / 46 Skip / 0 Fail**, 고유 **578** |
+| 테스트 목록 | r55b 577개 + LooseEditReplacesPackagedRow, **누락 0 / 예상 밖 0** |
+| 테스트 맵 10개 | 읽기 전용 로드 PASS, LogLinker/LogCoreRedirects Warning·Error **0**, 저장 호출 0·파일 hash 불변 |
+| DTCore / DTDevice guards | RequireConnected PASS |
+| 보호·개인 설정 | 192개 보호/Config hash와 원본 개인 파일3개 집합·hash 복원 PASS |
+
+Saved 하네스의 상태 파일 교체 오류 1건은 빌드 전에 종료됐다. 이어 정상 CrashReportClientEditor를 외부 Unreal로 오인한 초기 중단 2건도 실제 자동화 테스트 시작 전이므로 별도 보존·제외했다. 저장소 소스가 아닌 Saved 감시기만 수정하고, 이후 유효한 전체 release는 1회 실행했다. 외부 프로젝트 프로세스를 종료·중지·활성화하지 않았다. 유효 실행의 프로세스 감시151회에서 외부 Unreal/build 중첩0, GPU 카운터49회 관측에서 decode0이며 추가2회는 수집 불가로 기록했다.
+
+r55e의 패키지 설정 통과 및 사전 guard 실패 기록은 유지한다. 성능·메모리를 재측정하지 않았으며, **해치 메모리 FAIL은 사용자 결정으로 재측정 없이 진행했고 증가 원인·현재 반복 여부는 미확인**이다. 상세: `Saved/Reports/DATA-IF-10/r55f/RESULT.md`, `result.json`, `merge-check.json`.
+
+## 2026-11-05 — DATA-IF-10 r55e (머지 전 확인, release 사전 검사 중단)
+
+기준 host `fb19e681`, DTDevice `458e77a`, DTCore main `cb9788a2338ad92e6a651be71330f2abe4b63a90`이다. DTCore의 tree는 이전 `dd7bae7`과 동일함을 확인했다. 이번 확인에서는 소스·저장소 Config·pin을 수정하지 않았다.
+
+| 항목 | 결과 |
+|---|---|
+| TestHost setup / host Editor / TestHost Editor | PASS, validatedCommit `cb9788a` |
+| TestHost D3D12 측정·자동화 | **43 Success / 1 Skip / 0 Fail**, 신규 `LooseEditReplacesPackagedRow` Success |
+| Development 패키지 build/cook/stage/archive | PASS; Saved 아래 임시 프로젝트의 Config에만 pak sensor 행을 구성 |
+| r55b 공통·Windows·재시작 설정 검사 | **3/3 PASS** |
+| pak 행 URL 편집 회귀 | pak-only sensor URL `28614` 확인 → loose 사본의 URL만 `29614`로 변경·같은 UserDir 재시작 → 등록된 channel 설정의 새 URL 확인 PASS; ClearArray 미사용 |
+| release 1회 시도 | **사전 DTDevice guard FAIL**, 실제 회귀 테스트 0개 실행 |
+| 중단 원인 | TestHost가 생성한 `TestHost/Config/Game.ini` 132B 빈 템플릿이 untracked로 남음; 기존 알려진 SHA256와 일치 |
+| 복원 후 두 guard | PASS; 템플릿을 백업하고 초기 부재로 복원. 원래 release 실패 판정은 유지 |
+| 테스트 맵 10개 로드 | **미수행** — 문제 발견 시 중단 지시에 따라 추가 Unreal 실행·release 재시도 없음 |
+
+192개 보호·Config 파일과 개인 설정 원본 3개의 집합·해시를 복원했다. 임시 패키지·프로젝트는 소스/에셋/셰이더 1045개 동일 확인과 해시 inventory 후 정리했다. 환경 감시 3회에서 영상 decode·외부 Unreal/build 중첩은 없었다. 패키지 검사는 NullRHI 설정 적용 확인이며 live broker 연결이나 GPU 성능 검증으로 세지 않는다.
+
+해치 메모리 **2h +10.53 / 3h +9.78 MiB/h FAIL**은 사용자 결정으로 재측정 없이 진행했다. **증가 원인과 현재 반복 여부는 미확인**이며 해결·PASS로 바꾸지 않는다. 성능·메모리 재측정은 없었다. 다음 확인은 release 실제 회귀 및 맵 10개 로드이며, 이번 실행에서는 재개하지 않았다. 상세: `Saved/Reports/DATA-IF-10/r55e/RESULT.md`, `result.json`, `merge-check.json`.
+
+## 2026-11-05 — DATA-IF-10 r55b (프로젝트 토픽 정책·loose 배포)
+
+검증 코드 기준 host `79ff131d`, DTDevice `e68282d`, DTCore `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71`이다. DTCore 소스·pin은 이번 보완에서 바꾸지 않았다. 연결은 DTCore, destination 별칭·구독 정책은 프로젝트 Game 설정으로 분리했다. 빈 새 설정은 기존 INI/맵/UI profile을 유지한다. 기본 자동 재수신은 꺼져 있고 PCD SEND·wire·FIFO·예산·native 코드는 그대로다.
+
+| 검증 | 결과 |
+|---|---|
+| host Editor / Development / TestHost Editor 빌드 | PASS |
+| 관련 자동화 | 17 실제 Success / 1 환경 의존 Skip, 신규 6개 포함 |
+| release | **535 Success / 46 Skip / 0 Fail**, 고유 577, r55의 571개 누락 0 |
+| Development 패키지·설정 | common → Windows override → 같은 UserDir에서 common 수정 후 재시작, **3/3 PASS** (NullRHI 설정 검증) |
+| quick / layer / 두 submodule guard | PASS, allowlist 0 |
+| 성능·메모리 | 사용자 r55b 지시에 따라 재실행 생략; 송신 알고리즘·native diff 없음 |
+| 설정 복원 | 개인 설정 원본 집합·해시, 보호 파일 183개 일치 |
+
+pak 설정이 현장 loose 파일을 가려 DTDevice 시작 시 두 물리 파일의 허용 속성만 읽도록 보완했다. 전역 config 캐시는 복사·수정·저장하지 않는다. 초기 임시 캐시 복사 방식의 패키지 crash, URL 따옴표 누락, 단위 fixture Outer 오류 등 초기 실패는 증거와 함께 보존했다. 기본 이름·로그/wire 계약·테스트 기준은 바꾸지 않았다. 환경 관측 52회에서 decode·외부 Unreal/build 중첩 0, 추가 1회는 카운터 수집 불가로 기록했다.
+
+기존 r55 해치 메모리 **2h +10.53 / 3h +9.78 MiB/h FAIL**은 해결·재판정하지 않았다. 직접 화면 확인과 Linux 패키지 실행은 미수행이다. 상세: `Saved/Reports/DATA-IF-10/r55b/RESULT.md`, `result.json`, `merge-check.json`; 현장 설정은 [Artemis 가이드](ARTEMIS_PCD_SETTINGS.md).
+
 ## 2026-11-04 — DTCORE-EXT-09 r54c (main 기준 통합)
 
 사용자 승인으로 DTCore main `1604ee72a52362c7e39d969ca1c3e631cfdaa3c3`을 고정했다. DTCore·엔진 소스 수정은 없고, DTDevice `67ec9d1` main을 사용한다. 전용 재연결 설정 기본 1/10/2, 캡처/사이드바 내비게이션(기존 uint8 0~3 유지), 공유 WebSocket 저빈도 JSON opt-in을 적용했다. PCD는 기존 전용 연결과 기본 정책을 유지한다. 공유 receipt 등록은 GameInstance당 16개로 제한하고 실제 receipt/연결 변경까지 슬롯을 유지한다.
@@ -1070,3 +1125,16 @@ Two-hourx2, original five pairs8MiB, RTonABAB2%, Shipping/full release/night wer
 - host Editor/Development 및 TestHost Editor/Development 빌드 PASS. TestHost 기본19건18Success/1기존opt-inSkip, startup oracle16 exact native/RHI PASS.
 - release1회 Valid:490Success/45semanticSkip/0Fail, WBP7 메모리 compile/save0 및 vocabulary 포함17단계 PASS. r52 기존531개 test 경로와 완전히 동일, 추가/누락0. 맵10개 read-only load/hash PASS, LogLinker/LogCoreRedirects Warning/Error0.
 - 사용자 명시 결정으로 r52b ABAB 및 장시간 메모리 재실행 없음. r52 perf를 새 통과로 세지 않음. Source 생산 문자열·test-ID 변경0, 맵·에셋 저장/stage0, 보호 설정·DTCore 유지. 상세 Saved/Reports/NAMING-01/r52b/RESULT.md/result.json/merge-check.json.
+
+## 2026-11-05 — DATA-IF-10 r55/r55c/r55d
+
+- 기준 host `6e4f7ec4`(Runtime 게이트), base `03f5f5bb`, DTCore 승인 채널 브랜치 `dd7bae7be36d9d6137cb41f8fd1ec86c60306b71`, DTDevice `8f6a8cd`. DTCore 소스 수정 없음. 이후 Editor 전용 opt-in 브로커 검수만 구독/수신 관찰을 보강했고 제품 Runtime/Native/UI/셰이더/기본 설정 hash는 동등하다.
+- 기존 Raw TCP STOMP worker 본문을 유지한 `UDxDeviceSensorBulkChannel`, 기존 JSON/수동 binary 연결을 위임한 `UDxDeviceSensorStompChannel`, GI 수명 등록 `sensor`/`sensor-bulk`, `Default` 공유 JSON adapter, GetAllChannelStatus 기반 상태를 적용했다. 기존 INI 직접 파서·session 인증·PCD33-byte/wire/FIFO/예약 상한·BP/저장 API는 유지한다.
+- Editor/TestHost Editor·Development package build/cook/stage/archive PASS. release 529 Success/46 명시 Skip/0 Fail, 고유571(이전541 누락0, 추가30). DTCore29/29(신규 채널7 포함), TestHost37경로 실패0, 기존 맵10 읽기 전용 load/hash 유지·LogLinker/LogCoreRedirects 경고0, WBP7개 메모리 컴파일/저장0. layer allowlist0.
+- 정식 RT ABAB: base03f5f5bb/Core1604 vs candidate6e4f7ec4/Coredd7, MLX80Native+Camera, Visible1920x1080 D3D12 ProjectDefault, 10s warm+60s 측정,3블록12실행. GT+0.09765%,FPS하락0.12974%,p95+0.03199%,2% PASS, waiver 없음. 승인된 Core gitlink 변경을 일반 보호 경로 wrapper가 거절하므로 동일 stock ABAB body와 별도 guard/quick을 사용했다(판정/워크로드 변경 없음).
+- 사용자 r55c는 해치/Slab 목표만2h로 변경했다. 준비 구간을 제외한7200초 샘플 후 소유 게임을 정상 취소했고 원시 complete=false/footer/종료 코드는 보존했다. 명시적인 r55c proof에서만 승인 종료 창을 해석하며 기존 OLS/8MiB/h/환경/coverage/native/PCD 검사는 그대로다. 시간 변경 회귀6+기존 판정 회귀12 PASS. 진행 중 game/runner/OS sampler는 유지한 채 supervisor만 교체했다.
+- 메모리(처음30분 제외 OS Commit OLS): 해치2h **+10.5342 FAIL**(r50동일창4.4746), 원료 하역3h **+0.8093 PASS**(r506.6584/r372.69), Slab2h **+2.0582 PASS**(r50동일창2.0934). r55d 승인 해치3h 1회 재측정도 **+9.7758 FAIL**(r504.56596/r375.14). 모든 실행 native fallback0·약20Hz. a2구간10-60/60-120/120-180은17.3364/1.0586/3.7977MiB/h로, 마지막 구간 plateau 경향이어도 정식 FAIL은 유지한다. WS trim과 old gate를 숨기지 않는다.
+- 해치 계단: a1 약110.68분의 앞/뒤60초 중앙값+13.09MiB(109~110→119~120 순증가11.60), a2 전체 최대 약122.64분+15.51MiB. 각 UObjectdelta0, 주로 LLM Untracked/FMAllocUnused, RHIMisc 변화 작음. a1 r50대비 전체수준 중앙값+24.72MiB 중 UObjecttag+0.089MiB; 객체 수+99만으로 전체 증가를 귀속할 수 없다. 호출스택 없는 관측 한계를 기록했고 제품 수정/추가 Unreal 추적은 하지 않았다.
+- GPU/메모리 종료 후 Docker 공식 Artemis2.42.0 2live+각 replication backup+HAProxy3.0.30 VIP를 재현했다. 실제 두 채널·NullRHI 합성 PCD33-byte 3스트림20Hz 입력, JSON on/off, 교차live순서, live강제종료/양채널재연결·재구독, 소비 정지DROP/새비영속구독, large-message디스크 비교를 세부9회차로 검수했다. 정상 대형 프레임에는 로컬 과부하/수신gap이 있어 실제 수신20Hz로 표시하지 않았다. JSON receipt평균31.48→29.73ms, invalid/중복/역순0. 작은66KB frame DROP 주소는64MiB 설정에최대64.10MiB, large threshold64KiB/1.32MB body는실행중 large-messages약950MiB/노드까지 관측했다. 회사/운영 수용·업무ACK·exactly-once 보장이 아니다.
+- 초기 하네스 오류(컴파일 선언/문자열 인코딩, 잘못된NullRHI필터/말단점경로, 맵목록누락,2h취소종료형태,Slab PS인자,XMLnamespace/VIP DNS/readiness/소비자ACK)는 원문을 보존하고 제품 실패와 구분했다. 원시 해치 FAIL은 삭제하지 않았다. 서버 설정안과운영4단계/끄기는 `docs/ARTEMIS_PCD_SETTINGS.md`.
+- 결론: 구현/release/perf/로컬broker 검수와 별개로 **해치 메모리 gate 미통과**이며 머지가능으로표시하지 않는다. DTCore브랜치 main통합과Claude독립검수가선행조건이다. 증거 `Saved/Reports/DATA-IF-10/r55/RESULT.md`, `result.json`, `merge-check.json`.
