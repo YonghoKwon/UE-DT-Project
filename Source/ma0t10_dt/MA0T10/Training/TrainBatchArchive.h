@@ -43,6 +43,9 @@ struct FTrainArchiveResult
 namespace TrainBatchArchive
 {
 MA0T10_DT_API const TCHAR* Extension(ETrainArchiveFormat Format);
+/** ZIP is available on Windows; tar.gz remains available on all supported targets. */
+MA0T10_DT_API bool IsFormatSupported(ETrainArchiveFormat Format);
+MA0T10_DT_API const TCHAR* ZipUnavailableReason();
 /** Rejects empty, absolute, drive, '\\', '.', '..', control characters and over-long names. */
 MA0T10_DT_API bool IsSafeEntryName(const FString& Name);
 /** Every regular file under Root, sorted ordinally by entry name. Fails on any unsafe name. */

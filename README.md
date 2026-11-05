@@ -1,13 +1,15 @@
 # UE-DT-Project
 
-UE 5.3 / Windows / D3D12 기반 가상 센서와 Slab·해치·코일·학습 업무 프로젝트입니다. **#99~#104 완료 상태**, 문서 기준 `master` 80e03ed1(2026-11-05)입니다. DTCore 고정값은 `cb9788a2338ad92e6a651be71330f2abe4b63a90`; DTDevice는 [pin 파일](Scripts/device_plugin_pin.txt)의 정확한 커밋을 사용합니다.
+UE 5.3 / Windows / D3D12 기반 가상 센서와 Slab·해치·코일·학습 업무 프로젝트입니다. **#99~#104 완료 상태**, 문서 기준 `master` c7153136(2026-11-05)입니다. DTCore 고정값은 `f05f25f6ebb8bacda0e5b0dc6e1c5d5d88ae44ee`; DTDevice는 [pin 파일](Scripts/device_plugin_pin.txt)의 정확한 커밋을 사용합니다.
 
 사용법은 이 문서, 작업 권한·보호 규칙은 [AGENTS.md](AGENTS.md), 세부 문서는 [docs 색인](docs/README.md)을 따릅니다. 완료된 계획은 [archive](docs/archive/README.md)에 보존하며 현재 승인이나 보장으로 읽지 않습니다. 저작권 고지는 [LICENSE](LICENSE)를 따릅니다.
 
 ## 1. 현재 상태와 검증 범위
 
 - #99 장치 플러그인 분리, #100 에셋·TestHost, #101 이름·폴더, #102 포맷, #103 DTCore 기능 통합, #104 데이터 채널 통합이 반영됐습니다.
-- 최근 코드 검증 r55f(`023c2444`, Device `dca79e3`, Core `cb9788a`): release **536 Success / 46 Skip / 0 Fail**, 고유578개·누락0, 테스트 맵10개 읽기 전용 로드·대상 경고0, 두 guard PASS입니다. 문서 작업에서 빌드·Unreal을 다시 실행한 결과는 아닙니다.
+- STRUCTURE-12 r58은 전송 중지와 복구를 구분하고 AFS token override 누락을 거절합니다. DTCore `f05f25f`는 이전 pin 대비 Markdown만 변경됐습니다. Editor·TestHost 빌드와 Structure12/DataIf 비-Docker 자동화 **14 Success / 0 Skip / 0 Fail**을 확인했으며, 승인된 r57/r57b 전체 검증 증거는 그대로 보존합니다.
+- STRUCTURE-12 검증(`0e55e314`, Device `905135c`, Core `cb9788a`): Windows Editor/Development/Shipping 빌드, release **539 Success / 46 Skip / 0 Fail**(고유581개·누락0), 맵10개 읽기 전용 로드·대상 경고0, RT-on ABAB 2%, 두 guard가 통과했습니다. Linux는 설치 엔진의 libzip.a 부재로 링크 실패이며, legacy 문서 정책7건도 기존 FAIL로 유지합니다. 세부 한계는 [알려진 미해결](docs/KNOWN_ISSUES.md)과 검증 이력을 따릅니다.
+- r57b는 Windows ZIP 동작을 유지하며 Linux libzip 의존을 제외했습니다. Linux Development BuildCookRun과 Ubuntu WSL의 패키지 NullRHI 기동·ZIP 거절·tar.gz/SHA-256 검사가 통과했습니다. Linux ZIP/전체 학습 IPC·SFTP·GPU/UI 수용 범위는 [학습 안내](docs/TRAIN_BATCH.md)와 [알려진 미해결](docs/KNOWN_ISSUES.md)를 따릅니다.
 - r55e: TestHost 실제43 Success / 1 Skip, Development 패키지 공통·Windows·재시작 설정3/3 및 pak 행 URL 편집 후 재시작 확인이 통과했습니다. 설정 검사는 NullRHI이며 live broker 수용과 구분합니다.
 - 메모리 미해결, 장애 전환 중 PCD 유실, loose 설정 적용 범위는 **[알려진 미해결](docs/KNOWN_ISSUES.md)**에서만 현재 상태를 관리합니다. release 통과를 모든 메모리·현장 수용 완료로 해석하지 않습니다.
 - 날짜별 원본은 [VALIDATION_HISTORY](docs/VALIDATION_HISTORY.md)에 보존합니다. skipped/미수행·다른 SHA의 결과는 실제 통과로 세지 않습니다.
@@ -88,8 +90,8 @@ powershell -ExecutionPolicy Bypass -File Scripts/validate_device_plugin_submodul
 - 연결: `[/Script/DTCore.DTCoreSettings]`의 `DataChannels`(Default는 기존 `WebSocketUrl` 등 공유 설정).
 - 토픽: `[/Script/DeviceRuntime.DeviceDataChannelSettings]`의 `Channels` → 채널별 Alias / Destination / bSubscribe / Purpose.
 - 공통: `Config/DefaultGame.ini`; 플랫폼: `Config/Windows/WindowsGame.ini`, `Config/Linux/LinuxGame.ini`.
-- Windows 패키지: `Windows/ma0t10_dt/Config/DefaultGame.ini`와 그 아래 `Windows/WindowsGame.ini` loose 파일을 수정하고 **재시작**합니다.
-- 지원 속성은 플랫폼 loose → 공통 loose → 기존 pak/사용자 설정 순서입니다. 공통 파일에 목록이 있으면 pak 목록을 대체하며, 같은 채널 이름의 뒤 행이 앞 행을 대체합니다.
+- Windows 패키지: `Windows/ma0t10_dt/Config/Game.ini`를 권장하며, 기존 `DefaultGame.ini`·`Windows/WindowsGame.ini` loose 파일도 유지합니다. 수정 후 **재시작**합니다.
+- 지원 속성은 DTCore 후보 순서의 공통 Game.ini → 플랫폼 후보 → DefaultGame.ini → 기존 pak/사용자 설정 순서입니다. 공통 목록은 낮은 우선순위 목록을 대체하며, 플랫폼은 지정한 행만 덮어씁니다. 같은 채널 이름의 뒤 행이 앞 행을 대체합니다. 전체 경로와 예제는 [Artemis 가이드](docs/ARTEMIS_PCD_SETTINGS.md)를 따릅니다.
 - 빈 새 항목은 기존 `SensorTransport.ini`/맵/UI profile 대체 경로를 유지합니다. 연결값과 토픽값은 독립적으로 이전할 수 있습니다.
 - 비밀번호·토큰을 ini·로그·문서·커밋에 넣지 않습니다. Runtime Override **키 이름**만 지정하고 실제 값은 기존 사용자 override 경로로 관리합니다. URL은 `"ws://…"`처럼 인용합니다.
 
@@ -143,6 +145,8 @@ Source/ma0t10_dtEditor/                  commandlet·Editor 자동화
 중립 Contracts → DeviceRuntime(장치 L1) → 과제 업무 L2 → UI L3 방향만 허용합니다. DTDevice가 host `ma0t10_dt`를 include하거나 UHT 역참조하지 않습니다. 공통 구현은 plugin base/body 한 곳이 실행 상태를 소유하고 host façade는 기존 BP/저장 호환을 유지합니다. 과제 semantic 표·run 집계·분석은 host hook/provider로 등록합니다.
 
 ### 10.2 현재 위반
+
+STRUCTURE-12는 bulk 장애 유실 표시, Game.ini 후보 통일, Linux/Clang 경계 보정, legacy perf 준비 제거, Default JSON 준비 경로를 정리했습니다. 기본 전송/PCD·wire·품질은 유지하며, 참조가 남은 façade7개는 제거하지 않았습니다.
 
 ARCH layer allowlist는 **0**입니다. [layer 검사](Scripts/validate_architecture_layers.ps1)의 의미와 예외 수를 이름/문서 정리로 늘리지 않습니다. 파일·모듈 이동, 기능 변경, 에셋 이동은 각각 별도 승인을 받습니다.
 

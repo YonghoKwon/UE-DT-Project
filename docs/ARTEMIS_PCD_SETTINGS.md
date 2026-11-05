@@ -1,6 +1,6 @@
 # DATA-IF-10 — Artemis PCD 서버 설정안
 
-이 문서는 서버 담당자 검토용이다. 운영 적용·무중단 HA·외부 소비자 수용 완료를 뜻하지 않는다. 실제 로컬 검수 결과는 `Saved/Reports/DATA-IF-10/r55/RESULT.md`에 별도로 기록한다. DTCore 채널 브랜치 `cb9788a`을 사용하며 DTCore main 머지 전에 host를 머지하지 않는다.
+이 문서는 서버 담당자 검토용이다. 운영 적용·무중단 HA·외부 소비자 수용 완료를 뜻하지 않는다. 실제 로컬 검수 결과는 `Saved/Reports/DATA-IF-10/r55/RESULT.md`에 별도로 기록한다. DTCore main `f05f25f6ebb8bacda0e5b0dc6e1c5d5d88ae44ee`를 사용한다. cb9788a 대비 Markdown 문서만 변경됐으며 채널 런타임은 동일하다.
 
 ## 유지하는 계약과 연결
 
@@ -141,7 +141,7 @@ Windows/ma0t10_dt/Config/Windows/WindowsGame.ini
 ```
 
 자격증명 값은 넣지 않는다. 인증은 기존 Runtime Override 키 방식으로 별도 관리한다.
-패키지의 pak 설정만 사용하면 이 loose 배치가 반영되지 않아, DTDevice가 시작 시 두 파일을
+패키지의 pak 설정만 사용하면 이 loose 배치가 반영되지 않아, DTDevice가 시작 시 지원하는 물리 파일을
 물리 디스크에서 읽는다(파일당 2MiB 이하). 채널 연결·토픽 속성만 메모리에 덮어쓰며
 다른 섹션, 직접 비밀번호 값, 맵 설정은 가져오거나 저장하지 않는다.
 우선순위는 플랫폼 loose → 공통 loose → 기존 pak/사용자 설정이다.
@@ -160,3 +160,40 @@ CameraTopic/LidarTopic/ExportTopic/AckTopic을 각각 새 별칭으로 옮긴다
 기존 `SensorTransport.ini`는 삭제하거나 자동 덮어쓰지 않는다.
 
 현재 미해결과 사용자 수용 범위는 [KNOWN_ISSUES](KNOWN_ISSUES.md) 한 곳에서 관리한다. 이 문서의 로컬 합성 수치는 회사 서버 수용을 대신하지 않는다.
+
+## 현장 Game.ini 경로와 우선순위 (STRUCTURE-12B)
+
+기존 `Config/DefaultGame.ini` 읽기를 유지하며, 채널·토픽도 DTCore `TryReadRuntimeOverride`와 같은 런타임 파일 후보를 읽는다. 패키지를 종료한 뒤 수정하고 재시작한다. 이 기능은 연결 속성 allowlist와 `UDeviceDataChannelSettings.Channels`에만 적용하며 인증값·다른 DTCore 섹션·전역 GConfig는 가져오거나 저장하지 않는다.
+
+높은 우선순위부터 아래 순서다. 중복 절대경로는 한 번만 읽는다.
+
+1. `<ProjectDir>/Config/Game.ini`
+2. `<LaunchDir>/Config/Game.ini`
+3. `<LaunchDir>/../../Config/Game.ini`
+4. `<LaunchDir>/<ProjectName>/Config/Game.ini`
+5. 위 네 루트의 `<Platform>/<Platform>Game.ini` (Windows/WindowsGame.ini 또는 Linux/LinuxGame.ini)
+6. `<ProjectConfigDir>/DefaultGame.ini`
+7. 기존 pak/사용자 설정. 새 채널/토픽 설정이 비어 있으면 기존 SensorTransport.ini/profile 대체 경로를 유지한다.
+
+Game.ini의 공통 목록은 낮은 우선순위 목록을 대체한다. 플랫폼 목록은 기존처럼 지정한 채널 행만 덮어쓰며 나머지를 유지한다. 같은 채널 이름의 마지막 행이 앞 행을 대체한다. 전체 목록 초기화가 필요하면 `!DataChannels=ClearArray` 또는 `!Channels=ClearArray`를 명시한다. `Game.ini`가 없으면 기존 DefaultGame.ini→플랫폼 동작과 동일하다. URL 문자열은 ini에서 `WebSocketUrl="ws://127.0.0.1:61616"`처럼 인용한다.
+
+Windows 현장 권장 배치는 `Windows/ma0t10_dt/Config/Game.ini`다. 기존 DefaultGame.ini·Windows/WindowsGame.ini 배치도 계속 지원한다. 기존 채널/토픽 예제의 섹션을 Game.ini에 그대로 둘 수 있다. URL/키 이름만 설정하며 비밀번호·토큰은 ini에 저장하지 않고 기존 Override/session 전달만 사용한다. Linux는 같은 경로 규칙을 사용하며 실제 패키지 검증 여부는 실행 보고서를 확인한다.
+
+## JSON을 Default로 공유하는 선택 (STRUCTURE-12D)
+
+기본 전송 모드는 바꾸지 않는다. 기존 `EVirtualSensorTransportMode::DTCoreWebSocket`을 선택하면 저빈도 JSON은 Default, 20Hz PCD는 sensor-bulk로 보낸다. 이 모드의 준비/재연결 요청은 sensor 채널을 획득하지 않으며 Default의 재연결·재구독 정책을 DTCore에 맡긴다. 기존 StompWebSocket 모드는 sensor를 계속 사용한다.
+
+공유 구성을 선택할 때 sensor 연결을 자동으로 열지 않도록 다음 행을 명시한다(기존 채널 목록의 같은 이름 행을 수정한다).
+
+```ini
+[/Script/DTCore.DTCoreSettings]
++DataChannels=(ChannelName="sensor",ChannelClass="/Script/DeviceRuntime.DxDeviceSensorStompChannel",bAutoConnect=False,bUseDefaultCredentials=False)
+```
+
+장비 전송 방식은 DTCoreWebSocket, Default 주소와 sensor-bulk 주소는 기존 연결 설정을 사용한다. sensor에 별도 자동 연결/구독 작업을 설정하지 않은 이 조합에서는 실제 제품 연결은 **Default + sensor-bulk = 2개**다. 등록된 상태 목록에는 연결을 열지 않은 sensor도 남는다. 독립 sensor 연결이 필요한 수동/기존 STOMP 업무와 혼용하면 2개를 보장하지 않는다. 공통 연결에 binary PCD를 Base64로 넣거나 전용 worker를 없애지 않는다.
+
+설정·모드 변경 후 재시작하고 상태 목록의 Default/sensor-bulk 연결과 sensor 미연결을 확인한다. 인증값은 ini에 직접 넣지 않는다. Docker 기능 검수는 Tools/ArtemisClusterTest의 shared 모드를 사용하며, 외부 소비자/HAProxy health check 연결을 제품의 두 연결과 구분해 보고한다.
+
+## STRUCTURE-12 r58 상태 표시 보완
+
+현재 sensor-bulk는 장애 복구 시 `[SensorBulkRecovery]` Warning 1회와 기존 상태 UI에 확인된 유실을 표시합니다. 연결 중단 중 전송/세션이 끝나면 `전송 중지로 관측 종료`로 구분하고 기간·해당 구간 유실을 고정합니다. 이를 복구로 기록하지 않으며 다음 실패는 새 구간입니다. 누적 유실은 유지합니다. 확인된 로컬 거절/terminal 실패이며 소비자 ACK나 브로커 내부의 정확한 DROP 수를 뜻하지 않습니다.

@@ -16,9 +16,10 @@ New-Item -ItemType Directory -Path $report -Force | Out-Null
 $config = Join-Path $package 'ma0t10_dt/Config'
 $common = Join-Path $config 'DefaultGame.ini'
 $platform = Join-Path $config 'Windows/WindowsGame.ini'
+$runtime = Join-Path $config 'Game.ini'
 $user = Join-Path $report 'owned-user'
 $originals = @{}
-foreach ($path in @($common,$platform)) {
+foreach ($path in @($common,$platform,$runtime)) {
     $originals[$path] = if (Test-Path -LiteralPath $path) { [IO.File]::ReadAllBytes($path) } else { $null }
 }
 $utf8 = [Text.UTF8Encoding]::new($false)
@@ -42,16 +43,24 @@ function Write-Fixture([string]$Path,[string]$Marker,[int]$Port) {
 }
 $rows = [Collections.Generic.List[object]]::new()
 try {
-    foreach ($case in @('common','platform','restart-edited-common')) {
+    foreach ($case in @('common','platform','runtime-common','runtime-restart','restart-edited-common')) {
         if ($case -eq 'common') {
             Write-Fixture $common 'common' 28713
+            if (Test-Path -LiteralPath $runtime) { Remove-Item -LiteralPath $runtime }
             if (Test-Path -LiteralPath $platform) { Remove-Item -LiteralPath $platform }
             $marker='common';$port=28713
         } elseif ($case -eq 'platform') {
             Write-Fixture $platform 'platform' 28813
             $marker='platform';$port=28813
+        } elseif ($case -eq 'runtime-common') {
+            Write-Fixture $runtime 'runtime' 29013
+            $marker='runtime';$port=29013
+        } elseif ($case -eq 'runtime-restart') {
+            Write-Fixture $runtime 'runtime-edited' 29113
+            $marker='runtime-edited';$port=29113
         } else {
             Write-Fixture $common 'edited' 28913
+            if (Test-Path -LiteralPath $runtime) { Remove-Item -LiteralPath $runtime }
             Remove-Item -LiteralPath $platform
             $marker='edited';$port=28913
         }
@@ -81,10 +90,10 @@ try {
     $rows.Add(@{Case=$case;Pass=$false;Failure=$_.Exception.Message})
     throw
 } finally {
-    foreach ($path in @($common,$platform)) {
+    foreach ($path in @($common,$platform,$runtime)) {
         if ($null -ne $originals[$path]) { [IO.File]::WriteAllBytes($path,$originals[$path]) }
         elseif (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path }
     }
-    @{Pass=($rows.Count -eq 3 -and @($rows | Where-Object { -not $_.Pass }).Count -eq 0);Cases=$rows.ToArray();RestoredLooseFiles=$true;NullRHI=$true;RealGpuAcceptance=$false} |
+    @{Pass=($rows.Count -eq 5 -and @($rows | Where-Object { -not $_.Pass }).Count -eq 0);Cases=$rows.ToArray();RestoredLooseFiles=$true;NullRHI=$true;RealGpuAcceptance=$false} |
         ConvertTo-Json -Depth 6 | Set-Content (Join-Path $report 'manifest.json') -Encoding UTF8
 }

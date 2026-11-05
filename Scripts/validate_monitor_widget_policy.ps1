@@ -38,10 +38,10 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 
 $requiredFiles = @(
-    [PSCustomObject]@{ Label = "Monitor widget header"; Path = "Source\ma0t10_dt\MA0T10\UI\DxWidgetVirtualSensorMonitorPanel.h" },
-    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\DxWidgetVirtualSensorMonitorPanel.cpp" },
-    [PSCustomObject]@{ Label = "Monitor host header"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorUiHostActor.h" },
-    [PSCustomObject]@{ Label = "Monitor host implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\VirtualSensorUiHostActor.cpp" },
+    [PSCustomObject]@{ Label = "Monitor widget header"; Path = "Source\ma0t10_dt\MA0T10\UI\Freeview\DxWidgetVirtualSensorMonitorPanel.h" },
+    [PSCustomObject]@{ Label = "Monitor widget implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\Freeview\DxWidgetVirtualSensorMonitorPanel.cpp" },
+    [PSCustomObject]@{ Label = "Monitor host header"; Path = "Source\ma0t10_dt\MA0T10\UI\Common\VirtualSensorUiHostActor.h" },
+    [PSCustomObject]@{ Label = "Monitor host implementation"; Path = "Source\ma0t10_dt\MA0T10\UI\Common\VirtualSensorUiHostActor.cpp" },
     [PSCustomObject]@{ Label = "Monitor automation tests"; Path = "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp" },
     [PSCustomObject]@{ Label = "Widget setup document"; Path = "docs\sensor_test_map_setup.ko.md" },
     [PSCustomObject]@{ Label = "Local asset report document"; Path = "docs\local_asset_report.md" },
@@ -65,10 +65,10 @@ foreach ($file in $requiredFiles) {
     Assert-FileExists -Path (Join-Path $ProjectRoot $file.Path) -Label $file.Label
 }
 
-$widgetHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\DxWidgetVirtualSensorMonitorPanel.h"
-$widgetCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\DxWidgetVirtualSensorMonitorPanel.cpp"
-$hostHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorUiHostActor.h"
-$hostCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\VirtualSensorUiHostActor.cpp"
+$widgetHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\Freeview\DxWidgetVirtualSensorMonitorPanel.h"
+$widgetCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\Freeview\DxWidgetVirtualSensorMonitorPanel.cpp"
+$hostHeader = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\Common\VirtualSensorUiHostActor.h"
+$hostCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\Common\VirtualSensorUiHostActor.cpp"
 $testsCpp = Join-Path $ProjectRoot "Source\ma0t10_dt\MA0T10\UI\Tests\VirtualSensorMonitorHostAutomationTests.cpp"
 $setupDoc = Join-Path $ProjectRoot "docs\sensor_test_map_setup.ko.md"
 $localAssetDoc = Join-Path $ProjectRoot "docs\local_asset_report.md"

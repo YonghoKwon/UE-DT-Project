@@ -429,10 +429,18 @@ void UDxWidgetVirtualSensorCaptureExportPanel::BindSensorManager(AVirtualSensorC
 {
 	SensorManager = InSensorManager;
 	if (SensorManager && SensorManager->StreamPublisherComp)
+	{
 		if (auto* Preferences = UVirtualSensorUiPreferencesSaveGame::LoadOrCreate())
+		{
 			for (const auto& Pair : Preferences->PcdSendOptionsBySensor)
+			{
 				if (!SensorManager->StreamPublisherComp->PcdSendOptionsBySensor.Contains(Pair.Key))
+				{
 					SensorManager->StreamPublisherComp->PcdSendOptionsBySensor.Add(Pair.Key, Pair.Value);
+				}
+			}
+		}
+	}
 	TopicReceiverHost = nullptr;
 	if (UWorld* World = GetWorld())
 	{

@@ -7,6 +7,7 @@
 #include "Device/Core/VirtualSensorHighThroughputTransportSubsystem.h"
 #include "Device/Sensor/VirtualPcdCodec.h"
 #include "Core/DxWebSocketSubsystem.h"
+#include "Core/DTCoreSettings.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "HAL/FileManager.h"
@@ -26,6 +27,16 @@ struct FDataIfBrokerMetrics
 	int32 JsonConnections = 0, JsonReceipts = 0, JsonFailures = 0;
 	int32 JsonSubscriptionReceipts = 0, JsonMessages = 0;
 	TArray<double> JsonReceiptMs;
+};
+
+struct FDataIfSharedSettings
+{
+	TGuardValue<FString> Url, Login, Passcode;
+	TGuardValue<TArray<FString>> Topics, ApiTopics;
+	TGuardValue<TArray<FDxDataChannelSettings>> Channels;
+	FDataIfSharedSettings(UDTCoreSettings& Settings, const FString& InUrl, const FString& InLogin, const FString& InPasscode)
+	    : Url(Settings.WebSocketUrl, InUrl), Login(Settings.WebSocketLogin, InLogin), Passcode(Settings.WebSocketPasscode, InPasscode),
+	      Topics(Settings.WebSocketTopics, {}), ApiTopics(Settings.ApiTopics, {}), Channels(Settings.DataChannels, {}) {}
 };
 
 class FDataIfBrokerRun final : public IAutomationLatentCommand
@@ -50,9 +61,13 @@ public:
 		LastUpdate = Now;
 		Game->GetTimerManager().Tick(Delta);
 		Transport->Tick(Delta);
+		const bool bJsonConnected = bUseSharedDefault ? Socket->FindChannel(TEXT("Default"))->GetStatus().State == EDxDataChannelState::Connected : Json->IsConnected();
+		if (bUseSharedDefault && bJsonConnected && !bJsonWasConnected)
+			++Metrics->JsonConnections;
+		bJsonWasConnected = bJsonConnected;
 		if (!ReadyAt)
 		{
-			if (Transport->IsTransportConnected() && Json->IsConnected())
+			if (Transport->IsTransportConnected() && bJsonConnected)
 			{
 				ReadyAt = Now;
 				NextFrame = NextJson = NextSnapshot = Now;
@@ -102,8 +117,17 @@ public:
 			NextJson = Now + 1;
 			const double Sent = FPlatformTime::Seconds();
 			auto Shared = Metrics;
-			Json->Send(VirtualSensorDefaults::LidarTopic, FString::Printf(TEXT("{\"type\":\"data-if-functional-probe\",\"sequence\":%lld}"), FrameId), {{TEXT("destination-type"), TEXT("MULTICAST")}, {TEXT("content-type"), TEXT("application/json;charset=utf-8")}}, FStompRequestCompleted::CreateLambda([Shared, Sent](bool bSuccess, const FString&)
-			                                                                                                                                                                                                                                                                                                 {
+			if (bUseSharedDefault)
+			{
+				if (Socket->PublishMessage(VirtualSensorDefaults::LidarTopic, FString::Printf(TEXT("{\"type\":\"data-if-functional-probe\",\"sequence\":%lld}"), FrameId), {{TEXT("destination-type"), TEXT("MULTICAST")}, {TEXT("content-type"), TEXT("application/json;charset=utf-8")}}, FSTOMPRequestCompleted()))
+					++JsonAccepted;
+				else
+					++Shared->JsonFailures;
+			}
+			else
+			{
+				Json->Send(VirtualSensorDefaults::LidarTopic, FString::Printf(TEXT("{\"type\":\"data-if-functional-probe\",\"sequence\":%lld}"), FrameId), {{TEXT("destination-type"), TEXT("MULTICAST")}, {TEXT("content-type"), TEXT("application/json;charset=utf-8")}}, FStompRequestCompleted::CreateLambda([Shared, Sent](bool bSuccess, const FString&)
+				                                                                                                                                                                                                                                                                                                 {
 				if (bSuccess)
 				{
 					++Shared->JsonReceipts;
@@ -111,6 +135,7 @@ public:
 				}
 				else
 					++Shared->JsonFailures; }));
+			}
 		}
 		const bool bFinished = Now - ReadyAt >= Seconds;
 		if (Now >= NextSnapshot || bFinished)
@@ -120,8 +145,20 @@ public:
 		}
 		if (!bFinished)
 			return false;
-		Test.TestTrue(TEXT("ordinary JSON broker receipts"), Metrics->JsonReceipts > 0);
-		Test.TestTrue(TEXT("ordinary JSON channel subscription and receive"), Metrics->JsonSubscriptionReceipts > 0 && Metrics->JsonMessages > 0);
+		if (bUseSharedDefault)
+		{
+			Test.TestTrue(TEXT("shared JSON accepted for external receiver verification"), JsonAccepted > 0);
+			Test.TestFalse(TEXT("sensor channel remains idle in shared JSON mode"), Json->IsConnected());
+			int32 Connected = 0;
+			for (const auto& Status : Socket->GetAllChannelStatus())
+				Connected += Status.State == EDxDataChannelState::Connected ? 1 : 0;
+			Test.TestEqual(TEXT("Default plus bulk are the only connected channels"), Connected, 2);
+		}
+		else
+		{
+			Test.TestTrue(TEXT("ordinary JSON broker receipts"), Metrics->JsonReceipts > 0);
+			Test.TestTrue(TEXT("ordinary JSON channel subscription and receive"), Metrics->JsonSubscriptionReceipts > 0 && Metrics->JsonMessages > 0);
+		}
 		if (bPcdOn)
 		{
 			int64 Submitted = 0;
@@ -152,6 +189,7 @@ private:
 		Seconds = RequestedSeconds.IsEmpty() ? 120 : FMath::Clamp(FCString::Atoi(*RequestedSeconds), 10, 600);
 		PointCount = RequestedPoints.IsEmpty() ? 40000 : FMath::Clamp(FCString::Atoi(*RequestedPoints), 1, 250000);
 		bPcdOn = Env(TEXT("DTDEVICE_ARTEMIS_PCD")) != TEXT("0");
+		bUseSharedDefault = Env(TEXT("DTDEVICE_ARTEMIS_JSON_MODE")) == TEXT("Default");
 		Game.Reset(NewObject<UGameInstance>());
 		World.Reset(UWorld::CreateWorld(EWorldType::Game, false));
 		Transport.Reset(NewObject<UVirtualSensorHighThroughputTransportSubsystem>(World.Get()));
@@ -187,18 +225,28 @@ private:
 			Test.AddError(TEXT("Bulk worker preparation failed."));
 			return false;
 		}
-		Profile.BrokerUrl = Ws;
-		if (!Json->AcquireOwner(Game.Get(), Profile, Passcode, FString(), Error))
-			return false;
-		Json->Connected.AddLambda([Shared = Metrics, Channel = Json.Get()](const FString&, const FString&, const FString&)
-		                          {
+		if (bUseSharedDefault)
+		{
+			SharedSettings = MakeUnique<FDataIfSharedSettings>(*GetMutableDefault<UDTCoreSettings>(), Ws, Profile.UserName, Passcode);
+			FSubsystemCollection<UGameInstanceSubsystem> Collection;
+			Socket->Initialize(Collection);
+			Socket->FindChannel(TEXT("Default"));
+		}
+		else
+		{
+			Profile.BrokerUrl = Ws;
+			if (!Json->AcquireOwner(Game.Get(), Profile, Passcode, FString(), Error))
+				return false;
+			Json->Connected.AddLambda([Shared = Metrics, Channel = Json.Get()](const FString&, const FString&, const FString&)
+			                          {
 			++Shared->JsonConnections;
 			Channel->SubscribeToAck(VirtualSensorDefaults::LidarTopic); });
-		Json->AckSubscribed.AddLambda([Shared = Metrics](bool bSuccess, const FString&)
-		                              { Shared->JsonSubscriptionReceipts += bSuccess ? 1 : 0; });
-		Json->AckReceived.AddLambda([Shared = Metrics](const FWebSocketMessage&)
-		                            { ++Shared->JsonMessages; });
-		Json->Connect();
+			Json->AckSubscribed.AddLambda([Shared = Metrics](bool bSuccess, const FString&)
+			                              { Shared->JsonSubscriptionReceipts += bSuccess ? 1 : 0; });
+			Json->AckReceived.AddLambda([Shared = Metrics](const FWebSocketMessage&)
+			                            { ++Shared->JsonMessages; });
+			Json->Connect();
+		}
 		FVirtualLidarPoint Point;
 		Point.SensorLocalPositionMeters = FVector(1, 2, 3);
 		Point.bHit = true;
@@ -223,6 +271,8 @@ private:
 		Root->SetNumberField(TEXT("seconds"), Now - ReadyAt);
 		Root->SetBoolField(TEXT("final"), bFinal);
 		Root->SetBoolField(TEXT("pcd_on"), bPcdOn);
+		Root->SetStringField(TEXT("json_mode"), bUseSharedDefault ? TEXT("Default") : TEXT("sensor"));
+		Root->SetNumberField(TEXT("json_accepted"), JsonAccepted);
 		Root->SetNumberField(TEXT("frames_per_sensor"), FrameId);
 		Root->SetNumberField(TEXT("target_hz"), 20);
 		Root->SetNumberField(TEXT("scheduled_hz"), FrameId / FMath::Max(0.001, Now - ReadyAt));
@@ -236,6 +286,17 @@ private:
 		Root->SetNumberField(TEXT("json_messages"), Metrics->JsonMessages);
 		Root->SetBoolField(TEXT("raw_camera_subscription_diagnostic_only"), true);
 		Root->SetNumberField(TEXT("bulk_connection_revision"), Transport->GetConnectionRevision());
+		const auto& Outage = Bulk->GetLastOutage();
+		Root->SetNumberField(TEXT("bulk_outage_loss"), Bulk->GetOutageDroppedFrames());
+		Root->SetNumberField(TEXT("bulk_channel_dropped"), Bulk->GetStatus().DroppedCount);
+		Root->SetStringField(TEXT("bulk_status_text"), Bulk->GetOutageStatusText());
+		Root->SetStringField(TEXT("bulk_outage_start"), Outage.StartedUtc.ToIso8601());
+		Root->SetStringField(TEXT("bulk_outage_recovered"), Outage.RecoveredUtc.ToIso8601());
+		Root->SetNumberField(TEXT("bulk_outage_seconds"), Outage.DurationSeconds);
+		auto Losses = MakeShared<FJsonObject>();
+		for (const auto& Loss : Outage.DroppedBySensor)
+			Losses->SetNumberField(Loss.Key, Loss.Value);
+		Root->SetObjectField(TEXT("bulk_loss_by_sensor"), Losses);
 		double Total = 0;
 		auto Sorted = Metrics->JsonReceiptMs;
 		Sorted.Sort();
@@ -247,7 +308,7 @@ private:
 			Root->SetNumberField(TEXT("json_receipt_p95_ms"), Sorted[FMath::Clamp(FMath::CeilToInt(Sorted.Num() * .95) - 1, 0, Sorted.Num() - 1)]);
 		}
 		TArray<TSharedPtr<FJsonValue>> Statuses;
-		for (const auto& Status : Socket->GetAllChannelStatus(false))
+		for (const auto& Status : Socket->GetAllChannelStatus(bUseSharedDefault))
 		{
 			auto Row = MakeShared<FJsonObject>();
 			Row->SetStringField(TEXT("name"), Status.ChannelName.ToString());
@@ -275,7 +336,10 @@ private:
 		Transport.Reset();
 		Json.Reset();
 		Bulk.Reset();
+		if (bUseSharedDefault && Socket.IsValid())
+			Socket->Deinitialize();
 		Socket.Reset();
+		SharedSettings.Reset();
 		if (World.IsValid())
 			World->DestroyWorld(false);
 		World.Reset();
@@ -286,6 +350,9 @@ private:
 	TStrongObjectPtr<UWorld> World;
 	TStrongObjectPtr<UVirtualSensorHighThroughputTransportSubsystem> Transport;
 	TStrongObjectPtr<UDxWebSocketSubsystem> Socket;
+	TUniquePtr<FDataIfSharedSettings> SharedSettings;
+	bool bUseSharedDefault = false, bJsonWasConnected = false;
+	int64 JsonAccepted = 0;
 	TStrongObjectPtr<UDxDeviceSensorBulkChannel> Bulk;
 	TStrongObjectPtr<UDxDeviceSensorStompChannel> Json;
 	TSharedRef<FDataIfBrokerMetrics> Metrics = MakeShared<FDataIfBrokerMetrics>();

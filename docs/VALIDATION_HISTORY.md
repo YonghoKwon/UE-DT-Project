@@ -1138,3 +1138,26 @@ Two-hourx2, original five pairs8MiB, RTonABAB2%, Shipping/full release/night wer
 - GPU/메모리 종료 후 Docker 공식 Artemis2.42.0 2live+각 replication backup+HAProxy3.0.30 VIP를 재현했다. 실제 두 채널·NullRHI 합성 PCD33-byte 3스트림20Hz 입력, JSON on/off, 교차live순서, live강제종료/양채널재연결·재구독, 소비 정지DROP/새비영속구독, large-message디스크 비교를 세부9회차로 검수했다. 정상 대형 프레임에는 로컬 과부하/수신gap이 있어 실제 수신20Hz로 표시하지 않았다. JSON receipt평균31.48→29.73ms, invalid/중복/역순0. 작은66KB frame DROP 주소는64MiB 설정에최대64.10MiB, large threshold64KiB/1.32MB body는실행중 large-messages약950MiB/노드까지 관측했다. 회사/운영 수용·업무ACK·exactly-once 보장이 아니다.
 - 초기 하네스 오류(컴파일 선언/문자열 인코딩, 잘못된NullRHI필터/말단점경로, 맵목록누락,2h취소종료형태,Slab PS인자,XMLnamespace/VIP DNS/readiness/소비자ACK)는 원문을 보존하고 제품 실패와 구분했다. 원시 해치 FAIL은 삭제하지 않았다. 서버 설정안과운영4단계/끄기는 `docs/ARTEMIS_PCD_SETTINGS.md`.
 - 결론: 구현/release/perf/로컬broker 검수와 별개로 **해치 메모리 gate 미통과**이며 머지가능으로표시하지 않는다. DTCore브랜치 main통합과Claude독립검수가선행조건이다. 증거 `Saved/Reports/DATA-IF-10/r55/RESULT.md`, `result.json`, `merge-check.json`.
+
+
+## 2026-11-05 — STRUCTURE-12 / r57·r57c 최종 검증
+
+- 기준: origin/master c7153136cafd6fe0d41eb92797d7800a634eaecc, runtime host0e55e314caed39882d638c987922c6f49e9d2993, DTCore cb9788a2338ad92e6a651be71330f2abe4b63a90 고정, DTDevice905135c851e33cf90e01f2add5d8b382c880c89b. 작업은 wt_struct12/feat/structure-12에서 수행했다.
+- A/B/C/F/D 각각 별도 plugin/host 커밋. 장애 구간 센서별 확인된 거절/최종 전송 실패와 누적 dropped·복구 Warning1회/상태 텍스트, 기존 DefaultGame.ini를 유지한 Game.ini 후보 통일, scoped Linux brace/const-reference/shader preamble 및 dependent-template 표기, legacy perf forwarder/alias 제거·미참조 redirect 제거·AFS 토큰 비움, Default JSON 준비/재연결 시 sensor 획득 방지를 반영했다. 기본 모드·PCD payload/wire·Hz·품질은 바꾸지 않았다.
+- Windows Editor/Development/Shipping 빌드 PASS. TestHost setup/Editor 및 D3D12 18Success/1조건부Skip/0Fail; native startup oracle16 exact native/RHI hit records PASS. Linux BuildCookRun은 C++ 컴파일 후 설치 엔진의 libzip.a 부재로 링크 FAIL(툴체인은 존재). 엔진/DTCore 수정·설치는 하지 않았다.
+- 첫 release는 사용자 보고용 캡처 때문에 Claude가 프로세스 트리를 강제 종료했으므로 전체 무효 처리했다. 그 실행의 코일6건 fixture 부재 기록도 보존했다. r57c에서 사용자 지정 _evidence/wt_dataif/COIL-CAP-01/fixtures 원본6개를 동일 해시로 준비한 뒤 release를 처음부터 다시 실행했다. 테스트·CVar·기준 변경은 없다.
+- 유효 release: verify/20261105T053508983Z, 539Success/46Skip/0Fail, 고유581개(기존578+Structure12 3개), 누락0/예상외0. skip 집합도 baseline과 동일하다. 맵10개 읽기 전용 로드 PASS, LogLinker/LogCoreRedirects 경고0, save 호출0·파일 hash 불변.
+- RT-on 표준 ABAB: verify/20261105T055302729Z, master 기준 1Camera+1LiDAR/1920×1080/D3D12/Visible, 3블록12회, 각 revision6개 중앙값. FPS59.99618→59.99223(-0.00658%), frame p95 16.66690→16.66690ms(0%), GT6.23736→6.23631ms(-0.01680%). 각각2% gate PASS. 측정 instrument·판정 수식·워크로드 변경0, 기존 waiver 적용0. 진행 중 보조 CPU JSON을 횟수에 포함해 알린 수치는 정정했으며 실제 판정은 원래 측정 파일만 사용했다.
+- 최종 Artemis live 강제 종료/복구 PASS: 중단21.031초, 확인된 거절/최종 실패1246건(센서별415/415/416), 복구 원본 Warning1회, 상태 문자열·채널 dropped 확인. 이 수치는 실제 소비자 ACK나 브로커 내부 DROP의 정확한 집계로 해석하지 않는다. Default JSON+bulk 실제 외부 수신 및 해당 Unreal 프로세스의 broker TCP2개 PASS, sensor 상태는 미연결. 서버 총 연결에는 cluster/replication·소비자·health check가 별도 포함된다.
+- façade7개는 참조가 남아 유지했다. 정책 검사9개 중 미리보기/실센서2개는 현행 경로/분리 구현으로 복구해 PASS; 나머지7개는 사라진 historical 문서를 요구하므로 기존 FAIL 유지·은퇴 판단 보류. 원래 제품 Pattern assertion 삭제0. 현재 AFS 두 Config 값은 비어 있고 비출력 guard/음성 fixture PASS.
+- 보호 경로·개인 설정 복원 확인, DTCore 및 운영맵/에셋 변경0, main 실행0. 실제 마우스/화면 수용은 자동 상태 텍스트 검증과 구분해 미수행. 긴 메모리는 사용자 금지로 미수행하며 기존 해치2h+10.53/3h+9.78MiB/h FAIL을 그대로 유지한다.
+- 증거: Saved/Reports/STRUCTURE-12/r57/RESULT.md 및 result.json/merge-check.json. 측정 원본은 C:/Unreal Projects/_evidence/STRUCTURE-12-r57에 보관한다. Linux 라이브러리 환경과 legacy 정책7개는 후속 판단이 필요하며 PR/merge는 수행하지 않는다.
+
+## 2026-11-05 STRUCTURE-12 r58 리뷰 보완
+
+- DTCore `cb9788a` → `f05f25f` 차이는 Markdown 7개뿐임을 확인했다. 런타임 코드는 동일하며 DTCore 소스는 수정하지 않았다. DTDevice pin과 현행 문서 기준도 함께 갱신했다.
+- sensor-bulk의 전송/세션 중지는 장애 복구와 구분해 관측을 종료한다. 기간·구간별 유실은 고정하고 누적값은 유지하며 다음 실패는 새 구간으로 시작한다. oversized/일반 drop의 장애 집계는 같은 private helper를 사용한다.
+- AFS token 정책은 섹션/키 누락 및 비어 있지 않은 값을 거절한다. 두 저장소의 누락 음성 사례를 추가했으며 값은 출력하지 않는다.
+- Windows Editor·TestHost Editor 빌드와 Structure12/DataIf 비-Docker 자동화 14개가 통과했다. quick·두 guard·layer·token/static 검사는 r58 RESULT의 최종 결과를 따른다.
+- 사용자 승인 범위에 따라 release 전체·ABAB·맵10·Docker·Linux 패키지·장시간 메모리는 재실행하지 않았다. r57/r57b 증거를 재사용하며 과거 FAIL/skip을 새 PASS로 바꾸지 않는다. 초기 빌드 변수명 충돌과 테스트 실행 준비 실패 로그는 보존했다.
+- 증거는 `Saved/Reports/STRUCTURE-12/r58/RESULT.md` 및 `result.json`에 기록한다.

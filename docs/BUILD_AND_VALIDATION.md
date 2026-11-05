@@ -31,3 +31,27 @@
 - 개인 설정·원본 SaveGame을 백업/복원하고 보호 파일 hash를 확인합니다. raw .utrace/.etl/dump/package는 요약·inventory 후 승인된 소유 경로만 정리합니다.
 
 최근 코드 증거는 [VALIDATION_HISTORY](VALIDATION_HISTORY.md)의 r55f 등 원문입니다. r56은 문서 정리·정적 검사이며 새 release/perf/메모리 통과를 만들지 않습니다.
+
+## 레거시 정책 검사 (STRUCTURE-12F)
+
+이름·폴더 변경과 구현 분할을 따라 실제 소유 파일을 검사하도록 경로를 보정했다. 원래 Pattern assertion은 삭제하지 않았다. 포인트 미리보기는 동일 클래스의 분리 cpp와 공통 Coordinator/Monitor body를 함께 검사하며, 경고 문자열 제거 시 실패하는 음성 테스트도 유지한다.
+
+| 검사 | 결과/처리 |
+|---|---|
+| validate_point_cloud_preview_policy | 현행 플러그인 에셋·분리 구현·공통 body로 경로 보정, PASS |
+| validate_real_sensor_adapter_plan | 현행 Comp cpp·UI 경로 보정, PASS |
+| validate_large_content_decision_policy | local_asset_report 문서 부재, 기존 FAIL 유지 |
+| validate_laz_placeholder_policy | remaining_work 문서 부재, 기존 FAIL 유지 |
+| validate_local_decision_precommit_gate_policy | local_asset_report 문서 부재, 기존 FAIL 유지 |
+| validate_monitor_widget_policy | 현행 UI 경로 보정; local_asset_report 문서 부재로 FAIL 유지 |
+| validate_payload_schema_review_policy | remaining_work 문서 부재, 기존 FAIL 유지 |
+| validate_runtime_config_policy | local_asset_report 문서 부재, 기존 FAIL 유지 |
+| validate_server_transport_contract | 현행 Comp cpp 경로 보정; remaining_work 문서 부재로 FAIL 유지 |
+
+관련 로컬 수락/보호 도구의 소비자가 남아 있어 문서 부재만으로 workflow 폐기를 확정하지 않았다. 7개 검사를 은퇴하거나 현재 문서 계약으로 재설계하는 결정은 후속 검토 대상이다. release·실제 수신·회사 수락을 이 정적 검사와 혼동하지 않는다.
+
+플러그인 분리 호환 API의 Coordinator, 공통 패널 base, Settings/Monitor/CaptureExport/Placement 패널, UI host 등 façade 7개는 소스/설정 또는 에셋 참조가 남아 유지한다. 간접 Blueprint·외부 SaveGame 참조 부재를 단순 문자열 검색만으로 단정하지 않으며 맵·에셋을 재저장하지 않는다. 대상 클래스/에셋 참조가 없는 ProfessionalDocument redirect만 제거했다.
+
+perf는 현행 DTDevice gitlink가 있는 기준만 받는다. 이전 구조 include forwarder와 클래스/멤버 alias 주입은 은퇴했으며, 측정 instrument·워크로드·중앙값·2% 판정은 유지한다. 정적 archive 경계 검사는 `Scripts/test_perf_archive_boundary.ps1`이다.
+
+AndroidFileServer 토큰은 host/TestHost DefaultEngine.ini에서 비워 두며 값을 로그나 커밋에 새로 넣지 않는다. `Scripts/validate_repository_tokens.ps1`이 값 출력 없이 검사하고 표준 verify에 포함된다. 음성 fixture는 `Scripts/test_structure12_static_guards.ps1`로 확인한다.

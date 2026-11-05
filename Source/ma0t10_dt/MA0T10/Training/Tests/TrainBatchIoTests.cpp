@@ -14,7 +14,9 @@
 #endif
 THIRD_PARTY_INCLUDES_START
 #include "zlib.h"
+#if WITH_TRAIN_BATCH_ZIP
 #include "libzip/zip.h"
+#endif
 THIRD_PARTY_INCLUDES_END
 #if PLATFORM_WINDOWS
 #include "Windows/HideWindowsPlatformTypes.h"
@@ -124,6 +126,7 @@ bool ReadTarGz(const FString& Path, TMap<FString, TArray<uint8>>& Out, FString& 
 
 bool ReadZip(const FString& Path, TMap<FString, TArray<uint8>>& Out, FString& Error)
 {
+#if WITH_TRAIN_BATCH_ZIP
 	int Code = 0;
 	zip_t* Zip = zip_open(FTCHARToUTF8(*Path).Get(), ZIP_RDONLY | ZIP_CHECKCONS, &Code);
 	if (!Zip)
@@ -151,7 +154,28 @@ bool ReadZip(const FString& Path, TMap<FString, TArray<uint8>>& Out, FString& Er
 	}
 	zip_discard(Zip);
 	return true;
+#else
+	Error = TrainBatchArchive::ZipUnavailableReason();
+	return false;
+#endif
 }
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTrainBatchArchiveCapabilitiesTest, "MA0T10.TrainBatch.ArchiveCapabilities", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FTrainBatchArchiveCapabilitiesTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("tar.gz remains supported"), TrainBatchArchive::IsFormatSupported(ETrainArchiveFormat::TarGz));
+#if WITH_TRAIN_BATCH_ZIP
+	TestTrue(TEXT("Windows ZIP remains supported"), TrainBatchArchive::IsFormatSupported(ETrainArchiveFormat::Zip));
+	TestEqual(TEXT("Windows options default remains ZIP"), FTrainArchiveOptions().Format, ETrainArchiveFormat::Zip);
+#else
+	TestFalse(TEXT("ZIP is unavailable without libzip"), TrainBatchArchive::IsFormatSupported(ETrainArchiveFormat::Zip));
+	FTrainArchiveOptions Options;
+	const auto Result = TrainBatchArchive::Write({}, FixtureRoot() / TEXT("unsupported.zip"), Options);
+	TestFalse(TEXT("unsupported ZIP request rejected"), Result.bOk);
+	TestTrue(TEXT("error tells caller to use tar.gz"), Result.Error.Contains(TEXT("ZIP")) && Result.Error.Contains(TEXT("tar.gz")));
+#endif
+	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTrainBatchArchiveTest, "MA0T10.TrainBatch.Archive", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

@@ -75,6 +75,7 @@ try {
     Invoke-Step 'dtcore-guard' { & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_dtcore_submodule_guard.ps1" -FailOnViolation -Json; if ($LASTEXITCODE -ne 0) { throw 'DTCore guard failed' } }
     Invoke-Step 'device-plugin-guard' { & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_device_plugin_submodule_guard.ps1" -FailOnViolation -Json; if ($LASTEXITCODE -ne 0) { throw 'DTDevice guard failed' } }
     Invoke-Step 'layer-gate' { & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_architecture_layers.ps1" -Json; if ($LASTEXITCODE -ne 0) { throw 'Layer gate failed' } }
+    Invoke-Step 'repository-token-policy' { & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_repository_tokens.ps1" -Json; if ($LASTEXITCODE -ne 0) { throw 'Repository token policy failed (values suppressed)' } }
     Invoke-Step 'protected-paths' {
         $staged = @(Get-GitLines -Arguments (@('diff', '--cached', '--name-only', '--') + $protectedPaths))
         $committed = @(Get-GitLines -Arguments (@('diff', '--name-only', $BaseCommit, 'HEAD', '--') + $protectedPaths))

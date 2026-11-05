@@ -13,6 +13,10 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Paths.h"
 #include "TimerManager.h"
+#if PLATFORM_LINUX
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#endif
 
 struct FTrainCoordinatorProbeState
 {
@@ -30,11 +34,55 @@ bool UTrainBatchCoordinatorProbe::ShouldCreateSubsystem(UObject* Outer) const
 {
 	const auto* W = Cast<UWorld>(Outer);
 	FString P;
+#if PLATFORM_LINUX
+	if (W && W->WorldType == EWorldType::Game && FParse::Value(FCommandLine::Get(), TEXT("TrainBatchArchiveProbe="), P))
+		return !P.IsEmpty();
+#endif
 	return W && W->WorldType == EWorldType::Game && (FParse::Value(FCommandLine::Get(), TEXT("TrainBatchCoordinator="), P) || FParse::Value(FCommandLine::Get(), TEXT("TrainBatchDefaultOffSmoke="), P));
 }
 void UTrainBatchCoordinatorProbe::OnWorldBeginPlay(UWorld& World)
 {
 	Super::OnWorldBeginPlay(World);
+#if PLATFORM_LINUX
+	FString ArchiveProbePath;
+	if (FParse::Value(FCommandLine::Get(), TEXT("TrainBatchArchiveProbe="), ArchiveProbePath))
+	{
+		const FString Reports = LocalCapturePath::Full(FPaths::ProjectDir() / TEXT("Saved/Reports"));
+		if (!LocalCapturePath::SafeDescendant(Reports, ArchiveProbePath))
+		{
+			FPlatformMisc::RequestExitWithStatus(false, 1);
+			return;
+		}
+		const FString Root = FPaths::GetPath(ArchiveProbePath);
+		const FString Source = Root / TEXT("source");
+		IFileManager::Get().MakeDirectory(*Source, true);
+		FString Error;
+		TArray<FTrainArchiveEntry> Entries;
+		const bool bFixture = FFileHelper::SaveStringToFile(TEXT("TRAIN-BATCH Linux archive probe\n"), *(Source / TEXT("archive-probe.txt")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM) && TrainBatchArchive::CollectEntries(Source, FString(), Entries, Error);
+		FTrainArchiveOptions Options;
+		const auto Zip = TrainBatchArchive::Write(Entries, Root / TEXT("probe.zip"), Options);
+		Options.Format = ETrainArchiveFormat::TarGz;
+		const auto Tar = TrainBatchArchive::Write(Entries, Root / TEXT("probe.tar.gz"), Options);
+		FString Hash;
+		const bool bHash = Tar.bOk && TrainBatchArchive::Sha256File(Tar.OutputPath, Hash, Error) && Hash == Tar.Sha256;
+		const bool bZipRejected = !Zip.bOk && Zip.Error.Contains(TEXT("ZIP")) && Zip.Error.Contains(TEXT("tar.gz")) && !IFileManager::Get().FileExists(*Zip.OutputPath);
+		const bool bPass = bFixture && bZipRejected && bHash && TrainBatchArchive::Sha256Bytes("abc", 3) == TEXT("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+		auto Result = MakeShared<FJsonObject>();
+		Result->SetBoolField(TEXT("pass"), bPass);
+		Result->SetBoolField(TEXT("zip_supported"), TrainBatchArchive::IsFormatSupported(ETrainArchiveFormat::Zip));
+		Result->SetBoolField(TEXT("zip_rejected"), bZipRejected);
+		Result->SetStringField(TEXT("zip_error"), Zip.Error);
+		Result->SetBoolField(TEXT("tar_gz_ok"), Tar.bOk);
+		Result->SetStringField(TEXT("tar_gz_path"), Tar.OutputPath);
+		Result->SetStringField(TEXT("sha256"), Hash);
+		Result->SetStringField(TEXT("error"), Error.IsEmpty() ? Tar.Error : Error);
+		// The existing coordinator journal is Windows-specific; this Linux-only
+		// diagnostic writes its own bounded report without changing the IPC policy.
+		const bool bRecorded = FFileHelper::SaveStringToFile(TrainBatchProcess::Encode(Result), *ArchiveProbePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+		FPlatformMisc::RequestExitWithStatus(false, bPass && bRecorded ? 0 : 1);
+		return;
+	}
+#endif
 	State = MakeShared<FTrainCoordinatorProbeState>();
 	auto& S = *State;
 	FString Path;

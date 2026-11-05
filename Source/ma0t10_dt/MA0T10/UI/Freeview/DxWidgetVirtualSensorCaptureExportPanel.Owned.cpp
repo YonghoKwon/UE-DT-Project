@@ -1,5 +1,7 @@
 #include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetVirtualSensorCaptureExportPanel.h"
 #include "DeviceUI/DeviceSensorCaptureBody.h"
+#include "Device/Core/DxDeviceSensorBulkChannel.h"
+#include "Device/Core/DxDeviceSensorChannelSubsystem.h"
 #include "Blueprint/WidgetTree.h"
 #include "ma0t10_dt/MA0T10/UI/Freeview/DxWidgetSlabScenarioReplayPanel.h"
 #include "ma0t10_dt/MA0T10/UI/Common/SensorToolUiText.h"
@@ -467,6 +469,12 @@ void UDxWidgetVirtualSensorCaptureExportPanel::TickOwnedUi(double Now)
 		OwnedConnectionText = Transport ? TEXT("적용된 서버: ") + (Transport->TransportMode == EVirtualSensorTransportMode::HttpPost ? Transport->GetTransportProfile().HttpEndpoint : Transport->GetTransportProfile().BrokerUrl) : TEXT("장비 연결이 필요합니다");
 		OwnedConnectionText += TEXT("\n") + (Connected ? FString(TEXT("연결 시험 성공 · 서버 연결됨")) : Expected ? FString(TEXT("연결 대기 · 연결되지 않으면 서버 주소와 전송 방식을 확인하세요"))
 		                                                                                                          : FString(TEXT("설정됨 · 연결 시험 또는 전송 시작을 기다립니다")));
+		if (const auto* Bulk = UDxDeviceSensorChannelSubsystem::FindBulk(GetWorld()))
+		{
+			const FString OutageStatus = Bulk->GetOutageStatusText();
+			if (!OutageStatus.IsEmpty())
+				OwnedConnectionText += TEXT("\n") + OutageStatus;
+		}
 	}
 	if (OwnedTab == ESensorOwnedDataTab::Diagnostics)
 	{
