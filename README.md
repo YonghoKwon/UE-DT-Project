@@ -1,6 +1,6 @@
 # UE-DT-Project
 
-UE 5.3 / Windows / D3D12 기반 가상 센서와 Slab·해치·코일·학습 업무 프로젝트입니다. **#99~#104 완료 상태**, 문서 기준 `master` c7153136(2026-11-05)입니다. DTCore 고정값은 `f05f25f6ebb8bacda0e5b0dc6e1c5d5d88ae44ee`; DTDevice는 [pin 파일](Scripts/device_plugin_pin.txt)의 정확한 커밋을 사용합니다.
+UE 5.3 / Windows / D3D12 기반 가상 센서와 Slab·해치·코일·학습 업무 프로젝트입니다. **#99~#104 완료 상태**, 문서 기준 `master` c7153136(2026-11-05)입니다. DTCore 고정값은 `e6644e2964ba3359c0689e3539cbdbdbf743b137`; DTDevice는 [pin 파일](Scripts/device_plugin_pin.txt)의 정확한 커밋을 사용합니다.
 
 사용법은 이 문서, 작업 권한·보호 규칙은 [AGENTS.md](AGENTS.md), 세부 문서는 [docs 색인](docs/README.md)을 따릅니다. 완료된 계획은 [archive](docs/archive/README.md)에 보존하며 현재 승인이나 보장으로 읽지 않습니다. 저작권 고지는 [LICENSE](LICENSE)를 따릅니다.
 
