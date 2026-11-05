@@ -236,6 +236,17 @@ private:
 		Root->SetNumberField(TEXT("json_messages"), Metrics->JsonMessages);
 		Root->SetBoolField(TEXT("raw_camera_subscription_diagnostic_only"), true);
 		Root->SetNumberField(TEXT("bulk_connection_revision"), Transport->GetConnectionRevision());
+		const auto& Outage = Bulk->GetLastOutage();
+		Root->SetNumberField(TEXT("bulk_outage_loss"), Bulk->GetOutageDroppedFrames());
+		Root->SetNumberField(TEXT("bulk_channel_dropped"), Bulk->GetStatus().DroppedCount);
+		Root->SetStringField(TEXT("bulk_status_text"), Bulk->GetOutageStatusText());
+		Root->SetStringField(TEXT("bulk_outage_start"), Outage.StartedUtc.ToIso8601());
+		Root->SetStringField(TEXT("bulk_outage_recovered"), Outage.RecoveredUtc.ToIso8601());
+		Root->SetNumberField(TEXT("bulk_outage_seconds"), Outage.DurationSeconds);
+		auto Losses = MakeShared<FJsonObject>();
+		for (const auto& Loss : Outage.DroppedBySensor)
+			Losses->SetNumberField(Loss.Key, Loss.Value);
+		Root->SetObjectField(TEXT("bulk_loss_by_sensor"), Losses);
 		double Total = 0;
 		auto Sorted = Metrics->JsonReceiptMs;
 		Sorted.Sort();
