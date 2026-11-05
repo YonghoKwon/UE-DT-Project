@@ -23,6 +23,19 @@ $ErrorActionPreference = 'Continue'
 $ErrorActionPreference = 'Stop'
 if ($LASTEXITCODE -eq 0) { throw 'Nonempty token fixture accepted.' }
 if ([IO.File]::ReadAllText("$owned/nonempty.log").Contains($marker)) { throw 'Guard printed token fixture.' }
+# Both repositories must explicitly override the engine's auto-generated token default.
+foreach ($relative in $paths) {
+    foreach ($reset in $paths) { [IO.File]::WriteAllText((Join-Path $owned $reset), $section + "`nSecurityToken=`n", $utf8) }
+    foreach ($missing in @('key', 'section')) {
+        $fixture = if ($missing -eq 'key') { $section + "`nbEnablePlugin=True`n" } else { "[OtherSection]`nSecurityToken=`n" }
+        [IO.File]::WriteAllText((Join-Path $owned $relative), $fixture, $utf8)
+        $log = Join-Path $owned ("missing-$missing-" + ($relative -replace '[^a-zA-Z0-9]', '_') + '.log')
+        $ErrorActionPreference = 'Continue'
+        & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/validate_repository_tokens.ps1" -ProjectRoot $owned -Json *> $log
+        $ErrorActionPreference = 'Stop'
+        if ($LASTEXITCODE -eq 0) { throw "Missing $missing fixture accepted." }
+    }
+}
 $tokens = $null; $errors = $null
 $ast = [Management.Automation.Language.Parser]::ParseFile("$PSScriptRoot/validate_point_cloud_preview_policy.ps1", [ref]$tokens, [ref]$errors)
 if ($errors.Count) { throw 'Preview policy script parse failed.' }
@@ -40,6 +53,6 @@ $rejected = $false
 try { Assert-ContainsText -Path @($first, $second) -Pattern 'Preview is uncapped' -Label 'split implementation' }
 catch { $rejected = $true }
 if (-not $rejected) { throw 'Missing product warning accepted.' }
-@{ Pass = $true; EmptyTokenAccepted = $true; NonemptyTokenRejected = $true; ValuesPrinted = $false; MissingWarningRejected = $rejected; NoUnrealExecution = $true } |
+@{ Pass = $true; EmptyTokenAccepted = $true; NonemptyTokenRejected = $true; MissingKeyRejected = $true; MissingSectionRejected = $true; ValuesPrinted = $false; MissingWarningRejected = $rejected; NoUnrealExecution = $true } |
     ConvertTo-Json | Set-Content "$owned/manifest.json" -Encoding UTF8
 Write-Output 'STRUCTURE-12 static guard tests PASS.'

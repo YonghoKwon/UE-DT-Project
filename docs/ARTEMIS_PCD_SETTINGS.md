@@ -1,6 +1,6 @@
 # DATA-IF-10 — Artemis PCD 서버 설정안
 
-이 문서는 서버 담당자 검토용이다. 운영 적용·무중단 HA·외부 소비자 수용 완료를 뜻하지 않는다. 실제 로컬 검수 결과는 `Saved/Reports/DATA-IF-10/r55/RESULT.md`에 별도로 기록한다. DTCore 채널 브랜치 `cb9788a`을 사용하며 DTCore main 머지 전에 host를 머지하지 않는다.
+이 문서는 서버 담당자 검토용이다. 운영 적용·무중단 HA·외부 소비자 수용 완료를 뜻하지 않는다. 실제 로컬 검수 결과는 `Saved/Reports/DATA-IF-10/r55/RESULT.md`에 별도로 기록한다. DTCore main `f05f25f6ebb8bacda0e5b0dc6e1c5d5d88ae44ee`를 사용한다. cb9788a 대비 Markdown 문서만 변경됐으며 채널 런타임은 동일하다.
 
 ## 유지하는 계약과 연결
 
@@ -193,3 +193,7 @@ Windows 현장 권장 배치는 `Windows/ma0t10_dt/Config/Game.ini`다. 기존 D
 장비 전송 방식은 DTCoreWebSocket, Default 주소와 sensor-bulk 주소는 기존 연결 설정을 사용한다. sensor에 별도 자동 연결/구독 작업을 설정하지 않은 이 조합에서는 실제 제품 연결은 **Default + sensor-bulk = 2개**다. 등록된 상태 목록에는 연결을 열지 않은 sensor도 남는다. 독립 sensor 연결이 필요한 수동/기존 STOMP 업무와 혼용하면 2개를 보장하지 않는다. 공통 연결에 binary PCD를 Base64로 넣거나 전용 worker를 없애지 않는다.
 
 설정·모드 변경 후 재시작하고 상태 목록의 Default/sensor-bulk 연결과 sensor 미연결을 확인한다. 인증값은 ini에 직접 넣지 않는다. Docker 기능 검수는 Tools/ArtemisClusterTest의 shared 모드를 사용하며, 외부 소비자/HAProxy health check 연결을 제품의 두 연결과 구분해 보고한다.
+
+## STRUCTURE-12 r58 상태 표시 보완
+
+현재 sensor-bulk는 장애 복구 시 `[SensorBulkRecovery]` Warning 1회와 기존 상태 UI에 확인된 유실을 표시합니다. 연결 중단 중 전송/세션이 끝나면 `전송 중지로 관측 종료`로 구분하고 기간·해당 구간 유실을 고정합니다. 이를 복구로 기록하지 않으며 다음 실패는 새 구간입니다. 누적 유실은 유지합니다. 확인된 로컬 거절/terminal 실패이며 소비자 ACK나 브로커 내부의 정확한 DROP 수를 뜻하지 않습니다.

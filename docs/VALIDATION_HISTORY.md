@@ -1152,3 +1152,12 @@ Two-hourx2, original five pairs8MiB, RTonABAB2%, Shipping/full release/night wer
 - façade7개는 참조가 남아 유지했다. 정책 검사9개 중 미리보기/실센서2개는 현행 경로/분리 구현으로 복구해 PASS; 나머지7개는 사라진 historical 문서를 요구하므로 기존 FAIL 유지·은퇴 판단 보류. 원래 제품 Pattern assertion 삭제0. 현재 AFS 두 Config 값은 비어 있고 비출력 guard/음성 fixture PASS.
 - 보호 경로·개인 설정 복원 확인, DTCore 및 운영맵/에셋 변경0, main 실행0. 실제 마우스/화면 수용은 자동 상태 텍스트 검증과 구분해 미수행. 긴 메모리는 사용자 금지로 미수행하며 기존 해치2h+10.53/3h+9.78MiB/h FAIL을 그대로 유지한다.
 - 증거: Saved/Reports/STRUCTURE-12/r57/RESULT.md 및 result.json/merge-check.json. 측정 원본은 C:/Unreal Projects/_evidence/STRUCTURE-12-r57에 보관한다. Linux 라이브러리 환경과 legacy 정책7개는 후속 판단이 필요하며 PR/merge는 수행하지 않는다.
+
+## 2026-11-05 STRUCTURE-12 r58 리뷰 보완
+
+- DTCore `cb9788a` → `f05f25f` 차이는 Markdown 7개뿐임을 확인했다. 런타임 코드는 동일하며 DTCore 소스는 수정하지 않았다. DTDevice pin과 현행 문서 기준도 함께 갱신했다.
+- sensor-bulk의 전송/세션 중지는 장애 복구와 구분해 관측을 종료한다. 기간·구간별 유실은 고정하고 누적값은 유지하며 다음 실패는 새 구간으로 시작한다. oversized/일반 drop의 장애 집계는 같은 private helper를 사용한다.
+- AFS token 정책은 섹션/키 누락 및 비어 있지 않은 값을 거절한다. 두 저장소의 누락 음성 사례를 추가했으며 값은 출력하지 않는다.
+- Windows Editor·TestHost Editor 빌드와 Structure12/DataIf 비-Docker 자동화 14개가 통과했다. quick·두 guard·layer·token/static 검사는 r58 RESULT의 최종 결과를 따른다.
+- 사용자 승인 범위에 따라 release 전체·ABAB·맵10·Docker·Linux 패키지·장시간 메모리는 재실행하지 않았다. r57/r57b 증거를 재사용하며 과거 FAIL/skip을 새 PASS로 바꾸지 않는다. 초기 빌드 변수명 충돌과 테스트 실행 준비 실패 로그는 보존했다.
+- 증거는 `Saved/Reports/STRUCTURE-12/r58/RESULT.md` 및 `result.json`에 기록한다.
