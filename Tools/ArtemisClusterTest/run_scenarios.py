@@ -106,6 +106,10 @@ class Cluster:
                 except Exception:
                     row["diagnostic_camera_queues"] = None
                 row["available"] = True
+                try:
+                    row["connections"] = self.jolokia(node, {"type": "read", "mbean": self.broker(node), "attribute": "ConnectionCount"})
+                except Exception:
+                    row["connections"] = None
             except Exception as error:
                 row["error_type"] = type(error).__name__
             output["nodes"][node] = row
@@ -277,8 +281,16 @@ def assert_unreal_slot() -> None:
         raise RuntimeError("Unreal/build slot is busy; no external process was stopped")
 
 
+def process_broker_connections(process, ports: tuple[int, int]) -> int:
+    # psutil 5 uses Process.connections; newer releases renamed that method.
+    query = getattr(process, "net_connections", None) or process.connections
+    return sum(c.status == psutil.CONN_ESTABLISHED and bool(c.raddr)
+               and c.raddr.ip in ("127.0.0.1", "::1") and c.raddr.port in ports
+               for c in query(kind="tcp"))
+
+
 def native_case(cluster: Cluster, name: str, *, pcd=True, seconds=90, points=40000,
-                tcp=27616, ws=27616, consumer_port=27616, kill_live=False, pause=False) -> dict:
+                tcp=27616, ws=27616, consumer_port=27616, kill_live=False, pause=False, shared_json=False) -> dict:
     assert_unreal_slot()
     case = cluster.report / name
     case.mkdir()
@@ -288,6 +300,7 @@ def native_case(cluster: Cluster, name: str, *, pcd=True, seconds=90, points=400
                DTDEVICE_ARTEMIS_WS_URL=f"ws://127.0.0.1:{ws}",
                DTDEVICE_ARTEMIS_USER=cluster.env["ARTEMIS_USER"], DTDEVICE_ARTEMIS_PASSCODE=cluster.env["ARTEMIS_PASSWORD"],
                DTDEVICE_ARTEMIS_SECONDS=str(seconds), DTDEVICE_ARTEMIS_POINTS=str(points), DTDEVICE_ARTEMIS_PCD="1" if pcd else "0")
+    env["DTDEVICE_ARTEMIS_JSON_MODE"] = "Default" if shared_json else "sensor"
     editor = Path("C:/Program Files/Epic Games/UE_5.3/Engine/Binaries/Win64/UnrealEditor-Cmd.exe")
     command = [str(editor), str(PROJECT / "ma0t10_dt.uproject"), "/Engine/Maps/Entry", "-NullRHI", "-unattended",
                "-nosound", "-nosplash", "-nop4", "-RenderOffscreen", f"-UserDir={case / 'user'}",
@@ -296,12 +309,18 @@ def native_case(cluster: Cluster, name: str, *, pcd=True, seconds=90, points=400
     started = time.monotonic()
     killed = False
     snapshots = []
+    socket_samples = []
     disk_samples = []
     with (case / "console.log").open("wb") as log:
         process = subprocess.Popen(command, cwd=PROJECT, env=env, stdout=log, stderr=subprocess.STDOUT,
                                    stdin=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW)
         try:
             while process.poll() is None:
+                try:
+                    count = process_broker_connections(psutil.Process(process.pid), (tcp, ws))
+                    socket_samples.append({"time": time.time(), "pid": process.pid, "broker_established": count})
+                except (psutil.AccessDenied, psutil.NoSuchProcess):
+                    socket_samples.append({"time": time.time(), "pid": process.pid, "broker_established": None})
                 if time.monotonic() - started > seconds + 150:
                     process.terminate()
                     raise TimeoutError("owned broker probe deadline")
@@ -324,7 +343,7 @@ def native_case(cluster: Cluster, name: str, *, pcd=True, seconds=90, points=400
     tests = json.loads(tests_path.read_text(encoding="utf-8-sig"))["tests"] if tests_path.exists() else []
     result = {"name": name, "exit": process.returncode, "scope": "NullRHI real channels / synthetic PCD / not performance gate",
               "sender": summary, "consumer": consumer.result, "forced_live_kill": killed,
-              "snapshots": snapshots, "disk": cluster.disk(), "disk_samples_while_running": disk_samples,
+              "snapshots": snapshots, "process_socket_samples": socket_samples, "disk": cluster.disk(), "disk_samples_while_running": disk_samples,
               "pass": process.returncode == 0 and len(tests) == 1 and tests[0]["state"] == "Success" and consumer.result["invalid"] == 0}
     result["pass"] &= 19.8 <= summary["scheduled_hz"] <= 20.2
     if pcd and not pause:

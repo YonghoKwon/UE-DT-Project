@@ -30,7 +30,29 @@ def loss_verdict(result: dict, log: str) -> dict:
             "loss_scope": "known local rejection/terminal failure, not consumer ACK"}
 
 
-def run(report: Path) -> None:
+def shared_verdict(result: dict) -> dict:
+    sender = result["sender"]
+    connected = {row["name"] for row in sender["channels"] if row["state"] == 2}
+    checks = {"existing_delivery_checks": bool(result["pass"]),
+              "shared_mode": sender.get("json_mode") == "Default",
+              "two_product_connections": connected == {"Default", "sensor-bulk"},
+              "sensor_registered_idle": any(row["name"] == "sensor" and row["state"] == 0 for row in sender["channels"]),
+              "shared_json_accepted": sender.get("json_accepted", 0) > 0,
+              "external_json_received": result["consumer"]["json_messages"] > 0}
+    totals = [sum(row["connections"] for row in snap["nodes"].values()
+                  if row.get("active") and isinstance(row.get("connections"), (int, float)))
+              for snap in result["snapshots"]]
+    checks["broker_observed_connections"] = bool(totals) and max(totals) >= 3
+    process_counts = [row["broker_established"] for row in result.get("process_socket_samples", [])
+                      if isinstance(row.get("broker_established"), int)]
+    checks["two_physical_process_connections"] = bool(process_counts) and max(process_counts) == 2
+    return {"pass": all(checks.values()), "checks": checks, "connected_product_channels": sorted(connected),
+            "broker_connection_samples": totals,
+            "process_broker_connection_samples": process_counts,
+            "broker_count_scope": "includes cluster/replication links, one external consumer and transient HAProxy health checks"}
+
+
+def run(report: Path, mode: str = "loss") -> None:
     report = report.resolve()
     report.relative_to((PROJECT / "Saved/Reports").resolve())
     report.mkdir(parents=True, exist_ok=False)
@@ -42,6 +64,13 @@ def run(report: Path) -> None:
         cluster.call(["config", "--quiet"])
         cluster.call(["up", "-d"], timeout=600)
         cluster.wait_ready()
+        if mode == "shared":
+            result = native_case(cluster, "default-json", seconds=30, shared_json=True)
+            outcome = shared_verdict(result)
+            dump(report / "shared-verdict.json", outcome)
+            if not outcome["pass"]:
+                raise RuntimeError("STRUCTURE-12 shared connection check failed; see sanitized report")
+            return
         # Both channels use pair A; pair B remains available for cluster quorum.
         config = haproxy_config(cluster.env["ARTEMIS_USER"], cluster.env["ARTEMIS_PASSWORD"])
         config = config.replace("server live-b live-b:61616 check", "server live-b live-b:61616 disabled check")
@@ -63,4 +92,6 @@ def run(report: Path) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--report", required=True, type=Path)
-    run(parser.parse_args().report)
+    parser.add_argument("--mode", choices=("loss", "shared"), default="loss")
+    args = parser.parse_args()
+    run(args.report, args.mode)

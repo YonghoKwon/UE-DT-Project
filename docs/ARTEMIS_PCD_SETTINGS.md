@@ -178,3 +178,18 @@ CameraTopic/LidarTopic/ExportTopic/AckTopic을 각각 새 별칭으로 옮긴다
 Game.ini의 공통 목록은 낮은 우선순위 목록을 대체한다. 플랫폼 목록은 기존처럼 지정한 채널 행만 덮어쓰며 나머지를 유지한다. 같은 채널 이름의 마지막 행이 앞 행을 대체한다. 전체 목록 초기화가 필요하면 `!DataChannels=ClearArray` 또는 `!Channels=ClearArray`를 명시한다. `Game.ini`가 없으면 기존 DefaultGame.ini→플랫폼 동작과 동일하다. URL 문자열은 ini에서 `WebSocketUrl="ws://127.0.0.1:61616"`처럼 인용한다.
 
 Windows 현장 권장 배치는 `Windows/ma0t10_dt/Config/Game.ini`다. 기존 DefaultGame.ini·Windows/WindowsGame.ini 배치도 계속 지원한다. 기존 채널/토픽 예제의 섹션을 Game.ini에 그대로 둘 수 있다. URL/키 이름만 설정하며 비밀번호·토큰은 ini에 저장하지 않고 기존 Override/session 전달만 사용한다. Linux는 같은 경로 규칙을 사용하며 실제 패키지 검증 여부는 실행 보고서를 확인한다.
+
+## JSON을 Default로 공유하는 선택 (STRUCTURE-12D)
+
+기본 전송 모드는 바꾸지 않는다. 기존 `EVirtualSensorTransportMode::DTCoreWebSocket`을 선택하면 저빈도 JSON은 Default, 20Hz PCD는 sensor-bulk로 보낸다. 이 모드의 준비/재연결 요청은 sensor 채널을 획득하지 않으며 Default의 재연결·재구독 정책을 DTCore에 맡긴다. 기존 StompWebSocket 모드는 sensor를 계속 사용한다.
+
+공유 구성을 선택할 때 sensor 연결을 자동으로 열지 않도록 다음 행을 명시한다(기존 채널 목록의 같은 이름 행을 수정한다).
+
+```ini
+[/Script/DTCore.DTCoreSettings]
++DataChannels=(ChannelName="sensor",ChannelClass="/Script/DeviceRuntime.DxDeviceSensorStompChannel",bAutoConnect=False,bUseDefaultCredentials=False)
+```
+
+장비 전송 방식은 DTCoreWebSocket, Default 주소와 sensor-bulk 주소는 기존 연결 설정을 사용한다. sensor에 별도 자동 연결/구독 작업을 설정하지 않은 이 조합에서는 실제 제품 연결은 **Default + sensor-bulk = 2개**다. 등록된 상태 목록에는 연결을 열지 않은 sensor도 남는다. 독립 sensor 연결이 필요한 수동/기존 STOMP 업무와 혼용하면 2개를 보장하지 않는다. 공통 연결에 binary PCD를 Base64로 넣거나 전용 worker를 없애지 않는다.
+
+설정·모드 변경 후 재시작하고 상태 목록의 Default/sensor-bulk 연결과 sensor 미연결을 확인한다. 인증값은 ini에 직접 넣지 않는다. Docker 기능 검수는 Tools/ArtemisClusterTest의 shared 모드를 사용하며, 외부 소비자/HAProxy health check 연결을 제품의 두 연결과 구분해 보고한다.
