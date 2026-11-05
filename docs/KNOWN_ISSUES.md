@@ -8,7 +8,7 @@
 - 승인된 해치3시간 재측정: 30~180분 **+9.78 MiB/h**. 기준≤8 MiB/h를 넘었으므로 두 원본은 **FAIL**입니다.
 - 약2시간 시점에 LLM Untracked 약 **+12MiB 계단**이 관측됐습니다. 시점/크기는 실행마다 같다고 확인되지 않았고, 실제 할당 호출자·증가 원인·현재 반복 여부는 **미확인**입니다. 새 채널 객체나 실제 누수로 확정하지 않습니다.
 - 사용자는 재측정 없이 다음 단계 진행을 결정했습니다. 해결이나 PASS 전환이 아니며, 재확인은 별도 예정입니다. 과거 r37/r50 통과값을 현재 실패 대신 쓰지 않습니다.
-- r55 원본: `Saved/Reports/DATA-IF-10/r55/RESULT.md`, `memory-summary.json`, `hatch-step-analysis*.json`. r55f 최종 회귀: `Saved/Reports/DATA-IF-10/r55f/RESULT.md`(원본 worktree wt_dataif). 원시 이력은 [VALIDATION_HISTORY](VALIDATION_HISTORY.md)에 보존합니다.
+- r55 원본: `Saved/Reports/DATA-IF-10/r55/RESULT.md`, `memory-summary.json`, `hatch-step-analysis*.json`. r55f 최종 회귀: `Saved/Reports/DATA-IF-10/r55f/RESULT.md`(측정 원본 사본: `C:\Unreal Projects\_evidence\wt_dataif`). 원시 이력은 [VALIDATION_HISTORY](VALIDATION_HISTORY.md)에 보존합니다.
 
 ## 2. 장애 전환 시 PCD 유실 허용·표시 기능 예정
 
@@ -19,6 +19,8 @@
 ## 3. DTCore 다른 섹션의 loose 적용은 범위 밖
 
 DTDevice는 패키지의 두 물리 Game ini에서 **허용된 연결 속성과 장치 토픽 목록만** 읽습니다. DTCore의 API·로그·DataTable·다른 섹션 전체를 loose로 재적용하는 기능은 이번 범위 밖입니다. 직접 인증값도 가져오지 않습니다. 전역 GConfig를 복사/변경/저장하지 않으며 DTCore 소스 수정으로 확대하지 않습니다.
+
+운영에서 쓰는 API·WebSocket 주소 등 DTCore 값은 DTCore의 `TryReadRuntimeOverride`가 패키지 폴더의 설정 파일을 직접 읽으므로 현장 수정이 반영된다(사용자 운영 확인, 2026-11-05). 이 경로가 읽는 파일과 채널·토픽 설정이 읽는 파일이 달라 통일을 구조 개선 단계에서 검토한다.
 
 ## 4. 수용·도구 경계
 
